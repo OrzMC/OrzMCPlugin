@@ -37,7 +37,7 @@ dependencies {
     // WebSocket Client For NapCat QQBot
     implementation("org.java-websocket:Java-WebSocket:1.5.7")
     // Java Discord API
-    implementation("net.dv8tion:JDA:5.1.0") {
+    implementation("net.dv8tion:JDA:6.2.1") {
         exclude(module = "opus-java")
         exclude(module = "jackson-databind")
         exclude(module = "jackson-core")
