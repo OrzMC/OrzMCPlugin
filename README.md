@@ -216,8 +216,7 @@ content:
 ---
 
 ## 开发
-
-本插件构建支持 maven 或 gradle，具体使用什么方式构建可以根据自己的喜好进行选择
+本插件仅支持 Gradle 构建方式
 
 支持命令行方式构建，也支持使用IDE开发，推荐使用
 **[IntelliJ IDEA Community Edition](https://www.jetbrains.com/idea/download)** +
@@ -228,16 +227,16 @@ content:
 
 ### 使用 Gradle 构建
 
-命令行构建，需安装 gradle 工具链： `brew install gradle`，执行以下命令进行打包：
+使用 Gradle Wrapper 进行命令行构建，执行以下命令进行打包：
 
 ```bash
-$ gradle clean build
+$ ./gradlew clean build
 ```
 
 命令行本地运行调试服务器(自动下载服务端并启动，需要同意EULA协议)：
 
 ```bash
-$ gradle runServer
+$ ./gradlew runServer
 ```
 
 使用 IntelliJ IDEA CE(社区免费版) 构建和运行插件，可以打断点调试，参考文档
@@ -246,17 +245,7 @@ $ gradle runServer
 
 ![gradle build](./images/gradle_build_guide.png)
 
-### 使用 maven 构建(已废弃)
-
-命令行构建，需安装 maven 工具链: `brew install maven`，执行以下命令进行打包：
-
-```bash
-$ mvn clean package
-```
-
-使用 IntelliJ IDEA CE(社区免费版) 构建：
-
-![maven build](./images/maven_build_guide.png)
+ 
 
 ## 相关链接
 
