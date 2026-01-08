@@ -39,8 +39,6 @@ dependencies {
     // Java Discord API
     implementation("net.dv8tion:JDA:6.2.1") {
         exclude(module = "opus-java")
-        exclude(module = "jackson-databind")
-        exclude(module = "jackson-core")
         exclude(module = "tink")
     }
 }
@@ -116,6 +114,7 @@ tasks {
         // This is the only required configuration besides applying the plugin.
         // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion(debugServerVesion)
+        args("--nojline", "--nogui")
     }
     // Mojang mappings: https://docs.papermc.io/paper/dev/project-setup/#mojang-mappings
     jar {

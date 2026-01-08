@@ -2,11 +2,11 @@ package com.jokerhub.paper.plugin.orzmc.utils.bot;
 
 import com.google.gson.Gson;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.utils.AsyncHttp;
+import com.jokerhub.paper.plugin.orzmc.utils.HealthRegistry;
+import com.jokerhub.paper.plugin.orzmc.utils.ThrottledLogger;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.HashMap;
 
 public class OrzLarkBot extends OrzBaseBot {
@@ -34,10 +34,12 @@ public class OrzLarkBot extends OrzBaseBot {
             OrzMC.debugInfo("Lark Bot Disabled!");
             return;
         }
+        HealthRegistry.setEnabled("lark", true);
         try {
             String larkBotWebhookUrl = botConfig.getString("lark_bot_webhook");
             asyncHttpRequest(larkBotWebhookUrl, msg);
         } catch (Exception e) {
+            HealthRegistry.setLastError("lark", e.toString());
             OrzMC.logger().info(e.toString());
         }
     }
@@ -55,14 +57,17 @@ public class OrzLarkBot extends OrzBaseBot {
         params.put("content", content);
         String postBodyJsonString = new Gson().toJson(params);
 
-        try (HttpClient client = HttpClient.newHttpClient()) {
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(postBodyJsonString)).build();
-            client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenAcceptAsync(response -> OrzMC.debugInfo("Response : " + response.toString())).exceptionally(e -> {
-                OrzMC.logger().severe("Lark机器人无法连接，工作异常: " + e.toString());
-                return null;
-            });
-        } catch (Exception e) {
-            OrzMC.logger().severe(e.toString());
-        }
+        int retries = botConfig.getInt("http_max_retries");
+        long connectSec = botConfig.getLong("http_connect_timeout_seconds");
+        long requestSec = botConfig.getLong("http_request_timeout_seconds");
+        long throttleMs = botConfig.getLong("log_throttle_ms");
+        AsyncHttp.postJson(url, postBodyJsonString, null, Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec), Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec), retries <= 0 ? 3 : retries)
+                .thenAcceptAsync(response -> OrzMC.debugInfo("Response : " + response.toString()))
+                .exceptionally(e -> {
+                    HealthRegistry.setHttpOk("lark", false);
+                    HealthRegistry.setLastError("lark", e.toString());
+                    ThrottledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e, throttleMs <= 0 ? 5000 : throttleMs);
+                    return null;
+                });
     }
 }

@@ -17,15 +17,17 @@ public class RobustWebSocketClient {
     private final int maxRetries;
     private final long baseRetryInterval;
     private final Map<String, String> httpHeaders;
+    private final WebSocketEventListener listener;
     private WebSocketClient client;
     private volatile boolean shouldReconnect = true;
     private int retryCount = 0;
 
-    public RobustWebSocketClient(String url, int maxRetries, long baseRetryInterval, Map<String, String> httpHeaders) throws URISyntaxException {
+    public RobustWebSocketClient(String url, int maxRetries, long baseRetryInterval, Map<String, String> httpHeaders, WebSocketEventListener listener) throws URISyntaxException {
         this.serverUri = new URI(url);
         this.maxRetries = maxRetries;
         this.baseRetryInterval = baseRetryInterval;
         this.httpHeaders = httpHeaders;
+        this.listener = listener;
         this.executor = Executors.newScheduledThreadPool(3);
         createClient();
     }
@@ -36,6 +38,7 @@ public class RobustWebSocketClient {
             public void onOpen(ServerHandshake handshakeData) {
                 OrzMC.logger().info("WebSocket连接建立");
                 retryCount = 0;
+                if (listener != null) listener.onOpen();
             }
 
             @Override
@@ -47,6 +50,7 @@ public class RobustWebSocketClient {
             @Override
             public void onClose(int code, String reason, boolean remote) {
                 OrzMC.logger().info("WebSocket连接关闭: " + reason);
+                if (listener != null) listener.onClose(code, reason, remote);
                 if (shouldReconnect) {
                     scheduleReconnect();
                 }
@@ -55,11 +59,13 @@ public class RobustWebSocketClient {
             @Override
             public void onError(Exception ex) {
                 OrzMC.logger().severe("WebSocket错误: " + ex.getMessage());
+                if (listener != null) listener.onError(ex);
                 if (!isOpen() && shouldReconnect) {
                     scheduleReconnect();
                 }
             }
         };
+        client.setConnectionLostTimeout(30);
     }
 
     public void connect() {

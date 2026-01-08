@@ -28,7 +28,30 @@ discord_player_text_channel_id: '1101910610033250468'
 # Discord玩家服务器链接
 discord_server_link: 'https://discord.gg/bqvQdHnmG9'
 
+# Discord 网络与容错
+discord_auto_disable_on_connect_error: true
+discord_connect_grace_seconds: 10
+discord_proxy_type: 'none'   # 可选: none/HTTP/SOCKS
+discord_proxy_host: ''
+discord_proxy_port: 0
+
 # Lark飞书群机器人开关
 enable_lark_bot: false
 # Lark飞书群机器人webhook地址，插件 -> lark群 单方向发消息
 lark_bot_webhook: 'https://open.feishu.cn/open-apis/bot/v2/hook/9cebe3e2-1d33-4ce9-a838-bf1f1f262ecf'
+
+# ==================================================
+#               机器人相关网络参数配置
+# ==================================================
+
+# HTTP 超时与重试
+http_connect_timeout_seconds: 3
+http_request_timeout_seconds: 3
+http_max_retries: 3
+
+# WebSocket 重试设置
+ws_max_retries: 10
+ws_base_retry_ms: 5000
+
+# 日志限流周期
+log_throttle_ms: 5000

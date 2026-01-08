@@ -4,7 +4,7 @@ version: 1.0.0
 main: com.jokerhub.paper.plugin.orzmc.OrzMC
 description: OrzMC for Paper Server Plugin
 authors: [ wangzhizhou ]
-contributors: [wangzhizhou]
+contributors: [ wangzhizhou ]
 website: https://minecraft.jokerhub.cn
 api-version: 1.21.7
 load: STARTUP
@@ -12,10 +12,13 @@ commands:
   tpbow:
     description: 传送弓，射出的箭落地时会把自己传送到箭落地的位置
     usage: "/tpbow"
-    aliases: [tpb]
+    aliases: [ tpb ]
   guide:
     description: 获取新手教程，更快的熟悉服务器
     usage: "/guide"
   menu:
     description: 菜单展示
     usage: "/menu"
+  botstatus:
+    description: 查看机器人健康状态
+    usage: "/botstatus"

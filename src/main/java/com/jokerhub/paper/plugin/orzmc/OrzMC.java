@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc;
 
+import com.jokerhub.paper.plugin.orzmc.commands.OrzBotStatus;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzMenuCommand;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
@@ -93,7 +94,7 @@ public final class OrzMC extends JavaPlugin implements Listener {
     }
 
     private void setupCommandHandler() {
-        Map<String, CommandExecutor> commandHandlers = Map.of("tpbow", new OrzTPBow(), "guide", new OrzGuideBook(), "menu", new OrzMenuCommand());        // 设置所有命令处理器
+        Map<String, CommandExecutor> commandHandlers = Map.of("tpbow", new OrzTPBow(), "guide", new OrzGuideBook(), "menu", new OrzMenuCommand(), "botstatus", new OrzBotStatus());
         commandHandlers.forEach((key, value) -> {
             PluginCommand cmd = getCommand(key);
             if (cmd != null) {
@@ -104,7 +105,13 @@ public final class OrzMC extends JavaPlugin implements Listener {
 
     private void setupBotManager() {
         botManager = new OrzBotManager(this);
-        botManager.setup();
+        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                botManager.setup();
+            } catch (Exception e) {
+                getLogger().severe("BotManager 初始化失败: " + e.getMessage());
+            }
+        });
     }
 
     private void tearDownBotManager() {

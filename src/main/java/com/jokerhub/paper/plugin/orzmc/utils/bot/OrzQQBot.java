@@ -3,15 +3,11 @@ package com.jokerhub.paper.plugin.orzmc.utils.bot;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
-import com.jokerhub.paper.plugin.orzmc.utils.RobustWebSocketClient;
+import com.jokerhub.paper.plugin.orzmc.utils.*;
 
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +25,7 @@ public class OrzQQBot extends OrzBaseBot {
 
     @Override
     public void setup() {
+        HealthRegistry.setEnabled("qq", this.isEnable());
         this.setupWebSocketClient();
     }
 
@@ -47,6 +44,7 @@ public class OrzQQBot extends OrzBaseBot {
             String url = botConfig.getString("qq_bot_api_server") + "/send_group_msg?group_id=" + groupId + "&message=" + URLEncoder.encode(message, StandardCharsets.UTF_8);
             asyncHttpRequest(url);
         } catch (Exception e) {
+            HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().info(e.toString());
         }
     }
@@ -61,6 +59,7 @@ public class OrzQQBot extends OrzBaseBot {
             String url = botConfig.getString("qq_bot_api_server") + "/send_msg?user_id=" + userId + "&message=" + URLEncoder.encode(message, StandardCharsets.UTF_8);
             asyncHttpRequest(url);
         } catch (Exception e) {
+            HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().info(e.toString());
         }
     }
@@ -93,16 +92,21 @@ public class OrzQQBot extends OrzBaseBot {
     }
 
     private void asyncHttpRequest(String url) {
-        try (HttpClient client = HttpClient.newHttpClient()) {
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder();
-            requestBuilder.uri(URI.create(url));
-            this.httpServerHeaderMap().forEach(requestBuilder::setHeader);
-            HttpRequest request = requestBuilder.build();
-            client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenAcceptAsync(response -> OrzMC.debugInfo("Response Code : " + response.toString())).exceptionally(e -> {
-                OrzMC.logger().severe("QQ机器人无法连接，工作异常: " + e.toString());
-                return null;
-            });
+        try {
+            int retries = botConfig.getInt("http_max_retries");
+            long connectSec = botConfig.getLong("http_connect_timeout_seconds");
+            long requestSec = botConfig.getLong("http_request_timeout_seconds");
+            long throttleMs = botConfig.getLong("log_throttle_ms");
+            AsyncHttp.get(url, this.httpServerHeaderMap(), Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec), Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec), retries <= 0 ? 3 : retries)
+                    .thenAcceptAsync(response -> OrzMC.debugInfo("Response Code : " + response.toString()))
+                    .exceptionally(e -> {
+                        HealthRegistry.setHttpOk("qq", false);
+                        HealthRegistry.setLastError("qq", e.toString());
+                        ThrottledLogger.error("qq-http", "QQ机器人无法连接，工作异常: " + e, throttleMs <= 0 ? 5000 : throttleMs);
+                        return null;
+                    });
         } catch (Exception e) {
+            HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().severe(e.toString());
         }
     }
@@ -131,7 +135,26 @@ public class OrzQQBot extends OrzBaseBot {
             return;
         }
         try {
-            webSocketClient = new RobustWebSocketClient(wsServer, 10, 5000, this.websocketServerHeaderMap()) {
+            int wsRetries = botConfig.getInt("ws_max_retries");
+            long wsBaseMs = botConfig.getLong("ws_base_retry_ms");
+            long throttleMs = botConfig.getLong("log_throttle_ms");
+            webSocketClient = new RobustWebSocketClient(wsServer, wsRetries <= 0 ? 10 : wsRetries, wsBaseMs <= 0 ? 5000 : wsBaseMs, this.websocketServerHeaderMap(), new com.jokerhub.paper.plugin.orzmc.utils.WebSocketEventListener() {
+                @Override
+                public void onOpen() {
+                    HealthRegistry.setWsConnected("qq", true);
+                }
+
+                @Override
+                public void onClose(int code, String reason, boolean remote) {
+                    HealthRegistry.setWsConnected("qq", false);
+                }
+
+                @Override
+                public void onError(Exception ex) {
+                    HealthRegistry.setLastError("qq", ex.toString());
+                    ThrottledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex, throttleMs <= 0 ? 5000 : throttleMs);
+                }
+            }) {
                 @Override
                 public void handleMessage(String message) {
                     processJsonStringPayload(message);
@@ -142,6 +165,7 @@ public class OrzQQBot extends OrzBaseBot {
             // 在这里可以发送消息，例如：webSocketClient.send("Hello, WebSockets!");
 
         } catch (Exception e) {
+            HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().info(e.toString());
         }
     }
