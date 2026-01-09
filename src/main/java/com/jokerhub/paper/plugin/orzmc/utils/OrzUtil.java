@@ -1,8 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
+import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.TextColor;
+import org.bukkit.command.ConsoleCommandSender;
 
 public class OrzUtil {
 
@@ -23,5 +25,17 @@ public class OrzUtil {
 
     public static TextComponent warningText(String content) {
         return textComponent(content).color(TextColor.fromCSSHexString("#FFFF00"));
+    }
+
+    public static void executeConsoleCmd(Runnable task, String... consoleCmds) {
+        ConsoleCommandSender console = OrzMC.server().getConsoleSender();
+        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
+            for (String consoleCmd : consoleCmds) {
+                OrzMC.server().dispatchCommand(console, consoleCmd);
+            }
+            if (task != null) {
+                task.run();
+            }
+        });
     }
 }

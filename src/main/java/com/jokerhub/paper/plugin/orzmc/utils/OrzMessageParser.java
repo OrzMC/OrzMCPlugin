@@ -1,9 +1,14 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
+import com.jokerhub.orzmc.world.Optimizer;
+import com.jokerhub.orzmc.world.ProgressMode;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import net.kyori.adventure.text.Component;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Consumer;
@@ -34,6 +39,10 @@ public class OrzMessageParser {
         // 管理员命令
         else if (cmdString.equals(OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST.getCmdString())) {
             removeWhiteListInfo(isAdmin, userNameSet, callback);
+        }
+        // 管理员命令
+        else if (cmdString.equals(OrzUserCmd.BACKUP.getCmdString())) {
+            backup(isAdmin, callback);
         }
         // 其它命令，展示帮助信息
         else {
@@ -181,5 +190,46 @@ public class OrzMessageParser {
 
     private static Set<String> allWhiteListPlayerName() {
         return allWhiteListPlayer().stream().map(OfflinePlayer::getName).collect(Collectors.toSet());
+    }
+
+    private static void backup(boolean isAdmin, Consumer<String> callback) {
+        if (!isAdmin) {
+            callback.accept(OrzUserCmd.BACKUP.adminPermissionRequiredTip());
+            return;
+        }
+        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
+            callback.accept("开始备份地图");
+            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text("服务器地图备份中，请稍后再尝试登录。")));
+            // TODO: 禁止玩家加入
+            OrzUtil.executeConsoleCmd(() -> {
+                callback.accept("停止服务器自动地图保存");
+            }, "save-off", "save-all");
+            // 异步线程执行地图备份
+            OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
+                File worldContainerDir = OrzMC.server().getWorldContainer();
+                File worldBackupDir = new File(OrzMC.plugin().getDataFolder(), "backup");
+                if (!worldBackupDir.exists()) {
+                    boolean created = worldBackupDir.mkdirs();
+                    if (!created) {
+                        OrzMC.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
+                        OrzUtil.executeConsoleCmd(() -> {
+                            callback.accept("恢复服务器自动地图保存");
+                        }, "save-on");
+                        return;
+                    }
+                }
+                Path input = Path.of(worldContainerDir.getAbsolutePath());
+                callback.accept("地图目录：" + input);
+                Path output = Path.of(worldBackupDir.getAbsolutePath());
+                callback.accept("备份目录：" + output);
+                long tickTimeThreshold = 300L; // 5分钟阈值
+                Optimizer.run(input, output, tickTimeThreshold, false, ProgressMode.Region);
+                // TODO: 备份完成/失败回调
+                // TODO: zip压缩
+                OrzUtil.executeConsoleCmd(() -> {
+                    callback.accept("备份地图完成");
+                }, "save-on");
+            });
+        });
     }
 }

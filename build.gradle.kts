@@ -41,6 +41,8 @@ dependencies {
         exclude(module = "opus-java")
         exclude(module = "tink")
     }
+    // Minecraft World Backup Lib
+    implementation("io.github.wangzhizhou:backup-core:0.0.1")
 }
 
 // 项目编译时插件添加
