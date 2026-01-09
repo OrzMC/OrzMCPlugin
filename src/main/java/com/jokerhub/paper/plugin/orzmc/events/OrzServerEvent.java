@@ -20,8 +20,10 @@ public class OrzServerEvent extends OrzBaseListener {
 
     @EventHandler
     public void onServerLoad(ServerLoadEvent event) {
+        String onlineMode = OrzMC.server().getOnlineMode() ? "正版服" : "离线服";
         String minecraftVersion = OrzMC.server().getMinecraftVersion();
-        StringBuilder stringBuilder = new StringBuilder("Minecraft " + minecraftVersion).append("\n");
+        String[] parts = {"Minecraft", minecraftVersion, onlineMode};
+        StringBuilder stringBuilder = new StringBuilder(String.join(" ", parts)).append("\n");
         stringBuilder.append("------").append("\n");
         switch (event.getType()) {
             case STARTUP -> stringBuilder.append("启动完成");
