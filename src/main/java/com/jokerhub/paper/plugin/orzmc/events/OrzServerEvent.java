@@ -3,8 +3,16 @@ package com.jokerhub.paper.plugin.orzmc.events;
 import com.destroystokyo.paper.event.server.ServerExceptionEvent;
 import com.destroystokyo.paper.exception.ServerException;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzUserCmd;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.server.ServerListPingEvent;
 import org.bukkit.event.server.ServerLoadEvent;
 
 public class OrzServerEvent extends OrzBaseListener {
@@ -32,5 +40,28 @@ public class OrzServerEvent extends OrzBaseListener {
         stringBuilder.append("\n\n");
         stringBuilder.append("发送 \"").append(OrzUserCmd.SHOW_HELP.getCmdString()).append("\" 查看支持的命令消息");
         plugin.sendPublicMessage(stringBuilder.toString());
+    }
+
+    @EventHandler
+    public void onServerListPing(ServerListPingEvent event) {
+        if (OrzMessageParser.isBackupRunning) {
+            String msg = plugin.getConfig().getString("backup_maintenance_motd", "服务器维护中，稍后再试");
+            String discordLink = plugin.configManager.getConfig("bot").getString("discord_server_link");
+            String qqGroupId = plugin.configManager.getConfig("config").getString("qq_player_group_id");
+            TextComponent.Builder motdBuilder = Component.text();
+            motdBuilder.append(Component.text("⚠ 维护中").color(NamedTextColor.RED).decorate(TextDecoration.BOLD));
+            motdBuilder.append(Component.newline());
+            motdBuilder.append(Component.text(msg).color(NamedTextColor.YELLOW));
+            if (qqGroupId != null && !qqGroupId.isEmpty()) {
+                motdBuilder.append(Component.newline());
+                motdBuilder.append(Component.text("QQ群: ").color(NamedTextColor.GRAY)).append(Component.text(qqGroupId).color(NamedTextColor.GOLD));
+            }
+            if (discordLink != null && !discordLink.isEmpty()) {
+                motdBuilder.append(Component.newline());
+                motdBuilder.append(Component.text("Discord: ").color(NamedTextColor.GRAY)).append(Component.text(discordLink).color(NamedTextColor.BLUE).decorate(TextDecoration.UNDERLINED).hoverEvent(HoverEvent.showText(Component.text("点击加入 Discord"))).clickEvent(ClickEvent.openUrl(discordLink)));
+            }
+            Component comp = motdBuilder.build();
+            OrzMC.server().motd(comp);
+        }
     }
 }
