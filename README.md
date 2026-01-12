@@ -193,6 +193,59 @@ content:
       page_break: true
 ```
 
+### 9. 备份与维护增强（管理员）
+
+- 命令 `$b` 触发备份：踢出在线玩家、关闭自动保存、异步备份
+- 备份完成后自动压缩为时间戳 ZIP，并按创建时间保留最近 N 份
+- 备份期间禁止玩家加入，可显示维护 MOTD，结束后恢复白名单状态
+
+```yaml
+# config.yml
+# 地图备份与归档
+backup_retention_count: 10
+# 维护 MOTD 文案（多行与彩色展示）
+backup_maintenance_motd: "服务器维护中，稍后再试"
+```
+
+### 10. 机器人统一网络与健康状态
+
+- 统一异步 HTTP 工具：支持连接/请求超时与指数退避重试
+- 日志限流工具：网络异常等仅每周期输出一次，避免刷屏
+- 健康状态接口与命令：`/botstatus` 查看 QQ/Discord/Lark 状态与最近错误
+
+```yaml
+# bot.yml
+# HTTP 超时与重试
+http_connect_timeout_seconds: 3
+http_request_timeout_seconds: 3
+http_max_retries: 3
+# WebSocket 重试设置
+ws_max_retries: 10
+ws_base_retry_ms: 5000
+# 日志限流周期（毫秒）
+log_throttle_ms: 5000
+```
+
+#### Discord 网络容错与代理
+
+- 支持在中国大陆不可达时自动禁用 Discord 机器人，避免持续重试刷屏
+- 可配置 HTTP 或 SOCKS 代理，修复连接到 gateway.discord.gg 的网络问题
+
+```yaml
+# bot.yml
+# Discord 网络与容错
+discord_auto_disable_on_connect_error: true
+discord_connect_grace_seconds: 10
+discord_proxy_type: 'none'   # 可选: none/HTTP/SOCKS
+discord_proxy_host: ''
+discord_proxy_port: 0
+```
+
+### 11. 维护 MOTD（多行彩色）
+
+- 备份期间在服务器列表展示彩色多行 MOTD（包含 QQ 群与 Discord 文案）
+- 在较新 API 环境优先使用 Adventure 组件；旧 API 自动回退到传统字符串
+
 ---
 
 ## 插件使用
@@ -236,7 +289,7 @@ $ ./gradlew clean build
 命令行本地运行调试服务器(自动下载服务端并启动，需要同意EULA协议)：
 
 ```bash
-$ ./gradlew runServer
+$ ./gradlew runServer  # 已默认添加 --nojline --nogui，避免终端特性告警
 ```
 
 使用 IntelliJ IDEA CE(社区免费版) 构建和运行插件，可以打断点调试，参考文档
