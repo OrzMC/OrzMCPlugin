@@ -43,6 +43,10 @@ public class OrzPlayerEvent extends OrzBaseListener {
 
     @EventHandler
     public void onPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
+        if (OrzMessageParser.isBackupRunning) {
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, Component.text("服务器地图备份中，请稍后再尝试登录。"));
+            return;
+        }
         List<String> allowCountList = allowCountryList();
         if (allowCountList.isEmpty() && event.getLoginResult().equals(AsyncPlayerPreLoginEvent.Result.ALLOWED)) {
             return;
