@@ -201,9 +201,7 @@ public class OrzMessageParser {
             callback.accept("开始备份地图");
             OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text("服务器地图备份中，请稍后再尝试登录。")));
             // TODO: 禁止玩家加入
-            OrzUtil.executeConsoleCmd(() -> {
-                callback.accept("停止服务器自动地图保存");
-            }, "save-off", "save-all");
+            OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存"), "save-off", "save-all");
             // 异步线程执行地图备份
             OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
                 File worldContainerDir = OrzMC.server().getWorldContainer();
@@ -212,23 +210,26 @@ public class OrzMessageParser {
                     boolean created = worldBackupDir.mkdirs();
                     if (!created) {
                         OrzMC.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
-                        OrzUtil.executeConsoleCmd(() -> {
-                            callback.accept("恢复服务器自动地图保存");
-                        }, "save-on");
+                        OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存"), "save-on");
                         return;
                     }
                 }
                 Path input = Path.of(worldContainerDir.getAbsolutePath());
                 callback.accept("地图目录：" + input);
-                Path output = Path.of(worldBackupDir.getAbsolutePath());
+                File worldBackupTempDir = new File(worldBackupDir, "tempDir");
+                Path output = Path.of(worldBackupTempDir.getAbsolutePath());
                 callback.accept("备份目录：" + output);
                 long tickTimeThreshold = 300L; // 5分钟阈值
-                Optimizer.run(input, output, tickTimeThreshold, false, ProgressMode.Region);
-                // TODO: 备份完成/失败回调
-                // TODO: zip压缩
-                OrzUtil.executeConsoleCmd(() -> {
-                    callback.accept("备份地图完成");
-                }, "save-on");
+                Optimizer.run(input, output, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 1000, 0, optimizeError -> {
+                    OrzMC.logger().warning(optimizeError.toString());
+                    return null;
+                }, progressEvent -> {
+                    if (Objects.equals(progressEvent.getCurrent(), progressEvent.getTotal())) {
+                        callback.accept("地图备份完成");
+                    }
+                    return null;
+                });
+                OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存"), "save-on");
             });
         });
     }
