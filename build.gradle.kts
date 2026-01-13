@@ -40,8 +40,6 @@ dependencies {
     implementation("net.dv8tion:JDA:6.2.1") {
         exclude(module = "opus-java")
         exclude(module = "tink")
-        exclude(module = "jackson-databind")
-        exclude(module = "jackson-core")
     }
     // Minecraft World Backup Lib
     implementation("io.github.wangzhizhou:backup-core:0.0.2")
@@ -131,6 +129,7 @@ tasks {
         manifest {
             attributes["paperweight-mappings-namespace"] = "mojang"
         }
+        minimize()
         dependsOn("jar")
         archiveClassifier.set(archiveClassifierSuffix)
     }
