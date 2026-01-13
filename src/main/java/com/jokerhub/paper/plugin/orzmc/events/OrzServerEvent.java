@@ -61,7 +61,7 @@ public class OrzServerEvent extends OrzBaseListener {
                 motdBuilder.append(Component.text("Discord: ").color(NamedTextColor.GRAY)).append(Component.text(discordLink).color(NamedTextColor.BLUE).decorate(TextDecoration.UNDERLINED).hoverEvent(HoverEvent.showText(Component.text("点击加入 Discord"))).clickEvent(ClickEvent.openUrl(discordLink)));
             }
             Component comp = motdBuilder.build();
-            OrzMC.server().motd(comp);
+            event.motd(comp);
         }
     }
 }
