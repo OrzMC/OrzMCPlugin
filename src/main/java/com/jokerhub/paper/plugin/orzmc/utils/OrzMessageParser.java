@@ -230,7 +230,7 @@ public class OrzMessageParser {
                 callback.accept("地图目录：" + input);
                 File worldBackupTempDir = new File(worldBackupDir, "tempDir");
                 Path output = Path.of(worldBackupTempDir.getAbsolutePath());
-                callback.accept("备份目录：" + output);
+                callback.accept("备份目录：" + worldBackupDir);
                 long tickTimeThreshold = 300L; // 5分钟阈值
                 callback.accept("正在备份地图，请稍等......");
                 Optimizer.run(input, output, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100, 1000, optimizeError -> {
