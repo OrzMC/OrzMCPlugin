@@ -133,9 +133,12 @@ public class OrzMessageParser {
                 callback.accept(pageHeader + "\n" + body);
             } else {
                 for (int i = 0; i < total; i++) {
-                    String pageHeader = header + "\n第" + (i + 1) + "/" + total + "页";
-                    String body = chunks.get(i);
-                    callback.accept(pageHeader + "\n" + body);
+                    final int pageIndex = i;
+                    OrzMC.server().getScheduler().runTaskLater(OrzMC.plugin(), () -> {
+                        String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
+                        String body = chunks.get(pageIndex);
+                        callback.accept(pageHeader + "\n" + body);
+                    }, i * 5L);
                 }
             }
         });
