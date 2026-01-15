@@ -33,7 +33,15 @@ public class OrzMessageParser {
         if (cmdString.equals(OrzUserCmd.SHOW_PLAYERS.getCmdString())) {
             onlinePlayersInfo(callback);
         } else if (cmdString.equals(OrzUserCmd.SHOW_WHITELIST.getCmdString())) {
-            whiteListInfo(callback);
+            Integer page = null;
+            if (!cmd.isEmpty()) {
+                String token = cmd.getFirst();
+                try {
+                    page = Integer.parseInt(token);
+                } catch (Exception ignored) {
+                }
+            }
+            whiteListInfo(callback, page);
         } else if (cmdString.equals(OrzUserCmd.SHOW_HELP.getCmdString())) {
             callback.accept(OrzUserCmd.helpInfo());
         }
@@ -96,22 +104,40 @@ public class OrzMessageParser {
         });
     }
 
-    private static void whiteListInfo(Consumer<String> callback) {
+    private static void whiteListInfo(Consumer<String> callback, Integer page) {
         OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
             ArrayList<OfflinePlayer> whiteListPlayers = allWhiteListPlayer();
-            StringBuilder whiteListInfo = new StringBuilder(String.format("------当前白名单玩家(%d)------", whiteListPlayers.size()));
+            String header = String.format("------当前白名单玩家(%d)------", whiteListPlayers.size());
+            ArrayList<String> lines = new ArrayList<>();
             for (OfflinePlayer player : whiteListPlayers) {
                 String playerName = player.getName();
                 String isOnline = player.isOnline() ? "•" : "◦";
-                whiteListInfo.append("\n").append(isOnline).append(" ").append(playerName);
+                StringBuilder line = new StringBuilder().append(isOnline).append(" ").append(playerName);
                 long lastSeenTimestamp = player.getLastSeen();
                 if (lastSeenTimestamp > 0) {
                     String lastSeen = new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastSeenTimestamp));
-                    whiteListInfo.append(" ").append(String.format("%s", lastSeen));
+                    line.append(" ").append(lastSeen);
+                }
+                lines.add(line.toString());
+            }
+            ArrayList<String> chunks = buildChunks(lines);
+            int total = chunks.size();
+            if (total == 0) {
+                callback.accept(header + "\n" + "(暂无白名单玩家)");
+                return;
+            }
+            if (page != null) {
+                int idx = Math.max(1, Math.min(page, total)) - 1;
+                String pageHeader = header + "\n第" + (idx + 1) + "/" + total + "页";
+                String body = chunks.get(idx);
+                callback.accept(pageHeader + "\n" + body);
+            } else {
+                for (int i = 0; i < total; i++) {
+                    String pageHeader = header + "\n第" + (i + 1) + "/" + total + "页";
+                    String body = chunks.get(i);
+                    callback.accept(pageHeader + "\n" + body);
                 }
             }
-            String ret = whiteListInfo.toString();
-            callback.accept(ret);
         });
     }
 
@@ -147,6 +173,25 @@ public class OrzMessageParser {
                 callback.accept(message);
             });
         });
+    }
+
+    private static ArrayList<String> buildChunks(ArrayList<String> lines) {
+        ArrayList<String> chunks = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        for (String line : lines) {
+            if (current.isEmpty()) {
+                current.append(line);
+            } else if (current.length() + 1 + line.length() <= 1800) {
+                current.append("\n").append(line);
+            } else {
+                chunks.add(current.toString());
+                current = new StringBuilder(line);
+            }
+        }
+        if (!current.isEmpty()) {
+            chunks.add(current.toString());
+        }
+        return chunks;
     }
 
     private static void removeWhiteListInfo(boolean isAdmin, Set<String> userNames, Consumer<String> callback) {
