@@ -41,7 +41,7 @@ public class OrzMessageParser {
                 } catch (Exception ignored) {
                 }
             }
-            whiteListInfo(callback, page);
+            whiteListInfo(callback, page, isAdmin);
         } else if (cmdString.equals(OrzUserCmd.SHOW_HELP.getCmdString())) {
             callback.accept(OrzUserCmd.helpInfo());
         }
@@ -104,7 +104,7 @@ public class OrzMessageParser {
         });
     }
 
-    private static void whiteListInfo(Consumer<String> callback, Integer page) {
+    private static void whiteListInfo(Consumer<String> callback, Integer page, boolean isAdmin) {
         OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
             ArrayList<OfflinePlayer> whiteListPlayers = allWhiteListPlayer();
             String header = String.format("------当前白名单玩家(%d)------", whiteListPlayers.size());
@@ -120,25 +120,93 @@ public class OrzMessageParser {
                 }
                 lines.add(line.toString());
             }
-            ArrayList<String> chunks = buildChunks(lines);
-            int total = chunks.size();
-            if (total == 0) {
-                callback.accept(header + "\n" + "(暂无白名单玩家)");
-                return;
+            org.bukkit.configuration.file.FileConfiguration cfg = OrzMC.plugin().configManager.getConfig("config");
+            int delayTicks = cfg.getInt("whitelist_pagination_delay_ticks", 5);
+            int inactiveDays = cfg.getInt("whitelist_cleanup_inactive_days", 90);
+            ArrayList<OfflinePlayer> toRemove = new ArrayList<>();
+            if (isAdmin) {
+                long now = System.currentTimeMillis();
+                long threshold = now - inactiveDays * 24L * 60L * 60L * 1000L;
+                for (OfflinePlayer p : whiteListPlayers) {
+                    long lastSeen = p.getLastSeen();
+                    if (lastSeen <= 0 || lastSeen < threshold) {
+                        toRemove.add(p);
+                    }
+                }
             }
-            if (page != null) {
-                int idx = Math.max(1, Math.min(page, total)) - 1;
-                String pageHeader = header + "\n第" + (idx + 1) + "/" + total + "页";
-                String body = chunks.get(idx);
-                callback.accept(pageHeader + "\n" + body);
+            if (!toRemove.isEmpty()) {
+                OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
+                    for (OfflinePlayer p : toRemove) {
+                        if (p.isWhitelisted()) {
+                            p.setWhitelisted(false);
+                            Player onlinePlayer = OrzMC.server().getPlayer(p.getUniqueId());
+                            if (onlinePlayer != null) {
+                                onlinePlayer.kick();
+                            }
+                        }
+                    }
+                    OrzMC.server().reloadWhitelist();
+                    OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
+                        ArrayList<OfflinePlayer> updated = allWhiteListPlayer();
+                        String updatedHeader = String.format("------当前白名单玩家(%d)------", updated.size());
+                        ArrayList<String> updatedLines = new ArrayList<>();
+                        for (OfflinePlayer player : updated) {
+                            String playerName = player.getName();
+                            String isOnline2 = player.isOnline() ? "•" : "◦";
+                            StringBuilder line2 = new StringBuilder().append(isOnline2).append(" ").append(playerName);
+                            long lastSeen2 = player.getLastSeen();
+                            if (lastSeen2 > 0) {
+                                String lastSeenStr = new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastSeen2));
+                                line2.append(" ").append(lastSeenStr);
+                            }
+                            updatedLines.add(line2.toString());
+                        }
+                        ArrayList<String> chunks2 = buildChunks(updatedLines);
+                        int total2 = chunks2.size();
+                        String removedMsg = "------白名单清理------\n" + String.join("\n", toRemove.stream().map(p -> "✔︎ " + (p.getName() == null ? "(unknown)" : p.getName())).collect(Collectors.toSet()));
+                        callback.accept(removedMsg);
+                        if (total2 == 0) {
+                            callback.accept(updatedHeader + "\n" + "(暂无白名单玩家)");
+                            return;
+                        }
+                        if (page != null) {
+                            int idx = Math.max(1, Math.min(page, total2)) - 1;
+                            String pageHeader = updatedHeader + "\n第" + (idx + 1) + "/" + total2 + "页";
+                            String body = chunks2.get(idx);
+                            callback.accept(pageHeader + "\n" + body);
+                        } else {
+                            for (int i = 0; i < total2; i++) {
+                                final int pageIndex = i;
+                                OrzMC.server().getScheduler().runTaskLater(OrzMC.plugin(), () -> {
+                                    String pageHeader = updatedHeader + "\n第" + (pageIndex + 1) + "/" + total2 + "页";
+                                    String body = chunks2.get(pageIndex);
+                                    callback.accept(pageHeader + "\n" + body);
+                                }, i * (delayTicks <= 0 ? 5L : delayTicks));
+                            }
+                        }
+                    });
+                });
             } else {
-                for (int i = 0; i < total; i++) {
-                    final int pageIndex = i;
-                    OrzMC.server().getScheduler().runTaskLater(OrzMC.plugin(), () -> {
-                        String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
-                        String body = chunks.get(pageIndex);
-                        callback.accept(pageHeader + "\n" + body);
-                    }, i * 5L);
+                ArrayList<String> chunks = buildChunks(lines);
+                int total = chunks.size();
+                if (total == 0) {
+                    callback.accept(header + "\n" + "(暂无白名单玩家)");
+                    return;
+                }
+                if (page != null) {
+                    int idx = Math.max(1, Math.min(page, total)) - 1;
+                    String pageHeader = header + "\n第" + (idx + 1) + "/" + total + "页";
+                    String body = chunks.get(idx);
+                    callback.accept(pageHeader + "\n" + body);
+                } else {
+                    for (int i = 0; i < total; i++) {
+                        final int pageIndex = i;
+                        OrzMC.server().getScheduler().runTaskLater(OrzMC.plugin(), () -> {
+                            String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
+                            String body = chunks.get(pageIndex);
+                            callback.accept(pageHeader + "\n" + body);
+                        }, i * (delayTicks <= 0 ? 5L : delayTicks));
+                    }
                 }
             }
         });

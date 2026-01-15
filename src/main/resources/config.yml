@@ -24,3 +24,9 @@ qq_player_group_id: ''
 # ==================================================
 backup_retention_count: 5
 backup_maintenance_motd: "服务器维护中，稍后再试"
+
+# ==================================================
+#           白名单分页与自动清理配置
+# ==================================================
+whitelist_cleanup_inactive_days: 90
+whitelist_pagination_delay_ticks: 5
