@@ -2,6 +2,9 @@ package com.jokerhub.paper.plugin.orzmc.utils;
 
 import com.jokerhub.orzmc.world.Optimizer;
 import com.jokerhub.orzmc.world.ProgressMode;
+import com.jokerhub.orzmc.world.ProgressEvent;
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
 import com.jokerhub.orzmc.world.ProgressStage;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import net.kyori.adventure.text.Component;
@@ -317,65 +320,91 @@ public class OrzMessageParser {
         return allWhiteListPlayer().stream().map(OfflinePlayer::getName).collect(Collectors.toSet());
     }
 
-    private static void backup(boolean isAdmin, Consumer<String> callback) {
-        if (!isAdmin) {
-            callback.accept(OrzUserCmd.BACKUP.adminPermissionRequiredTip());
-            return;
+    private enum MaintenanceJob {
+        BACKUP("备份"),
+        OPTIMIZE("优化");
+        private final String label;
+        MaintenanceJob(String label) { this.label = label; }
+        public String label() { return label; }
+    }
+
+    private static Function1<ProgressEvent, Unit> progressHandler(String label, Consumer<String> callback) {
+        return progressEvent -> {
+            Long current = progressEvent.getCurrent();
+            Long total = progressEvent.getTotal();
+            if (current == null || total == null || current <= 0 || total <= 0) {
+                return Unit.INSTANCE;
+            }
+            int percent = (int) Math.ceil(current * 100.0 / total);
+            OrzMC.logger().info("地图" + label + "进度：" + percent + "%");
+            if (progressEvent.getStage() == ProgressStage.Done && Objects.equals(current, total)) {
+                callback.accept("地图" + label + "完成");
+            }
+            return Unit.INSTANCE;
+        };
+    }
+
+    private static Function1<Object, Unit> errorHandler(String label, Consumer<String> callback) {
+        return obj -> {
+            OrzMC.logger().warning(String.valueOf(obj));
+            callback.accept("地图" + label + "失败");
+            return Unit.INSTANCE;
+        };
+    }
+
+    private static void runOptimizerJob(MaintenanceJob job, Path input, Path outputOrNull, Consumer<String> callback) {
+        long tickTimeThreshold = 300L;
+        callback.accept("正在" + job.label() + "地图，请稍等......");
+        if (job == MaintenanceJob.BACKUP) {
+            Optimizer.run(input, outputOrNull, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100, 1000, errorHandler(job.label(), callback), progressHandler(job.label(), callback));
+        } else {
+            Optimizer.run(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100, 1000, errorHandler(job.label(), callback), progressHandler(job.label(), callback));
         }
-        // 防止触发多次耗时操作
+    }
+
+    private static void runExclusiveMaintenance(Consumer<String> callback, String kickText, Runnable asyncWork) {
         if (isBackupRunning) {
             callback.accept("正在备份/优化中，请稍候...");
             return;
         }
         OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
-            // 设置备份全局标记，防止新玩家进服
             isBackupRunning = true;
-            // 踢掉当前在线玩家
-            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text("服务器地图备份中，请稍后再尝试登录。")));
-            // 停止服务器地图自动保存功能，防止地图文件在备份过程中改变
+            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text(kickText)));
             OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存功能"), "save-off", "save-all");
-            // 异步线程执行地图备份
             OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
-                File worldContainerDir = OrzMC.server().getWorldContainer();
-                File worldBackupDir = new File(OrzMC.plugin().getDataFolder(), "backup");
-                if (!worldBackupDir.exists()) {
-                    boolean created = worldBackupDir.mkdirs();
-                    if (!created) {
-                        OrzMC.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
-                        OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存功能"), "save-on");
-                        return;
-                    }
+                try {
+                    asyncWork.run();
+                } finally {
+                    OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存功能"), "save-on");
+                    isBackupRunning = false;
                 }
-                Path input = Path.of(worldContainerDir.getAbsolutePath());
-                callback.accept("地图目录：" + input);
-                File worldBackupTempDir = new File(worldBackupDir, "tempDir");
-                Path output = Path.of(worldBackupTempDir.getAbsolutePath());
-                callback.accept("备份目录：" + worldBackupDir);
-                long tickTimeThreshold = 300L; // 5分钟阈值
-                callback.accept("正在备份地图，请稍等......");
-                Optimizer.run(input, output, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100, 1000, optimizeError -> {
-                    OrzMC.logger().warning(optimizeError.toString());
-                    callback.accept("地图备份失败");
-                    return null;
-                }, progressEvent -> {
-                    Long current = progressEvent.getCurrent();
-                    Long total = progressEvent.getTotal();
-                    if (current == null || total == null || current <= 0 || total <= 0) {
-                        return null;
-                    }
-                    int percent = (int) Math.ceil(progressEvent.getCurrent() * 100.0 / progressEvent.getTotal());
-                    OrzMC.logger().info("地图备份进度：" + percent + "%");
-                    if (progressEvent.getStage() == ProgressStage.Done && Objects.equals(progressEvent.getCurrent(), progressEvent.getTotal())) {
-                        callback.accept("地图备份完成");
-                    }
-                    return null;
-                });
-                // 删除过老的地图备份
-                pruneOldZips(worldBackupDir);
-                OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存功能"), "save-on");
-                // 备份完成后，恢复服务器，允许玩家进服
-                isBackupRunning = false;
             });
+        });
+    }
+
+    private static void backup(boolean isAdmin, Consumer<String> callback) {
+        if (!isAdmin) {
+            callback.accept(OrzUserCmd.BACKUP.adminPermissionRequiredTip());
+            return;
+        }
+        runExclusiveMaintenance(callback, "服务器地图备份中，请稍后再尝试登录。", () -> {
+            File worldContainerDir = OrzMC.server().getWorldContainer();
+            File worldBackupDir = new File(OrzMC.plugin().getDataFolder(), "backup");
+            if (!worldBackupDir.exists()) {
+                boolean created = worldBackupDir.mkdirs();
+                if (!created) {
+                    OrzMC.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
+                    callback.accept("地图备份失败");
+                    return;
+                }
+            }
+            Path input = Path.of(worldContainerDir.getAbsolutePath());
+            callback.accept("地图目录：" + input);
+            File worldBackupTempDir = new File(worldBackupDir, "tempDir");
+            Path output = Path.of(worldBackupTempDir.getAbsolutePath());
+            callback.accept("备份目录：" + worldBackupDir);
+            runOptimizerJob(MaintenanceJob.BACKUP, input, output, callback);
+            pruneOldZips(worldBackupDir);
         });
     }
 
@@ -410,45 +439,10 @@ public class OrzMessageParser {
             callback.accept(OrzUserCmd.OPTIMIZE_WORLD.adminPermissionRequiredTip());
             return;
         }
-        // 防止触发多次耗时操作
-        if (isBackupRunning) {
-            callback.accept("正在备份/优化中，请稍候...");
-            return;
-        }
-        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
-            // 设置备份全局标记，防止新玩家进服
-            isBackupRunning = true;
-            // 踢掉当前在线玩家
-            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text("服务器地图优化中，请稍后再尝试登录。")));
-            // 停止服务器地图自动保存功能，防止地图文件在备份过程中改变
-            OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存功能"), "save-off", "save-all");
-            // 异步线程执行地图备份
-            OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
-                File worldContainerDir = OrzMC.server().getWorldContainer();
-                Path input = Path.of(worldContainerDir.getAbsolutePath());
-                long tickTimeThreshold = 300L; // 5分钟阈值
-                callback.accept("正在优化地图，请稍等......");
-                Optimizer.run(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100, 1000, optimizeError -> {
-                    OrzMC.logger().warning(optimizeError.toString());
-                    callback.accept("地图优化失败");
-                    return null;
-                }, progressEvent -> {
-                    Long current = progressEvent.getCurrent();
-                    Long total = progressEvent.getTotal();
-                    if (current == null || total == null || current <= 0 || total <= 0) {
-                        return null;
-                    }
-                    int percent = (int) Math.ceil(progressEvent.getCurrent() * 100.0 / progressEvent.getTotal());
-                    OrzMC.logger().info("地图优化进度：" + percent + "%");
-                    if (progressEvent.getStage() == ProgressStage.Done && Objects.equals(progressEvent.getCurrent(), progressEvent.getTotal())) {
-                        callback.accept("地图优化完成");
-                    }
-                    return null;
-                });
-                OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存功能"), "save-on");
-                // 优化完成后，恢复服务器，允许玩家进服
-                isBackupRunning = false;
-            });
+        runExclusiveMaintenance(callback, "服务器地图优化中，请稍后再尝试登录。", () -> {
+            File worldContainerDir = OrzMC.server().getWorldContainer();
+            Path input = Path.of(worldContainerDir.getAbsolutePath());
+            runOptimizerJob(MaintenanceJob.OPTIMIZE, input, null, callback);
         });
     }
 }
