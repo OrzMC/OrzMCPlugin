@@ -5,6 +5,7 @@ import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzMenuCommand;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
 import com.jokerhub.paper.plugin.orzmc.events.*;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import com.jokerhub.paper.plugin.orzmc.utils.bot.OrzBotManager;
 import com.jokerhub.paper.plugin.orzmc.utils.config.AdvancedConfigManager;
 import org.bukkit.GameMode;
@@ -35,6 +36,13 @@ public final class OrzMC extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         getLogger().info("OrzMC 插件失效!");
+        boolean optimizeOnShutdown = false;
+        try {
+            optimizeOnShutdown = configManager.getConfig("config").getBoolean("optimize_on_shutdown");
+        } catch (Exception ignored) { }
+        if (optimizeOnShutdown) {
+            OrzMessageParser.optimizeWorld(true, msg -> getLogger().info(msg));
+        }
         tearDownBotManager();
         tearDownConfigManager();
         notifyServerStop();
