@@ -42,7 +42,7 @@ dependencies {
         exclude(module = "tink")
     }
     // Minecraft World Backup Lib
-    implementation("io.github.wangzhizhou:backup-core:0.0.2")
+    implementation("io.github.wangzhizhou:backup-core:0.0.4")
 }
 
 // 项目编译时插件添加
