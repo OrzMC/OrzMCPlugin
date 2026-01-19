@@ -1,4 +1,5 @@
 import org.gradle.kotlin.dsl.support.serviceOf
+import org.gradle.jvm.toolchain.JavaToolchainService
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
@@ -117,6 +118,10 @@ tasks {
         // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion(debugServerVesion)
         args("--nojline", "--nogui")
+        val java21 = serviceOf<JavaToolchainService>().launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
+        javaLauncher.set(java21)
     }
     // Mojang mappings: https://docs.papermc.io/paper/dev/project-setup/#mojang-mappings
     jar {
