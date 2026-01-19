@@ -445,4 +445,10 @@ public class OrzMessageParser {
             runOptimizerJob(MaintenanceJob.OPTIMIZE, input, null, callback);
         });
     }
+
+    public static void optimizeWorldOnShutdown(Consumer<String> callback) {
+        File worldContainerDir = OrzMC.server().getWorldContainer();
+        Path input = Path.of(worldContainerDir.getAbsolutePath());
+        runOptimizerJob(MaintenanceJob.OPTIMIZE, input, null, callback);
+    }
 }
