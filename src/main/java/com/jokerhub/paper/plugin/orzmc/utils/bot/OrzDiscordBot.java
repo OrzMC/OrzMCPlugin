@@ -139,8 +139,17 @@ public class OrzDiscordBot extends OrzBaseBot {
 
     @Override
     public void teardown() {
-        if (this.isEnable()) {
-            api.shutdown();
+        try {
+            isApiReady = false;
+            if (api != null) {
+                api.shutdown();
+                try {
+                    api.awaitShutdown();
+                } catch (Exception ignored) { }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            api = null;
         }
     }
 

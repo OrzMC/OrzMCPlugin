@@ -41,7 +41,7 @@ public final class OrzMC extends JavaPlugin implements Listener {
             optimizeOnShutdown = configManager.getConfig("config").getBoolean("optimize_on_shutdown");
         } catch (Exception ignored) { }
         if (optimizeOnShutdown) {
-            OrzMessageParser.optimizeWorld(true, msg -> getLogger().info(msg));
+            OrzMessageParser.optimizeWorldOnShutdown(msg -> getLogger().info(msg));
         }
         tearDownBotManager();
         tearDownConfigManager();
