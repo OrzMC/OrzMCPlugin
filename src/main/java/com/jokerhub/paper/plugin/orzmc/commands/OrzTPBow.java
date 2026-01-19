@@ -37,7 +37,7 @@ public class OrzTPBow implements CommandExecutor {
         if (sender instanceof Player player) {
             ItemStack teleport_bow = new ItemStack(Material.BOW);
             ItemMeta meta = teleport_bow.getItemMeta();
-            meta.addEnchant(Enchantment.INFINITY, 1, true);
+            meta.addEnchant(Enchantment.ARROW_INFINITE, 1, true);
             TextComponent name = Component.text(OrzTPBow.name);
             meta.displayName(name);
             ArrayList<Component> loreList = new ArrayList<>();

@@ -46,7 +46,7 @@ public enum OrzUserCmd {
 
     public String usageTip() {
         return switch (this) {
-            case OrzUserCmd.ADD_PLAYER_TO_WHITELIST, OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST ->
+            case ADD_PLAYER_TO_WHITELIST, REMOVE_PLAYER_FROM_WHITELIST ->
                     "用法：\n" + this.getCmdString() + " " + "[玩家]\n" + this.getCmdString() + " " + "[玩家1] [玩家2] [玩家3]\n" + this.getCmdString() + " " + "[玩家1],[玩家2],[玩家3]\n";
             default -> "";
         };

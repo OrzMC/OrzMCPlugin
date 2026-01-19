@@ -6,7 +6,7 @@ description: OrzMC for Paper Server Plugin
 authors: [ wangzhizhou ]
 contributors: [ wangzhizhou ]
 website: https://minecraft.jokerhub.cn
-api-version: 1.21.7
+api-version: '1.20'
 load: STARTUP
 commands:
   tpbow:
