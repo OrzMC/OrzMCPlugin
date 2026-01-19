@@ -434,7 +434,7 @@ public class OrzMessageParser {
         }
     }
 
-    private static void optimizeWorld(boolean isAdmin, Consumer<String> callback) {
+    public static void optimizeWorld(boolean isAdmin, Consumer<String> callback) {
         if (!isAdmin) {
             callback.accept(OrzUserCmd.OPTIMIZE_WORLD.adminPermissionRequiredTip());
             return;
