@@ -1,12 +1,12 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
 import com.jokerhub.orzmc.world.Optimizer;
-import com.jokerhub.orzmc.world.ProgressMode;
 import com.jokerhub.orzmc.world.ProgressEvent;
-import kotlin.Unit;
-import kotlin.jvm.functions.Function1;
+import com.jokerhub.orzmc.world.ProgressMode;
 import com.jokerhub.orzmc.world.ProgressStage;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
 import net.kyori.adventure.text.Component;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -324,8 +324,14 @@ public class OrzMessageParser {
         BACKUP("备份"),
         OPTIMIZE("优化");
         private final String label;
-        MaintenanceJob(String label) { this.label = label; }
-        public String label() { return label; }
+
+        MaintenanceJob(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
     }
 
     private static Function1<ProgressEvent, Unit> progressHandler(String label, Consumer<String> callback) {

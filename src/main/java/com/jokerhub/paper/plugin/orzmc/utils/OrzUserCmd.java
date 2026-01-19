@@ -24,7 +24,7 @@ public enum OrzUserCmd {
     }
 
     public static String helpInfo() {
-        return "👨‍💼 管理员命令：\n" + OrzUserCmd.ADD_PLAYER_TO_WHITELIST + "\n" + OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST + "\n" + OrzUserCmd.BACKUP + "\n" + OrzUserCmd.OPTIMIZE_WORLD + "\n" + "👨🏻‍💻 通用命令: \n" + OrzUserCmd.SHOW_PLAYERS + "\n" + OrzUserCmd.SHOW_WHITELIST + "\n" + OrzUserCmd.SHOW_HELP;
+        return "👨‍💼 管理员命令：\n" + OrzUserCmd.ADD_PLAYER_TO_WHITELIST + "\n" + OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST + "\n" + OrzUserCmd.BACKUP + "\n" + "👨🏻‍💻 通用命令: \n" + OrzUserCmd.SHOW_PLAYERS + "\n" + OrzUserCmd.SHOW_WHITELIST + "\n" + OrzUserCmd.SHOW_HELP;
     }
 
     public String getCmdString() {
