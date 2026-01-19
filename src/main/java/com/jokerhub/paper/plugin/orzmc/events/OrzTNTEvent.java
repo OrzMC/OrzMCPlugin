@@ -165,7 +165,8 @@ public class OrzTNTEvent extends OrzBaseListener {
         if (entityType == EntityType.CREEPER) {
             return;
         }
-        if (entityType == EntityType.BREEZE_WIND_CHARGE || entityType == EntityType.WIND_CHARGE) {
+        String typeName = entityType.name();
+        if ("BREEZE_WIND_CHARGE".equals(typeName) || "WIND_CHARGE".equals(typeName)) {
             return;
         }
         if (entityType == EntityType.FIREBALL) {

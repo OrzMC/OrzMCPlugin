@@ -4,11 +4,11 @@ import com.jokerhub.paper.plugin.orzmc.utils.HealthRegistry;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.jspecify.annotations.NonNull;
+import org.jetbrains.annotations.NotNull;
 
 public class OrzBotStatus implements CommandExecutor {
     @Override
-    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         HealthRegistry.Status qq = HealthRegistry.get("qq");
         HealthRegistry.Status discord = HealthRegistry.get("discord");
         HealthRegistry.Status lark = HealthRegistry.get("lark");

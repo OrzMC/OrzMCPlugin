@@ -54,7 +54,8 @@ public class OrzPlayerEvent extends OrzBaseListener {
         String ipAddress = event.getAddress().getHostAddress();
         String playerName = event.getPlayerProfile().getName();
         if (!ipAddress.isEmpty()) {
-            try (HttpClient client = HttpClient.newHttpClient()) {
+            try {
+                HttpClient client = HttpClient.newHttpClient();
                 // use ip parse service: https://www.geojs.io/docs/v1/endpoints/geo/
                 String url = "https://get.geojs.io/v1/ip/geo/" + ipAddress + ".json";
                 HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();

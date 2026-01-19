@@ -26,7 +26,7 @@ public class OrzMessageParser {
         if (!OrzUserCmd.isValidCmd(message)) return;
 
         ArrayList<String> cmd = new ArrayList<>(Arrays.asList(message.split("[, ]+")));
-        String cmdString = cmd.removeFirst();
+        String cmdString = cmd.remove(0);
         Set<String> userNameSet = new HashSet<>(cmd);
 
         // 普通命令
@@ -35,7 +35,7 @@ public class OrzMessageParser {
         } else if (cmdString.equals(OrzUserCmd.SHOW_WHITELIST.getCmdString())) {
             Integer page = null;
             if (!cmd.isEmpty()) {
-                String token = cmd.getFirst();
+                String token = cmd.get(0);
                 try {
                     page = Integer.parseInt(token);
                 } catch (Exception ignored) {
