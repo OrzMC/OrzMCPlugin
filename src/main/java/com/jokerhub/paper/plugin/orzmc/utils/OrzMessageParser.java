@@ -57,6 +57,10 @@ public class OrzMessageParser {
         else if (cmdString.equals(OrzUserCmd.BACKUP.getCmdString())) {
             backup(isAdmin, callback);
         }
+        // 管理员命令
+        else if (cmdString.equals(OrzUserCmd.OPTIMIZE_WORLD.getCmdString())) {
+            optimizeWorld(isAdmin, callback);
+        }
         // 其它命令，展示帮助信息
         else {
             callback.accept(OrzUserCmd.helpInfo());
@@ -318,9 +322,9 @@ public class OrzMessageParser {
             callback.accept(OrzUserCmd.BACKUP.adminPermissionRequiredTip());
             return;
         }
-        // 防止一次备份过程中，触发第二次备份执行
+        // 防止触发多次耗时操作
         if (isBackupRunning) {
-            callback.accept("正在备份中，请稍候...");
+            callback.accept("正在备份/优化中，请稍候...");
             return;
         }
         OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
@@ -399,5 +403,52 @@ public class OrzMessageParser {
                 OrzMC.logger().severe("清理旧备份异常: " + e);
             }
         }
+    }
+
+    private static void optimizeWorld(boolean isAdmin, Consumer<String> callback) {
+        if (!isAdmin) {
+            callback.accept(OrzUserCmd.OPTIMIZE_WORLD.adminPermissionRequiredTip());
+            return;
+        }
+        // 防止触发多次耗时操作
+        if (isBackupRunning) {
+            callback.accept("正在备份/优化中，请稍候...");
+            return;
+        }
+        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
+            // 设置备份全局标记，防止新玩家进服
+            isBackupRunning = true;
+            // 踢掉当前在线玩家
+            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text("服务器地图优化中，请稍后再尝试登录。")));
+            // 停止服务器地图自动保存功能，防止地图文件在备份过程中改变
+            OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存功能"), "save-off", "save-all");
+            // 异步线程执行地图备份
+            OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
+                File worldContainerDir = OrzMC.server().getWorldContainer();
+                Path input = Path.of(worldContainerDir.getAbsolutePath());
+                long tickTimeThreshold = 300L; // 5分钟阈值
+                callback.accept("正在优化地图，请稍等......");
+                Optimizer.run(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100, 1000, optimizeError -> {
+                    OrzMC.logger().warning(optimizeError.toString());
+                    callback.accept("地图优化失败");
+                    return null;
+                }, progressEvent -> {
+                    Long current = progressEvent.getCurrent();
+                    Long total = progressEvent.getTotal();
+                    if (current == null || total == null || current <= 0 || total <= 0) {
+                        return null;
+                    }
+                    int percent = (int) Math.ceil(progressEvent.getCurrent() * 100.0 / progressEvent.getTotal());
+                    OrzMC.logger().info("地图优化进度：" + percent + "%");
+                    if (progressEvent.getStage() == ProgressStage.Done && Objects.equals(progressEvent.getCurrent(), progressEvent.getTotal())) {
+                        callback.accept("地图优化完成");
+                    }
+                    return null;
+                });
+                OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存功能"), "save-on");
+                // 优化完成后，恢复服务器，允许玩家进服
+                isBackupRunning = false;
+            });
+        });
     }
 }
