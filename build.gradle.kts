@@ -1,5 +1,4 @@
 import org.gradle.kotlin.dsl.support.serviceOf
-import org.gradle.jvm.toolchain.JavaToolchainService
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
@@ -43,7 +42,7 @@ dependencies {
         exclude(module = "tink")
     }
     // Minecraft World Backup Lib
-    implementation("io.github.wangzhizhou:backup-core:0.0.5")
+    implementation("io.github.wangzhizhou:backup-core:0.1.0")
 }
 
 // 项目编译时插件添加
