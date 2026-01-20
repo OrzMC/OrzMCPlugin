@@ -1,9 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
-import com.jokerhub.orzmc.world.Optimizer;
-import com.jokerhub.orzmc.world.ProgressEvent;
-import com.jokerhub.orzmc.world.ProgressMode;
-import com.jokerhub.orzmc.world.ProgressStage;
+import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function1;
@@ -361,11 +358,15 @@ public class OrzMessageParser {
     private static void runOptimizerJob(MaintenanceJob job, Path input, Path outputOrNull, Consumer<String> callback) {
         long tickTimeThreshold = 300L;
         callback.accept("正在" + job.label() + "地图，请稍等......");
+        OptimizerConfig cfg;
+        DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
+        RealFileSystem fs = RealFileSystem.INSTANCE;
         if (job == MaintenanceJob.BACKUP) {
-            Optimizer.run(input, outputOrNull, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100, 1000, errorHandler(job.label(), callback), progressHandler(job.label(), callback));
+            cfg = new OptimizerConfig(input, outputOrNull, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, null, null, fs, null, null, mcaIOFactory);
         } else {
-            Optimizer.run(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100, 1000, errorHandler(job.label(), callback), progressHandler(job.label(), callback));
+            cfg = new OptimizerConfig(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, null, null, fs, null, null, mcaIOFactory);
         }
+        Optimizer.run(cfg);
     }
 
     private static void runExclusiveMaintenance(Consumer<String> callback, String kickText, Runnable asyncWork) {
