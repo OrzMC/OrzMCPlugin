@@ -377,7 +377,7 @@ public class OrzMessageParser {
         OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
             isBackupRunning = true;
             OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text(kickText)));
-            OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存功能"), "save-off", "save-all");
+            OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存功能"), "save-off", "save-all flush");
             OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
                 try {
                     asyncWork.run();
