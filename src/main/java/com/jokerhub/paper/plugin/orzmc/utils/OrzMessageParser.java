@@ -362,9 +362,9 @@ public class OrzMessageParser {
         DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
         RealFileSystem fs = RealFileSystem.INSTANCE;
         if (job == MaintenanceJob.BACKUP) {
-            cfg = new OptimizerConfig(input, outputOrNull, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, null, null, fs, null, null, mcaIOFactory);
+            cfg = new OptimizerConfig(input, outputOrNull, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, true, null, null, fs, null, null, mcaIOFactory);
         } else {
-            cfg = new OptimizerConfig(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, null, null, fs, null, null, mcaIOFactory);
+            cfg = new OptimizerConfig(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, true,null, null, fs, null, null, mcaIOFactory);
         }
         Optimizer.run(cfg);
     }
