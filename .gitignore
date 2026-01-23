@@ -117,3 +117,4 @@ build/
 .idea/
 .run/
 *.iml
+.trae/
