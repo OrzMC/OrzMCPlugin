@@ -43,9 +43,9 @@ public final class OrzMC extends JavaPlugin implements Listener {
         if (optimizeOnShutdown) {
             OrzMessageParser.optimizeWorldOnShutdown(msg -> getLogger().info(msg));
         }
+        notifyServerStop();
         tearDownBotManager();
         tearDownConfigManager();
-        notifyServerStop();
     }
 
     // 公共静态成员
