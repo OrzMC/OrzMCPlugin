@@ -42,12 +42,13 @@ public class OrzBowShootEvent implements Listener {
                     player.sendMessage(OrzTPBow.logText("无法跨世界传送!"));
                     return;
                 }
-                Location center = toBlockCenter(base);
+                org.bukkit.util.Vector dir = arrow.getVelocity();
+                Location center = toBlockCenter(base, dir);
                 if (!withinWorldBounds(center)) {
                     player.sendMessage(OrzTPBow.logText("目标高度不合法!"));
                     return;
                 }
-                Location safe = findNearestSafe(center, 2);
+                Location safe = findNearestSafe(center, dir, 4);
                 if (safe == null) {
                     player.sendMessage(OrzTPBow.logText("目标位置不可站立!"));
                     return;
@@ -92,13 +93,15 @@ public class OrzBowShootEvent implements Listener {
         return y >= min + 1 && y <= max - 2;
     }
 
-    private Location toBlockCenter(@NotNull Location loc) {
+    private Location toBlockCenter(@NotNull Location loc, @NotNull org.bukkit.util.Vector dir) {
         World w = loc.getWorld();
         if (w == null) return null;
         int bx = loc.getBlockX();
         int by = loc.getBlockY();
         int bz = loc.getBlockZ();
-        return new Location(w, bx + 0.5, by, bz + 0.5, loc.getYaw(), loc.getPitch());
+        float yaw = vectorYaw(dir);
+        float pitch = vectorPitch(dir);
+        return new Location(w, bx + 0.5, by, bz + 0.5, yaw, pitch);
     }
 
     private boolean isStandable(@NotNull Location loc) {
@@ -113,23 +116,46 @@ public class OrzBowShootEvent implements Listener {
         return gt.isSolid();
     }
 
-    private Location findNearestSafe(@NotNull Location center, int radius) {
+    private Location findNearestSafe(@NotNull Location center, @NotNull org.bukkit.util.Vector facing, int radius) {
         if (isStandable(center)) return center;
         World w = center.getWorld();
         if (w == null) return null;
         int bx = center.getBlockX();
         int by = center.getBlockY();
         int bz = center.getBlockZ();
+        final org.bukkit.util.Vector facingNorm = facing.clone().normalize();
+        java.util.List<Location> candidates = new java.util.ArrayList<>();
         for (int r = 1; r <= radius; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    Location cand = new Location(w, bx + dx + 0.5, by, bz + dz + 0.5, center.getYaw(), center.getPitch());
-                    if (withinWorldBounds(cand) && isStandable(cand)) {
-                        return cand;
-                    }
+                    if (dx == 0 && dz == 0) continue;
+                    candidates.add(new Location(w, bx + dx + 0.5, by, bz + dz + 0.5, vectorYaw(facingNorm), vectorPitch(facingNorm)));
                 }
             }
         }
+        candidates.sort((a, b) -> {
+            org.bukkit.util.Vector va = a.clone().subtract(center).toVector();
+            org.bukkit.util.Vector vb = b.clone().subtract(center).toVector();
+            double da = va.normalize().dot(facingNorm);
+            double db = vb.normalize().dot(facingNorm);
+            return Double.compare(db, da);
+        });
+        for (Location cand : candidates) {
+            if (withinWorldBounds(cand) && isStandable(cand)) {
+                return cand;
+            }
+        }
         return null;
+    }
+
+    private float vectorYaw(@NotNull org.bukkit.util.Vector v) {
+        double yawRad = Math.atan2(-v.getX(), v.getZ());
+        return (float) Math.toDegrees(yawRad);
+    }
+
+    private float vectorPitch(@NotNull org.bukkit.util.Vector v) {
+        double xz = Math.sqrt(v.getX() * v.getX() + v.getZ() * v.getZ());
+        double pitchRad = Math.atan2(-v.getY(), xz);
+        return (float) Math.toDegrees(pitchRad);
     }
 }
