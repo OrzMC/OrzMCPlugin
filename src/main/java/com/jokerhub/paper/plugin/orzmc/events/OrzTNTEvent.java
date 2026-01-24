@@ -23,10 +23,7 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class OrzTNTEvent extends OrzBaseListener {
@@ -37,6 +34,9 @@ public class OrzTNTEvent extends OrzBaseListener {
     private final int tntPlaceCooldown; // 秒
     // 冷却时间跟踪
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
+    private final EnumSet<EntityType> explosionExemptTypes = EnumSet.noneOf(EntityType.class);
+    private final Map<String, Long> explosionNotifyLast = new ConcurrentHashMap<>();
+    private final long notifyThrottleMs;
 
     public OrzTNTEvent(OrzMC plugin) {
         super(plugin);
@@ -44,21 +44,16 @@ public class OrzTNTEvent extends OrzBaseListener {
         this.enableTNT = tntConfig.getBoolean("enable", false);
         this.enableRespawnAnchor = tntConfig.getBoolean("enable_respawn_anchor", false);
         this.tntPlaceCooldown = tntConfig.getInt("place_cooldown", 0);
+        this.notifyThrottleMs = tntConfig.getLong("notify_throttle_ms", 2000L);
 
         // 加载TNT放置区域白名单
         List<Map<?, ?>> regions = tntConfig.getMapList("whitelist");
         for (Map<?, ?> regionMap : regions) {
-            Region region = new Region(
-                    ((Number) regionMap.get("minX")).intValue(),
-                    ((Number) regionMap.get("maxX")).intValue(),
-                    ((Number) regionMap.get("minY")).intValue(),
-                    ((Number) regionMap.get("maxY")).intValue(),
-                    ((Number) regionMap.get("minZ")).intValue(),
-                    ((Number) regionMap.get("maxZ")).intValue(),
-                    (String) regionMap.get("world")
-            );
+            Region region = new Region(((Number) regionMap.get("minX")).intValue(), ((Number) regionMap.get("maxX")).intValue(), ((Number) regionMap.get("minY")).intValue(), ((Number) regionMap.get("maxY")).intValue(), ((Number) regionMap.get("minZ")).intValue(), ((Number) regionMap.get("maxZ")).intValue(), (String) regionMap.get("world"));
             this.whiteListRegions.add(region);
         }
+
+        initExplosionExemptTypes(tntConfig);
     }
 
     @EventHandler
@@ -100,10 +95,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         if (tntPlaceCooldown > 0 && checkCooldown(player)) {
             event.setCancelled(true);
             long remaining = (playerCooldowns.get(player.getUniqueId()) + tntPlaceCooldown * 1000L - System.currentTimeMillis()) / 1000;
-            player.sendMessage(Component.text()
-                    .append(Component.text("放置TNT冷却中，请等待 "))
-                    .append(Component.text(remaining + "秒").color(TextColor.color(0xFFAA00)))
-                    .build());
+            player.sendMessage(Component.text().append(Component.text("放置TNT冷却中，请等待 ")).append(Component.text(remaining + "秒").color(TextColor.color(0xFFAA00))).build());
             return;
         }
 
@@ -157,22 +149,16 @@ public class OrzTNTEvent extends OrzBaseListener {
         if (material.isAir()) {
             return;
         }
-        notifyExplosionEvent(block.getLocation(), material.name() + "爆炸");
+        notifyExplosionEventThrottled(block.getLocation(), material.name() + "爆炸");
     }
+
     @EventHandler
     public void onEntityExplode(@NotNull EntityExplodeEvent event) {
         EntityType entityType = event.getEntityType();
-        if (entityType == EntityType.CREEPER) {
+        if (explosionExemptTypes.contains(entityType)) {
             return;
         }
-        String typeName = entityType.name();
-        if ("BREEZE_WIND_CHARGE".equals(typeName) || "WIND_CHARGE".equals(typeName)) {
-            return;
-        }
-        if (entityType == EntityType.FIREBALL) {
-            return;
-        }
-        notifyExplosionEvent(event.getLocation(), entityType.name() + "爆炸");
+        notifyExplosionEventThrottled(event.getLocation(), entityType.name() + "爆炸");
     }
 
     // 区域检查方法
@@ -188,51 +174,41 @@ public class OrzTNTEvent extends OrzBaseListener {
 
     // 通知方法
     private void notifyTNTEvent(Block block, String message) {
-        TextComponent msg = Component.text()
-                .append(Component.text("[TNT警报] ").color(TextColor.color(0xFF5555)))
-                .append(playerInfo(null)) // 尝试获取放置玩家
-                .append(Component.space())
-                .append(locationComponent(block))
-                .append(Component.space())
-                .append(Component.text(message))
-                .build();
+        TextComponent msg = Component.text().append(Component.text("[TNT警报] ").color(TextColor.color(0xFF5555))).append(playerInfo(null)) // 尝试获取放置玩家
+                .append(Component.space()).append(locationComponent(block)).append(Component.space()).append(Component.text(message)).build();
 
         plugin.getServer().sendMessage(msg);
         plugin.sendPublicMessage("[TNT警报] " + locationString(block) + message);
     }
 
     private void notifyExplosionEvent(Location location, String message) {
-        TextComponent msg = Component.text()
-                .append(Component.text("[爆炸警报] ").color(TextColor.color(0xFFAA00)))
-                .append(locationComponent(location))
-                .append(Component.space())
-                .append(Component.text(message))
-                .build();
+        TextComponent msg = Component.text().append(Component.text("[爆炸警报] ").color(TextColor.color(0xFFAA00))).append(locationComponent(location)).append(Component.space()).append(Component.text(message)).build();
 
         plugin.getServer().sendMessage(msg);
         plugin.sendPublicMessage("[爆炸警报] " + locationString(location) + message);
     }
 
+    private void notifyExplosionEventThrottled(@NotNull Location location, @NotNull String message) {
+        long now = System.currentTimeMillis();
+        String key = explosionKey(location, message);
+        Long prev = explosionNotifyLast.get(key);
+        if (prev == null || now - prev >= notifyThrottleMs) {
+            explosionNotifyLast.put(key, now);
+            notifyExplosionEvent(location, message);
+        }
+    }
+
     private void sendPlacementNotification(Player player, Block block) {
-        TextComponent msg = Component.text()
-                .append(playerInfo(player))
-                .append(Component.space())
-                .append(Component.text("在"))
-                .append(locationComponent(block))
-                .append(Component.space())
-                .append(Component.text("放置了 " + "TNT"))
-                .build();
+        TextComponent msg = Component.text().append(playerInfo(player)).append(Component.space()).append(Component.text("在")).append(locationComponent(block)).append(Component.space()).append(Component.text("放置了 " + "TNT")).build();
 
         plugin.getServer().sendMessage(msg);
-        plugin.sendPublicMessage(OrzMessageParser.playerDisplayName(player) +
-                " 在" + locationString(block) + "放置了 " + "TNT");
+        plugin.sendPublicMessage(OrzMessageParser.playerDisplayName(player) + " 在" + locationString(block) + "放置了 " + "TNT");
     }
 
     // 信息构建工具
     private @NotNull TextComponent playerInfo(@Nullable Player player) {
         if (player != null) {
-            return Component.text(player.getName())
-                    .color(TextColor.color(0xFF5555));
+            return Component.text(player.getName()).color(TextColor.color(0xFF5555));
         } else {
             return Component.text("未知玩家").color(TextColor.color(0xAAAAAA));
         }
@@ -244,10 +220,7 @@ public class OrzTNTEvent extends OrzBaseListener {
 
     private @NotNull TextComponent locationComponent(Location location) {
         String locString = locationString(location);
-        return Component.text(locString)
-                .color(TextColor.color(0x55FF55))
-                .hoverEvent(HoverEvent.showText(Component.text("点击复制坐标")))
-                .clickEvent(ClickEvent.copyToClipboard(locString.trim()));
+        return Component.text(locString).color(TextColor.color(0x55FF55)).hoverEvent(HoverEvent.showText(Component.text("点击复制坐标"))).clickEvent(ClickEvent.copyToClipboard(locString.trim()));
     }
 
     private @NotNull String locationString(@NotNull Block block) {
@@ -255,11 +228,14 @@ public class OrzTNTEvent extends OrzBaseListener {
     }
 
     private @NotNull String locationString(@NotNull Location location) {
-        return String.format(" [%s] %d %d %d ",
-                location.getWorld().getName(),
-                location.getBlockX(),
-                location.getBlockY(),
-                location.getBlockZ());
+        return String.format(" [%s] %d %d %d ", location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+    }
+
+    private @NotNull String explosionKey(@NotNull Location location, @NotNull String message) {
+        int cx = location.getBlockX() >> 4;
+        int cz = location.getBlockZ() >> 4;
+        String world = location.getWorld().getName();
+        return world + "|" + cx + "|" + cz + "|" + message;
     }
 
     // 区域内部类
@@ -275,10 +251,31 @@ public class OrzTNTEvent extends OrzBaseListener {
         }
 
         public boolean contains(@NotNull Location loc) {
-            return loc.getWorld().getName().equals(world) &&
-                    loc.getX() >= minX && loc.getX() <= maxX &&
-                    loc.getY() >= minY && loc.getY() <= maxY &&
-                    loc.getZ() >= minZ && loc.getZ() <= maxZ;
+            return loc.getWorld().getName().equals(world) && loc.getX() >= minX && loc.getX() <= maxX && loc.getY() >= minY && loc.getY() <= maxY && loc.getZ() >= minZ && loc.getZ() <= maxZ;
         }
+    }
+
+    private void addExemptTypeIfAvailable(String name) {
+        try {
+            explosionExemptTypes.add(EntityType.valueOf(name));
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
+    private void initExplosionExemptTypes(@NotNull FileConfiguration tntConfig) {
+        List<String> names = tntConfig.getStringList("exempt_entities");
+        if (names == null || names.isEmpty()) {
+            names = List.of(
+                    "CREEPER",
+                    "FIREBALL",
+                    "WIND_CHARGE",
+                    "BREEZE_WIND_CHARGE",
+                    "ENDER_DRAGON",
+                    "END_CRYSTAL",
+                    "WITHER",
+                    "WITHER_SKULL"
+            );
+        }
+        names.forEach(this::addExemptTypeIfAvailable);
     }
 }
