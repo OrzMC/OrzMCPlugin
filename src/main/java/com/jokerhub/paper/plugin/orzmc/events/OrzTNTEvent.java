@@ -2,6 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -35,7 +36,6 @@ public class OrzTNTEvent extends OrzBaseListener {
     // 冷却时间跟踪
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
     private final EnumSet<EntityType> explosionExemptTypes = EnumSet.noneOf(EntityType.class);
-    private final Map<String, Long> explosionNotifyLast = new ConcurrentHashMap<>();
     private final long notifyThrottleMs;
 
     public OrzTNTEvent(OrzMC plugin) {
@@ -149,7 +149,9 @@ public class OrzTNTEvent extends OrzBaseListener {
         if (material.isAir()) {
             return;
         }
-        notifyExplosionEventThrottled(block.getLocation(), material.name() + "爆炸");
+        Location loc = block.getLocation();
+        String key = explosionKey(loc, material.name() + "爆炸");
+        ThrottledNotifier.run(key, notifyThrottleMs, notifyThrottleMs, () -> notifyExplosionEvent(loc, material.name() + "爆炸"));
     }
 
     @EventHandler
@@ -158,7 +160,9 @@ public class OrzTNTEvent extends OrzBaseListener {
         if (explosionExemptTypes.contains(entityType)) {
             return;
         }
-        notifyExplosionEventThrottled(event.getLocation(), entityType.name() + "爆炸");
+        Location loc = event.getLocation();
+        String key = explosionKey(loc, entityType.name() + "爆炸");
+        ThrottledNotifier.run(key, notifyThrottleMs, notifyThrottleMs, () -> notifyExplosionEvent(loc, entityType.name() + "爆炸"));
     }
 
     // 区域检查方法
@@ -188,15 +192,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         plugin.sendPublicMessage("[爆炸警报] " + locationString(location) + message);
     }
 
-    private void notifyExplosionEventThrottled(@NotNull Location location, @NotNull String message) {
-        long now = System.currentTimeMillis();
-        String key = explosionKey(location, message);
-        Long prev = explosionNotifyLast.get(key);
-        if (prev == null || now - prev >= notifyThrottleMs) {
-            explosionNotifyLast.put(key, now);
-            notifyExplosionEvent(location, message);
-        }
-    }
+    
 
     private void sendPlacementNotification(Player player, Block block) {
         TextComponent msg = Component.text().append(playerInfo(player)).append(Component.space()).append(Component.text("在")).append(locationComponent(block)).append(Component.space()).append(Component.text("放置了 " + "TNT")).build();

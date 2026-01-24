@@ -21,6 +21,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
 
 public class OrzPlayerEvent extends OrzBaseListener {
 
@@ -109,6 +110,10 @@ public class OrzPlayerEvent extends OrzBaseListener {
     }
 
     private void notifyPlayerChatGroupWithMsg(Player player, PlayerState state) {
+        String key = "player_event|" + player.getUniqueId() + "|" + state.name();
+        if (!ThrottledNotifier.shouldRun(key, 1500L)) {
+            return;
+        }
         ArrayList<Player> onlinePlayers = new ArrayList<>();
 
         Object[] objects = OrzMC.server().getOnlinePlayers().toArray();
