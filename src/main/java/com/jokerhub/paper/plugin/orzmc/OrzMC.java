@@ -138,6 +138,9 @@ public final class OrzMC extends JavaPlugin implements Listener {
             if (!config.contains("optimize_on_shutdown")) {
                 config.set("optimize_on_shutdown", false);
             }
+            if (!config.contains("optimize_tick_time_threshold")) {
+                config.set("optimize_tick_time_threshold", 300);
+            }
         });
         configManager.registerConfig("bot");
         configManager.setDefaults("bot", config -> {

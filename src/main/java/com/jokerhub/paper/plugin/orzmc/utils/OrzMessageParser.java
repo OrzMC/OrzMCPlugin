@@ -356,7 +356,7 @@ public class OrzMessageParser {
     }
 
     private static void runOptimizerJob(MaintenanceJob job, Path input, Path outputOrNull, Consumer<String> callback) {
-        long tickTimeThreshold = 300L;
+        long tickTimeThreshold = OrzMC.plugin().configManager.getConfig("config").getLong("optimize_tick_time_threshold", 300L);
         callback.accept("正在" + job.label() + "地图，请稍等......");
         OptimizerConfig cfg;
         DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
