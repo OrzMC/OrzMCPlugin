@@ -37,10 +37,12 @@ public final class OrzMC extends JavaPlugin implements Listener {
     public void onDisable() {
         getLogger().info("OrzMC 插件失效!");
         boolean optimizeOnShutdown = false;
+        boolean optimizeEnabled = false;
         try {
             optimizeOnShutdown = configManager.getConfig("config").getBoolean("optimize_on_shutdown");
+            optimizeEnabled = configManager.getConfig("config").getBoolean("optimize_enabled");
         } catch (Exception ignored) { }
-        if (optimizeOnShutdown) {
+        if (optimizeEnabled && optimizeOnShutdown) {
             OrzMessageParser.optimizeWorldOnShutdown(msg -> getLogger().info(msg));
         }
         notifyServerStop();
@@ -130,7 +132,12 @@ public final class OrzMC extends JavaPlugin implements Listener {
         configManager = new AdvancedConfigManager(this);
         configManager.registerConfig("config");
         configManager.setDefaults("config", config -> {
-            // 配置默认值
+            if (!config.contains("optimize_enabled")) {
+                config.set("optimize_enabled", false);
+            }
+            if (!config.contains("optimize_on_shutdown")) {
+                config.set("optimize_on_shutdown", false);
+            }
         });
         configManager.registerConfig("bot");
         configManager.setDefaults("bot", config -> {

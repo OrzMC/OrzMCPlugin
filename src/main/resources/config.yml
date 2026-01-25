@@ -25,6 +25,7 @@ qq_player_group_id: ''
 backup_retention_count: 5
 backup_maintenance_motd: "服务器维护中，稍后再试"
 optimize_on_shutdown: false
+optimize_enabled: false
 
 # ==================================================
 #           白名单分页与自动清理配置

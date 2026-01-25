@@ -446,6 +446,14 @@ public class OrzMessageParser {
             callback.accept(OrzUserCmd.OPTIMIZE_WORLD.adminPermissionRequiredTip());
             return;
         }
+        boolean enabled = false;
+        try {
+            enabled = OrzMC.plugin().configManager.getConfig("config").getBoolean("optimize_enabled");
+        } catch (Exception ignored) { }
+        if (!enabled) {
+            callback.accept("地图优化功能已禁用");
+            return;
+        }
         runExclusiveMaintenance(callback, "服务器地图优化中，请稍后再尝试登录。", () -> {
             File worldContainerDir = OrzMC.server().getWorldContainer();
             Path input = Path.of(worldContainerDir.getAbsolutePath());
@@ -454,6 +462,13 @@ public class OrzMessageParser {
     }
 
     public static void optimizeWorldOnShutdown(Consumer<String> callback) {
+        boolean enabled = false;
+        try {
+            enabled = OrzMC.plugin().configManager.getConfig("config").getBoolean("optimize_enabled");
+        } catch (Exception ignored) { }
+        if (!enabled) {
+            return;
+        }
         File worldContainerDir = OrzMC.server().getWorldContainer();
         Path input = Path.of(worldContainerDir.getAbsolutePath());
         runOptimizerJob(MaintenanceJob.OPTIMIZE, input, null, callback);
