@@ -21,7 +21,8 @@ public class ConfigManager {
 
         // 创建插件数据文件夹
         if (!plugin.getDataFolder().exists()) {
-            plugin.getDataFolder().mkdirs();
+            boolean ret = plugin.getDataFolder().mkdirs();
+            plugin.getLogger().info("创建插件数据文件夹" + (ret ? "成功" : "失败"));
         }
     }
 

@@ -20,6 +20,7 @@ public class OrzBowShootEvent extends OrzBaseListener {
     public OrzBowShootEvent(OrzMC plugin) {
         super(plugin);
     }
+
     private static final NamespacedKey KEY_TPBOW = new NamespacedKey(OrzMC.plugin(), OrzConstants.TPBOW_KEY);
 
     @EventHandler
@@ -87,7 +88,8 @@ public class OrzBowShootEvent extends OrzBaseListener {
             Material.POWDER_SNOW
     );
 
-    private boolean withinWorldBounds(@NotNull Location loc) {
+    private boolean withinWorldBounds(Location loc) {
+        if (loc == null) return false;
         World w = loc.getWorld();
         if (w == null) return false;
         int y = loc.getBlockY();

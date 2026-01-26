@@ -9,16 +9,6 @@ enable_respawn_anchor: false
 place_cooldown: 5
 # 爆炸警报节流时间窗口（毫秒），同一区块同类爆炸在窗口内只通知一次
 notify_throttle_ms: 2000
-# 爆炸豁免实体（不会触发爆炸警报），可按需调整
-exempt_entities:
-  - CREEPER        # 苦力怕
-  - FIREBALL       # 火球（恶魂火球等）
-  - WIND_CHARGE    # 风弹
-  - BREEZE_WIND_CHARGE # 微风风弹
-  - ENDER_DRAGON   # 末影龙
-  - END_CRYSTAL    # 末地水晶
-  - WITHER         # 凋灵
-  - WITHER_SKULL   # 凋灵之首（弹射物）
 # TNT放置区域白名单
 whitelist:
   - minX: 0
@@ -42,3 +32,13 @@ whitelist:
     minZ: 0
     maxZ: 0
     world: 'world_the_end'
+# 爆炸豁免实体（不会触发爆炸警报），可按需调整
+exempt_entities:
+  - CREEPER        # 苦力怕
+  - FIREBALL       # 火球（恶魂火球等）
+  - WIND_CHARGE    # 风弹
+  - BREEZE_WIND_CHARGE # 微风风弹
+  - ENDER_DRAGON   # 末影龙
+  - END_CRYSTAL    # 末地水晶
+  - WITHER         # 凋灵
+  - WITHER_SKULL   # 凋灵之首（弹射物）

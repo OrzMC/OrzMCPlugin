@@ -8,7 +8,7 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
-import net.kyori.adventure.text.Component;
+import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
@@ -22,7 +22,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
-import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
 
 public class OrzPlayerEvent extends OrzBaseListener {
 

@@ -9,8 +9,8 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 public class RobustWebSocketClient {
     private final URI serverUri;
@@ -139,8 +139,7 @@ public class RobustWebSocketClient {
         long capped = Math.min(base, maxRetryInterval > 0 ? maxRetryInterval : base);
         int jitter = Math.max(0, Math.min(100, jitterPercent));
         double factor = 1.0 + ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * (jitter / 100.0));
-        long withJitter = (long) Math.max(0, capped * factor);
-        return withJitter;
+        return (long) Math.max(0, capped * factor);
     }
 
     protected void handleMessage(String message) {

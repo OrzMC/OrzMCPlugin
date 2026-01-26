@@ -3,7 +3,6 @@ package com.jokerhub.paper.plugin.orzmc.utils;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.command.ConsoleCommandSender;
 
 public class OrzUtil {
