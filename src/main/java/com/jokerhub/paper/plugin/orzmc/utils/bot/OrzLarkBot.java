@@ -60,13 +60,12 @@ public class OrzLarkBot extends OrzBaseBot {
         int retries = botConfig.getInt("http_max_retries");
         long connectSec = botConfig.getLong("http_connect_timeout_seconds");
         long requestSec = botConfig.getLong("http_request_timeout_seconds");
-        long throttleMs = botConfig.getLong("log_throttle_ms");
         AsyncHttp.postJson(url, postBodyJsonString, null, Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec), Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec), retries <= 0 ? 3 : retries)
                 .thenAcceptAsync(response -> OrzMC.debugInfo("Response : " + response.toString()))
                 .exceptionally(e -> {
                     HealthRegistry.setHttpOk("lark", false);
                     HealthRegistry.setLastError("lark", e.toString());
-                    ThrottledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e, throttleMs <= 0 ? 5000 : throttleMs);
+                    ThrottledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e);
                     return null;
                 });
     }

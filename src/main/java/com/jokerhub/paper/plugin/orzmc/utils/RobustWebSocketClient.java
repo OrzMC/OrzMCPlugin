@@ -19,7 +19,6 @@ public class RobustWebSocketClient {
     private final long baseRetryInterval;
     private final long maxRetryInterval;
     private final int jitterPercent;
-    private final long logThrottleMs;
     private final long stableResetMs;
     private final Map<String, String> httpHeaders;
     private final WebSocketEventListener listener;
@@ -28,13 +27,12 @@ public class RobustWebSocketClient {
     private volatile boolean isReconnecting = false;
     private int retryCount = 0;
 
-    public RobustWebSocketClient(String url, int maxRetries, long baseRetryInterval, long maxRetryInterval, int jitterPercent, long logThrottleMs, long stableResetMs, Map<String, String> httpHeaders, WebSocketEventListener listener) throws URISyntaxException {
+    public RobustWebSocketClient(String url, int maxRetries, long baseRetryInterval, long maxRetryInterval, int jitterPercent, long stableResetMs, Map<String, String> httpHeaders, WebSocketEventListener listener) throws URISyntaxException {
         this.serverUri = new URI(url);
         this.maxRetries = maxRetries;
         this.baseRetryInterval = baseRetryInterval;
         this.maxRetryInterval = maxRetryInterval;
         this.jitterPercent = jitterPercent;
-        this.logThrottleMs = logThrottleMs;
         this.stableResetMs = stableResetMs;
         this.httpHeaders = httpHeaders;
         this.listener = listener;
@@ -110,7 +108,7 @@ public class RobustWebSocketClient {
         retryCount++;
         long delay = calculateBackoffDelay();
 
-        ThrottledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行", logThrottleMs <= 0 ? 5000 : logThrottleMs);
+        ThrottledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
 
         isReconnecting = true;
         executor.schedule(() -> {
