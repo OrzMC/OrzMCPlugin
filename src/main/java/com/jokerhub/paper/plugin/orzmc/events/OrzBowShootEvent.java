@@ -12,6 +12,7 @@ import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumSet;
@@ -52,7 +53,7 @@ public class OrzBowShootEvent extends OrzBaseListener {
                     player.sendMessage(OrzTPBow.logText("目标高度不合法!"));
                     return;
                 }
-                Location safe = findNearestSafe(center, dir, 4);
+                Location safe = findNearestSafe(center, dir);
                 if (safe == null) {
                     player.sendMessage(OrzTPBow.logText("目标位置不可站立!"));
                     return;
@@ -121,7 +122,7 @@ public class OrzBowShootEvent extends OrzBaseListener {
         return gt.isSolid();
     }
 
-    private Location findNearestSafe(@NotNull Location center, @NotNull org.bukkit.util.Vector facing, int radius) {
+    private Location findNearestSafe(@NotNull Location center, @NotNull Vector facing) {
         if (isStandable(center)) return center;
         World w = center.getWorld();
         if (w == null) return null;
@@ -130,7 +131,7 @@ public class OrzBowShootEvent extends OrzBaseListener {
         int bz = center.getBlockZ();
         final org.bukkit.util.Vector facingNorm = facing.clone().normalize();
         java.util.List<Location> candidates = new java.util.ArrayList<>();
-        for (int r = 1; r <= radius; r++) {
+        for (int r = 1; r <= 4; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (dx == 0 && dz == 0) continue;

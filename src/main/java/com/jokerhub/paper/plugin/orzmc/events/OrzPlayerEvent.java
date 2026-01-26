@@ -111,7 +111,7 @@ public class OrzPlayerEvent extends OrzBaseListener {
 
     private void notifyPlayerChatGroupWithMsg(Player player, PlayerState state) {
         String key = "player_event|" + player.getUniqueId() + "|" + state.name();
-        if (!ThrottledNotifier.shouldRun(key, 1500L)) {
+        if (!ThrottledNotifier.shouldRunDefault(key)) {
             return;
         }
         ArrayList<Player> onlinePlayers = new ArrayList<>();

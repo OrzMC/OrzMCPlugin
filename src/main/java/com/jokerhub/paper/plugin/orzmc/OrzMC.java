@@ -162,7 +162,9 @@ public final class OrzMC extends JavaPlugin implements Listener {
         });
         configManager.registerConfig("tnt");
         configManager.setDefaults("tnt", config -> {
-            // 配置默认值
+            if (!config.contains("notify_throttle_ms")) {
+                config.set("notify_throttle_ms", 1000);
+            }
         });
     }
 
