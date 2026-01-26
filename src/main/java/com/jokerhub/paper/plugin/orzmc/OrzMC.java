@@ -85,6 +85,8 @@ public final class OrzMC extends JavaPlugin implements Listener {
         String minecraftVersion = getServer().getMinecraftVersion();
         String stringBuilder = "Minecraft " + minecraftVersion + "\n" + "------" + "\n" + "服务停止" + "\n\n" + "停止状态无法响应命令消息";
         sendPublicMessage(stringBuilder);
+        getServer().sendMessage(com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles.warn("服务停止"));
+        getServer().sendMessage(com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles.info("停止状态无法响应命令消息"));
     }
 
     private void setupServerForceWhitelist() {
@@ -99,7 +101,16 @@ public final class OrzMC extends JavaPlugin implements Listener {
     }
 
     private void setupEventListener() {
-        Listener[] eventListeners = new Listener[]{new OrzBowShootEvent(), new OrzPlayerEvent(this), new OrzTPEvent(), new OrzTNTEvent(this), new OrzMenuEvent(), new OrzServerEvent(this), new OrzWhiteListEvent(this), new OrzDebugEvent()};
+        Listener[] eventListeners = new Listener[]{
+                new OrzBowShootEvent(this),
+                new OrzPlayerEvent(this),
+                new OrzTPEvent(this),
+                new OrzTNTEvent(this),
+                new OrzMenuEvent(this),
+                new OrzServerEvent(this),
+                new OrzWhiteListEvent(this),
+                new OrzDebugEvent(this)
+        };
         Arrays.stream(eventListeners).forEach(eventListener -> getServer().getPluginManager().registerEvents(eventListener, this));
     }
 

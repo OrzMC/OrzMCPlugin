@@ -16,15 +16,15 @@ public class OrzUtil {
     }
 
     public static TextComponent successText(String content) {
-        return textComponent(content).color(TextColor.fromCSSHexString("#00FF00"));
+        return OrzTextStyles.success(content);
     }
 
     public static TextComponent failureText(String content) {
-        return textComponent(content).color(TextColor.fromCSSHexString("#FF0000"));
+        return OrzTextStyles.error(content);
     }
 
     public static TextComponent warningText(String content) {
-        return textComponent(content).color(TextColor.fromCSSHexString("#FFFF00"));
+        return OrzTextStyles.warn(content);
     }
 
     public static void executeConsoleCmd(Runnable task, String... consoleCmds) {

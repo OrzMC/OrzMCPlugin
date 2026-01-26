@@ -6,10 +6,12 @@ import org.bukkit.entity.Enderman;
 import org.bukkit.entity.Shulker;
 import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityTeleportEvent;
 
-public class OrzTPEvent implements Listener {
+public class OrzTPEvent extends OrzBaseListener {
+    public OrzTPEvent(OrzMC plugin) {
+        super(plugin);
+    }
     @EventHandler
     public void onEntityTeleport(EntityTeleportEvent event) {
 

@@ -27,6 +27,17 @@ backup_maintenance_motd: "服务器维护中，稍后再试"
 optimize_on_shutdown: false
 optimize_enabled: false
 optimize_tick_time_threshold: 300
+styles:
+  colors:
+    success: "#00FF00"
+    info: "#55AAFF"
+    warn: "#FFAA00"
+    error: "#FF5555"
+    coord: "#55FF55"
+    player: "#FF5555"
+    unknown: "#AAAAAA"
+    tnt_alert: "#FF5555"
+    explosion_alert: "#FFAA00"
 
 # ==================================================
 #           白名单分页与自动清理配置
