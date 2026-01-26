@@ -24,7 +24,6 @@ public class OrzServerEvent extends OrzBaseListener {
     public void onException(ServerExceptionEvent event) {
         ServerException exception = event.getException();
         plugin.sendPrivateMessage(exception.toString());
-        plugin.getServer().sendMessage(OrzTextStyles.error(exception.toString()));
     }
 
     @EventHandler
@@ -41,14 +40,6 @@ public class OrzServerEvent extends OrzBaseListener {
         stringBuilder.append("\n\n");
         stringBuilder.append("发送 \"").append(OrzUserCmd.SHOW_HELP.getCmdString()).append("\" 查看支持的命令消息");
         plugin.sendPublicMessage(stringBuilder.toString());
-        TextComponent comp = Component.text()
-                .append(OrzTextStyles.info(String.join(" ", parts)))
-                .append(Component.newline())
-                .append(OrzTextStyles.success(event.getType() == ServerLoadEvent.LoadType.STARTUP ? "启动完成" : "重启完成"))
-                .append(Component.newline())
-                .append(OrzTextStyles.info("发送 \"" + OrzUserCmd.SHOW_HELP.getCmdString() + "\" 查看支持的命令消息"))
-                .build();
-        plugin.getServer().sendMessage(comp);
     }
 
     @EventHandler

@@ -58,14 +58,12 @@ public class OrzWhiteListEvent extends OrzBaseListener {
         // 通知玩家群
         String playChatGroupMsg = player.getName() + " 尝试加入服务器，被白名单拦截";
         plugin.sendPublicMessage(playChatGroupMsg);
-        plugin.getServer().sendMessage(OrzTextStyles.warn(playChatGroupMsg));
     }
 
     @EventHandler
     public void onWhitelistToggled(WhitelistToggleEvent event) {
         if (isEnableForceWhitelist() && !event.isEnabled()) {
             plugin.sendPublicMessage("‼️服务器白名单异常关闭");
-            plugin.getServer().sendMessage(OrzTextStyles.error("‼️服务器白名单异常关闭"));
         }
     }
 }

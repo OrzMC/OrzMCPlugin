@@ -1,7 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.utils.bot;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.utils.*;
+import com.jokerhub.paper.plugin.orzmc.utils.HealthRegistry;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import com.jokerhub.paper.plugin.orzmc.utils.ThrottledLogger;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -65,7 +67,6 @@ public class OrzDiscordBot extends OrzBaseBot {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
                 HealthRegistry.setLastError("discord", e.toString());
                 ThrottledLogger.error("discord-thread", "Discord线程异常: " + e, throttleMs <= 0 ? 5000 : throttleMs);
-                ThrottledNotifier.run("discord-thread", throttleMs <= 0 ? 5000 : throttleMs, () -> OrzMC.server().sendMessage(OrzTextStyles.error("Discord线程异常: " + e)));
             });
             JDABuilder builder = JDABuilder.createLight(botToken, GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MEMBERS);
             String proxyType = botConfig.getString("discord_proxy_type");
@@ -92,7 +93,6 @@ public class OrzDiscordBot extends OrzBaseBot {
                     } catch (Exception e) {
                         HealthRegistry.setLastError("discord", e.toString());
                         ThrottledLogger.error("discord-onready", "Discord Ready 事件异常: " + e, throttleMs <= 0 ? 5000 : throttleMs);
-                        ThrottledNotifier.run("discord-onready", throttleMs <= 0 ? 5000 : throttleMs, () -> OrzMC.server().sendMessage(OrzTextStyles.warn("Discord初始化异常: " + e)));
                     }
                 }
 
@@ -114,7 +114,6 @@ public class OrzDiscordBot extends OrzBaseBot {
                     } catch (Exception e) {
                         HealthRegistry.setLastError("discord", e.toString());
                         ThrottledLogger.error("discord-onmessage", "Discord 消息事件异常: " + e, throttleMs <= 0 ? 5000 : throttleMs);
-                        ThrottledNotifier.run("discord-onmessage", throttleMs <= 0 ? 5000 : throttleMs, () -> OrzMC.server().sendMessage(OrzTextStyles.warn("Discord消息事件异常: " + e)));
                     }
                 }
             }).setActivity(Activity.playing(serverInfo)).build();
@@ -131,14 +130,12 @@ public class OrzDiscordBot extends OrzBaseBot {
                         }
                         HealthRegistry.setEnabled("discord", false);
                         ThrottledLogger.warning("discord-disable", "Discord不可达，已自动禁用机器人", throttleMs <= 0 ? 5000 : throttleMs);
-                        ThrottledNotifier.run("discord-disable", throttleMs <= 0 ? 5000 : throttleMs, () -> OrzMC.server().sendMessage(OrzTextStyles.warn("Discord不可达，已自动禁用机器人")));
                     }
                 }, ticks);
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("discord", e.toString());
             ThrottledLogger.error("discord-init", "Discord初始化异常: " + e, botConfig.getLong("log_throttle_ms"));
-            ThrottledNotifier.run("discord-init", botConfig.getLong("log_throttle_ms") <= 0 ? 5000 : botConfig.getLong("log_throttle_ms"), () -> OrzMC.server().sendMessage(OrzTextStyles.error("Discord初始化异常: " + e)));
         }
     }
 

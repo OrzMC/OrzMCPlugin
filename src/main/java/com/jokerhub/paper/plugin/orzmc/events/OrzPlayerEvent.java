@@ -161,7 +161,6 @@ public class OrzPlayerEvent extends OrzBaseListener {
         }
         plugin.sendPublicMessage(msgBuilder.toString());
         plugin.getLogger().info(msgBuilder.toString());
-        plugin.getServer().sendMessage(OrzTextStyles.info(msgBuilder.toString()));
         if (onlinePlayerCount == 0) {
             plugin.sendPrivateMessage("服务器当前无玩家，可进行服务器维护");
         }
