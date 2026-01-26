@@ -4,7 +4,6 @@ import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function1;
-import net.kyori.adventure.text.Component;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
@@ -364,7 +363,7 @@ public class OrzMessageParser {
         if (job == MaintenanceJob.BACKUP) {
             cfg = new OptimizerConfig(input, outputOrNull, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, true, null, null, fs, null, null, mcaIOFactory);
         } else {
-            cfg = new OptimizerConfig(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, true,null, null, fs, null, null, mcaIOFactory);
+            cfg = new OptimizerConfig(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, true, null, null, fs, null, null, mcaIOFactory);
         }
         Optimizer.run(cfg);
     }
@@ -376,7 +375,7 @@ public class OrzMessageParser {
         }
         OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
             isBackupRunning = true;
-            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(Component.text(kickText)));
+            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(OrzTextStyles.warn(kickText)));
             OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存功能"), "save-off", "save-all flush");
             OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
                 try {
@@ -449,7 +448,8 @@ public class OrzMessageParser {
         boolean enabled = false;
         try {
             enabled = OrzMC.plugin().configManager.getConfig("config").getBoolean("optimize_enabled");
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
         if (!enabled) {
             callback.accept("地图优化功能已禁用");
             return;
@@ -465,7 +465,8 @@ public class OrzMessageParser {
         boolean enabled = false;
         try {
             enabled = OrzMC.plugin().configManager.getConfig("config").getBoolean("optimize_enabled");
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
         if (!enabled) {
             return;
         }
