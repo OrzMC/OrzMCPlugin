@@ -137,22 +137,40 @@ public class OrzQQBot extends OrzBaseBot {
         try {
             int wsRetries = botConfig.getInt("ws_max_retries");
             long wsBaseMs = botConfig.getLong("ws_base_retry_ms");
+            long wsMaxMs = botConfig.getLong("ws_max_delay_ms");
+            int wsJitterPercent = botConfig.getInt("ws_jitter_percent");
+            long wsStableResetMs = botConfig.getLong("ws_stable_reset_ms");
             long throttleMs = botConfig.getLong("log_throttle_ms");
-            webSocketClient = new RobustWebSocketClient(wsServer, wsRetries <= 0 ? 10 : wsRetries, wsBaseMs <= 0 ? 5000 : wsBaseMs, this.websocketServerHeaderMap(), new com.jokerhub.paper.plugin.orzmc.utils.WebSocketEventListener() {
+            webSocketClient = new RobustWebSocketClient(
+                    wsServer,
+                    wsRetries <= 0 ? 10 : wsRetries,
+                    wsBaseMs <= 0 ? 5000 : wsBaseMs,
+                    wsMaxMs <= 0 ? 60000 : wsMaxMs,
+                    wsJitterPercent <= 0 ? 10 : wsJitterPercent,
+                    throttleMs <= 0 ? 5000 : throttleMs,
+                    wsStableResetMs <= 0 ? 20000 : wsStableResetMs,
+                    this.websocketServerHeaderMap(),
+                    new com.jokerhub.paper.plugin.orzmc.utils.WebSocketEventListener() {
                 @Override
                 public void onOpen() {
                     HealthRegistry.setWsConnected("qq", true);
+                    String initMsg = botConfig.getString("ws_init_message");
+                    if (initMsg != null && !initMsg.isEmpty()) {
+                        webSocketClient.send(initMsg);
+                    }
                 }
 
                 @Override
                 public void onClose(int code, String reason, boolean remote) {
                     HealthRegistry.setWsConnected("qq", false);
+                    ThrottledNotifier.run("qq-ws-close", throttleMs <= 0 ? 5000 : throttleMs, () -> OrzMC.server().sendMessage(com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles.warn("QQ WS关闭: " + (reason == null ? "" : reason))));
                 }
 
                 @Override
                 public void onError(Exception ex) {
                     HealthRegistry.setLastError("qq", ex.toString());
                     ThrottledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex, throttleMs <= 0 ? 5000 : throttleMs);
+                    ThrottledNotifier.run("qq-ws-error", throttleMs <= 0 ? 5000 : throttleMs, () -> OrzMC.server().sendMessage(com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles.error("QQ WS错误: " + ex.getMessage())));
                 }
             }) {
                 @Override

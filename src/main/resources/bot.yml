@@ -52,6 +52,10 @@ http_max_retries: 3
 # WebSocket 重试设置
 ws_max_retries: 10
 ws_base_retry_ms: 5000
+ws_max_delay_ms: 60000
+ws_jitter_percent: 10
+ws_stable_reset_ms: 20000
+ws_init_message: ''
 
 # 日志限流周期
 log_throttle_ms: 5000
