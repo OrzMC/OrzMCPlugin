@@ -1,8 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzConstants;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import net.kyori.adventure.text.Component;
@@ -25,7 +26,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 
 public class OrzTNTEvent extends OrzBaseListener {
     // 白名单区域内，可以允许 TNT
@@ -203,7 +203,6 @@ public class OrzTNTEvent extends OrzBaseListener {
         plugin.sendPublicMessage(OrzConstants.PREFIX_EXPLOSION_ALERT + locationString(location) + message);
     }
 
-    
 
     private void sendPlacementNotification(Player player, Block block) {
         TextComponent msg = Component.text().append(playerInfo(player)).append(Component.space()).append(Component.text("在")).append(locationComponent(block)).append(Component.space()).append(Component.text("放置了 " + "TNT")).build();
@@ -271,7 +270,7 @@ public class OrzTNTEvent extends OrzBaseListener {
 
     private void initExplosionExemptTypes(@NotNull FileConfiguration tntConfig) {
         List<String> names = tntConfig.getStringList("exempt_entities");
-        if (names == null || names.isEmpty()) {
+        if (names.isEmpty()) {
             names = List.of(
                     "CREEPER",
                     "FIREBALL",

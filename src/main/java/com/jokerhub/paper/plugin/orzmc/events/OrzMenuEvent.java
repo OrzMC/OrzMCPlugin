@@ -20,7 +20,7 @@ public class OrzMenuEvent extends OrzBaseListener {
         if (!(event.getWhoClicked() instanceof Player p)) return;
         if (event.getView().getTopInventory().getType() != InventoryType.CHEST) return;
         String title = event.getView().getTitle();
-        if (title != null && title.equals(OrzMenuCommand.name)) {
+        if (title.equals(OrzMenuCommand.name)) {
             event.setCancelled(true);
             ItemStack clicked = event.getCurrentItem();
             if (clicked != null && clicked.getType() != Material.AIR) {

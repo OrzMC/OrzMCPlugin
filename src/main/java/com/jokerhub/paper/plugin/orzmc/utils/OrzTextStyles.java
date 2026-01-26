@@ -1,11 +1,11 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
+import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.TextColor;
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
 
 public final class OrzTextStyles {
     private static TextColor colorOrDefault(String path, String defaultHex) {
@@ -18,15 +18,41 @@ public final class OrzTextStyles {
         }
     }
 
-    public static TextColor colorAlertTnt() { return colorOrDefault("styles.colors.tnt_alert", "#FF5555"); }
-    public static TextColor colorAlertExplosion() { return colorOrDefault("styles.colors.explosion_alert", "#FFAA00"); }
-    public static TextColor colorCoord() { return colorOrDefault("styles.colors.coord", "#55FF55"); }
-    public static TextColor colorSuccess() { return colorOrDefault("styles.colors.success", "#00FF00"); }
-    public static TextColor colorInfo() { return colorOrDefault("styles.colors.info", "#55AAFF"); }
-    public static TextColor colorWarn() { return colorOrDefault("styles.colors.warn", "#FFAA00"); }
-    public static TextColor colorError() { return colorOrDefault("styles.colors.error", "#FF5555"); }
-    public static TextColor colorPlayer() { return colorOrDefault("styles.colors.player", "#FF5555"); }
-    public static TextColor colorUnknown() { return colorOrDefault("styles.colors.unknown", "#AAAAAA"); }
+    public static TextColor colorAlertTnt() {
+        return colorOrDefault("styles.colors.tnt_alert", "#FF5555");
+    }
+
+    public static TextColor colorAlertExplosion() {
+        return colorOrDefault("styles.colors.explosion_alert", "#FFAA00");
+    }
+
+    public static TextColor colorCoord() {
+        return colorOrDefault("styles.colors.coord", "#55FF55");
+    }
+
+    public static TextColor colorSuccess() {
+        return colorOrDefault("styles.colors.success", "#00FF00");
+    }
+
+    public static TextColor colorInfo() {
+        return colorOrDefault("styles.colors.info", "#55AAFF");
+    }
+
+    public static TextColor colorWarn() {
+        return colorOrDefault("styles.colors.warn", "#FFAA00");
+    }
+
+    public static TextColor colorError() {
+        return colorOrDefault("styles.colors.error", "#FF5555");
+    }
+
+    public static TextColor colorPlayer() {
+        return colorOrDefault("styles.colors.player", "#FF5555");
+    }
+
+    public static TextColor colorUnknown() {
+        return colorOrDefault("styles.colors.unknown", "#AAAAAA");
+    }
 
     public static TextComponent prefix(String text, TextColor color) {
         return Component.text(text).color(color);
@@ -45,10 +71,7 @@ public final class OrzTextStyles {
     }
 
     public static TextComponent coordComponent(String locString) {
-        return Component.text(locString)
-                .color(colorCoord())
-                .hoverEvent(HoverEvent.showText(Component.text("点击复制坐标")))
-                .clickEvent(ClickEvent.copyToClipboard(locString.trim()));
+        return Component.text(locString).color(colorCoord()).hoverEvent(HoverEvent.showText(Component.text("点击复制坐标"))).clickEvent(ClickEvent.copyToClipboard(locString.trim()));
     }
 
     public static TextComponent success(String content) {
