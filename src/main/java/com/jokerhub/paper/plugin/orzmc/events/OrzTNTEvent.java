@@ -36,7 +36,6 @@ public class OrzTNTEvent extends OrzBaseListener {
     // 冷却时间跟踪
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
     private final EnumSet<EntityType> explosionExemptTypes = EnumSet.noneOf(EntityType.class);
-    private final long notifyThrottleMs;
 
     public OrzTNTEvent(OrzMC plugin) {
         super(plugin);
@@ -44,7 +43,6 @@ public class OrzTNTEvent extends OrzBaseListener {
         this.enableTNT = tntConfig.getBoolean("enable", false);
         this.enableRespawnAnchor = tntConfig.getBoolean("enable_respawn_anchor", false);
         this.tntPlaceCooldown = tntConfig.getInt("place_cooldown", 0);
-        this.notifyThrottleMs = tntConfig.getLong("notify_throttle_ms", 2000L);
 
         // 加载TNT放置区域白名单
         List<Map<?, ?>> regions = tntConfig.getMapList("whitelist");
@@ -151,7 +149,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         }
         Location loc = block.getLocation();
         String key = explosionKey(loc, material.name() + "爆炸");
-        ThrottledNotifier.run(key, notifyThrottleMs, notifyThrottleMs, () -> notifyExplosionEvent(loc, material.name() + "爆炸"));
+        ThrottledNotifier.runDefault(key, () -> notifyExplosionEvent(loc, material.name() + "爆炸"));
     }
 
     @EventHandler
@@ -162,7 +160,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         }
         Location loc = event.getLocation();
         String key = explosionKey(loc, entityType.name() + "爆炸");
-        ThrottledNotifier.run(key, notifyThrottleMs, notifyThrottleMs, () -> notifyExplosionEvent(loc, entityType.name() + "爆炸"));
+        ThrottledNotifier.runDefault(key, () -> notifyExplosionEvent(loc, entityType.name() + "爆炸"));
     }
 
     // 区域检查方法
@@ -178,26 +176,14 @@ public class OrzTNTEvent extends OrzBaseListener {
 
     // 通知方法
     private void notifyTNTEvent(Block block, String message) {
-        TextComponent msg = Component.text()
-                .append(OrzTextStyles.tntPrefix())
-                .append(playerInfo(null))
-                .append(Component.space())
-                .append(OrzTextStyles.coordComponent(locationString(block)))
-                .append(Component.space())
-                .append(Component.text(message))
-                .build();
+        TextComponent msg = Component.text().append(OrzTextStyles.tntPrefix()).append(playerInfo(null)).append(Component.space()).append(OrzTextStyles.coordComponent(locationString(block))).append(Component.space()).append(Component.text(message)).build();
 
         plugin.getServer().sendMessage(msg);
         plugin.sendPublicMessage(OrzConstants.PREFIX_TNT_ALERT + locationString(block) + message);
     }
 
     private void notifyExplosionEvent(Location location, String message) {
-        TextComponent msg = Component.text()
-                .append(OrzTextStyles.explosionPrefix())
-                .append(OrzTextStyles.coordComponent(locationString(location)))
-                .append(Component.space())
-                .append(Component.text(message))
-                .build();
+        TextComponent msg = Component.text().append(OrzTextStyles.explosionPrefix()).append(OrzTextStyles.coordComponent(locationString(location))).append(Component.space()).append(Component.text(message)).build();
 
         plugin.getServer().sendMessage(msg);
         plugin.sendPublicMessage(OrzConstants.PREFIX_EXPLOSION_ALERT + locationString(location) + message);
@@ -271,16 +257,7 @@ public class OrzTNTEvent extends OrzBaseListener {
     private void initExplosionExemptTypes(@NotNull FileConfiguration tntConfig) {
         List<String> names = tntConfig.getStringList("exempt_entities");
         if (names.isEmpty()) {
-            names = List.of(
-                    "CREEPER",
-                    "FIREBALL",
-                    "WIND_CHARGE",
-                    "BREEZE_WIND_CHARGE",
-                    "ENDER_DRAGON",
-                    "END_CRYSTAL",
-                    "WITHER",
-                    "WITHER_SKULL"
-            );
+            names = List.of("CREEPER", "FIREBALL", "WIND_CHARGE", "BREEZE_WIND_CHARGE", "ENDER_DRAGON", "END_CRYSTAL", "WITHER", "WITHER_SKULL");
         }
         names.forEach(this::addExemptTypeIfAvailable);
     }

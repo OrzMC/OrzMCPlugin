@@ -8,7 +8,7 @@ enable_respawn_anchor: false
 # TNT放置的冷却时间，单位为：秒，防止TNT放置太快
 place_cooldown: 5
 # 爆炸警报节流时间窗口（毫秒），同一区块同类爆炸在窗口内只通知一次
-notify_throttle_ms: 2000
+notify_throttle_ms: 1000
 # TNT放置区域白名单
 whitelist:
   - minX: 0

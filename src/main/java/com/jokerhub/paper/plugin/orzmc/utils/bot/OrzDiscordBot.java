@@ -157,7 +157,6 @@ public class OrzDiscordBot extends OrzBaseBot {
 
     public void sendMessage(String message) {
         if (!this.isEnable()) {
-            OrzMC.debugInfo("Discord Bot Disabled!");
             return;
         }
         if (!isApiReady) {
