@@ -30,7 +30,6 @@ public class OrzMenuCommand implements CommandExecutor {
             menu.addItem(item1);
 
             p.openInventory(menu);
-            p.sendMessage(OrzTextStyles.info("打开 " + OrzMenuCommand.name));
         }
         return false;
     }
