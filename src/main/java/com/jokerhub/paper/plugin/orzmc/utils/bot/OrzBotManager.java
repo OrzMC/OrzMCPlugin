@@ -31,7 +31,7 @@ public class OrzBotManager {
     public void sendMessage(String message, boolean isPrivate) {
         if (!initialized) {
             long throttleMs = plugin.configManager.getConfig("bot").getLong("log_throttle_ms");
-            com.jokerhub.paper.plugin.orzmc.utils.ThrottledLogger.info("bots-init", "机器人尚未就绪，消息已缓存", throttleMs <= 0 ? 5000 : throttleMs);
+            ThrottledLogger.info("bots-init", "机器人尚未就绪，消息已缓存", throttleMs <= 0 ? 5000 : throttleMs);
             pending.add(new PendingMessage(message, isPrivate));
             return;
         }
