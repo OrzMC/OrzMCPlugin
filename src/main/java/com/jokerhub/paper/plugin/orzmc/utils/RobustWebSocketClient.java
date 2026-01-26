@@ -64,7 +64,6 @@ public class RobustWebSocketClient {
             @Override
             public void onClose(int code, String reason, boolean remote) {
                 OrzMC.logger().info("WebSocket连接关闭: " + reason);
-                ThrottledNotifier.run("ws-close", logThrottleMs <= 0 ? 5000 : logThrottleMs, () -> OrzMC.server().sendMessage(OrzTextStyles.warn("WebSocket连接关闭: " + (reason == null ? "" : reason))));
                 if (listener != null) listener.onClose(code, reason, remote);
                 if (shouldReconnect) {
                     scheduleReconnect();
@@ -74,7 +73,6 @@ public class RobustWebSocketClient {
             @Override
             public void onError(Exception ex) {
                 OrzMC.logger().severe("WebSocket错误: " + ex.getMessage());
-                ThrottledNotifier.run("ws-error", logThrottleMs <= 0 ? 5000 : logThrottleMs, () -> OrzMC.server().sendMessage(OrzTextStyles.error("WebSocket错误: " + ex.getMessage())));
                 if (listener != null) listener.onError(ex);
                 if (!isOpen() && shouldReconnect) {
                     scheduleReconnect();

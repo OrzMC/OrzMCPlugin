@@ -41,7 +41,8 @@ public final class OrzMC extends JavaPlugin implements Listener {
         try {
             optimizeOnShutdown = configManager.getConfig("config").getBoolean("optimize_on_shutdown");
             optimizeEnabled = configManager.getConfig("config").getBoolean("optimize_enabled");
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
         if (optimizeEnabled && optimizeOnShutdown) {
             OrzMessageParser.optimizeWorldOnShutdown(msg -> getLogger().info(msg));
         }
@@ -85,8 +86,6 @@ public final class OrzMC extends JavaPlugin implements Listener {
         String minecraftVersion = getServer().getMinecraftVersion();
         String stringBuilder = "Minecraft " + minecraftVersion + "\n" + "------" + "\n" + "服务停止" + "\n\n" + "停止状态无法响应命令消息";
         sendPublicMessage(stringBuilder);
-        getServer().sendMessage(com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles.warn("服务停止"));
-        getServer().sendMessage(com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles.info("停止状态无法响应命令消息"));
     }
 
     private void setupServerForceWhitelist() {
