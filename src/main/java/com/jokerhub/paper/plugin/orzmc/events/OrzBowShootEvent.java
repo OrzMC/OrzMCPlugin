@@ -2,12 +2,12 @@ package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzConstants;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -16,8 +16,11 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumSet;
 
-public class OrzBowShootEvent implements Listener {
-    private static final NamespacedKey KEY_TPBOW = new NamespacedKey(OrzMC.plugin(), "tpbow");
+public class OrzBowShootEvent extends OrzBaseListener {
+    public OrzBowShootEvent(OrzMC plugin) {
+        super(plugin);
+    }
+    private static final NamespacedKey KEY_TPBOW = new NamespacedKey(OrzMC.plugin(), OrzConstants.TPBOW_KEY);
 
     @EventHandler
     public void onBowShoot(@NotNull ProjectileHitEvent event) {

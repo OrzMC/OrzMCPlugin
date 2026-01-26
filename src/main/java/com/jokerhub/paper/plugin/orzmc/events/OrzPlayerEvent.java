@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -45,7 +46,7 @@ public class OrzPlayerEvent extends OrzBaseListener {
     @EventHandler
     public void onPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
         if (OrzMessageParser.isBackupRunning) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, Component.text("服务器地图备份中，请稍后再尝试登录。"));
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, OrzTextStyles.warn("服务器地图备份中，请稍后再尝试登录。"));
             return;
         }
         List<String> allowCountList = allowCountryList();
@@ -71,7 +72,7 @@ public class OrzPlayerEvent extends OrzBaseListener {
                             if (!allowCountList.contains(countryCode)) {
                                 String msg = playerName + "(" + ipAddress + ")" + "\n" + countryCode + "\n" + "IP位置不在服务支持区域" + String.join(",", allowCountList);
                                 plugin.sendPublicMessage(msg + "\n" + addressInfo);
-                                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, Component.text(msg));
+                                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, OrzTextStyles.error(msg));
                             } else {
                                 OrzMC.debugInfo("allowCountList contains: " + countryCode);
                             }
@@ -161,6 +162,7 @@ public class OrzPlayerEvent extends OrzBaseListener {
         }
         plugin.sendPublicMessage(msgBuilder.toString());
         plugin.getLogger().info(msgBuilder.toString());
+        plugin.getServer().sendMessage(OrzTextStyles.info(msgBuilder.toString()));
         if (onlinePlayerCount == 0) {
             plugin.sendPrivateMessage("服务器当前无玩家，可进行服务器维护");
         }

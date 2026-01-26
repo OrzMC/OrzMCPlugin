@@ -2,11 +2,14 @@ package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerCommandEvent;
 
-public class OrzDebugEvent implements Listener {
+public class OrzDebugEvent extends OrzBaseListener {
+    public OrzDebugEvent(OrzMC plugin) {
+        super(plugin);
+    }
 
     public static boolean debug = false;
 
@@ -18,6 +21,9 @@ public class OrzDebugEvent implements Listener {
             return;
         }
         String cmd = event.getCommand().substring(debugCmdPrefix.length()).trim();
-        OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> OrzMessageParser.parse(cmd, true, result -> OrzMC.logger().info("cmd debug: \n" + result)));
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> OrzMessageParser.parse(cmd, true, result -> {
+            plugin.getLogger().info("cmd debug: \n" + result);
+            plugin.getServer().sendMessage(OrzTextStyles.info("cmd debug: \n" + result));
+        }));
     }
 }

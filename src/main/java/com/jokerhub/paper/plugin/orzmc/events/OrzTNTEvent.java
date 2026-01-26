@@ -2,12 +2,11 @@ package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzConstants;
 import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -26,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 
 public class OrzTNTEvent extends OrzBaseListener {
     // 白名单区域内，可以允许 TNT
@@ -178,18 +178,29 @@ public class OrzTNTEvent extends OrzBaseListener {
 
     // 通知方法
     private void notifyTNTEvent(Block block, String message) {
-        TextComponent msg = Component.text().append(Component.text("[TNT警报] ").color(TextColor.color(0xFF5555))).append(playerInfo(null)) // 尝试获取放置玩家
-                .append(Component.space()).append(locationComponent(block)).append(Component.space()).append(Component.text(message)).build();
+        TextComponent msg = Component.text()
+                .append(OrzTextStyles.tntPrefix())
+                .append(playerInfo(null))
+                .append(Component.space())
+                .append(OrzTextStyles.coordComponent(locationString(block)))
+                .append(Component.space())
+                .append(Component.text(message))
+                .build();
 
         plugin.getServer().sendMessage(msg);
-        plugin.sendPublicMessage("[TNT警报] " + locationString(block) + message);
+        plugin.sendPublicMessage(OrzConstants.PREFIX_TNT_ALERT + locationString(block) + message);
     }
 
     private void notifyExplosionEvent(Location location, String message) {
-        TextComponent msg = Component.text().append(Component.text("[爆炸警报] ").color(TextColor.color(0xFFAA00))).append(locationComponent(location)).append(Component.space()).append(Component.text(message)).build();
+        TextComponent msg = Component.text()
+                .append(OrzTextStyles.explosionPrefix())
+                .append(OrzTextStyles.coordComponent(locationString(location)))
+                .append(Component.space())
+                .append(Component.text(message))
+                .build();
 
         plugin.getServer().sendMessage(msg);
-        plugin.sendPublicMessage("[爆炸警报] " + locationString(location) + message);
+        plugin.sendPublicMessage(OrzConstants.PREFIX_EXPLOSION_ALERT + locationString(location) + message);
     }
 
     
@@ -204,9 +215,9 @@ public class OrzTNTEvent extends OrzBaseListener {
     // 信息构建工具
     private @NotNull TextComponent playerInfo(@Nullable Player player) {
         if (player != null) {
-            return Component.text(player.getName()).color(TextColor.color(0xFF5555));
+            return OrzTextStyles.playerName(player.getName());
         } else {
-            return Component.text("未知玩家").color(TextColor.color(0xAAAAAA));
+            return OrzTextStyles.unknownLabel();
         }
     }
 
@@ -216,7 +227,7 @@ public class OrzTNTEvent extends OrzBaseListener {
 
     private @NotNull TextComponent locationComponent(Location location) {
         String locString = locationString(location);
-        return Component.text(locString).color(TextColor.color(0x55FF55)).hoverEvent(HoverEvent.showText(Component.text("点击复制坐标"))).clickEvent(ClickEvent.copyToClipboard(locString.trim()));
+        return OrzTextStyles.coordComponent(locString);
     }
 
     private @NotNull String locationString(@NotNull Block block) {
@@ -224,7 +235,7 @@ public class OrzTNTEvent extends OrzBaseListener {
     }
 
     private @NotNull String locationString(@NotNull Location location) {
-        return String.format(" [%s] %d %d %d ", location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        return OrzTextStyles.coordString(location);
     }
 
     private @NotNull String explosionKey(@NotNull Location location, @NotNull String message) {

@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.commands;
 
 import net.kyori.adventure.text.Component;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -20,13 +21,14 @@ public class OrzMenuCommand implements CommandExecutor {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String @NotNull [] args) {
         if(sender instanceof Player p) {
 
-            Component title = Component.text(OrzMenuCommand.name);
+            Component title = OrzTextStyles.info(OrzMenuCommand.name);
             Inventory menu = Bukkit.createInventory(p, InventoryType.CHEST, title);
 
             ItemStack item1 = new ItemStack(Material.CHIPPED_ANVIL);
             menu.addItem(item1);
 
             p.openInventory(menu);
+            p.sendMessage(OrzTextStyles.info("打开 " + OrzMenuCommand.name));
         }
         return false;
     }

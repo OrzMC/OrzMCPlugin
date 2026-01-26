@@ -5,6 +5,7 @@ import com.destroystokyo.paper.exception.ServerException;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzUserCmd;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -24,6 +25,7 @@ public class OrzServerEvent extends OrzBaseListener {
     public void onException(ServerExceptionEvent event) {
         ServerException exception = event.getException();
         plugin.sendPrivateMessage(exception.toString());
+        plugin.getServer().sendMessage(OrzTextStyles.error(exception.toString()));
     }
 
     @EventHandler
@@ -40,6 +42,14 @@ public class OrzServerEvent extends OrzBaseListener {
         stringBuilder.append("\n\n");
         stringBuilder.append("发送 \"").append(OrzUserCmd.SHOW_HELP.getCmdString()).append("\" 查看支持的命令消息");
         plugin.sendPublicMessage(stringBuilder.toString());
+        TextComponent comp = Component.text()
+                .append(OrzTextStyles.info(String.join(" ", parts)))
+                .append(Component.newline())
+                .append(OrzTextStyles.success(event.getType() == ServerLoadEvent.LoadType.STARTUP ? "启动完成" : "重启完成"))
+                .append(Component.newline())
+                .append(OrzTextStyles.info("发送 \"" + OrzUserCmd.SHOW_HELP.getCmdString() + "\" 查看支持的命令消息"))
+                .build();
+        plugin.getServer().sendMessage(comp);
     }
 
     @EventHandler
@@ -49,16 +59,16 @@ public class OrzServerEvent extends OrzBaseListener {
             String discordLink = plugin.configManager.getConfig("bot").getString("discord_server_link");
             String qqGroupId = plugin.configManager.getConfig("config").getString("qq_player_group_id");
             TextComponent.Builder motdBuilder = Component.text();
-            motdBuilder.append(Component.text("⚠ 维护中").color(NamedTextColor.RED).decorate(TextDecoration.BOLD));
+            motdBuilder.append(OrzTextStyles.warn("⚠ 维护中").decorate(TextDecoration.BOLD));
             motdBuilder.append(Component.newline());
-            motdBuilder.append(Component.text(msg).color(NamedTextColor.YELLOW));
+            motdBuilder.append(OrzTextStyles.info(msg));
             if (qqGroupId != null && !qqGroupId.isEmpty()) {
                 motdBuilder.append(Component.newline());
-                motdBuilder.append(Component.text("QQ群: ").color(NamedTextColor.GRAY)).append(Component.text(qqGroupId).color(NamedTextColor.GOLD));
+                motdBuilder.append(OrzTextStyles.info("QQ群: ")).append(OrzTextStyles.warn(qqGroupId));
             }
             if (discordLink != null && !discordLink.isEmpty()) {
                 motdBuilder.append(Component.newline());
-                motdBuilder.append(Component.text("Discord: ").color(NamedTextColor.GRAY)).append(Component.text(discordLink).color(NamedTextColor.BLUE).decorate(TextDecoration.UNDERLINED).hoverEvent(HoverEvent.showText(Component.text("点击加入 Discord"))).clickEvent(ClickEvent.openUrl(discordLink)));
+                motdBuilder.append(OrzTextStyles.info("Discord: ")).append(Component.text(discordLink).decorate(TextDecoration.UNDERLINED).hoverEvent(HoverEvent.showText(Component.text("点击加入 Discord"))).clickEvent(ClickEvent.openUrl(discordLink)));
             }
             Component comp = motdBuilder.build();
             event.motd(comp);
