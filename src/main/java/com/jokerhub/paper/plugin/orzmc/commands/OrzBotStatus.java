@@ -1,6 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc.commands;
 
 import com.jokerhub.paper.plugin.orzmc.utils.HealthRegistry;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
+import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -12,10 +14,8 @@ public class OrzBotStatus implements CommandExecutor {
         HealthRegistry.Status qq = HealthRegistry.get("qq");
         HealthRegistry.Status discord = HealthRegistry.get("discord");
         HealthRegistry.Status lark = HealthRegistry.get("lark");
-        String sb = "QQ: enabled=" + qq.enabled + ", httpOk=" + qq.httpOk + ", wsConnected=" + qq.wsConnected + ", lastError=" + qq.lastError + "\n" +
-                "Discord: enabled=" + discord.enabled + ", apiReady=" + discord.apiReady + ", lastError=" + discord.lastError + "\n" +
-                "Lark: enabled=" + lark.enabled + ", httpOk=" + lark.httpOk + ", lastError=" + lark.lastError;
-        sender.sendMessage(sb);
+        Component message = OrzTextStyles.warn("QQBot:").append(Component.space()).append(qq.enabled ? OrzTextStyles.success("enabled") : OrzTextStyles.error("disabled")).append(Component.space()).append(qq.httpOk ? OrzTextStyles.success("httpOk") : OrzTextStyles.error("httpNotOk")).append(Component.space()).append(qq.wsConnected ? OrzTextStyles.success("wsOk") : OrzTextStyles.error("wsNotOk")).append(Component.space()).append(qq.lastError == null ? OrzTextStyles.success("") : OrzTextStyles.error("lastError: " + qq.lastError)).append(Component.newline()).append(OrzTextStyles.warn("DiscordBot:")).append(Component.space()).append(discord.enabled ? OrzTextStyles.success("enabled") : OrzTextStyles.error("disabled")).append(Component.space()).append(discord.apiReady ? OrzTextStyles.success("apiReady") : OrzTextStyles.error("apiNotReady")).append(Component.space()).append(discord.lastError == null ? OrzTextStyles.success("") : OrzTextStyles.error("larkError" + discord.lastError)).append(Component.newline()).append(OrzTextStyles.warn("LarkBot:")).append(Component.space()).append(lark.enabled ? OrzTextStyles.success("enabled") : OrzTextStyles.error("disabled")).append(Component.space()).append(lark.httpOk ? OrzTextStyles.success("httpOk") : OrzTextStyles.error("httpNotOk")).append(Component.space()).append(lark.lastError == null ? OrzTextStyles.success("") : OrzTextStyles.error("larkError: " + lark.lastError));
+        sender.sendMessage(message);
         return true;
     }
 }
