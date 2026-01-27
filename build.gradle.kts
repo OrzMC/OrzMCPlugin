@@ -111,6 +111,16 @@ tasks {
     }
     // 配置工程内直接调试服务端插件
     // gradle-plugin: https://github.com/jpenilla/run-task#basic-usage
+    val agreeEula = register("agreeEula") {
+        doLast {
+            val runDir = file("run")
+            if (!runDir.exists()) {
+                runDir.mkdirs()
+            }
+            val eulaFile = file("$runDir/eula.txt")
+            eulaFile.writeText("eula=true\n")
+        }
+    }
     runServer {
         // Configure the Minecraft version for our task.
         // This is the only required configuration besides applying the plugin.
@@ -122,6 +132,7 @@ tasks {
             languageVersion.set(JavaLanguageVersion.of(21))
         }
         javaLauncher.set(java21)
+        dependsOn(agreeEula)
     }
     jar {
         archiveClassifier.set(archiveClassifierSuffix)
