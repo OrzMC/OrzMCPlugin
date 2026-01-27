@@ -22,6 +22,8 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: 21
+      - name: spotless check
+        run: ./gradlew spotlessCheck --stacktrace
       - name: build shadowJar
         run: ./gradlew clean build --stacktrace
       - name: upload jar to github
