@@ -50,9 +50,9 @@ plugins {
     kotlin("jvm") version "2.2.0"
     id("com.gradleup.shadow") version "8.3.8"
     // 工程内直接调试服务端插件：https://docs.papermc.io/paper/dev/debugging#using-direct-debugging
-    id("xyz.jpenilla.run-paper") version "2.3.1"
+    id("xyz.jpenilla.run-paper") version "3.0.2"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
-    id("io.papermc.hangar-publish-plugin") version "0.1.3"
+    id("io.papermc.hangar-publish-plugin") version "0.1.4"
 }
 
 // 版本发布相关
@@ -122,17 +122,10 @@ tasks {
         }
         javaLauncher.set(java21)
     }
-    // Mojang mappings: https://docs.papermc.io/paper/dev/project-setup/#mojang-mappings
     jar {
-        manifest {
-            attributes["paperweight-mappings-namespace"] = "mojang"
-        }
         archiveClassifier.set(archiveClassifierSuffix)
     }
     shadowJar {
-        manifest {
-            attributes["paperweight-mappings-namespace"] = "mojang"
-        }
         minimize()
         dependsOn("jar")
         archiveClassifier.set(archiveClassifierSuffix)
