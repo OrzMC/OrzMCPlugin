@@ -49,7 +49,11 @@ public class OrzTPBow implements CommandExecutor {
             NamespacedKey key = new NamespacedKey(OrzMC.plugin(), OrzConstants.TPBOW_KEY);
             meta.getPersistentDataContainer().set(key, PersistentDataType.BYTE, (byte) 1);
             teleport_bow.setItemMeta(meta);
-            player.getInventory().addItem(teleport_bow);
+            ItemStack prev = player.getInventory().getItemInMainHand();
+            if (prev.getType() != Material.AIR) {
+                player.getInventory().addItem(prev);
+            }
+            player.getInventory().setItemInMainHand(teleport_bow);
             ItemStack arrow = new ItemStack(Material.ARROW);
             player.getInventory().addItem(arrow);
             player.sendMessage(OrzUtil.successText("你获得了" + OrzTPBow.name));
