@@ -67,7 +67,7 @@ public final class OrzTextStyles {
     }
 
     public static TextComponent tpbowPrefix() {
-        return Component.text("[" + com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow.name + "]").color(colorSuccess());
+        return Component.text("[" + com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow.name + "]").color(colorWarn());
     }
 
     public static TextComponent coordComponent(String locString) {
