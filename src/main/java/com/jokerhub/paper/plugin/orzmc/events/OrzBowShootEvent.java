@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.events;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzConstants;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Arrow;
@@ -33,34 +34,34 @@ public class OrzBowShootEvent extends OrzBaseListener {
                     return;
                 }
                 if (arrow.isInWater()) {
-                    player.sendMessage(OrzTPBow.logText("箭射进了水里!"));
+                    sendPlayerErrorMessage(player, "箭射进了水里!");
                     return;
                 }
                 if (arrow.isInLava()) {
-                    player.sendMessage(OrzTPBow.logText("箭射进了岩浆里!"));
+                    sendPlayerErrorMessage(player, "箭射进了岩浆里!");
                     return;
                 }
                 Location base = arrow.getLocation();
                 World pw = player.getWorld();
                 World tw = base.getWorld();
                 if (!pw.equals(tw)) {
-                    player.sendMessage(OrzTPBow.logText("无法跨世界传送!"));
+                    sendPlayerErrorMessage(player, "无法跨世界传送!");
                     return;
                 }
                 org.bukkit.util.Vector dir = arrow.getVelocity();
                 Location center = toBlockCenter(base, dir);
                 if (!withinWorldBounds(center)) {
-                    player.sendMessage(OrzTPBow.logText("目标高度不合法!"));
+                    sendPlayerErrorMessage(player, "目标高度不合法!");
                     return;
                 }
                 Location safe = findNearestSafe(center, dir);
                 if (safe == null) {
-                    player.sendMessage(OrzTPBow.logText("目标位置不可站立!"));
+                    sendPlayerErrorMessage(player, "目标位置不可站立!");
                     return;
                 }
                 player.teleport(safe);
                 player.playSound(player.getLocation(), Sound.ENTITY_CAT_PURR, 1.0F, 1.0F);
-                player.sendMessage(OrzTPBow.logText("传送完成!"));
+                sendPlayerSuccessMessage(player);
             }
         }
     }
@@ -77,17 +78,7 @@ public class OrzBowShootEvent extends OrzBaseListener {
         }
     }
 
-    private static final EnumSet<Material> DANGEROUS = EnumSet.of(
-            Material.LAVA,
-            Material.WATER,
-            Material.MAGMA_BLOCK,
-            Material.CACTUS,
-            Material.FIRE,
-            Material.SOUL_FIRE,
-            Material.CAMPFIRE,
-            Material.SOUL_CAMPFIRE,
-            Material.POWDER_SNOW
-    );
+    private static final EnumSet<Material> DANGEROUS = EnumSet.of(Material.LAVA, Material.WATER, Material.MAGMA_BLOCK, Material.CACTUS, Material.FIRE, Material.SOUL_FIRE, Material.CAMPFIRE, Material.SOUL_CAMPFIRE, Material.POWDER_SNOW);
 
     private boolean withinWorldBounds(Location loc) {
         if (loc == null) return false;
@@ -157,5 +148,13 @@ public class OrzBowShootEvent extends OrzBaseListener {
     private float vectorYaw(@NotNull org.bukkit.util.Vector v) {
         double yawRad = Math.atan2(-v.getX(), v.getZ());
         return (float) Math.toDegrees(yawRad);
+    }
+
+    private void sendPlayerErrorMessage(Player player, String message) {
+        player.sendMessage(OrzTPBow.logText(message).color(OrzTextStyles.colorError()));
+    }
+
+    private void sendPlayerSuccessMessage(Player player) {
+        player.sendMessage(OrzTPBow.logText("传送完成!").color(OrzTextStyles.colorSuccess()));
     }
 }
