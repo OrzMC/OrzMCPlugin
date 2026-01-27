@@ -106,8 +106,7 @@ public class OrzBowShootEvent extends OrzBaseListener {
         int by = loc.getBlockY();
         int bz = loc.getBlockZ();
         float yaw = vectorYaw(dir);
-        float pitch = vectorPitch(dir);
-        return new Location(w, bx + 0.5, by, bz + 0.5, yaw, pitch);
+        return new Location(w, bx + 0.5, by, bz + 0.5, yaw, 0f);
     }
 
     private boolean isStandable(@NotNull Location loc) {
@@ -135,7 +134,7 @@ public class OrzBowShootEvent extends OrzBaseListener {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (dx == 0 && dz == 0) continue;
-                    candidates.add(new Location(w, bx + dx + 0.5, by, bz + dz + 0.5, vectorYaw(facingNorm), vectorPitch(facingNorm)));
+                    candidates.add(new Location(w, bx + dx + 0.5, by, bz + dz + 0.5, vectorYaw(facingNorm), 0f));
                 }
             }
         }
