@@ -42,14 +42,26 @@ public class OrzWhiteListEvent extends OrzBaseListener {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
             }
-            kickMsgBuilder.append(OrzTextStyles.playerName(player.getName()).decorate(TextDecoration.BOLD)).append(Component.space()).append(OrzTextStyles.warn("不在服务器白名单中，请先加入QQ群:")).append(Component.space()).append(OrzTextStyles.warn(qqGroupId)).append(Component.space()).append(OrzTextStyles.info("，联系管理员添加白名单"));
+            kickMsgBuilder
+                    .append(OrzTextStyles.playerName(player.getName()).decorate(TextDecoration.BOLD))
+                    .append(Component.space())
+                    .append(OrzTextStyles.warn("不在服务器白名单中，请先加入QQ群:"))
+                    .append(Component.space())
+                    .append(OrzTextStyles.warn(qqGroupId))
+                    .append(Component.space())
+                    .append(OrzTextStyles.info("，联系管理员添加白名单"));
         }
         String discordServerLink = botConfig.getString("discord_server_link");
         if (discordServerLink != null && !discordServerLink.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
             }
-            kickMsgBuilder.append(OrzTextStyles.info("you can also join the discord server: ")).append(Component.text(discordServerLink).color(NamedTextColor.BLUE).decorate(TextDecoration.UNDERLINED).clickEvent(ClickEvent.openUrl(discordServerLink)));
+            kickMsgBuilder
+                    .append(OrzTextStyles.info("you can also join the discord server: "))
+                    .append(Component.text(discordServerLink)
+                            .color(NamedTextColor.BLUE)
+                            .decorate(TextDecoration.UNDERLINED)
+                            .clickEvent(ClickEvent.openUrl(discordServerLink)));
         }
         if (!kickMsgBuilder.build().equals(Component.empty())) {
             event.kickMessage(kickMsgBuilder.build());

@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzConstants;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
+import java.util.EnumSet;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Arrow;
@@ -15,8 +16,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.EnumSet;
 
 public class OrzBowShootEvent extends OrzBaseListener {
     public OrzBowShootEvent(OrzMC plugin) {
@@ -78,7 +77,16 @@ public class OrzBowShootEvent extends OrzBaseListener {
         }
     }
 
-    private static final EnumSet<Material> DANGEROUS = EnumSet.of(Material.LAVA, Material.WATER, Material.MAGMA_BLOCK, Material.CACTUS, Material.FIRE, Material.SOUL_FIRE, Material.CAMPFIRE, Material.SOUL_CAMPFIRE, Material.POWDER_SNOW);
+    private static final EnumSet<Material> DANGEROUS = EnumSet.of(
+            Material.LAVA,
+            Material.WATER,
+            Material.MAGMA_BLOCK,
+            Material.CACTUS,
+            Material.FIRE,
+            Material.SOUL_FIRE,
+            Material.CAMPFIRE,
+            Material.SOUL_CAMPFIRE,
+            Material.POWDER_SNOW);
 
     private boolean withinWorldBounds(Location loc) {
         if (loc == null) return false;

@@ -1,12 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
+import static java.nio.file.Files.readAttributes;
+
 import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import kotlin.Unit;
-import kotlin.jvm.functions.Function1;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.entity.Player;
-
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -14,8 +11,10 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
-import static java.nio.file.Files.readAttributes;
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
 
 public class OrzMessageParser {
     public static volatile boolean isBackupRunning = false;
@@ -79,8 +78,7 @@ public class OrzMessageParser {
             case SURVIVAL -> gameMode = "生存";
             case ADVENTURE -> gameMode = "冒险";
             case SPECTATOR -> gameMode = "观察";
-            default -> {
-            }
+            default -> {}
         }
         ret += " " + gameMode + "模式";
         return ret;
@@ -95,7 +93,9 @@ public class OrzMessageParser {
                     onlinePlayers.add(p);
                 }
             }
-            String tip = String.format("------当前在线(%d/%d)------", onlinePlayers.size(), OrzMC.server().getMaxPlayers());
+            String tip = String.format(
+                    "------当前在线(%d/%d)------",
+                    onlinePlayers.size(), OrzMC.server().getMaxPlayers());
             StringBuilder msgBuilder = new StringBuilder(tip);
 
             for (Player p : onlinePlayers) {
@@ -115,7 +115,8 @@ public class OrzMessageParser {
             for (OfflinePlayer player : whiteListPlayers) {
                 String playerName = player.getName();
                 String isOnline = player.isOnline() ? "•" : "◦";
-                StringBuilder line = new StringBuilder().append(isOnline).append(" ").append(playerName);
+                StringBuilder line =
+                        new StringBuilder().append(isOnline).append(" ").append(playerName);
                 long lastSeenTimestamp = player.getLastSeen();
                 if (lastSeenTimestamp > 0) {
                     String lastSeen = new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastSeenTimestamp));
@@ -123,7 +124,8 @@ public class OrzMessageParser {
                 }
                 lines.add(line.toString());
             }
-            org.bukkit.configuration.file.FileConfiguration cfg = OrzMC.plugin().configManager.getConfig("config");
+            org.bukkit.configuration.file.FileConfiguration cfg =
+                    OrzMC.plugin().configManager.getConfig("config");
             int delayTicks = cfg.getInt("whitelist_pagination_delay_ticks", 5);
             int inactiveDays = cfg.getInt("whitelist_cleanup_inactive_days", 90);
             ArrayList<OfflinePlayer> toRemove = new ArrayList<>();
@@ -156,17 +158,26 @@ public class OrzMessageParser {
                         for (OfflinePlayer player : updated) {
                             String playerName = player.getName();
                             String isOnline2 = player.isOnline() ? "•" : "◦";
-                            StringBuilder line2 = new StringBuilder().append(isOnline2).append(" ").append(playerName);
+                            StringBuilder line2 = new StringBuilder()
+                                    .append(isOnline2)
+                                    .append(" ")
+                                    .append(playerName);
                             long lastSeen2 = player.getLastSeen();
                             if (lastSeen2 > 0) {
-                                String lastSeenStr = new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastSeen2));
+                                String lastSeenStr =
+                                        new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastSeen2));
                                 line2.append(" ").append(lastSeenStr);
                             }
                             updatedLines.add(line2.toString());
                         }
                         ArrayList<String> chunks2 = buildChunks(updatedLines);
                         int total2 = chunks2.size();
-                        String removedMsg = "------白名单清理------\n" + String.join("\n", toRemove.stream().map(p -> "✔︎ " + (p.getName() == null ? "(unknown)" : p.getName())).collect(Collectors.toSet()));
+                        String removedMsg = "------白名单清理------\n"
+                                + String.join(
+                                        "\n",
+                                        toRemove.stream()
+                                                .map(p -> "✔︎ " + (p.getName() == null ? "(unknown)" : p.getName()))
+                                                .collect(Collectors.toSet()));
                         callback.accept(removedMsg);
                         if (total2 == 0) {
                             callback.accept(updatedHeader + "\n" + "(暂无白名单玩家)");
@@ -180,11 +191,17 @@ public class OrzMessageParser {
                         } else {
                             for (int i = 0; i < total2; i++) {
                                 final int pageIndex = i;
-                                OrzMC.server().getScheduler().runTaskLater(OrzMC.plugin(), () -> {
-                                    String pageHeader = updatedHeader + "\n第" + (pageIndex + 1) + "/" + total2 + "页";
-                                    String body = chunks2.get(pageIndex);
-                                    callback.accept(pageHeader + "\n" + body);
-                                }, i * (delayTicks <= 0 ? 5L : delayTicks));
+                                OrzMC.server()
+                                        .getScheduler()
+                                        .runTaskLater(
+                                                OrzMC.plugin(),
+                                                () -> {
+                                                    String pageHeader = updatedHeader + "\n第" + (pageIndex + 1) + "/"
+                                                            + total2 + "页";
+                                                    String body = chunks2.get(pageIndex);
+                                                    callback.accept(pageHeader + "\n" + body);
+                                                },
+                                                i * (delayTicks <= 0 ? 5L : delayTicks));
                             }
                         }
                     });
@@ -204,11 +221,16 @@ public class OrzMessageParser {
                 } else {
                     for (int i = 0; i < total; i++) {
                         final int pageIndex = i;
-                        OrzMC.server().getScheduler().runTaskLater(OrzMC.plugin(), () -> {
-                            String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
-                            String body = chunks.get(pageIndex);
-                            callback.accept(pageHeader + "\n" + body);
-                        }, i * (delayTicks <= 0 ? 5L : delayTicks));
+                        OrzMC.server()
+                                .getScheduler()
+                                .runTaskLater(
+                                        OrzMC.plugin(),
+                                        () -> {
+                                            String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
+                                            String body = chunks.get(pageIndex);
+                                            callback.accept(pageHeader + "\n" + body);
+                                        },
+                                        i * (delayTicks <= 0 ? 5L : delayTicks));
                     }
                 }
             }
@@ -238,11 +260,13 @@ public class OrzMessageParser {
                 Set<String> allWhiteListName = allWhiteListPlayerName();
                 String message = "------白名单添加------\n";
                 if (allWhiteListName.containsAll(userNames)) {
-                    message += String.join("\n", userNames.stream().map(name -> "✔︎ ︎" + name).collect(Collectors.toSet()));
+                    message += String.join(
+                            "\n", userNames.stream().map(name -> "✔︎ ︎" + name).collect(Collectors.toSet()));
                 }
                 userNames.removeAll(allWhiteListName);
                 if (!userNames.isEmpty()) {
-                    message += String.join("\n", userNames.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
+                    message += String.join(
+                            "\n", userNames.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
                 }
                 callback.accept(message);
             });
@@ -295,11 +319,13 @@ public class OrzMessageParser {
                 Set<String> allWhiteListName = allWhiteListPlayerName();
                 String message = "------白名单移除------\n";
                 if (!allWhiteListName.containsAll(userNames)) {
-                    message += String.join("\n", userNames.stream().map(name -> "✔︎ " + name).collect(Collectors.toSet()));
+                    message += String.join(
+                            "\n", userNames.stream().map(name -> "✔︎ " + name).collect(Collectors.toSet()));
                 }
                 userNames.retainAll(allWhiteListName);
                 if (!userNames.isEmpty()) {
-                    message += String.join("\n", userNames.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
+                    message += String.join(
+                            "\n", userNames.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
                 }
                 callback.accept(message);
             });
@@ -307,7 +333,8 @@ public class OrzMessageParser {
     }
 
     private static ArrayList<OfflinePlayer> allWhiteListPlayer() {
-        ArrayList<OfflinePlayer> whiteListPlayers = new ArrayList<>(OrzMC.server().getWhitelistedPlayers());
+        ArrayList<OfflinePlayer> whiteListPlayers =
+                new ArrayList<>(OrzMC.server().getWhitelistedPlayers());
         whiteListPlayers.sort((o1, o2) -> Long.compare(o2.getLastSeen(), o1.getLastSeen()));
         return whiteListPlayers;
     }
@@ -355,15 +382,58 @@ public class OrzMessageParser {
     }
 
     private static void runOptimizerJob(MaintenanceJob job, Path input, Path outputOrNull, Consumer<String> callback) {
-        long tickTimeThreshold = OrzMC.plugin().configManager.getConfig("config").getLong("optimize_tick_time_threshold", 300L);
+        long tickTimeThreshold =
+                OrzMC.plugin().configManager.getConfig("config").getLong("optimize_tick_time_threshold", 300L);
         callback.accept("正在" + job.label() + "地图，请稍等......");
         OptimizerConfig cfg;
         DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
         RealFileSystem fs = RealFileSystem.INSTANCE;
         if (job == MaintenanceJob.BACKUP) {
-            cfg = new OptimizerConfig(input, outputOrNull, tickTimeThreshold, false, ProgressMode.Region, true, false, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, true, null, null, fs, null, null, mcaIOFactory);
+            cfg = new OptimizerConfig(
+                    input,
+                    outputOrNull,
+                    tickTimeThreshold,
+                    false,
+                    ProgressMode.Region,
+                    true,
+                    false,
+                    true,
+                    true,
+                    100L,
+                    1000L,
+                    errorHandler(job.label(), callback),
+                    progressHandler(job.label(), callback),
+                    0,
+                    true,
+                    null,
+                    null,
+                    fs,
+                    null,
+                    null,
+                    mcaIOFactory);
         } else {
-            cfg = new OptimizerConfig(input, null, tickTimeThreshold, false, ProgressMode.Region, false, true, true, true, 100L, 1000L, errorHandler(job.label(), callback), progressHandler(job.label(), callback), 0, true, null, null, fs, null, null, mcaIOFactory);
+            cfg = new OptimizerConfig(
+                    input,
+                    null,
+                    tickTimeThreshold,
+                    false,
+                    ProgressMode.Region,
+                    false,
+                    true,
+                    true,
+                    true,
+                    100L,
+                    1000L,
+                    errorHandler(job.label(), callback),
+                    progressHandler(job.label(), callback),
+                    0,
+                    true,
+                    null,
+                    null,
+                    fs,
+                    null,
+                    null,
+                    mcaIOFactory);
         }
         Optimizer.run(cfg);
     }
@@ -423,7 +493,8 @@ public class OrzMessageParser {
             try {
                 BasicFileAttributes ab = readAttributes(a.toPath(), BasicFileAttributes.class);
                 BasicFileAttributes bb = readAttributes(b.toPath(), BasicFileAttributes.class);
-                return Long.compare(bb.creationTime().toMillis(), ab.creationTime().toMillis());
+                return Long.compare(
+                        bb.creationTime().toMillis(), ab.creationTime().toMillis());
             } catch (Exception e) {
                 return Long.compare(b.lastModified(), a.lastModified());
             }

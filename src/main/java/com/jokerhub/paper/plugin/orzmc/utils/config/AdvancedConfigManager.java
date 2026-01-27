@@ -1,9 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc.utils.config;
 
+import java.util.function.Consumer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import java.util.function.Consumer;
 
 public class AdvancedConfigManager extends ConfigManager {
     private final JavaPlugin plugin;
@@ -60,7 +59,8 @@ public class AdvancedConfigManager extends ConfigManager {
         double configVersion = wrapper.getDouble("config-version", 0.0);
 
         if (configVersion < currentVersion) {
-            plugin.getLogger().warning("配置文件 " + configName + " 版本过旧 (" + configVersion + " < " + currentVersion + ")，建议更新！");
+            plugin.getLogger()
+                    .warning("配置文件 " + configName + " 版本过旧 (" + configVersion + " < " + currentVersion + ")，建议更新！");
             return false;
         }
 

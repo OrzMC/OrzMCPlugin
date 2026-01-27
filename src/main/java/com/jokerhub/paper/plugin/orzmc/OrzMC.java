@@ -8,16 +8,15 @@ import com.jokerhub.paper.plugin.orzmc.events.*;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import com.jokerhub.paper.plugin.orzmc.utils.bot.OrzBotManager;
 import com.jokerhub.paper.plugin.orzmc.utils.config.AdvancedConfigManager;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.logging.Logger;
 import org.bukkit.GameMode;
 import org.bukkit.Server;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import java.util.Arrays;
-import java.util.Map;
-import java.util.logging.Logger;
 
 public final class OrzMC extends JavaPlugin implements Listener {
     public AdvancedConfigManager configManager;
@@ -84,7 +83,8 @@ public final class OrzMC extends JavaPlugin implements Listener {
 
     private void notifyServerStop() {
         String minecraftVersion = getServer().getMinecraftVersion();
-        String stringBuilder = "Minecraft " + minecraftVersion + "\n" + "------" + "\n" + "服务停止" + "\n\n" + "停止状态无法响应命令消息";
+        String stringBuilder =
+                "Minecraft " + minecraftVersion + "\n" + "------" + "\n" + "服务停止" + "\n\n" + "停止状态无法响应命令消息";
         sendPublicMessage(stringBuilder);
     }
 
@@ -100,21 +100,30 @@ public final class OrzMC extends JavaPlugin implements Listener {
     }
 
     private void setupEventListener() {
-        Listener[] eventListeners = new Listener[]{
-                new OrzBowShootEvent(this),
-                new OrzPlayerEvent(this),
-                new OrzTPEvent(this),
-                new OrzTNTEvent(this),
-                new OrzMenuEvent(this),
-                new OrzServerEvent(this),
-                new OrzWhiteListEvent(this),
-                new OrzDebugEvent(this)
+        Listener[] eventListeners = new Listener[] {
+            new OrzBowShootEvent(this),
+            new OrzPlayerEvent(this),
+            new OrzTPEvent(this),
+            new OrzTNTEvent(this),
+            new OrzMenuEvent(this),
+            new OrzServerEvent(this),
+            new OrzWhiteListEvent(this),
+            new OrzDebugEvent(this)
         };
-        Arrays.stream(eventListeners).forEach(eventListener -> getServer().getPluginManager().registerEvents(eventListener, this));
+        Arrays.stream(eventListeners)
+                .forEach(eventListener -> getServer().getPluginManager().registerEvents(eventListener, this));
     }
 
     private void setupCommandHandler() {
-        Map<String, CommandExecutor> commandHandlers = Map.of("tpbow", new OrzTPBow(), "guide", new OrzGuideBook(), "menu", new OrzMenuCommand(), "botstatus", new OrzBotStatus());
+        Map<String, CommandExecutor> commandHandlers = Map.of(
+                "tpbow",
+                new OrzTPBow(),
+                "guide",
+                new OrzGuideBook(),
+                "menu",
+                new OrzMenuCommand(),
+                "botstatus",
+                new OrzBotStatus());
         commandHandlers.forEach((key, value) -> {
             PluginCommand cmd = getCommand(key);
             if (cmd != null) {
