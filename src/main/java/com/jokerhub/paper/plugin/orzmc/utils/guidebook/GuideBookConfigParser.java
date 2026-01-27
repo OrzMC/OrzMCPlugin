@@ -2,13 +2,12 @@ package com.jokerhub.paper.plugin.orzmc.utils.guidebook;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.guidebook.models.*;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
 public class GuideBookConfigParser {
     private final OrzMC plugin;
@@ -177,5 +176,4 @@ public class GuideBookConfigParser {
         }
         return false;
     }
-
 }

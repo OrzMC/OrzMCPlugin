@@ -12,14 +12,17 @@ public class OrzTPEvent extends OrzBaseListener {
     public OrzTPEvent(OrzMC plugin) {
         super(plugin);
     }
+
     @EventHandler
     public void onEntityTeleport(EntityTeleportEvent event) {
 
-        if(event.getEntity() instanceof Tameable) {
+        if (event.getEntity() instanceof Tameable) {
             return;
         }
 
-        if(event.getEntity() instanceof Enderman || event.getEntity() instanceof ArmorStand || event.getEntity() instanceof Shulker) {
+        if (event.getEntity() instanceof Enderman
+                || event.getEntity() instanceof ArmorStand
+                || event.getEntity() instanceof Shulker) {
             return;
         }
 

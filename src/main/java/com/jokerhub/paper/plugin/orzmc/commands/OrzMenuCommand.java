@@ -18,7 +18,8 @@ public class OrzMenuCommand implements CommandExecutor {
     public static final String name = "OrzMC Menu";
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String @NotNull [] args) {
+    public boolean onCommand(
+            @NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String @NotNull [] args) {
         if (sender instanceof Player p) {
 
             Component title = OrzTextStyles.info(OrzMenuCommand.name);

@@ -2,7 +2,6 @@ package com.jokerhub.paper.plugin.orzmc.utils.bot;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.ThrottledLogger;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -13,8 +12,7 @@ public class OrzBotManager {
     private final ConcurrentLinkedQueue<PendingMessage> pending = new ConcurrentLinkedQueue<>();
     private volatile boolean initialized = false;
 
-    private record PendingMessage(String message, boolean isPrivate) {
-    }
+    private record PendingMessage(String message, boolean isPrivate) {}
 
     public OrzBotManager(OrzMC plugin) {
         this.plugin = plugin;

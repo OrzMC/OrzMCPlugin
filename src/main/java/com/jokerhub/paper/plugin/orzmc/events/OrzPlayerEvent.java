@@ -9,19 +9,18 @@ import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerKickEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerKickEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 public class OrzPlayerEvent extends OrzBaseListener {
 
@@ -59,32 +58,38 @@ public class OrzPlayerEvent extends OrzBaseListener {
                 HttpClient client = HttpClient.newHttpClient();
                 // use ip parse service: https://www.geojs.io/docs/v1/endpoints/geo/
                 String url = "https://get.geojs.io/v1/ip/geo/" + ipAddress + ".json";
-                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
-                client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenAcceptAsync(response -> {
-                    OrzMC.debugInfo("Response Code : " + response.toString());
-                    if (response.statusCode() == 200) {
-                        String result = response.body();
-                        JsonObject jsonObject = parseToJsonObject(result);
-                        String addressInfo = toPrettyFormat(jsonObject);
-                        if (jsonObject.has("country_code")) {
-                            String countryCode = String.valueOf(jsonObject.get("country_code").getAsString());
-                            if (!allowCountList.contains(countryCode)) {
-                                String msg = playerName + "(" + ipAddress + ")" + "\n" + countryCode + "\n" + "IP位置不在服务支持区域" + String.join(",", allowCountList);
-                                plugin.sendPublicMessage(msg + "\n" + addressInfo);
-                                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, OrzTextStyles.error(msg));
-                            } else {
-                                OrzMC.debugInfo("allowCountList contains: " + countryCode);
+                HttpRequest request =
+                        HttpRequest.newBuilder().uri(URI.create(url)).build();
+                client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                        .thenAcceptAsync(response -> {
+                            OrzMC.debugInfo("Response Code : " + response.toString());
+                            if (response.statusCode() == 200) {
+                                String result = response.body();
+                                JsonObject jsonObject = parseToJsonObject(result);
+                                String addressInfo = toPrettyFormat(jsonObject);
+                                if (jsonObject.has("country_code")) {
+                                    String countryCode = String.valueOf(
+                                            jsonObject.get("country_code").getAsString());
+                                    if (!allowCountList.contains(countryCode)) {
+                                        String msg = playerName + "(" + ipAddress + ")" + "\n" + countryCode + "\n"
+                                                + "IP位置不在服务支持区域" + String.join(",", allowCountList);
+                                        plugin.sendPublicMessage(msg + "\n" + addressInfo);
+                                        event.disallow(
+                                                AsyncPlayerPreLoginEvent.Result.KICK_OTHER, OrzTextStyles.error(msg));
+                                    } else {
+                                        OrzMC.debugInfo("allowCountList contains: " + countryCode);
+                                    }
+                                } else {
+                                    OrzMC.debugInfo("ip info has no field: country_code");
+                                }
                             }
-                        } else {
-                            OrzMC.debugInfo("ip info has no field: country_code");
-                        }
-                    }
-                }).exceptionally(e -> {
-                    String msg = "IP地址解析服务异常: " + e.toString();
-                    OrzMC.logger().warning(msg);
-                    plugin.sendPublicMessage(msg);
-                    return null;
-                });
+                        })
+                        .exceptionally(e -> {
+                            String msg = "IP地址解析服务异常: " + e.toString();
+                            OrzMC.logger().warning(msg);
+                            plugin.sendPublicMessage(msg);
+                            return null;
+                        });
             } catch (Exception e) {
                 String msg = e.toString();
                 plugin.getLogger().severe(msg);
@@ -140,8 +145,7 @@ public class OrzPlayerEvent extends OrzBaseListener {
                 isMinusCurrentPlayer = true;
                 msgBuilder.append("被踢");
             }
-            default -> {
-            }
+            default -> {}
         }
 
         if (isMinusCurrentPlayer) {
@@ -167,6 +171,8 @@ public class OrzPlayerEvent extends OrzBaseListener {
     }
 
     enum PlayerState {
-        JOIN, QUIT, KICK
+        JOIN,
+        QUIT,
+        KICK
     }
 }

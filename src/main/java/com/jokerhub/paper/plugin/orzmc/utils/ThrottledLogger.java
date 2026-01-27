@@ -1,7 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class ThrottledLogger {

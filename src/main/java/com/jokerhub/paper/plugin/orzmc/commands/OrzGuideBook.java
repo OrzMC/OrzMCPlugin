@@ -4,6 +4,9 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzUtil;
 import com.jokerhub.paper.plugin.orzmc.utils.guidebook.GuideBookConfigParser;
 import com.jokerhub.paper.plugin.orzmc.utils.guidebook.models.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -22,15 +25,14 @@ import org.bukkit.inventory.meta.BookMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.UUID;
-
-
 public class OrzGuideBook implements CommandExecutor {
 
     @Override
-    public boolean onCommand(@NotNull CommandSender commandSender, @NotNull Command command, @NotNull String s, String @NotNull [] strings) {
+    public boolean onCommand(
+            @NotNull CommandSender commandSender,
+            @NotNull Command command,
+            @NotNull String s,
+            String @NotNull [] strings) {
         if (commandSender instanceof Player player) {
             openNewPlayerGuideBook(player);
         }
@@ -68,7 +70,9 @@ public class OrzGuideBook implements CommandExecutor {
                 }
                 linkTextBuilder.append(Component.text(linkItem.content()));
                 if (!linkItem.url().isEmpty()) {
-                    Style defaultLinkStyle = Style.style().color(TextColor.fromCSSHexString("#5555FF")).build();
+                    Style defaultLinkStyle = Style.style()
+                            .color(TextColor.fromCSSHexString("#5555FF"))
+                            .build();
                     linkTextBuilder.style(defaultLinkStyle);
                     linkTextBuilder.clickEvent(ClickEvent.openUrl(linkItem.url()));
                     linkTextBuilder.hoverEvent(HoverEvent.showText(Component.text(linkItem.hoverText())));
