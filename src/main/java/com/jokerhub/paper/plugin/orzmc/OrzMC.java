@@ -37,10 +37,13 @@ public final class OrzMC extends JavaPlugin implements Listener {
     public void onDisable() {
         getLogger().info("OrzMC 插件失效!");
         boolean optimizeOnShutdown = false;
+        boolean optimizeEnabled = false;
         try {
             optimizeOnShutdown = configManager.getConfig("config").getBoolean("optimize_on_shutdown");
-        } catch (Exception ignored) { }
-        if (optimizeOnShutdown) {
+            optimizeEnabled = configManager.getConfig("config").getBoolean("optimize_enabled");
+        } catch (Exception ignored) {
+        }
+        if (optimizeEnabled && optimizeOnShutdown) {
             OrzMessageParser.optimizeWorldOnShutdown(msg -> getLogger().info(msg));
         }
         notifyServerStop();
@@ -97,7 +100,16 @@ public final class OrzMC extends JavaPlugin implements Listener {
     }
 
     private void setupEventListener() {
-        Listener[] eventListeners = new Listener[]{new OrzBowShootEvent(), new OrzPlayerEvent(this), new OrzTPEvent(), new OrzTNTEvent(this), new OrzMenuEvent(), new OrzServerEvent(this), new OrzWhiteListEvent(this), new OrzDebugEvent()};
+        Listener[] eventListeners = new Listener[]{
+                new OrzBowShootEvent(this),
+                new OrzPlayerEvent(this),
+                new OrzTPEvent(this),
+                new OrzTNTEvent(this),
+                new OrzMenuEvent(this),
+                new OrzServerEvent(this),
+                new OrzWhiteListEvent(this),
+                new OrzDebugEvent(this)
+        };
         Arrays.stream(eventListeners).forEach(eventListener -> getServer().getPluginManager().registerEvents(eventListener, this));
     }
 
@@ -130,7 +142,15 @@ public final class OrzMC extends JavaPlugin implements Listener {
         configManager = new AdvancedConfigManager(this);
         configManager.registerConfig("config");
         configManager.setDefaults("config", config -> {
-            // 配置默认值
+            if (!config.contains("optimize_enabled")) {
+                config.set("optimize_enabled", false);
+            }
+            if (!config.contains("optimize_on_shutdown")) {
+                config.set("optimize_on_shutdown", false);
+            }
+            if (!config.contains("optimize_tick_time_threshold")) {
+                config.set("optimize_tick_time_threshold", 300);
+            }
         });
         configManager.registerConfig("bot");
         configManager.setDefaults("bot", config -> {
@@ -142,7 +162,9 @@ public final class OrzMC extends JavaPlugin implements Listener {
         });
         configManager.registerConfig("tnt");
         configManager.setDefaults("tnt", config -> {
-            // 配置默认值
+            if (!config.contains("notify_throttle_ms")) {
+                config.set("notify_throttle_ms", 1000);
+            }
         });
     }
 

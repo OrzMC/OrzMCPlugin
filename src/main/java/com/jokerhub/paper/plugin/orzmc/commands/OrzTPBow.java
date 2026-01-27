@@ -2,10 +2,12 @@ package com.jokerhub.paper.plugin.orzmc.commands;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzUtil;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzConstants;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.format.TextColor;
+import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -13,6 +15,7 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -23,8 +26,8 @@ public class OrzTPBow implements CommandExecutor {
 
     public static Component logText(String content) {
         if (!content.isEmpty()) {
-            return Component.text().append(Component.text("[" + OrzTPBow.name + "]")
-                            .color(TextColor.fromCSSHexString("#00FF00")))
+            return Component.text()
+                    .append(OrzTextStyles.tpbowPrefix())
                     .append(Component.space())
                     .append(Component.text(content))
                     .build();
@@ -43,6 +46,8 @@ public class OrzTPBow implements CommandExecutor {
             ArrayList<Component> loreList = new ArrayList<>();
             loreList.add(Component.text("可以把你传送到箭落地的位置"));
             meta.lore(loreList);
+            NamespacedKey key = new NamespacedKey(OrzMC.plugin(), OrzConstants.TPBOW_KEY);
+            meta.getPersistentDataContainer().set(key, PersistentDataType.BYTE, (byte) 1);
             teleport_bow.setItemMeta(meta);
             player.getInventory().addItem(teleport_bow);
             ItemStack arrow = new ItemStack(Material.ARROW);

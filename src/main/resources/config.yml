@@ -4,6 +4,8 @@
 #             服务器是否开启强制白名单
 # ==================================================
 force_whitelist: true
+whitelist_cleanup_inactive_days: 90
+whitelist_pagination_delay_ticks: 5
 
 # 命令提示字符, 可修改为与应用场景不冲突的字符，例如: /
 cmd_prompt_char: '$'
@@ -20,14 +22,29 @@ qq_player_group_id: ''
 #  - TW
 
 # ==================================================
+#                 地图原地优化
+# ==================================================
+optimize_on_shutdown: false
+optimize_enabled: false
+optimize_tick_time_threshold: 300
+
+# ==================================================
 #                 地图备份与归档
 # ==================================================
 backup_retention_count: 5
 backup_maintenance_motd: "服务器维护中，稍后再试"
-optimize_on_shutdown: false
 
 # ==================================================
-#           白名单分页与自动清理配置
+#                 统一文案配色配置化
 # ==================================================
-whitelist_cleanup_inactive_days: 90
-whitelist_pagination_delay_ticks: 5
+styles:
+  colors:
+    success: "#00FF00"
+    info: "#55AAFF"
+    warn: "#FFAA00"
+    error: "#FF5555"
+    coord: "#55FF55"
+    player: "#FF5555"
+    unknown: "#AAAAAA"
+    tnt_alert: "#FF5555"
+    explosion_alert: "#FFAA00"

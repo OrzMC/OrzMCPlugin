@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 public class RobustWebSocketClient {
@@ -16,16 +17,23 @@ public class RobustWebSocketClient {
     private final ScheduledExecutorService executor;
     private final int maxRetries;
     private final long baseRetryInterval;
+    private final long maxRetryInterval;
+    private final int jitterPercent;
+    private final long stableResetMs;
     private final Map<String, String> httpHeaders;
     private final WebSocketEventListener listener;
     private WebSocketClient client;
     private volatile boolean shouldReconnect = true;
+    private volatile boolean isReconnecting = false;
     private int retryCount = 0;
 
-    public RobustWebSocketClient(String url, int maxRetries, long baseRetryInterval, Map<String, String> httpHeaders, WebSocketEventListener listener) throws URISyntaxException {
+    public RobustWebSocketClient(String url, int maxRetries, long baseRetryInterval, long maxRetryInterval, int jitterPercent, long stableResetMs, Map<String, String> httpHeaders, WebSocketEventListener listener) throws URISyntaxException {
         this.serverUri = new URI(url);
         this.maxRetries = maxRetries;
         this.baseRetryInterval = baseRetryInterval;
+        this.maxRetryInterval = maxRetryInterval;
+        this.jitterPercent = jitterPercent;
+        this.stableResetMs = stableResetMs;
         this.httpHeaders = httpHeaders;
         this.listener = listener;
         this.executor = Executors.newScheduledThreadPool(3);
@@ -37,7 +45,11 @@ public class RobustWebSocketClient {
             @Override
             public void onOpen(ServerHandshake handshakeData) {
                 OrzMC.logger().info("WebSocket连接建立");
-                retryCount = 0;
+                executor.schedule(() -> {
+                    if (client != null && client.isOpen()) {
+                        retryCount = 0;
+                    }
+                }, stableResetMs <= 0 ? 20000 : stableResetMs, TimeUnit.MILLISECONDS);
                 if (listener != null) listener.onOpen();
             }
 
@@ -85,6 +97,9 @@ public class RobustWebSocketClient {
     }
 
     private void scheduleReconnect() {
+        if (isReconnecting) {
+            return;
+        }
         if (retryCount >= maxRetries) {
             OrzMC.logger().severe("达到最大重试次数，停止重连");
             return;
@@ -93,8 +108,9 @@ public class RobustWebSocketClient {
         retryCount++;
         long delay = calculateBackoffDelay();
 
-        OrzMC.logger().info("第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
+        ThrottledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
 
+        isReconnecting = true;
         executor.schedule(() -> {
             if (shouldReconnect) {
                 try {
@@ -106,19 +122,33 @@ public class RobustWebSocketClient {
                     }
                 } catch (Exception e) {
                     OrzMC.logger().severe("重连失败: " + e.getMessage());
+                    isReconnecting = false;
                     scheduleReconnect();
                 }
+                isReconnecting = false;
             }
         }, delay, TimeUnit.MILLISECONDS);
     }
 
     private long calculateBackoffDelay() {
-        // 指数退避算法
-        return (long) (baseRetryInterval * Math.pow(2, retryCount - 1));
+        long base = (long) (baseRetryInterval * Math.pow(2, Math.max(0, retryCount - 1)));
+        long capped = Math.min(base, maxRetryInterval > 0 ? maxRetryInterval : base);
+        int jitter = Math.max(0, Math.min(100, jitterPercent));
+        double factor = 1.0 + ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * (jitter / 100.0));
+        return (long) Math.max(0, capped * factor);
     }
 
     protected void handleMessage(String message) {
         // 消息处理逻辑
     }
 
+    public void send(String message) {
+        try {
+            if (client != null && client.isOpen()) {
+                client.send(message);
+            }
+        } catch (Exception e) {
+            OrzMC.logger().warning("WebSocket发送失败: " + e.getMessage());
+        }
+    }
 }
