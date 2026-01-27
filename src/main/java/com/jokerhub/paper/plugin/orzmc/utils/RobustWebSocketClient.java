@@ -1,9 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.handshake.ServerHandshake;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
@@ -11,6 +8,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.handshake.ServerHandshake;
 
 public class RobustWebSocketClient {
     private final URI serverUri;
@@ -27,7 +26,16 @@ public class RobustWebSocketClient {
     private volatile boolean isReconnecting = false;
     private int retryCount = 0;
 
-    public RobustWebSocketClient(String url, int maxRetries, long baseRetryInterval, long maxRetryInterval, int jitterPercent, long stableResetMs, Map<String, String> httpHeaders, WebSocketEventListener listener) throws URISyntaxException {
+    public RobustWebSocketClient(
+            String url,
+            int maxRetries,
+            long baseRetryInterval,
+            long maxRetryInterval,
+            int jitterPercent,
+            long stableResetMs,
+            Map<String, String> httpHeaders,
+            WebSocketEventListener listener)
+            throws URISyntaxException {
         this.serverUri = new URI(url);
         this.maxRetries = maxRetries;
         this.baseRetryInterval = baseRetryInterval;
@@ -45,11 +53,14 @@ public class RobustWebSocketClient {
             @Override
             public void onOpen(ServerHandshake handshakeData) {
                 OrzMC.logger().info("WebSocket连接建立");
-                executor.schedule(() -> {
-                    if (client != null && client.isOpen()) {
-                        retryCount = 0;
-                    }
-                }, stableResetMs <= 0 ? 20000 : stableResetMs, TimeUnit.MILLISECONDS);
+                executor.schedule(
+                        () -> {
+                            if (client != null && client.isOpen()) {
+                                retryCount = 0;
+                            }
+                        },
+                        stableResetMs <= 0 ? 20000 : stableResetMs,
+                        TimeUnit.MILLISECONDS);
                 if (listener != null) listener.onOpen();
             }
 
@@ -111,23 +122,26 @@ public class RobustWebSocketClient {
         ThrottledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
 
         isReconnecting = true;
-        executor.schedule(() -> {
-            if (shouldReconnect) {
-                try {
-                    if (client != null) {
-                        client.reconnect();
-                    } else {
-                        createClient();
-                        connect();
+        executor.schedule(
+                () -> {
+                    if (shouldReconnect) {
+                        try {
+                            if (client != null) {
+                                client.reconnect();
+                            } else {
+                                createClient();
+                                connect();
+                            }
+                        } catch (Exception e) {
+                            OrzMC.logger().severe("重连失败: " + e.getMessage());
+                            isReconnecting = false;
+                            scheduleReconnect();
+                        }
+                        isReconnecting = false;
                     }
-                } catch (Exception e) {
-                    OrzMC.logger().severe("重连失败: " + e.getMessage());
-                    isReconnecting = false;
-                    scheduleReconnect();
-                }
-                isReconnecting = false;
-            }
-        }, delay, TimeUnit.MILLISECONDS);
+                },
+                delay,
+                TimeUnit.MILLISECONDS);
     }
 
     private long calculateBackoffDelay() {

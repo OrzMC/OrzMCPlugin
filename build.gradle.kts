@@ -50,9 +50,17 @@ plugins {
     kotlin("jvm") version "2.2.0"
     id("com.gradleup.shadow") version "8.3.8"
     // 工程内直接调试服务端插件：https://docs.papermc.io/paper/dev/debugging#using-direct-debugging
-    id("xyz.jpenilla.run-paper") version "2.3.1"
+    id("xyz.jpenilla.run-paper") version "3.0.2"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
-    id("io.papermc.hangar-publish-plugin") version "0.1.3"
+    id("io.papermc.hangar-publish-plugin") version "0.1.4"
+    id("com.diffplug.spotless") version "6.25.0"
+}
+
+// 代码格式化
+spotless {
+    java {
+        palantirJavaFormat()
+    }
 }
 
 // 版本发布相关
@@ -102,6 +110,16 @@ hangarPublish {
 
 val debugServerVesion = property("plugin_debug_server_version") as String
 tasks {
+    val installGitHooks = register("installGitHooks") {
+        doLast {
+            serviceOf<ExecOperations>().exec {
+                commandLine("git", "config", "core.hooksPath", ".githooks")
+            }
+            serviceOf<ExecOperations>().exec {
+                commandLine("chmod", "+x", ".githooks/pre-commit")
+            }
+        }
+    }
     withType<JavaCompile> {
         options.encoding = "UTF-8"
         // 启用弃用警告
@@ -111,28 +129,33 @@ tasks {
     }
     // 配置工程内直接调试服务端插件
     // gradle-plugin: https://github.com/jpenilla/run-task#basic-usage
+    val agreeEula = register("agreeEula") {
+        doLast {
+            val runDir = file("run")
+            if (!runDir.exists()) {
+                runDir.mkdirs()
+            }
+            val eulaFile = file("$runDir/eula.txt")
+            eulaFile.writeText("eula=true\n")
+        }
+    }
     runServer {
         // Configure the Minecraft version for our task.
         // This is the only required configuration besides applying the plugin.
         // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion(debugServerVesion)
-        args("--nojline", "--nogui")
+        // 以离线模式启动服务端
+        args("--nojline", "--nogui", "--online-mode=false")
         val java21 = serviceOf<JavaToolchainService>().launcherFor {
             languageVersion.set(JavaLanguageVersion.of(21))
         }
         javaLauncher.set(java21)
+        dependsOn(agreeEula)
     }
-    // Mojang mappings: https://docs.papermc.io/paper/dev/project-setup/#mojang-mappings
     jar {
-        manifest {
-            attributes["paperweight-mappings-namespace"] = "mojang"
-        }
         archiveClassifier.set(archiveClassifierSuffix)
     }
     shadowJar {
-        manifest {
-            attributes["paperweight-mappings-namespace"] = "mojang"
-        }
         minimize()
         dependsOn("jar")
         archiveClassifier.set(archiveClassifierSuffix)

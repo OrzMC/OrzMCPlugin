@@ -5,7 +5,6 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.AsyncHttp;
 import com.jokerhub.paper.plugin.orzmc.utils.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.utils.ThrottledLogger;
-
 import java.time.Duration;
 import java.util.HashMap;
 
@@ -20,14 +19,10 @@ public class OrzLarkBot extends OrzBaseBot {
     }
 
     @Override
-    public void setup() {
-
-    }
+    public void setup() {}
 
     @Override
-    public void teardown() {
-
-    }
+    public void teardown() {}
 
     public void sendMessage(String msg) {
         if (!this.isEnable()) {
@@ -44,9 +39,7 @@ public class OrzLarkBot extends OrzBaseBot {
     }
 
     @Override
-    public void sendPrivateMessage(String message) {
-
-    }
+    public void sendPrivateMessage(String message) {}
 
     private void asyncHttpRequest(String url, String msg) {
         HashMap<String, Object> params = new HashMap<>();
@@ -59,11 +52,25 @@ public class OrzLarkBot extends OrzBaseBot {
         int retries = botConfig.getInt("http_max_retries");
         long connectSec = botConfig.getLong("http_connect_timeout_seconds");
         long requestSec = botConfig.getLong("http_request_timeout_seconds");
-        AsyncHttp.postJson(url, postBodyJsonString, null, Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec), Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec), retries <= 0 ? 3 : retries).thenAcceptAsync(response -> OrzMC.debugInfo("Response : " + response.toString())).exceptionally(e -> {
-            HealthRegistry.setHttpOk("lark", false);
-            HealthRegistry.setLastError("lark", e.toString());
-            ThrottledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e);
-            return null;
-        });
+        AsyncHttp.postJson(
+                        url,
+                        postBodyJsonString,
+                        null,
+                        Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec),
+                        Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec),
+                        retries <= 0 ? 3 : retries)
+                .thenAcceptAsync(response -> {
+                    OrzMC.debugInfo("Response : " + response.toString());
+                    if (response.statusCode() == 200) {
+                        HealthRegistry.setHttpOk("lark", true);
+                        HealthRegistry.setLastError("lark", null);
+                    }
+                })
+                .exceptionally(e -> {
+                    HealthRegistry.setHttpOk("lark", false);
+                    HealthRegistry.setLastError("lark", e.toString());
+                    ThrottledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e);
+                    return null;
+                });
     }
 }

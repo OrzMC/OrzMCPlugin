@@ -67,11 +67,15 @@ public final class OrzTextStyles {
     }
 
     public static TextComponent tpbowPrefix() {
-        return Component.text("[" + com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow.name + "]").color(colorSuccess());
+        return Component.text("[" + com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow.name + "]")
+                .color(colorWarn());
     }
 
     public static TextComponent coordComponent(String locString) {
-        return Component.text(locString).color(colorCoord()).hoverEvent(HoverEvent.showText(Component.text("点击复制坐标"))).clickEvent(ClickEvent.copyToClipboard(locString.trim()));
+        return Component.text(locString)
+                .color(colorCoord())
+                .hoverEvent(HoverEvent.showText(Component.text("点击复制坐标")))
+                .clickEvent(ClickEvent.copyToClipboard(locString.trim()));
     }
 
     public static TextComponent success(String content) {
@@ -91,7 +95,9 @@ public final class OrzTextStyles {
     }
 
     public static String coordString(org.bukkit.Location location) {
-        return String.format(" [%s] %d %d %d ", location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        return String.format(
+                " [%s] %d %d %d ",
+                location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
     public static TextComponent playerName(String name) {

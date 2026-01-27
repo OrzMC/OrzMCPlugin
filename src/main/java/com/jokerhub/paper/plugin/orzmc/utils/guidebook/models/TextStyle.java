@@ -6,8 +6,7 @@ public class TextStyle {
     private Boolean underlined = false;
     private String color = "";
 
-    public TextStyle() {
-    }
+    public TextStyle() {}
 
     // Getter 和 Setter
     public Boolean getBold() {

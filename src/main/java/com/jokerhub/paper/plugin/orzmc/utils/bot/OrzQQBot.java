@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.utils.*;
-
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -41,7 +40,8 @@ public class OrzQQBot extends OrzBaseBot {
         }
         try {
             String groupId = botConfig.getString("qq_group_id");
-            String url = botConfig.getString("qq_bot_api_server") + "/send_group_msg?group_id=" + groupId + "&message=" + URLEncoder.encode(message, StandardCharsets.UTF_8);
+            String url = botConfig.getString("qq_bot_api_server") + "/send_group_msg?group_id=" + groupId + "&message="
+                    + URLEncoder.encode(message, StandardCharsets.UTF_8);
             asyncHttpRequest(url);
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
@@ -56,7 +56,8 @@ public class OrzQQBot extends OrzBaseBot {
         }
         try {
             String userId = botConfig.getString("qq_admin_id");
-            String url = botConfig.getString("qq_bot_api_server") + "/send_msg?user_id=" + userId + "&message=" + URLEncoder.encode(message, StandardCharsets.UTF_8);
+            String url = botConfig.getString("qq_bot_api_server") + "/send_msg?user_id=" + userId + "&message="
+                    + URLEncoder.encode(message, StandardCharsets.UTF_8);
             asyncHttpRequest(url);
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
@@ -96,12 +97,25 @@ public class OrzQQBot extends OrzBaseBot {
             int retries = botConfig.getInt("http_max_retries");
             long connectSec = botConfig.getLong("http_connect_timeout_seconds");
             long requestSec = botConfig.getLong("http_request_timeout_seconds");
-            AsyncHttp.get(url, this.httpServerHeaderMap(), Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec), Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec), retries <= 0 ? 3 : retries).thenAcceptAsync(response -> OrzMC.debugInfo("Response Code : " + response.toString())).exceptionally(e -> {
-                HealthRegistry.setHttpOk("qq", false);
-                HealthRegistry.setLastError("qq", e.toString());
-                ThrottledLogger.error("qq-http", "QQ机器人无法连接，工作异常: " + e);
-                return null;
-            });
+            AsyncHttp.get(
+                            url,
+                            this.httpServerHeaderMap(),
+                            Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec),
+                            Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec),
+                            retries <= 0 ? 3 : retries)
+                    .thenAcceptAsync(response -> {
+                        OrzMC.debugInfo("Response Code : " + response.toString());
+                        if (response.statusCode() == 200) {
+                            HealthRegistry.setHttpOk("qq", true);
+                            HealthRegistry.setLastError("qq", null);
+                        }
+                    })
+                    .exceptionally(e -> {
+                        HealthRegistry.setHttpOk("qq", false);
+                        HealthRegistry.setLastError("qq", e.toString());
+                        ThrottledLogger.error("qq-http", "QQ机器人无法连接，工作异常: " + e);
+                        return null;
+                    });
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().severe(e.toString());
@@ -137,32 +151,41 @@ public class OrzQQBot extends OrzBaseBot {
             long wsMaxMs = botConfig.getLong("ws_max_delay_ms");
             int wsJitterPercent = botConfig.getInt("ws_jitter_percent");
             long wsStableResetMs = botConfig.getLong("ws_stable_reset_ms");
-            webSocketClient = new RobustWebSocketClient(wsServer, wsRetries <= 0 ? 10 : wsRetries, wsBaseMs <= 0 ? 5000 : wsBaseMs, wsMaxMs <= 0 ? 60000 : wsMaxMs, wsJitterPercent <= 0 ? 10 : wsJitterPercent, wsStableResetMs <= 0 ? 20000 : wsStableResetMs, this.websocketServerHeaderMap(), new com.jokerhub.paper.plugin.orzmc.utils.WebSocketEventListener() {
-                @Override
-                public void onOpen() {
-                    HealthRegistry.setWsConnected("qq", true);
-                    String initMsg = botConfig.getString("ws_init_message");
-                    if (initMsg != null && !initMsg.isEmpty()) {
-                        webSocketClient.send(initMsg);
-                    }
-                }
+            webSocketClient =
+                    new RobustWebSocketClient(
+                            wsServer,
+                            wsRetries <= 0 ? 10 : wsRetries,
+                            wsBaseMs <= 0 ? 5000 : wsBaseMs,
+                            wsMaxMs <= 0 ? 60000 : wsMaxMs,
+                            wsJitterPercent <= 0 ? 10 : wsJitterPercent,
+                            wsStableResetMs <= 0 ? 20000 : wsStableResetMs,
+                            this.websocketServerHeaderMap(),
+                            new com.jokerhub.paper.plugin.orzmc.utils.WebSocketEventListener() {
+                                @Override
+                                public void onOpen() {
+                                    HealthRegistry.setWsConnected("qq", true);
+                                    String initMsg = botConfig.getString("ws_init_message");
+                                    if (initMsg != null && !initMsg.isEmpty()) {
+                                        webSocketClient.send(initMsg);
+                                    }
+                                }
 
-                @Override
-                public void onClose(int code, String reason, boolean remote) {
-                    HealthRegistry.setWsConnected("qq", false);
-                }
+                                @Override
+                                public void onClose(int code, String reason, boolean remote) {
+                                    HealthRegistry.setWsConnected("qq", false);
+                                }
 
-                @Override
-                public void onError(Exception ex) {
-                    HealthRegistry.setLastError("qq", ex.toString());
-                    ThrottledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex);
-                }
-            }) {
-                @Override
-                public void handleMessage(String message) {
-                    processJsonStringPayload(message);
-                }
-            };
+                                @Override
+                                public void onError(Exception ex) {
+                                    HealthRegistry.setLastError("qq", ex.toString());
+                                    ThrottledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex);
+                                }
+                            }) {
+                        @Override
+                        public void handleMessage(String message) {
+                            processJsonStringPayload(message);
+                        }
+                    };
 
             webSocketClient.connect();
             // 在这里可以发送消息，例如：webSocketClient.send("Hello, WebSockets!");

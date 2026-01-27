@@ -38,7 +38,10 @@ public class OrzServerEvent extends OrzBaseListener {
             case RELOAD -> stringBuilder.append("重启完成");
         }
         stringBuilder.append("\n\n");
-        stringBuilder.append("发送 \"").append(OrzUserCmd.SHOW_HELP.getCmdString()).append("\" 查看支持的命令消息");
+        stringBuilder
+                .append("发送 \"")
+                .append(OrzUserCmd.SHOW_HELP.getCmdString())
+                .append("\" 查看支持的命令消息");
         plugin.sendPublicMessage(stringBuilder.toString());
     }
 
@@ -58,7 +61,12 @@ public class OrzServerEvent extends OrzBaseListener {
             }
             if (discordLink != null && !discordLink.isEmpty()) {
                 motdBuilder.append(Component.newline());
-                motdBuilder.append(OrzTextStyles.info("Discord: ")).append(Component.text(discordLink).decorate(TextDecoration.UNDERLINED).hoverEvent(HoverEvent.showText(Component.text("点击加入 Discord"))).clickEvent(ClickEvent.openUrl(discordLink)));
+                motdBuilder
+                        .append(OrzTextStyles.info("Discord: "))
+                        .append(Component.text(discordLink)
+                                .decorate(TextDecoration.UNDERLINED)
+                                .hoverEvent(HoverEvent.showText(Component.text("点击加入 Discord")))
+                                .clickEvent(ClickEvent.openUrl(discordLink)));
             }
             Component comp = motdBuilder.build();
             event.motd(comp);

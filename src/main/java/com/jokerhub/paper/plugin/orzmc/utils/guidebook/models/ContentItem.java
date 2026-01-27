@@ -5,8 +5,7 @@ public class ContentItem {
     private TextContent text;
     private LinkContent link;
 
-    public ContentItem() {
-    }
+    public ContentItem() {}
 
     // Getter 和 Setter
     public TextContent getText() {
@@ -60,4 +59,3 @@ public class ContentItem {
         return "ContentItem{unknown}";
     }
 }
-

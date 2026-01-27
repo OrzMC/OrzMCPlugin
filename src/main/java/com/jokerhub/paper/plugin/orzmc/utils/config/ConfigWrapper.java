@@ -1,8 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.utils.config;
 
-import org.bukkit.configuration.file.FileConfiguration;
-
 import java.util.List;
+import org.bukkit.configuration.file.FileConfiguration;
 
 public class ConfigWrapper {
     private final FileConfiguration config;

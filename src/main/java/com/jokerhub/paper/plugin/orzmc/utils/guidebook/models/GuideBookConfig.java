@@ -1,9 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc.utils.guidebook.models;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
 
 // 指南书配置主类
 public record GuideBookConfig(boolean enable, String title, String author, List<ContentItem> content) {
