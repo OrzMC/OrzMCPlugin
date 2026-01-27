@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -n "${CI:-}" ]; then exit 0; fi
+./gradlew -q spotlessApply
+./gradlew -q spotlessCheck
