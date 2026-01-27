@@ -110,6 +110,16 @@ hangarPublish {
 
 val debugServerVesion = property("plugin_debug_server_version") as String
 tasks {
+    val installGitHooks = register("installGitHooks") {
+        doLast {
+            serviceOf<ExecOperations>().exec {
+                commandLine("git", "config", "core.hooksPath", ".githooks")
+            }
+            serviceOf<ExecOperations>().exec {
+                commandLine("chmod", "+x", ".githooks/pre-commit")
+            }
+        }
+    }
     withType<JavaCompile> {
         options.encoding = "UTF-8"
         // 启用弃用警告
