@@ -96,7 +96,13 @@ public class OrzQQBot extends OrzBaseBot {
             int retries = botConfig.getInt("http_max_retries");
             long connectSec = botConfig.getLong("http_connect_timeout_seconds");
             long requestSec = botConfig.getLong("http_request_timeout_seconds");
-            AsyncHttp.get(url, this.httpServerHeaderMap(), Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec), Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec), retries <= 0 ? 3 : retries).thenAcceptAsync(response -> OrzMC.debugInfo("Response Code : " + response.toString())).exceptionally(e -> {
+            AsyncHttp.get(url, this.httpServerHeaderMap(), Duration.ofSeconds(connectSec <= 0 ? 3 : connectSec), Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec), retries <= 0 ? 3 : retries).thenAcceptAsync(response -> {
+                OrzMC.debugInfo("Response Code : " + response.toString());
+                if (response.statusCode() == 200) {
+                    HealthRegistry.setHttpOk("qq", true);
+                    HealthRegistry.setLastError("qq", null);
+                }
+            }).exceptionally(e -> {
                 HealthRegistry.setHttpOk("qq", false);
                 HealthRegistry.setLastError("qq", e.toString());
                 ThrottledLogger.error("qq-http", "QQ机器人无法连接，工作异常: " + e);
