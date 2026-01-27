@@ -116,7 +116,8 @@ tasks {
         // This is the only required configuration besides applying the plugin.
         // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion(debugServerVesion)
-        args("--nojline", "--nogui")
+        // 以离线模式启动服务端
+        args("--nojline", "--nogui", "--online-mode=false")
         val java21 = serviceOf<JavaToolchainService>().launcherFor {
             languageVersion.set(JavaLanguageVersion.of(21))
         }
