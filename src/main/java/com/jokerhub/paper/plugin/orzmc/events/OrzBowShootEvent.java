@@ -130,7 +130,8 @@ public class OrzBowShootEvent extends OrzBaseListener {
         int bz = center.getBlockZ();
         final org.bukkit.util.Vector facingNorm = facing.clone().normalize();
         java.util.List<Location> candidates = new java.util.ArrayList<>();
-        for (int r = 1; r <= 4; r++) {
+        final int radius = 1;
+        for (int r = 1; r == radius; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (dx == 0 && dz == 0) continue;
@@ -156,11 +157,5 @@ public class OrzBowShootEvent extends OrzBaseListener {
     private float vectorYaw(@NotNull org.bukkit.util.Vector v) {
         double yawRad = Math.atan2(-v.getX(), v.getZ());
         return (float) Math.toDegrees(yawRad);
-    }
-
-    private float vectorPitch(@NotNull org.bukkit.util.Vector v) {
-        double xz = Math.sqrt(v.getX() * v.getX() + v.getZ() * v.getZ());
-        double pitchRad = Math.atan2(-v.getY(), xz);
-        return (float) Math.toDegrees(pitchRad);
     }
 }
