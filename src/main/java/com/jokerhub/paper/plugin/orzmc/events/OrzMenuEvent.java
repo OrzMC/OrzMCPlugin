@@ -2,8 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzMenuHolder;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
-import org.bukkit.Material;
+import com.jokerhub.paper.plugin.orzmc.features.menu.MenuService;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -22,9 +21,7 @@ public class OrzMenuEvent extends OrzBaseListener {
         if (event.getView().getTopInventory().getHolder() instanceof OrzMenuHolder) {
             event.setCancelled(true);
             ItemStack clicked = event.getCurrentItem();
-            if (clicked != null && clicked.getType() != Material.AIR) {
-                p.sendMessage(OrzTextStyles.info("功能开发中"));
-            }
+            new MenuService().onClick(p, clicked);
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.commands;
 
-import com.jokerhub.paper.plugin.orzmc.utils.HealthRegistry;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
+import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;

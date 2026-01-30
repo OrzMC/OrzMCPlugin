@@ -22,7 +22,11 @@ public enum OrzUserCmd {
     }
 
     private static String cmdPromptChar() {
-        return OrzMC.plugin().getConfig().getString("cmd_prompt_char", "$");
+        try {
+            return OrzMC.plugin().configManager.getConfig("bot").getString("cmd_prompt_char", "$");
+        } catch (Exception e) {
+            return "$";
+        }
     }
 
     public static boolean isValidCmd(String message) {

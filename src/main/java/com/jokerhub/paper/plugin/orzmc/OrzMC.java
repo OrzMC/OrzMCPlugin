@@ -1,22 +1,27 @@
 package com.jokerhub.paper.plugin.orzmc;
 
-import com.jokerhub.paper.plugin.orzmc.commands.OrzBotStatus;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzMenuCommand;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
+import com.jokerhub.paper.plugin.orzmc.commands.*;
 import com.jokerhub.paper.plugin.orzmc.events.*;
+import com.jokerhub.paper.plugin.orzmc.features.portal.PortalService;
+import com.jokerhub.paper.plugin.orzmc.infra.binding.CommandBinder;
+import com.jokerhub.paper.plugin.orzmc.infra.binding.EventBinder;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.OrzBotManager;
+import com.jokerhub.paper.plugin.orzmc.infra.config.AdvancedConfigManager;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigHealthCheck;
+import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.core.ServiceRegistry;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
-import com.jokerhub.paper.plugin.orzmc.utils.bot.OrzBotManager;
-import com.jokerhub.paper.plugin.orzmc.utils.config.AdvancedConfigManager;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.logging.Logger;
 import org.bukkit.GameMode;
 import org.bukkit.Server;
 import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
 
 public final class OrzMC extends JavaPlugin implements Listener {
     public AdvancedConfigManager configManager;
@@ -24,30 +29,24 @@ public final class OrzMC extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        getLogger().info("OrzMC 插件生效!");
+        getLogger().info("插件生效!");
         setupConfigManager();
+        setupBotManager();
+
+        ServiceRegistry.registerPortal(PortalService.defaultImpl());
         setupEventListener();
         setupCommandHandler();
-        setupBotManager();
         setupServerForceWhitelist();
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("OrzMC 插件失效!");
-        boolean optimizeOnShutdown = false;
-        boolean optimizeEnabled = false;
-        try {
-            optimizeOnShutdown = configManager.getConfig("config").getBoolean("optimize_on_shutdown");
-            optimizeEnabled = configManager.getConfig("config").getBoolean("optimize_enabled");
-        } catch (Exception ignored) {
-        }
-        if (optimizeEnabled && optimizeOnShutdown) {
-            OrzMessageParser.optimizeWorldOnShutdown(msg -> getLogger().info(msg));
-        }
+        optimizeWorldOnShutdownIfNeed();
         notifyServerStop();
+
         tearDownBotManager();
         tearDownConfigManager();
+        getLogger().info("插件失效!");
     }
 
     // 公共静态成员
@@ -74,6 +73,11 @@ public final class OrzMC extends JavaPlugin implements Listener {
         botManager.sendMessage(message, true);
     }
 
+    public void sendToChannel(String channelKey, String message) {
+        debugInfo(message);
+        botManager.sendToChannel(channelKey, message);
+    }
+
     public static void debugInfo(String msg) {
         if (!OrzDebugEvent.debug) {
             return;
@@ -89,7 +93,11 @@ public final class OrzMC extends JavaPlugin implements Listener {
     }
 
     private void setupServerForceWhitelist() {
-        boolean forceWhitelist = configManager.getConfig("config").getBoolean("force_whitelist");
+        boolean forceWhitelist = false;
+        try {
+            forceWhitelist = configManager.getConfig("whitelist").getBoolean("force_whitelist");
+        } catch (Exception ignored) {
+        }
         getServer().setWhitelist(forceWhitelist);
         getServer().setWhitelistEnforced(forceWhitelist);
         getServer().reloadWhitelist();
@@ -108,10 +116,10 @@ public final class OrzMC extends JavaPlugin implements Listener {
             new OrzMenuEvent(this),
             new OrzServerEvent(this),
             new OrzWhiteListEvent(this),
-            new OrzDebugEvent(this)
+            new OrzDebugEvent(this),
+            new OrzPortalEvent(this)
         };
-        Arrays.stream(eventListeners)
-                .forEach(eventListener -> getServer().getPluginManager().registerEvents(eventListener, this));
+        EventBinder.bind(this, java.util.Arrays.asList(eventListeners));
     }
 
     private void setupCommandHandler() {
@@ -122,14 +130,25 @@ public final class OrzMC extends JavaPlugin implements Listener {
                 new OrzGuideBook(),
                 "menu",
                 new OrzMenuCommand(),
-                "botstatus",
-                new OrzBotStatus());
-        commandHandlers.forEach((key, value) -> {
-            PluginCommand cmd = getCommand(key);
-            if (cmd != null) {
-                cmd.setExecutor(value);
-            }
+                "bot",
+                new OrzBotStatus(),
+                "portal",
+                new OrzPortalCommand());
+        FileConfiguration cmdsCfg = configManager.getConfig("commands");
+        Map<String, CommandExecutor> enhanced = new HashMap<>();
+        TypedConfigs.CommandPolicies cp = TypedConfigs.CommandPolicies.from(cmdsCfg);
+        commandHandlers.forEach((name, exec) -> {
+            TypedConfigs.CommandPolicy p = cp.policies().getOrDefault(name, new TypedConfigs.CommandPolicy(0, false));
+            java.util.List<com.jokerhub.paper.plugin.orzmc.infra.binding.CommandInterceptor> interceptors =
+                    new java.util.ArrayList<>();
+            interceptors.add(new com.jokerhub.paper.plugin.orzmc.infra.binding.AdminOnlyInterceptor(p.adminOnly()));
+            interceptors.add(new com.jokerhub.paper.plugin.orzmc.infra.binding.CooldownInterceptor(
+                    name, Math.max(0, p.cooldownSeconds())));
+            enhanced.put(
+                    name,
+                    new com.jokerhub.paper.plugin.orzmc.infra.binding.InterceptorExecutor(name, exec, interceptors));
         });
+        CommandBinder.bind(this, enhanced);
     }
 
     private void setupBotManager() {
@@ -150,17 +169,6 @@ public final class OrzMC extends JavaPlugin implements Listener {
     private void setupConfigManager() {
         configManager = new AdvancedConfigManager(this);
         configManager.registerConfig("config");
-        configManager.setDefaults("config", config -> {
-            if (!config.contains("optimize_enabled")) {
-                config.set("optimize_enabled", false);
-            }
-            if (!config.contains("optimize_on_shutdown")) {
-                config.set("optimize_on_shutdown", false);
-            }
-            if (!config.contains("optimize_tick_time_threshold")) {
-                config.set("optimize_tick_time_threshold", 300);
-            }
-        });
         configManager.registerConfig("bot");
         configManager.setDefaults("bot", config -> {
             // 配置默认值
@@ -175,11 +183,81 @@ public final class OrzMC extends JavaPlugin implements Listener {
                 config.set("notify_throttle_ms", 1000);
             }
         });
+        configManager.registerConfig("templates");
+        configManager.registerConfig("notifications");
+        configManager.registerConfig("commands");
+        configManager.registerConfig("maintenance");
+        configManager.registerConfig("whitelist");
+        configManager.registerConfig("styles");
+        configManager.registerConfig("ip_whitelist");
+        configManager.registerConfig("portals");
+        PortalService.defaultImpl().loadFromStorage();
+        configManager.setDefaults("whitelist", cfg -> {
+            if (!cfg.contains("force_whitelist")) cfg.set("force_whitelist", true);
+            if (!cfg.contains("cleanup_inactive_days")) cfg.set("cleanup_inactive_days", 90);
+            if (!cfg.contains("pagination_delay_ticks")) cfg.set("pagination_delay_ticks", 5);
+        });
+        configManager.setDefaults("maintenance", cfg -> {
+            if (!cfg.contains("optimize_enabled")) cfg.set("optimize_enabled", false);
+            if (!cfg.contains("optimize_on_shutdown")) cfg.set("optimize_on_shutdown", false);
+            if (!cfg.contains("optimize_tick_time_threshold")) cfg.set("optimize_tick_time_threshold", 300);
+            if (!cfg.contains("backup_retention_count")) cfg.set("backup_retention_count", 5);
+            if (!cfg.contains("backup_maintenance_motd")) cfg.set("backup_maintenance_motd", "服务器维护中，稍后再试");
+        });
+        validateCriticalConfigs();
+        List<String> issues = ConfigHealthCheck.validateAll(configManager);
+        if (!issues.isEmpty()) {
+            getLogger().warning("配置健康检查发现问题:");
+            for (String s : issues) {
+                getLogger().warning(" - " + s);
+            }
+        }
     }
 
     private void tearDownConfigManager() {
         for (String configName : configManager.getConfigNames()) {
             configManager.saveConfig(configName);
+        }
+    }
+
+    private void warnMissingKey(String configName, String path) {
+        try {
+            FileConfiguration cfg = configManager.getConfig(configName);
+            if (cfg == null || !cfg.contains(path)) {
+                String filePath = new java.io.File(getDataFolder(), configName + ".yml").getAbsolutePath();
+                getLogger().warning("缺失关键配置: " + configName + "." + path);
+                getLogger().warning("文件: " + filePath);
+                getLogger().warning("请参考 README 的“配置拆分指南/实操示例”修复该键");
+            }
+        } catch (Exception e) {
+            getLogger().warning("读取配置失败: " + configName + "." + path + " - " + e.getMessage());
+        }
+    }
+
+    private void validateCriticalConfigs() {
+        warnMissingKey("templates", "templates.player_join");
+        warnMissingKey("templates", "templates.world_alias.world");
+        warnMissingKey("templates", "templates.coord.unit_label");
+        warnMissingKey("notifications", "notifications.tnt_alert.public.enabled");
+        warnMissingKey("commands", "commands.tpbow.cooldown_secs");
+        warnMissingKey("whitelist", "force_whitelist");
+        warnMissingKey("whitelist", "cleanup_inactive_days");
+        warnMissingKey("whitelist", "pagination_delay_ticks");
+        warnMissingKey("maintenance", "optimize_enabled");
+        warnMissingKey("maintenance", "optimize_tick_time_threshold");
+        warnMissingKey("maintenance", "backup_retention_count");
+    }
+
+    private void optimizeWorldOnShutdownIfNeed() {
+        boolean optimizeOnShutdown = false;
+        boolean optimizeEnabled = false;
+        try {
+            optimizeOnShutdown = configManager.getConfig("maintenance").getBoolean("optimize_on_shutdown");
+            optimizeEnabled = configManager.getConfig("maintenance").getBoolean("optimize_enabled");
+        } catch (Exception ignored) {
+        }
+        if (optimizeEnabled && optimizeOnShutdown) {
+            OrzMessageParser.optimizeWorldOnShutdown(msg -> getLogger().info(msg));
         }
     }
 }

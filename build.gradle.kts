@@ -43,6 +43,8 @@ dependencies {
     }
     // Minecraft World Backup Lib
     implementation("io.github.wangzhizhou:backup-core:0.1.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    testImplementation("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
 }
 
 // 项目编译时插件添加
@@ -162,5 +164,8 @@ tasks {
     }
     build {
         dependsOn("shadowJar")
+    }
+    test {
+        useJUnitPlatform()
     }
 }
