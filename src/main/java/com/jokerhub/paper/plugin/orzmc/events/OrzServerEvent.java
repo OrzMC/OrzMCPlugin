@@ -3,8 +3,9 @@ package com.jokerhub.paper.plugin.orzmc.events;
 import com.destroystokyo.paper.event.server.ServerExceptionEvent;
 import com.destroystokyo.paper.exception.ServerException;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
+import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzUserCmd;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -23,7 +24,7 @@ public class OrzServerEvent extends OrzBaseListener {
     @EventHandler
     public void onException(ServerExceptionEvent event) {
         ServerException exception = event.getException();
-        plugin.sendPrivateMessage(exception.toString());
+        Notifier.event("exception_alert", exception.toString());
     }
 
     @EventHandler
@@ -42,15 +43,16 @@ public class OrzServerEvent extends OrzBaseListener {
                 .append("发送 \"")
                 .append(OrzUserCmd.SHOW_HELP.getCmdString())
                 .append("\" 查看支持的命令消息");
-        plugin.sendPublicMessage(stringBuilder.toString());
+        Notifier.event("server_load", stringBuilder.toString());
     }
 
     @EventHandler
     public void onServerListPing(ServerListPingEvent event) {
-        if (OrzMessageParser.isBackupRunning) {
-            String msg = plugin.getConfig().getString("backup_maintenance_motd", "服务器维护中，稍后再试");
+        if (WorldMaintenanceService.isRunningGlobal()) {
+            String msg =
+                    plugin.configManager.getConfig("maintenance").getString("backup_maintenance_motd", "服务器维护中，稍后再试");
             String discordLink = plugin.configManager.getConfig("bot").getString("discord_server_link");
-            String qqGroupId = plugin.configManager.getConfig("config").getString("qq_player_group_id");
+            String qqGroupId = plugin.configManager.getConfig("bot").getString("qq_group_id");
             TextComponent.Builder motdBuilder = Component.text();
             motdBuilder.append(OrzTextStyles.warn("⚠ 维护中").decorate(TextDecoration.BOLD));
             motdBuilder.append(Component.newline());

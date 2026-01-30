@@ -1,12 +1,19 @@
 package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzConstants;
+import com.jokerhub.paper.plugin.orzmc.features.tnt.TntPolicy;
+import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
+import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
+import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
-import com.jokerhub.paper.plugin.orzmc.utils.ThrottledNotifier;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
-import java.util.*;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -27,11 +34,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class OrzTNTEvent extends OrzBaseListener {
-    // 白名单区域内，可以允许 TNT
-    private final List<Region> whiteListRegions = new ArrayList<>();
-    private final boolean enableTNT;
-    private final boolean enableRespawnAnchor;
-    private final int tntPlaceCooldown; // 秒
+    private final TntPolicy policy;
     // 冷却时间跟踪
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
     private final EnumSet<EntityType> explosionExemptTypes = EnumSet.noneOf(EntityType.class);
@@ -39,24 +42,8 @@ public class OrzTNTEvent extends OrzBaseListener {
     public OrzTNTEvent(OrzMC plugin) {
         super(plugin);
         FileConfiguration tntConfig = plugin.configManager.getConfig("tnt");
-        this.enableTNT = tntConfig.getBoolean("enable", false);
-        this.enableRespawnAnchor = tntConfig.getBoolean("enable_respawn_anchor", false);
-        this.tntPlaceCooldown = tntConfig.getInt("place_cooldown", 0);
-
-        // 加载TNT放置区域白名单
-        List<Map<?, ?>> regions = tntConfig.getMapList("whitelist");
-        for (Map<?, ?> regionMap : regions) {
-            Region region = new Region(
-                    ((Number) regionMap.get("minX")).intValue(),
-                    ((Number) regionMap.get("maxX")).intValue(),
-                    ((Number) regionMap.get("minY")).intValue(),
-                    ((Number) regionMap.get("maxY")).intValue(),
-                    ((Number) regionMap.get("minZ")).intValue(),
-                    ((Number) regionMap.get("maxZ")).intValue(),
-                    (String) regionMap.get("world"));
-            this.whiteListRegions.add(region);
-        }
-
+        TypedConfigs.TntConfig typed = TypedConfigs.TntConfig.from(tntConfig);
+        this.policy = new TntPolicy(typed);
         initExplosionExemptTypes(tntConfig);
     }
 
@@ -65,7 +52,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         Block placedBlock = event.getBlock();
 
         // 如果全局禁用TNT且不在白名单区域，取消事件
-        if (!this.enableTNT && isNotInWhiteList(placedBlock)) {
+        if (!policy.isEnableTnt() && policy.isNotInWhiteList(placedBlock.getLocation())) {
             event.setCancelled(true);
             notifyTNTEvent(placedBlock, "TNT被点燃（已禁止）");
             return;
@@ -88,7 +75,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         }
 
         // 处理重生锚放置
-        if (placedBlockType == Material.RESPAWN_ANCHOR && !enableRespawnAnchor) {
+        if (placedBlockType == Material.RESPAWN_ANCHOR && !policy.isEnableRespawnAnchor()) {
             event.setCancelled(true);
             player.sendMessage(Component.text("重生锚放置已被管理员禁用").color(TextColor.color(0xFF5555)));
         }
@@ -96,7 +83,8 @@ public class OrzTNTEvent extends OrzBaseListener {
 
     private void handleTNTPlace(BlockPlaceEvent event, Player player, Block placedBlock) {
         // 检查冷却时间
-        if (tntPlaceCooldown > 0 && checkCooldown(player)) {
+        int tntPlaceCooldown = policy.getPlaceCooldownSeconds();
+        if (tntPlaceCooldown > 0 && checkCooldown(player, tntPlaceCooldown)) {
             event.setCancelled(true);
             long remaining =
                     (playerCooldowns.get(player.getUniqueId()) + tntPlaceCooldown * 1000L - System.currentTimeMillis())
@@ -109,7 +97,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         }
 
         // 如果全局禁用TNT且不在白名单区域，取消放置
-        if (!enableTNT && isNotInWhiteList(placedBlock)) {
+        if (!policy.isEnableTnt() && policy.isNotInWhiteList(placedBlock.getLocation())) {
             event.setCancelled(true);
             player.sendMessage(Component.text("TNT放置已被管理员禁用").color(TextColor.color(0xFF5555)));
             return;
@@ -124,7 +112,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         sendPlacementNotification(player, placedBlock);
     }
 
-    private boolean checkCooldown(@NotNull Player player) {
+    private boolean checkCooldown(@NotNull Player player, int tntPlaceCooldown) {
         if (!playerCooldowns.containsKey(player.getUniqueId())) {
             return false;
         }
@@ -145,7 +133,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         Block dispenser = event.getBlock();
 
         // 如果全局禁用TNT且不在白名单区域，取消发射
-        if (!enableTNT && isNotInWhiteList(dispenser)) {
+        if (!policy.isEnableTnt() && policy.isNotInWhiteList(dispenser.getLocation())) {
             event.setCancelled(true);
             notifyTNTEvent(dispenser, "发射" + itemType.name() + "被禁止");
         }
@@ -174,42 +162,88 @@ public class OrzTNTEvent extends OrzBaseListener {
         ThrottledNotifier.runDefault(key, () -> notifyExplosionEvent(loc, entityType.name() + "爆炸"));
     }
 
-    // 区域检查方法
-    private boolean isNotInWhiteList(@NotNull Block block) {
-        Location loc = block.getLocation();
-        for (Region region : whiteListRegions) {
-            if (region.contains(loc)) {
-                return false;
-            }
-        }
-        return true;
-    }
+    // 区域检查由 policy 处理
 
     // 通知方法
     private void notifyTNTEvent(Block block, String message) {
+        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        org.bukkit.Location loc = block.getLocation();
+        String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
+        TypedConfigs.TemplateOptions opt =
+                TypedConfigs.TemplateOptions.from(plugin.configManager.getConfig("templates"));
+        String worldAlias = TemplateResolvers.worldAlias(
+                world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
+        double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
+        int precision = OrzMC.plugin().configManager.getConfig("templates").getInt("templates.coord.precision", 2);
+        if (precision < 0) precision = 2;
+        String fmt = "%." + precision + "f";
+        String xUnit = String.format(fmt, loc.getBlockX() * scale);
+        String yUnit = String.format(fmt, loc.getBlockY() * scale);
+        String zUnit = String.format(fmt, loc.getBlockZ() * scale);
+        vars.put("world", worldAlias);
+        vars.put("x", String.valueOf(loc.getBlockX()));
+        vars.put("y", String.valueOf(loc.getBlockY()));
+        vars.put("z", String.valueOf(loc.getBlockZ()));
+        vars.put("x_unit", xUnit);
+        vars.put("y_unit", yUnit);
+        vars.put("z_unit", zUnit);
+        vars.put("coord_unit", opt.coordUnitLabel());
+        vars.put("msg", message);
+        vars.put("actor", "");
+        vars.put("block_type", block.getType().name());
+        String rendered = TemplateRenderer.render(
+                TypedConfigs.Templates.from(plugin.configManager.getConfig("templates"))
+                        .tntAlert(),
+                vars);
         TextComponent msg = Component.text()
                 .append(OrzTextStyles.tntPrefix())
-                .append(playerInfo(null))
-                .append(Component.space())
-                .append(OrzTextStyles.coordComponent(locationString(block)))
-                .append(Component.space())
-                .append(Component.text(message))
+                .append(Component.text(rendered))
                 .build();
 
-        plugin.getServer().sendMessage(msg);
-        plugin.sendPublicMessage(OrzConstants.PREFIX_TNT_ALERT + locationString(block) + message);
+        Notifier.server(msg);
+        Notifier.event("tnt_alert", rendered);
     }
 
     private void notifyExplosionEvent(Location location, String message) {
+        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        String world = location.getWorld() != null ? location.getWorld().getName() : "unknown";
+        TypedConfigs.TemplateOptions opt =
+                TypedConfigs.TemplateOptions.from(plugin.configManager.getConfig("templates"));
+        String worldAlias = TemplateResolvers.worldAlias(
+                world,
+                location.getWorld() != null
+                        ? location.getWorld().getEnvironment().name()
+                        : "",
+                opt);
+        double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
+        int precision = OrzMC.plugin().configManager.getConfig("templates").getInt("templates.coord.precision", 2);
+        if (precision < 0) precision = 2;
+        String fmt = "%." + precision + "f";
+        String xUnit = String.format(fmt, location.getBlockX() * scale);
+        String yUnit = String.format(fmt, location.getBlockY() * scale);
+        String zUnit = String.format(fmt, location.getBlockZ() * scale);
+        vars.put("world", worldAlias);
+        vars.put("x", String.valueOf(location.getBlockX()));
+        vars.put("y", String.valueOf(location.getBlockY()));
+        vars.put("z", String.valueOf(location.getBlockZ()));
+        vars.put("x_unit", xUnit);
+        vars.put("y_unit", yUnit);
+        vars.put("z_unit", zUnit);
+        vars.put("coord_unit", opt.coordUnitLabel());
+        vars.put("msg", message);
+        vars.put("actor", "");
+        vars.put("block_type", "EXPLOSION");
+        String rendered = TemplateRenderer.render(
+                TypedConfigs.Templates.from(plugin.configManager.getConfig("templates"))
+                        .tntAlert(),
+                vars);
         TextComponent msg = Component.text()
                 .append(OrzTextStyles.explosionPrefix())
-                .append(OrzTextStyles.coordComponent(locationString(location)))
-                .append(Component.space())
-                .append(Component.text(message))
+                .append(Component.text(rendered))
                 .build();
 
-        plugin.getServer().sendMessage(msg);
-        plugin.sendPublicMessage(OrzConstants.PREFIX_EXPLOSION_ALERT + locationString(location) + message);
+        Notifier.server(msg);
+        Notifier.event("tnt_alert", rendered);
     }
 
     private void sendPlacementNotification(Player player, Block block) {
@@ -222,9 +256,37 @@ public class OrzTNTEvent extends OrzBaseListener {
                 .append(Component.text("放置了 " + "TNT"))
                 .build();
 
-        plugin.getServer().sendMessage(msg);
-        plugin.sendPublicMessage(
-                OrzMessageParser.playerDisplayName(player) + " 在" + locationString(block) + "放置了 " + "TNT");
+        Notifier.server(msg);
+        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        org.bukkit.Location loc = block.getLocation();
+        String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
+        TypedConfigs.TemplateOptions opt =
+                TypedConfigs.TemplateOptions.from(plugin.configManager.getConfig("templates"));
+        String worldAlias = TemplateResolvers.worldAlias(
+                world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
+        double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
+        int precision = OrzMC.plugin().configManager.getConfig("templates").getInt("templates.coord.precision", 2);
+        if (precision < 0) precision = 2;
+        String fmt = "%." + precision + "f";
+        String xUnit = String.format(fmt, loc.getBlockX() * scale);
+        String yUnit = String.format(fmt, loc.getBlockY() * scale);
+        String zUnit = String.format(fmt, loc.getBlockZ() * scale);
+        vars.put("world", worldAlias);
+        vars.put("x", String.valueOf(loc.getBlockX()));
+        vars.put("y", String.valueOf(loc.getBlockY()));
+        vars.put("z", String.valueOf(loc.getBlockZ()));
+        vars.put("x_unit", xUnit);
+        vars.put("y_unit", yUnit);
+        vars.put("z_unit", zUnit);
+        vars.put("coord_unit", opt.coordUnitLabel());
+        vars.put("msg", "放置TNT");
+        vars.put("actor", OrzMessageParser.playerDisplayName(player));
+        vars.put("block_type", "TNT");
+        String rendered = TemplateRenderer.render(
+                TypedConfigs.Templates.from(plugin.configManager.getConfig("templates"))
+                        .tntAlert(),
+                vars);
+        Notifier.event("tnt_alert", rendered);
     }
 
     // 信息构建工具
@@ -245,10 +307,6 @@ public class OrzTNTEvent extends OrzBaseListener {
         return OrzTextStyles.coordComponent(locString);
     }
 
-    private @NotNull String locationString(@NotNull Block block) {
-        return locationString(block.getLocation());
-    }
-
     private @NotNull String locationString(@NotNull Location location) {
         return OrzTextStyles.coordString(location);
     }
@@ -260,28 +318,7 @@ public class OrzTNTEvent extends OrzBaseListener {
         return world + "|" + cx + "|" + cz + "|" + message;
     }
 
-    // 区域内部类
-    private record Region(int minX, int maxX, int minY, int maxY, int minZ, int maxZ, String world) {
-        private Region(int minX, int maxX, int minY, int maxY, int minZ, int maxZ, String world) {
-            this.minX = Math.min(minX, maxX);
-            this.maxX = Math.max(minX, maxX);
-            this.minY = Math.min(minY, maxY);
-            this.maxY = Math.max(minY, maxY);
-            this.minZ = Math.min(minZ, maxZ);
-            this.maxZ = Math.max(minZ, maxZ);
-            this.world = world;
-        }
-
-        public boolean contains(@NotNull Location loc) {
-            return loc.getWorld().getName().equals(world)
-                    && loc.getX() >= minX
-                    && loc.getX() <= maxX
-                    && loc.getY() >= minY
-                    && loc.getY() <= maxY
-                    && loc.getZ() >= minZ
-                    && loc.getZ() <= maxZ;
-        }
-    }
+    // 区域内部类移至 TntPolicy
 
     private void addExemptTypeIfAvailable(String name) {
         try {

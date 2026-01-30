@@ -4,7 +4,8 @@ import com.destroystokyo.paper.event.profile.ProfileWhitelistVerifyEvent;
 import com.destroystokyo.paper.event.server.WhitelistToggleEvent;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
+import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -19,7 +20,11 @@ public class OrzWhiteListEvent extends OrzBaseListener {
     }
 
     private boolean isEnableForceWhitelist() {
-        return plugin.getConfig().getBoolean("force_whitelist");
+        try {
+            return plugin.configManager.getConfig("whitelist").getBoolean("force_whitelist");
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     @EventHandler
@@ -32,13 +37,9 @@ public class OrzWhiteListEvent extends OrzBaseListener {
             return;
         }
         TextComponent.Builder kickMsgBuilder = Component.text();
-        FileConfiguration config = plugin.configManager.getConfig("config");
         FileConfiguration botConfig = plugin.configManager.getConfig("bot");
-        String qqGroupId = config.getString("qq_player_group_id");
-        if (qqGroupId == null || qqGroupId.isEmpty()) {
-            qqGroupId = botConfig.getString("qq_group_id");
-        }
-        if (qqGroupId != null && !qqGroupId.isEmpty()) {
+        String qqPlayerGroupId = botConfig.getString("qq_player_group_id", botConfig.getString("qq_group_id"));
+        if (qqPlayerGroupId != null && !qqPlayerGroupId.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
             }
@@ -47,7 +48,7 @@ public class OrzWhiteListEvent extends OrzBaseListener {
                     .append(Component.space())
                     .append(OrzTextStyles.warn("不在服务器白名单中，请先加入QQ群:"))
                     .append(Component.space())
-                    .append(OrzTextStyles.warn(qqGroupId))
+                    .append(OrzTextStyles.warn(qqPlayerGroupId))
                     .append(Component.space())
                     .append(OrzTextStyles.info("，联系管理员添加白名单"));
         }
@@ -69,13 +70,13 @@ public class OrzWhiteListEvent extends OrzBaseListener {
 
         // 通知玩家群
         String playChatGroupMsg = player.getName() + " 尝试加入服务器，被白名单拦截";
-        plugin.sendPublicMessage(playChatGroupMsg);
+        Notifier.event("whitelist_block", playChatGroupMsg);
     }
 
     @EventHandler
     public void onWhitelistToggled(WhitelistToggleEvent event) {
         if (isEnableForceWhitelist() && !event.isEnabled()) {
-            plugin.sendPublicMessage("‼️服务器白名单异常关闭");
+            Notifier.event("whitelist_toggle_alert", "‼️服务器白名单异常关闭");
         }
     }
 }

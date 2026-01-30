@@ -15,17 +15,14 @@ public class OrzTPEvent extends OrzBaseListener {
 
     @EventHandler
     public void onEntityTeleport(EntityTeleportEvent event) {
-
         if (event.getEntity() instanceof Tameable) {
             return;
         }
-
         if (event.getEntity() instanceof Enderman
                 || event.getEntity() instanceof ArmorStand
                 || event.getEntity() instanceof Shulker) {
             return;
         }
-
         // 禁用tp实体
         event.setCancelled(true);
         OrzMC.logger().info("实体传送被禁用:" + event.getEntity().getName());

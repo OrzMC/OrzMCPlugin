@@ -1,23 +1,18 @@
 package com.jokerhub.paper.plugin.orzmc.utils;
 
-import static java.nio.file.Files.readAttributes;
-
-import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.text.SimpleDateFormat;
-import java.util.*;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
+import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistService;
+import com.jokerhub.paper.plugin.orzmc.infra.paging.Paginator;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import kotlin.Unit;
-import kotlin.jvm.functions.Function1;
-import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
 public class OrzMessageParser {
-    public static volatile boolean isBackupRunning = false;
 
     public static void parse(String message, Boolean isAdmin, Consumer<String> callback) {
 
@@ -53,7 +48,7 @@ public class OrzMessageParser {
         }
         // 管理员命令
         else if (cmdString.equals(OrzUserCmd.BACKUP.getCmdString())) {
-            backup(isAdmin, callback);
+            backupWorld(isAdmin, callback);
         }
         // 管理员命令
         else if (cmdString.equals(OrzUserCmd.OPTIMIZE_WORLD.getCmdString())) {
@@ -109,130 +104,32 @@ public class OrzMessageParser {
 
     private static void whiteListInfo(Consumer<String> callback, Integer page, boolean isAdmin) {
         OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
-            ArrayList<OfflinePlayer> whiteListPlayers = allWhiteListPlayer();
-            String header = String.format("------当前白名单玩家(%d)------", whiteListPlayers.size());
-            ArrayList<String> lines = new ArrayList<>();
-            for (OfflinePlayer player : whiteListPlayers) {
-                String playerName = player.getName();
-                String isOnline = player.isOnline() ? "•" : "◦";
-                StringBuilder line =
-                        new StringBuilder().append(isOnline).append(" ").append(playerName);
-                long lastSeenTimestamp = player.getLastSeen();
-                if (lastSeenTimestamp > 0) {
-                    String lastSeen = new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastSeenTimestamp));
-                    line.append(" ").append(lastSeen);
-                }
-                lines.add(line.toString());
-            }
-            org.bukkit.configuration.file.FileConfiguration cfg =
-                    OrzMC.plugin().configManager.getConfig("config");
-            int delayTicks = cfg.getInt("whitelist_pagination_delay_ticks", 5);
-            int inactiveDays = cfg.getInt("whitelist_cleanup_inactive_days", 90);
-            ArrayList<OfflinePlayer> toRemove = new ArrayList<>();
+            FileConfiguration wlCfg = OrzMC.plugin().configManager.getConfig("whitelist");
+            WhitelistService svc = WhitelistService.defaultImpl();
+            ArrayList<String> lines = new ArrayList<>(svc.buildWhitelistLines(OrzMC.server()));
+            String header = String.format("------当前白名单玩家(%d)------", lines.size());
+            int delayTicks = Math.max(0, wlCfg.getInt("pagination_delay_ticks", 5));
             if (isAdmin) {
-                long now = System.currentTimeMillis();
-                long threshold = now - inactiveDays * 24L * 60L * 60L * 1000L;
-                for (OfflinePlayer p : whiteListPlayers) {
-                    long lastSeen = p.getLastSeen();
-                    if (lastSeen <= 0 || lastSeen < threshold) {
-                        toRemove.add(p);
-                    }
-                }
-            }
-            if (!toRemove.isEmpty()) {
                 OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
-                    for (OfflinePlayer p : toRemove) {
-                        if (p.isWhitelisted()) {
-                            p.setWhitelisted(false);
-                            Player onlinePlayer = OrzMC.server().getPlayer(p.getUniqueId());
-                            if (onlinePlayer != null) {
-                                onlinePlayer.kick();
-                            }
-                        }
-                    }
-                    OrzMC.server().reloadWhitelist();
+                    java.util.Set<String> removed = svc.cleanupInactivePlayers(
+                            OrzMC.server(), Math.max(1, wlCfg.getInt("cleanup_inactive_days", 90)));
                     OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
-                        ArrayList<OfflinePlayer> updated = allWhiteListPlayer();
-                        String updatedHeader = String.format("------当前白名单玩家(%d)------", updated.size());
-                        ArrayList<String> updatedLines = new ArrayList<>();
-                        for (OfflinePlayer player : updated) {
-                            String playerName = player.getName();
-                            String isOnline2 = player.isOnline() ? "•" : "◦";
-                            StringBuilder line2 = new StringBuilder()
-                                    .append(isOnline2)
-                                    .append(" ")
-                                    .append(playerName);
-                            long lastSeen2 = player.getLastSeen();
-                            if (lastSeen2 > 0) {
-                                String lastSeenStr =
-                                        new SimpleDateFormat("yyyy/MM/dd HH:mm").format(new Date(lastSeen2));
-                                line2.append(" ").append(lastSeenStr);
-                            }
-                            updatedLines.add(line2.toString());
+                        ArrayList<String> updatedLines = new ArrayList<>(svc.buildWhitelistLines(OrzMC.server()));
+                        String updatedHeader = String.format("------当前白名单玩家(%d)------", updatedLines.size());
+                        if (!removed.isEmpty()) {
+                            String removedMsg = "------白名单清理------\n"
+                                    + String.join(
+                                            "\n",
+                                            removed.stream()
+                                                    .map(name -> "✔︎ " + name)
+                                                    .collect(java.util.stream.Collectors.toSet()));
+                            callback.accept(removedMsg);
                         }
-                        ArrayList<String> chunks2 = buildChunks(updatedLines);
-                        int total2 = chunks2.size();
-                        String removedMsg = "------白名单清理------\n"
-                                + String.join(
-                                        "\n",
-                                        toRemove.stream()
-                                                .map(p -> "✔︎ " + (p.getName() == null ? "(unknown)" : p.getName()))
-                                                .collect(Collectors.toSet()));
-                        callback.accept(removedMsg);
-                        if (total2 == 0) {
-                            callback.accept(updatedHeader + "\n" + "(暂无白名单玩家)");
-                            return;
-                        }
-                        if (page != null) {
-                            int idx = Math.max(1, Math.min(page, total2)) - 1;
-                            String pageHeader = updatedHeader + "\n第" + (idx + 1) + "/" + total2 + "页";
-                            String body = chunks2.get(idx);
-                            callback.accept(pageHeader + "\n" + body);
-                        } else {
-                            for (int i = 0; i < total2; i++) {
-                                final int pageIndex = i;
-                                OrzMC.server()
-                                        .getScheduler()
-                                        .runTaskLater(
-                                                OrzMC.plugin(),
-                                                () -> {
-                                                    String pageHeader = updatedHeader + "\n第" + (pageIndex + 1) + "/"
-                                                            + total2 + "页";
-                                                    String body = chunks2.get(pageIndex);
-                                                    callback.accept(pageHeader + "\n" + body);
-                                                },
-                                                i * (delayTicks <= 0 ? 5L : delayTicks));
-                            }
-                        }
+                        Paginator.paginate(callback, updatedHeader, updatedLines, delayTicks, page);
                     });
                 });
             } else {
-                ArrayList<String> chunks = buildChunks(lines);
-                int total = chunks.size();
-                if (total == 0) {
-                    callback.accept(header + "\n" + "(暂无白名单玩家)");
-                    return;
-                }
-                if (page != null) {
-                    int idx = Math.max(1, Math.min(page, total)) - 1;
-                    String pageHeader = header + "\n第" + (idx + 1) + "/" + total + "页";
-                    String body = chunks.get(idx);
-                    callback.accept(pageHeader + "\n" + body);
-                } else {
-                    for (int i = 0; i < total; i++) {
-                        final int pageIndex = i;
-                        OrzMC.server()
-                                .getScheduler()
-                                .runTaskLater(
-                                        OrzMC.plugin(),
-                                        () -> {
-                                            String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
-                                            String body = chunks.get(pageIndex);
-                                            callback.accept(pageHeader + "\n" + body);
-                                        },
-                                        i * (delayTicks <= 0 ? 5L : delayTicks));
-                    }
-                }
+                Paginator.paginate(callback, header, lines, delayTicks, page);
             }
         });
     }
@@ -246,50 +143,11 @@ public class OrzMessageParser {
             callback.accept(OrzUserCmd.ADD_PLAYER_TO_WHITELIST.usageTip());
             return;
         }
-        // 主线程上执行白名单操作
         OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
-            for (String userName : userNames) {
-                OfflinePlayer player = OrzMC.server().getOfflinePlayer(userName);
-                if (!player.isWhitelisted()) {
-                    player.setWhitelisted(true);
-                }
-            }
-            // 回调异步执行
-            OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
-                OrzMC.server().reloadWhitelist();
-                Set<String> allWhiteListName = allWhiteListPlayerName();
-                String message = "------白名单添加------\n";
-                if (allWhiteListName.containsAll(userNames)) {
-                    message += String.join(
-                            "\n", userNames.stream().map(name -> "✔︎ ︎" + name).collect(Collectors.toSet()));
-                }
-                userNames.removeAll(allWhiteListName);
-                if (!userNames.isEmpty()) {
-                    message += String.join(
-                            "\n", userNames.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
-                }
-                callback.accept(message);
-            });
+            WhitelistService svc = WhitelistService.defaultImpl();
+            String message = svc.addPlayers(OrzMC.server(), userNames);
+            callback.accept(message);
         });
-    }
-
-    private static ArrayList<String> buildChunks(ArrayList<String> lines) {
-        ArrayList<String> chunks = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        for (String line : lines) {
-            if (current.isEmpty()) {
-                current.append(line);
-            } else if (current.length() + 1 + line.length() <= 1800) {
-                current.append("\n").append(line);
-            } else {
-                chunks.add(current.toString());
-                current = new StringBuilder(line);
-            }
-        }
-        if (!current.isEmpty()) {
-            chunks.add(current.toString());
-        }
-        return chunks;
     }
 
     private static void removeWhiteListInfo(boolean isAdmin, Set<String> userNames, Consumer<String> callback) {
@@ -301,214 +159,23 @@ public class OrzMessageParser {
             callback.accept(OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST.usageTip());
             return;
         }
-        // 主线程上执行白名单操作
         OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
-            for (String userName : userNames) {
-                OfflinePlayer player = OrzMC.server().getOfflinePlayer(userName);
-                if (player.isWhitelisted()) {
-                    player.setWhitelisted(false);
-                    Player onlinePlayer = OrzMC.server().getPlayer(player.getUniqueId());
-                    if (onlinePlayer != null) {
-                        onlinePlayer.kick();
-                    }
-                }
-            }
-            // 回调异步执行
-            OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
-                OrzMC.server().reloadWhitelist();
-                Set<String> allWhiteListName = allWhiteListPlayerName();
-                String message = "------白名单移除------\n";
-                if (!allWhiteListName.containsAll(userNames)) {
-                    message += String.join(
-                            "\n", userNames.stream().map(name -> "✔︎ " + name).collect(Collectors.toSet()));
-                }
-                userNames.retainAll(allWhiteListName);
-                if (!userNames.isEmpty()) {
-                    message += String.join(
-                            "\n", userNames.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
-                }
-                callback.accept(message);
-            });
+            WhitelistService svc = WhitelistService.defaultImpl();
+            String message = svc.removePlayers(OrzMC.server(), userNames);
+            callback.accept(message);
         });
     }
 
-    private static ArrayList<OfflinePlayer> allWhiteListPlayer() {
-        ArrayList<OfflinePlayer> whiteListPlayers =
-                new ArrayList<>(OrzMC.server().getWhitelistedPlayers());
-        whiteListPlayers.sort((o1, o2) -> Long.compare(o2.getLastSeen(), o1.getLastSeen()));
-        return whiteListPlayers;
-    }
-
-    private static Set<String> allWhiteListPlayerName() {
-        return allWhiteListPlayer().stream().map(OfflinePlayer::getName).collect(Collectors.toSet());
-    }
-
-    private enum MaintenanceJob {
-        BACKUP("备份"),
-        OPTIMIZE("优化");
-        private final String label;
-
-        MaintenanceJob(String label) {
-            this.label = label;
-        }
-
-        public String label() {
-            return label;
-        }
-    }
-
-    private static Function1<ProgressEvent, Unit> progressHandler(String label, Consumer<String> callback) {
-        return progressEvent -> {
-            Long current = progressEvent.getCurrent();
-            Long total = progressEvent.getTotal();
-            if (current == null || total == null || current <= 0 || total <= 0) {
-                return Unit.INSTANCE;
-            }
-            int percent = (int) Math.ceil(current * 100.0 / total);
-            OrzMC.logger().info("地图" + label + "进度：" + percent + "%");
-            if (progressEvent.getStage() == ProgressStage.Done && Objects.equals(current, total)) {
-                callback.accept("地图" + label + "完成");
-            }
-            return Unit.INSTANCE;
-        };
-    }
-
-    private static Function1<Object, Unit> errorHandler(String label, Consumer<String> callback) {
-        return obj -> {
-            OrzMC.logger().warning(String.valueOf(obj));
-            callback.accept("地图" + label + "失败");
-            return Unit.INSTANCE;
-        };
-    }
-
-    private static void runOptimizerJob(MaintenanceJob job, Path input, Path outputOrNull, Consumer<String> callback) {
-        long tickTimeThreshold =
-                OrzMC.plugin().configManager.getConfig("config").getLong("optimize_tick_time_threshold", 300L);
-        callback.accept("正在" + job.label() + "地图，请稍等......");
-        OptimizerConfig cfg;
-        DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
-        RealFileSystem fs = RealFileSystem.INSTANCE;
-        if (job == MaintenanceJob.BACKUP) {
-            cfg = new OptimizerConfig(
-                    input,
-                    outputOrNull,
-                    tickTimeThreshold,
-                    false,
-                    ProgressMode.Region,
-                    true,
-                    false,
-                    true,
-                    true,
-                    100L,
-                    1000L,
-                    errorHandler(job.label(), callback),
-                    progressHandler(job.label(), callback),
-                    0,
-                    true,
-                    null,
-                    null,
-                    fs,
-                    null,
-                    null,
-                    mcaIOFactory);
-        } else {
-            cfg = new OptimizerConfig(
-                    input,
-                    null,
-                    tickTimeThreshold,
-                    false,
-                    ProgressMode.Region,
-                    false,
-                    true,
-                    true,
-                    true,
-                    100L,
-                    1000L,
-                    errorHandler(job.label(), callback),
-                    progressHandler(job.label(), callback),
-                    0,
-                    true,
-                    null,
-                    null,
-                    fs,
-                    null,
-                    null,
-                    mcaIOFactory);
-        }
-        Optimizer.run(cfg);
-    }
-
-    private static void runExclusiveMaintenance(Consumer<String> callback, String kickText, Runnable asyncWork) {
-        if (isBackupRunning) {
-            callback.accept("正在备份/优化中，请稍候...");
-            return;
-        }
-        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
-            isBackupRunning = true;
-            OrzMC.server().getOnlinePlayers().forEach(p -> p.kick(OrzTextStyles.warn(kickText)));
-            OrzUtil.executeConsoleCmd(() -> callback.accept("停止服务器自动地图保存功能"), "save-off", "save-all flush");
-            OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
-                try {
-                    asyncWork.run();
-                } finally {
-                    OrzUtil.executeConsoleCmd(() -> callback.accept("恢复服务器自动地图保存功能"), "save-on");
-                    isBackupRunning = false;
-                }
-            });
-        });
-    }
-
-    private static void backup(boolean isAdmin, Consumer<String> callback) {
+    private static void backupWorld(boolean isAdmin, Consumer<String> callback) {
         if (!isAdmin) {
             callback.accept(OrzUserCmd.BACKUP.adminPermissionRequiredTip());
             return;
         }
-        runExclusiveMaintenance(callback, "服务器地图备份中，请稍后再尝试登录。", () -> {
-            File worldContainerDir = OrzMC.server().getWorldContainer();
-            File worldBackupDir = new File(OrzMC.plugin().getDataFolder(), "backup");
-            if (!worldBackupDir.exists()) {
-                boolean created = worldBackupDir.mkdirs();
-                if (!created) {
-                    OrzMC.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
-                    callback.accept("地图备份失败");
-                    return;
-                }
-            }
-            Path input = Path.of(worldContainerDir.getAbsolutePath());
-            callback.accept("地图目录：" + input);
-            File worldBackupTempDir = new File(worldBackupDir, "tempDir");
-            Path output = Path.of(worldBackupTempDir.getAbsolutePath());
-            callback.accept("备份目录：" + worldBackupDir);
-            runOptimizerJob(MaintenanceJob.BACKUP, input, output, callback);
-            pruneOldZips(worldBackupDir);
-        });
-    }
-
-    private static void pruneOldZips(File backupDir) {
-        int retain = OrzMC.plugin().getConfig().getInt("backup_retention_count", 10);
-        if (retain <= 0) retain = 10;
-        File[] zips = backupDir.listFiles(f -> f.isFile() && f.getName().endsWith(".zip"));
-        if (zips == null || zips.length <= retain) return;
-        Arrays.sort(zips, (a, b) -> {
-            try {
-                BasicFileAttributes ab = readAttributes(a.toPath(), BasicFileAttributes.class);
-                BasicFileAttributes bb = readAttributes(b.toPath(), BasicFileAttributes.class);
-                return Long.compare(
-                        bb.creationTime().toMillis(), ab.creationTime().toMillis());
-            } catch (Exception e) {
-                return Long.compare(b.lastModified(), a.lastModified());
-            }
-        });
-        for (int i = retain; i < zips.length; i++) {
-            try {
-                boolean deleted = zips[i].delete();
-                if (!deleted) {
-                    OrzMC.logger().warning("删除旧备份失败: " + zips[i].getName());
-                }
-            } catch (Exception e) {
-                OrzMC.logger().severe("清理旧备份异常: " + e);
-            }
-        }
+        long tickTimeThreshold =
+                OrzMC.plugin().configManager.getConfig("maintenance").getLong("optimize_tick_time_threshold", 300L);
+        int retain = OrzMC.plugin().configManager.getConfig("maintenance").getInt("backup_retention_count", 10);
+        WorldMaintenanceService svc = new WorldMaintenanceService();
+        svc.backup(tickTimeThreshold, retain, callback);
     }
 
     public static void optimizeWorld(boolean isAdmin, Consumer<String> callback) {
@@ -518,31 +185,30 @@ public class OrzMessageParser {
         }
         boolean enabled = false;
         try {
-            enabled = OrzMC.plugin().configManager.getConfig("config").getBoolean("optimize_enabled");
+            enabled = OrzMC.plugin().configManager.getConfig("maintenance").getBoolean("optimize_enabled");
         } catch (Exception ignored) {
         }
         if (!enabled) {
             callback.accept("地图优化功能已禁用");
             return;
         }
-        runExclusiveMaintenance(callback, "服务器地图优化中，请稍后再尝试登录。", () -> {
-            File worldContainerDir = OrzMC.server().getWorldContainer();
-            Path input = Path.of(worldContainerDir.getAbsolutePath());
-            runOptimizerJob(MaintenanceJob.OPTIMIZE, input, null, callback);
-        });
+        long tickTimeThreshold =
+                OrzMC.plugin().configManager.getConfig("maintenance").getLong("optimize_tick_time_threshold", 300L);
+        WorldMaintenanceService svc = new WorldMaintenanceService();
+        svc.optimize(tickTimeThreshold, callback);
     }
 
     public static void optimizeWorldOnShutdown(Consumer<String> callback) {
         boolean enabled = false;
         try {
-            enabled = OrzMC.plugin().configManager.getConfig("config").getBoolean("optimize_enabled");
+            enabled = OrzMC.plugin().configManager.getConfig("maintenance").getBoolean("optimize_enabled");
         } catch (Exception ignored) {
         }
         if (!enabled) {
             return;
         }
-        File worldContainerDir = OrzMC.server().getWorldContainer();
-        Path input = Path.of(worldContainerDir.getAbsolutePath());
-        runOptimizerJob(MaintenanceJob.OPTIMIZE, input, null, callback);
+        long tickTimeThreshold =
+                OrzMC.plugin().configManager.getConfig("maintenance").getLong("optimize_tick_time_threshold", 300L);
+        new WorldMaintenanceService().optimizeOnShutdown(tickTimeThreshold);
     }
 }

@@ -1,0 +1,55 @@
+# ==================================================
+#             配置消息模板
+# ==================================================
+templates:
+  player_join: "{name} 上线\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  player_quit: "{name} 下线\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  player_kick: "{name} 被踢\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  exception_alert: "异常: {message}\n摘要: {stack_summary}"
+  geoip_block: "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}"
+  tnt_alert: "{msg}\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n触发:{actor} 方块:{block_type}"
+  maintenance_backup_stage: "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}"
+  maintenance_backup_done: "地图{label} 完成 用时:{duration_ms}ms"
+  maintenance_backup_error: "地图{label} 失败 用时:{duration_ms}ms"
+  maintenance_optimize_stage: "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}"
+  maintenance_optimize_done: "地图{label} 完成 用时:{duration_ms}ms"
+  maintenance_optimize_error: "地图{label} 失败 用时:{duration_ms}ms"
+  stage_cn:
+    Region: 区域
+    Chunk: 区块
+    File: 文件
+    Done: 完成
+  progress_units:
+    rate: per_min
+    eta: sec
+  world_alias:
+    world: 主世界
+    world_nether: 下界
+    world_the_end: 末地
+  role_alias:
+    admin: 管理员
+    member: 玩家
+  locale: zh-CN
+  i18n:
+    role_alias:
+      zh-CN:
+        admin: 管理员
+        member: 玩家
+      en-US:
+        admin: Admin
+        member: Member
+    world_alias:
+      zh-CN:
+        world: 主世界
+        world_nether: 下界
+        world_the_end: 末地
+    stage_alias:
+      zh-CN:
+        Region: 区域
+        Chunk: 区块
+        File: 文件
+        Done: 完成
+  coord:
+    scale: 1.0
+    precision: 2
+    unit_label: block
