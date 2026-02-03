@@ -1,4 +1,4 @@
-package com.jokerhub.paper.plugin.orzmc.infra.binding;
+package com.jokerhub.paper.plugin.orzmc.features.command.binding;
 
 import java.util.concurrent.ConcurrentHashMap;
 

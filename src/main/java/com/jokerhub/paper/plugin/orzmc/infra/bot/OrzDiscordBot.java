@@ -1,16 +1,15 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -22,32 +21,48 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
-import net.dv8tion.jda.api.utils.SplitUtil;
 import okhttp3.OkHttpClient;
 import org.jetbrains.annotations.NotNull;
 
 public class OrzDiscordBot extends OrzBaseBot {
     private final ArrayList<String> toBeSendMessageWhenApiReady = new ArrayList<>();
-    private final String codeBlockPrefix = "```\n";
-    private final String codeBlockSuffix = "```";
+    private final BotInboundHandler inboundHandler;
+    private final MessageFormatter formatter;
+    private final ThrottledLogger throttledLogger;
     private JDA api;
     private boolean isApiReady;
 
-    public OrzDiscordBot(OrzMC plugin) {
-        super(plugin);
+    public OrzDiscordBot(
+            OrzMC plugin,
+            ConfigService configService,
+            BotInboundHandler inboundHandler,
+            MessageFormatter formatter,
+            ThrottledLogger throttledLogger) {
+        super(plugin, configService);
+        this.inboundHandler = inboundHandler;
+        this.formatter = formatter;
+        this.throttledLogger = throttledLogger;
     }
 
-    private List<String> codeBlockSplitMessage(String rawMessage) {
-        int discordTextLengthLimit = 2_000;
-        return SplitUtil.split(
-                        rawMessage,
-                        discordTextLengthLimit - codeBlockPrefix.length() - codeBlockSuffix.length(),
-                        true,
-                        SplitUtil.Strategy.NEWLINE,
-                        SplitUtil.Strategy.ANYWHERE)
-                .stream()
-                .map(part -> codeBlockPrefix + part + codeBlockSuffix)
-                .collect(Collectors.toList());
+    @Override
+    public void send(MessageEnvelope envelope) {
+        if (envelope == null) return;
+        MessageEnvelope.Format format = envelope.format() == null ? MessageEnvelope.Format.DEFAULT : envelope.format();
+        List<String> parts = formatter.format(envelope.message(), format);
+        if (envelope.targetType() == MessageEnvelope.TargetType.CHANNEL) {
+            String channelKey = envelope.channelKey();
+            if (channelKey == null || channelKey.isEmpty()) {
+                sendToDefaultChannel(parts);
+            } else {
+                sendToChannelParts(channelKey, parts);
+            }
+            return;
+        }
+        if (envelope.targetType() == MessageEnvelope.TargetType.PRIVATE) {
+            sendPrivate(String.join("\n", parts));
+            return;
+        }
+        sendToDefaultChannel(parts);
     }
 
     @Override
@@ -69,7 +84,7 @@ public class OrzDiscordBot extends OrzBaseBot {
         try {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
                 com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry.setLastError("discord", e.toString());
-                ThrottledLogger.error("discord-thread", "Discord线程异常: " + e);
+                throttledLogger.error("discord-thread", "Discord线程异常: " + e);
             });
             JDABuilder builder = JDABuilder.createLight(
                     botToken, GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MEMBERS);
@@ -99,11 +114,11 @@ public class OrzDiscordBot extends OrzBaseBot {
                                 super.onReady(event);
                                 isApiReady = true;
                                 HealthRegistry.setApiReady("discord", true);
-                                toBeSendMessageWhenApiReady.forEach(message -> sendMessage(message));
+                                toBeSendMessageWhenApiReady.forEach(message -> sendPublic(message));
                                 toBeSendMessageWhenApiReady.clear();
                             } catch (Exception e) {
                                 HealthRegistry.setLastError("discord", e.toString());
-                                ThrottledLogger.error("discord-onready", "Discord Ready 事件异常: " + e);
+                                throttledLogger.error("discord-onready", "Discord Ready 事件异常: " + e);
                             }
                         }
 
@@ -118,16 +133,16 @@ public class OrzDiscordBot extends OrzBaseBot {
                                         || member.hasPermission(Permission.ADMINISTRATOR)
                                         || member.hasPermission(Permission.MANAGE_CHANNEL);
                                 String content = event.getMessage().getContentRaw();
-                                OrzMessageParser.parse(content, isAdmin, info -> {
-                                    if (info != null) {
-                                        MessageChannel channel = event.getChannel();
-                                        codeBlockSplitMessage(info).forEach(part -> channel.sendMessage(part)
-                                                .queue());
-                                    }
+                                BotInboundDispatcher.dispatch(inboundHandler, content, isAdmin, env -> {
+                                    MessageChannel channel = event.getChannel();
+                                    MessageEnvelope.Format format =
+                                            env.format() == null ? MessageEnvelope.Format.DEFAULT : env.format();
+                                    formatter.format(env.message(), format).forEach(part -> channel.sendMessage(part)
+                                            .queue());
                                 });
                             } catch (Exception e) {
                                 HealthRegistry.setLastError("discord", e.toString());
-                                ThrottledLogger.error("discord-onmessage", "Discord 消息事件异常: " + e);
+                                throttledLogger.error("discord-onmessage", "Discord 消息事件异常: " + e);
                             }
                         }
                     })
@@ -149,14 +164,14 @@ public class OrzDiscordBot extends OrzBaseBot {
                                         } catch (Exception ignored) {
                                         }
                                         HealthRegistry.setEnabled("discord", false);
-                                        ThrottledLogger.warning("discord-disable", "Discord不可达，已自动禁用机器人");
+                                        throttledLogger.warning("discord-disable", "Discord不可达，已自动禁用机器人");
                                     }
                                 },
                                 ticks);
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("discord", e.toString());
-            ThrottledLogger.error("discord-init", "Discord初始化异常: " + e);
+            throttledLogger.error("discord-init", "Discord初始化异常: " + e);
         }
     }
 
@@ -177,7 +192,8 @@ public class OrzDiscordBot extends OrzBaseBot {
         }
     }
 
-    public void sendMessage(String message) {
+    @Override
+    protected void sendPublic(String message) {
         if (!this.isEnable()) {
             return;
         }
@@ -186,48 +202,67 @@ public class OrzDiscordBot extends OrzBaseBot {
             return;
         }
         try {
-            TextChannel channel;
             String playerTextChannelId = botConfig.getString("discord_player_text_channel_id");
-            if (playerTextChannelId != null) {
-                channel = api.getTextChannelById(playerTextChannelId);
-            } else {
-                channel = null;
-            }
-            if (channel != null) {
-                codeBlockSplitMessage(message)
-                        .forEach(part -> channel.sendMessage(part).queue());
-            } else {
+            TextChannel channel = playerTextChannelId != null ? api.getTextChannelById(playerTextChannelId) : null;
+            if (channel == null) {
                 OrzMC.logger().warning("your discord bot not in this text channel: " + playerTextChannelId);
+                return;
             }
+            formatter.format(message, MessageEnvelope.Format.DEFAULT).forEach(part -> channel.sendMessage(part)
+                    .queue());
         } catch (Exception e) {
             HealthRegistry.setLastError("discord", e.toString());
-            ThrottledLogger.error("discord-send", "Discord消息发送异常: " + e);
+            throttledLogger.error("discord-send", "Discord消息发送异常: " + e);
         }
     }
 
     @Override
-    public void sendPrivateMessage(String message) {}
+    protected void sendPrivate(String message) {}
 
     @Override
-    public void sendToChannel(String channelKey, String message) {
+    protected void sendChannel(String channelKey, String message) {
         if (!this.isEnable()) return;
         if (!isApiReady) {
             toBeSendMessageWhenApiReady.add(message);
             return;
         }
         try {
-            String id = botConfig.getString("discord_channels." + channelKey);
-            TextChannel channel = id != null ? api.getTextChannelById(id) : null;
-            if (channel == null) {
-                sendMessage(message);
-                return;
-            }
-            codeBlockSplitMessage(message)
-                    .forEach(part -> channel.sendMessage(part).queue());
+            sendToChannelParts(channelKey, formatter.format(message, MessageEnvelope.Format.DEFAULT));
         } catch (Exception e) {
             com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry.setLastError("discord", e.toString());
-            com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger.error(
-                    "discord-send", "Discord指定频道发送异常: " + e);
+            throttledLogger.error("discord-send", "Discord指定频道发送异常: " + e);
         }
+    }
+
+    private void sendToDefaultChannel(List<String> parts) {
+        if (!this.isEnable()) {
+            return;
+        }
+        if (!isApiReady) {
+            toBeSendMessageWhenApiReady.add(String.join("\n", parts));
+            return;
+        }
+        String playerTextChannelId = botConfig.getString("discord_player_text_channel_id");
+        TextChannel channel = playerTextChannelId != null ? api.getTextChannelById(playerTextChannelId) : null;
+        if (channel == null) {
+            OrzMC.logger().warning("your discord bot not in this text channel: " + playerTextChannelId);
+            return;
+        }
+        parts.forEach(part -> channel.sendMessage(part).queue());
+    }
+
+    private void sendToChannelParts(String channelKey, List<String> parts) {
+        if (!this.isEnable()) return;
+        if (!isApiReady) {
+            toBeSendMessageWhenApiReady.add(String.join("\n", parts));
+            return;
+        }
+        String id = botConfig.getString("channels." + channelKey + ".discord");
+        TextChannel channel = id != null ? api.getTextChannelById(id) : null;
+        if (channel == null) {
+            sendToDefaultChannel(parts);
+            return;
+        }
+        parts.forEach(part -> channel.sendMessage(part).queue());
     }
 }

@@ -2,6 +2,49 @@
 #             配置消息模板
 # ==================================================
 templates:
+  format:
+    tnt_alert: CODE_BLOCK
+    exception_alert: CODE_BLOCK
+    geoip_block: CODE_BLOCK
+    command_output: CODE_BLOCK
+    command_help: CODE_BLOCK
+    command_players: CODE_BLOCK
+    command_whitelist_page: CODE_BLOCK
+    command_whitelist_cleanup: CODE_BLOCK
+    command_whitelist_add_result: PLAIN
+    command_whitelist_remove_result: PLAIN
+    command_admin_required: PLAIN
+    command_usage: PLAIN
+    command_backup: PLAIN
+    command_optimize: PLAIN
+    command_optimize_disabled: PLAIN
+    server_load: PLAIN
+    server_stop: PLAIN
+    whitelist_block: PLAIN
+    whitelist_toggle_alert: PLAIN
+    maintenance_backup_stage: CODE_BLOCK
+    maintenance_backup_done: CODE_BLOCK
+    maintenance_backup_error: CODE_BLOCK
+    maintenance_optimize_stage: CODE_BLOCK
+    maintenance_optimize_done: CODE_BLOCK
+    maintenance_optimize_error: CODE_BLOCK
+  command_output: "{message}"
+  command_help: "{help}"
+  command_players: "------当前在线({online_count}/{max_count})------\n{online_list}"
+  command_whitelist_header: "------当前白名单玩家({count})------"
+  command_whitelist_page: "{header}\n第{page}/{total}页\n{body}"
+  command_whitelist_cleanup: "------白名单清理------\n{removed_list}"
+  command_whitelist_add_result: "{message}"
+  command_whitelist_remove_result: "{message}"
+  command_admin_required: "{message}"
+  command_usage: "{message}"
+  command_backup: "{message}"
+  command_optimize: "{message}"
+  command_optimize_disabled: "{message}"
+  server_load: "{message}"
+  server_stop: "{message}"
+  whitelist_block: "{message}"
+  whitelist_toggle_alert: "{message}"
   player_join: "{name} 上线\n------当前在线({online_count}/{max_count})------\n{online_list}"
   player_quit: "{name} 下线\n------当前在线({online_count}/{max_count})------\n{online_list}"
   player_kick: "{name} 被踢\n------当前在线({online_count}/{max_count})------\n{online_list}"
@@ -38,6 +81,21 @@ templates:
       en-US:
         admin: Admin
         member: Member
+    command:
+      en-US:
+        command_output: "{message}"
+        command_help: "{help}"
+        command_players: "------Online ({online_count}/{max_count})------\n{online_list}"
+        command_whitelist_header: "------Whitelist ({count})------"
+        command_whitelist_page: "{header}\nPage {page}/{total}\n{body}"
+        command_whitelist_cleanup: "------Whitelist Cleanup------\n{removed_list}"
+        command_whitelist_add_result: "{message}"
+        command_whitelist_remove_result: "{message}"
+        command_admin_required: "{message}"
+        command_usage: "{message}"
+        command_backup: "{message}"
+        command_optimize: "{message}"
+        command_optimize_disabled: "{message}"
     world_alias:
       zh-CN:
         world: 主世界

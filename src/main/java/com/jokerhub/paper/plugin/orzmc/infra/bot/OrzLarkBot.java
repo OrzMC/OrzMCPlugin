@@ -2,6 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
 import com.google.gson.Gson;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.net.AsyncHttp;
@@ -9,8 +10,14 @@ import java.time.Duration;
 import java.util.HashMap;
 
 public class OrzLarkBot extends OrzBaseBot {
-    public OrzLarkBot(OrzMC plugin) {
-        super(plugin);
+    private final MessageFormatter formatter;
+    private final ThrottledLogger throttledLogger;
+
+    public OrzLarkBot(
+            OrzMC plugin, ConfigService configService, MessageFormatter formatter, ThrottledLogger throttledLogger) {
+        super(plugin, configService);
+        this.formatter = formatter;
+        this.throttledLogger = throttledLogger;
     }
 
     @Override
@@ -24,14 +31,17 @@ public class OrzLarkBot extends OrzBaseBot {
     @Override
     public void teardown() {}
 
-    public void sendMessage(String msg) {
+    @Override
+    protected void sendPublic(String msg) {
         if (!this.isEnable()) {
             return;
         }
         HealthRegistry.setEnabled("lark", true);
         try {
             String larkBotWebhookUrl = botConfig.getString("lark_bot_webhook");
-            asyncHttpRequest(larkBotWebhookUrl, msg);
+            for (String part : formatter.format(msg, MessageEnvelope.Format.DEFAULT)) {
+                asyncHttpRequest(larkBotWebhookUrl, part);
+            }
         } catch (Exception e) {
             HealthRegistry.setLastError("lark", e.toString());
             OrzMC.logger().info(e.toString());
@@ -39,18 +49,20 @@ public class OrzLarkBot extends OrzBaseBot {
     }
 
     @Override
-    public void sendPrivateMessage(String message) {}
+    protected void sendPrivate(String message) {}
 
     @Override
-    public void sendToChannel(String channelKey, String message) {
+    protected void sendChannel(String channelKey, String message) {
         if (!this.isEnable()) return;
         try {
-            String url = botConfig.getString("lark_channels." + channelKey + ".webhook");
+            String url = botConfig.getString("channels." + channelKey + ".lark");
             if (url == null || url.isEmpty()) {
-                sendMessage(message);
+                sendPublic(message);
                 return;
             }
-            asyncHttpRequest(url, message);
+            for (String part : formatter.format(message, MessageEnvelope.Format.DEFAULT)) {
+                asyncHttpRequest(url, part);
+            }
         } catch (Exception e) {
             HealthRegistry.setLastError("lark", e.toString());
             OrzMC.logger().info(e.toString());
@@ -84,7 +96,7 @@ public class OrzLarkBot extends OrzBaseBot {
                 .exceptionally(e -> {
                     HealthRegistry.setHttpOk("lark", false);
                     HealthRegistry.setLastError("lark", e.toString());
-                    ThrottledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e);
+                    throttledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e);
                     return null;
                 });
     }

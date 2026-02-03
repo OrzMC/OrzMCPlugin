@@ -14,16 +14,16 @@ public class OrzUtil {
         return Component.empty();
     }
 
-    public static TextComponent successText(String content) {
-        return OrzTextStyles.success(content);
+    public static TextComponent successText(OrzTextStyles styles, String content) {
+        return styles.success(content);
     }
 
-    public static TextComponent failureText(String content) {
-        return OrzTextStyles.error(content);
+    public static TextComponent failureText(OrzTextStyles styles, String content) {
+        return styles.error(content);
     }
 
-    public static TextComponent warningText(String content) {
-        return OrzTextStyles.warn(content);
+    public static TextComponent warningText(OrzTextStyles styles, String content) {
+        return styles.warn(content);
     }
 
     public static void executeConsoleCmd(Runnable task, String... consoleCmds) {

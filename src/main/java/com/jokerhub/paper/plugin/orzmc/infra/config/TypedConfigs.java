@@ -183,7 +183,8 @@ public final class TypedConfigs {
         }
     }
 
-    public record NotifyPolicy(boolean privateEnabled, boolean privateAdminOnly, boolean publicEnabled) {}
+    public record NotifyPolicy(
+            boolean privateEnabled, boolean privateAdminOnly, boolean publicEnabled, String channelKey) {}
 
     public record Notifications(Map<String, NotifyPolicy> policies) {
 
@@ -197,7 +198,9 @@ public final class TypedConfigs {
                         boolean privateEnabled = s.getBoolean("private.enabled", false);
                         boolean privateAdminOnly = s.getBoolean("private.admin_only", true);
                         boolean publicEnabled = s.getBoolean("public.enabled", true);
-                        policies.put(key, new NotifyPolicy(privateEnabled, privateAdminOnly, publicEnabled));
+                        String channelKey = s.getString("channel_key", "");
+                        policies.put(
+                                key, new NotifyPolicy(privateEnabled, privateAdminOnly, publicEnabled, channelKey));
                     }
                 }
             }
@@ -218,7 +221,11 @@ public final class TypedConfigs {
             String maintenanceOptimizeStage,
             String maintenanceOptimizeDone,
             String maintenanceOptimizeError,
-            String serverMaintenanceHint) {
+            String serverMaintenanceHint,
+            String serverLoad,
+            String serverStop,
+            String whitelistBlock,
+            String whitelistToggleAlert) {
 
         public static Templates from(FileConfiguration cfg) {
             String base = "templates";
@@ -248,6 +255,10 @@ public final class TypedConfigs {
             String moDone = cfg.getString(base + ".maintenance_optimize_done", "地图{label} 完成 用时:{duration_ms}ms");
             String moErr = cfg.getString(base + ".maintenance_optimize_error", "地图{label} 失败 用时:{duration_ms}ms");
             String maintHint = cfg.getString(base + ".server_maintenance_hint", "服务器当前无玩家，可进行服务器维护");
+            String serverLoad = cfg.getString(base + ".server_load", "{message}");
+            String serverStop = cfg.getString(base + ".server_stop", "{message}");
+            String whitelistBlock = cfg.getString(base + ".whitelist_block", "{message}");
+            String whitelistToggleAlert = cfg.getString(base + ".whitelist_toggle_alert", "{message}");
             return new Templates(
                     join,
                     quit,
@@ -261,7 +272,11 @@ public final class TypedConfigs {
                     moStage,
                     moDone,
                     moErr,
-                    maintHint);
+                    maintHint,
+                    serverLoad,
+                    serverStop,
+                    whitelistBlock,
+                    whitelistToggleAlert);
         }
     }
 

@@ -1,4 +1,4 @@
-package com.jokerhub.paper.plugin.orzmc.commands;
+package com.jokerhub.paper.plugin.orzmc.features.menu;
 
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;

@@ -22,9 +22,8 @@ public class WorldMaintenanceServiceTest {
             // space timestamps
             TimeUnit.MILLISECONDS.sleep(10);
         }
-        WorldMaintenanceService svc = new WorldMaintenanceService();
         Assertions.assertEquals(5, Objects.requireNonNull(tmp.listFiles((d, n) -> n.endsWith(".zip"))).length);
-        svc.pruneOldZips(tmp, 2);
+        WorldMaintenanceService.pruneOldZips(tmp, 2);
         File[] left = tmp.listFiles((d, n) -> n.endsWith(".zip"));
         Assertions.assertTrue(Objects.requireNonNull(left).length <= 2);
     }

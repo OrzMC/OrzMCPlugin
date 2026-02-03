@@ -1,86 +1,75 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class OrzBotManager {
+class OrzBotManager implements BotMessageService {
     private final OrzMC plugin;
-    private Map<String, OrzBaseBot> bots;
-    private final ConcurrentLinkedQueue<PendingMessage> pending = new ConcurrentLinkedQueue<>();
-    private volatile boolean initialized = false;
+    private final BotInboundHandler inboundHandler;
+    private final ConfigService configService;
+    private final ThrottledLogger throttledLogger;
+    private List<BotAdapter> adapters;
+    private final BotRouter router;
+    private final AtomicBoolean setupRequested = new AtomicBoolean(false);
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private record PendingMessage(String message, boolean isPrivate) {}
-
-    private record PendingChannelMessage(String channelKey, String message) {}
-
-    public OrzBotManager(OrzMC plugin) {
+    public OrzBotManager(
+            OrzMC plugin,
+            ConfigService configService,
+            ThrottledLogger throttledLogger,
+            BotInboundHandler inboundHandler) {
         this.plugin = plugin;
-        this.bots = Collections.emptyMap();
+        this.configService = configService;
+        this.throttledLogger = throttledLogger;
+        this.inboundHandler = inboundHandler;
+        this.adapters = Collections.emptyList();
+        this.router = new BotRouter(throttledLogger);
     }
 
+    @Override
     public void setup() {
-        bots = Map.of("qq", new OrzQQBot(plugin), "discord", new OrzDiscordBot(plugin), "lark", new OrzLarkBot(plugin));
-        bots.values().forEach(OrzBaseBot::setup);
-        initialized = true;
-        flushPending();
-    }
-
-    public void sendMessage(String message, boolean isPrivate) {
-        if (!initialized) {
-            ThrottledLogger.info("bots-init", "机器人尚未就绪，消息已缓存");
-            pending.add(new PendingMessage(message, isPrivate));
-            return;
-        }
-        bots.values().forEach(bot -> {
+        setupRequested.set(true);
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                if (isPrivate) {
-                    bot.sendPrivateMessage(message);
-                } else {
-                    bot.sendMessage(message);
-                }
+                startIfRequested();
             } catch (Exception e) {
-                ThrottledLogger.warning("bot-send", "消息发送失败: " + bot.getClass().getSimpleName() + " - " + e);
+                plugin.getLogger().severe("OrzBotManager 初始化失败: " + e.getMessage());
             }
         });
     }
 
-    public void sendToChannel(String channelKey, String message) {
-        if (!initialized) {
-            ThrottledLogger.info("bots-init", "机器人尚未就绪，消息已缓存");
-            pendingChannel.add(new PendingChannelMessage(channelKey, message));
+    void startIfRequested() {
+        if (!setupRequested.get()) {
             return;
         }
-        bots.values().forEach(bot -> {
-            try {
-                bot.sendToChannel(channelKey, message);
-            } catch (Exception e) {
-                ThrottledLogger.warning(
-                        "bot-send", "指定频道消息发送失败: " + bot.getClass().getSimpleName() + " - " + e);
-            }
-        });
+        if (!started.compareAndSet(false, true)) {
+            return;
+        }
+        adapters = List.of(
+                new OrzQQBot(plugin, configService, inboundHandler, new PlainMessageFormatter(), throttledLogger),
+                new OrzDiscordBot(
+                        plugin, configService, inboundHandler, new DiscordMessageFormatter(), throttledLogger),
+                new OrzLarkBot(plugin, configService, new PlainMessageFormatter(), throttledLogger));
+        router.setAdapters(adapters);
+        router.setup();
     }
 
+    @Override
+    public void send(MessageEnvelope envelope) {
+        if (envelope == null) {
+            return;
+        }
+        OrzMC.debugInfo(envelope.message());
+        router.route(envelope);
+    }
+
+    @Override
     public void tearDown() {
-        initialized = false;
-        bots.values().forEach(OrzBaseBot::teardown);
-        bots = Collections.emptyMap();
-        pending.clear();
-        pendingChannel.clear();
+        router.teardown();
+        adapters = Collections.emptyList();
     }
-
-    private void flushPending() {
-        PendingMessage pm;
-        while ((pm = pending.poll()) != null) {
-            sendMessage(pm.message, pm.isPrivate);
-        }
-        PendingChannelMessage pcm;
-        while ((pcm = pendingChannel.poll()) != null) {
-            sendToChannel(pcm.channelKey, pcm.message);
-        }
-    }
-
-    private final ConcurrentLinkedQueue<PendingChannelMessage> pendingChannel = new ConcurrentLinkedQueue<>();
 }

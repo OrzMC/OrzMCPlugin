@@ -1,6 +1,6 @@
-package com.jokerhub.paper.plugin.orzmc.utils;
+package com.jokerhub.paper.plugin.orzmc.features.botcommands;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 
 public enum OrzUserCmd {
     SHOW_PLAYERS("l", "查看在线玩家", false),
@@ -14,6 +14,7 @@ public enum OrzUserCmd {
     private final String cmdName;
     private final String description;
     private final boolean needAdminPermission;
+    private static ConfigService configService;
 
     OrzUserCmd(String cmdName, String description, boolean needAdminPermission) {
         this.cmdName = cmdName;
@@ -21,9 +22,14 @@ public enum OrzUserCmd {
         this.needAdminPermission = needAdminPermission;
     }
 
+    public static void setConfigService(ConfigService service) {
+        configService = service;
+    }
+
     private static String cmdPromptChar() {
         try {
-            return OrzMC.plugin().configManager.getConfig("bot").getString("cmd_prompt_char", "$");
+            if (configService == null) return "$";
+            return configService.getConfig("bot").getString("cmd_prompt_char", "$");
         } catch (Exception e) {
             return "$";
         }
@@ -31,12 +37,6 @@ public enum OrzUserCmd {
 
     public static boolean isValidCmd(String message) {
         return message.startsWith(cmdPromptChar());
-    }
-
-    public static String helpInfo() {
-        return "👨‍💼 管理员命令：\n" + OrzUserCmd.ADD_PLAYER_TO_WHITELIST + "\n" + OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST
-                + "\n" + OrzUserCmd.BACKUP + "\n" + "👨🏻‍💻 通用命令: \n" + OrzUserCmd.SHOW_PLAYERS + "\n"
-                + OrzUserCmd.SHOW_WHITELIST + "\n" + OrzUserCmd.SHOW_HELP;
     }
 
     public String getCmdString() {
@@ -48,20 +48,7 @@ public enum OrzUserCmd {
         return this.getCmdString() + "\t" + this.description;
     }
 
-    public String adminPermissionRequiredTip() {
-        if (this.needAdminPermission) {
-            return this.getCmdString() + " 需要管理员权限";
-        } else {
-            return "";
-        }
-    }
-
-    public String usageTip() {
-        return switch (this) {
-            case ADD_PLAYER_TO_WHITELIST, REMOVE_PLAYER_FROM_WHITELIST -> "用法：\n" + this.getCmdString() + " " + "[玩家]\n"
-                    + this.getCmdString() + " " + "[玩家1] [玩家2] [玩家3]\n" + this.getCmdString() + " "
-                    + "[玩家1],[玩家2],[玩家3]\n";
-            default -> "";
-        };
+    public boolean needAdminPermission() {
+        return needAdminPermission;
     }
 }
