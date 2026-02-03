@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.infra.config.PortalsWriter;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.portal.IPortalService;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import net.kyori.adventure.text.Component;
@@ -19,6 +20,7 @@ import org.bukkit.block.data.Orientable;
 import org.bukkit.block.data.type.WallSign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -303,14 +305,13 @@ public class PortalService implements IPortalService {
             }
         }
         org.bukkit.Location c = new org.bukkit.Location(w, def.cx + 0.5, def.cy + 2.0, def.cz + 0.5);
-        java.util.Collection<org.bukkit.entity.Entity> nearby = w.getNearbyEntities(c, 3.0, 3.0, 3.0);
-        for (org.bukkit.entity.Entity e : nearby) {
+        Collection<Entity> nearby = w.getNearbyEntities(c, 3.0, 3.0, 3.0);
+        for (Entity e : nearby) {
             if (e instanceof org.bukkit.entity.ArmorStand as) {
                 net.kyori.adventure.text.Component name = as.customName();
                 String plain = name == null
                         ? ""
-                        : net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                                .serialize(name);
+                        : PlainTextComponentSerializer.plainText().serialize(name);
                 if (!plain.isEmpty() && (plain.contains(def.target()) || plain.contains("跨服传送"))) {
                     e.remove();
                 }
@@ -334,14 +335,13 @@ public class PortalService implements IPortalService {
         org.bukkit.World w = org.bukkit.Bukkit.getWorld(def.world());
         if (w == null) return;
         org.bukkit.Location base = new org.bukkit.Location(w, def.cx + 0.5, def.cy + 1.9, def.cz + 0.5);
-        java.util.Collection<org.bukkit.entity.Entity> nearby = w.getNearbyEntities(base, 2.5, 2.5, 2.5);
-        for (org.bukkit.entity.Entity e : nearby) {
+        Collection<Entity> nearby = w.getNearbyEntities(base, 2.5, 2.5, 2.5);
+        for (Entity e : nearby) {
             if (e instanceof org.bukkit.entity.ArmorStand as) {
                 net.kyori.adventure.text.Component name = as.customName();
                 String plain = name == null
                         ? ""
-                        : net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                                .serialize(name);
+                        : PlainTextComponentSerializer.plainText().serialize(name);
                 if (!plain.isEmpty() && (plain.contains(def.target()) || plain.contains("跨服传送"))) {
                     e.remove();
                 }
@@ -384,8 +384,8 @@ public class PortalService implements IPortalService {
         org.bukkit.World w = org.bukkit.Bukkit.getWorld(def.world());
         if (w == null) return;
         org.bukkit.Location base = new org.bukkit.Location(w, def.cx() + 0.5, def.cy() + 1.9, def.cz() + 0.5);
-        java.util.Collection<org.bukkit.entity.Entity> nearby = w.getNearbyEntities(base, 2.0, 2.0, 2.0);
-        for (org.bukkit.entity.Entity e : nearby) {
+        Collection<Entity> nearby = w.getNearbyEntities(base, 2.0, 2.0, 2.0);
+        for (Entity e : nearby) {
             if (e instanceof org.bukkit.entity.ArmorStand as) {
                 Component name = as.customName();
                 String plain = name == null
