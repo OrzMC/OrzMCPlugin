@@ -112,7 +112,7 @@ hangarPublish {
 
 val debugServerVesion = property("plugin_debug_server_version") as String
 tasks {
-    val installGitHooks = register("installGitHooks") {
+    register("installGitHooks") {
         doLast {
             serviceOf<ExecOperations>().exec {
                 commandLine("git", "config", "core.hooksPath", ".githooks")
