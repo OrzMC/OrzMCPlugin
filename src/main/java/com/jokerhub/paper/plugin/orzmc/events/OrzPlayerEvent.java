@@ -21,6 +21,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
@@ -225,8 +227,11 @@ public class OrzPlayerEvent extends OrzBaseListener {
                 };
         Notifier.event(eventKey, rendered);
         plugin.getLogger().info(rendered);
-        if (onlinePlayerCount == 0) {
-            Notifier.event("server_maintenance_hint", "服务器当前无玩家，可进行服务器维护");
+        if (displayOnlineCount == 0) {
+            Component motd = OrzMC.server().motd();
+            String motdText = PlainTextComponentSerializer.plainText().serialize(motd);
+            String message = "当前无玩家，可进行维护" + "\n" + "--------------------" + "\n" + motdText;
+            Notifier.event("server_maintenance_hint", message);
         }
     }
 

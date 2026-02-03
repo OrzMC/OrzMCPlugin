@@ -30,3 +30,5 @@ notifications:
     private:
       enabled: true
       admin_only: true
+    public:
+      enabled: false
