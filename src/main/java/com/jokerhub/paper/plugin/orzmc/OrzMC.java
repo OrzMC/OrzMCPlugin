@@ -11,17 +11,16 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigHealthCheck;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.core.ServiceRegistry;
 import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
 import org.bukkit.GameMode;
 import org.bukkit.Server;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Logger;
 
 public final class OrzMC extends JavaPlugin implements Listener {
     public AdvancedConfigManager configManager;
@@ -108,16 +107,16 @@ public final class OrzMC extends JavaPlugin implements Listener {
     }
 
     private void setupEventListener() {
-        Listener[] eventListeners = new Listener[]{
-                new OrzBowShootEvent(this),
-                new OrzPlayerEvent(this),
-                new OrzTPEvent(this),
-                new OrzTNTEvent(this),
-                new OrzMenuEvent(this),
-                new OrzServerEvent(this),
-                new OrzWhiteListEvent(this),
-                new OrzDebugEvent(this),
-                new OrzPortalEvent(this)
+        Listener[] eventListeners = new Listener[] {
+            new OrzBowShootEvent(this),
+            new OrzPlayerEvent(this),
+            new OrzTPEvent(this),
+            new OrzTNTEvent(this),
+            new OrzMenuEvent(this),
+            new OrzServerEvent(this),
+            new OrzWhiteListEvent(this),
+            new OrzDebugEvent(this),
+            new OrzPortalEvent(this)
         };
         EventBinder.bind(this, java.util.Arrays.asList(eventListeners));
     }
