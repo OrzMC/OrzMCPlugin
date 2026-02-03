@@ -1,9 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
 import com.jokerhub.paper.plugin.orzmc.infra.core.OrzConstants;
-import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -17,6 +15,13 @@ import org.bukkit.persistence.PersistentDataType;
 
 public final class TeleportBowService {
     public static final String name = "传送弓";
+    private final OrzTextStyles styles;
+    private final TeleportBowTexts texts;
+
+    public TeleportBowService(OrzTextStyles styles) {
+        this.styles = styles;
+        this.texts = new TeleportBowTexts(styles);
+    }
 
     public TextComponent prefix() {
         return Component.text("传送弓");
@@ -40,7 +45,7 @@ public final class TeleportBowService {
         player.getInventory().setItemInMainHand(teleport_bow);
         ItemStack arrow = new ItemStack(Material.ARROW);
         player.getInventory().addItem(arrow);
-        player.sendMessage(OrzUtil.successText("你获得了" + name));
+        player.sendMessage(styles.success("你获得了" + name));
     }
 
     private static final org.bukkit.NamespacedKey KEY_TPBOW =
@@ -149,33 +154,33 @@ public final class TeleportBowService {
 
     public void handleArrowHit(org.bukkit.entity.Arrow arrow, org.bukkit.entity.Player player) {
         if (arrow.isInWater()) {
-            player.sendMessage(OrzTPBow.logText("箭射进了水里!").color(OrzTextStyles.colorError()));
+            player.sendMessage(texts.logText("箭射进了水里!").color(styles.colorError()));
             return;
         }
         if (arrow.isInLava()) {
-            player.sendMessage(OrzTPBow.logText("箭射进了岩浆里!").color(OrzTextStyles.colorError()));
+            player.sendMessage(texts.logText("箭射进了岩浆里!").color(styles.colorError()));
             return;
         }
         org.bukkit.Location base = arrow.getLocation();
         org.bukkit.World pw = player.getWorld();
         org.bukkit.World tw = base.getWorld();
         if (!pw.equals(tw)) {
-            player.sendMessage(OrzTPBow.logText("无法跨世界传送!").color(OrzTextStyles.colorError()));
+            player.sendMessage(texts.logText("无法跨世界传送!").color(styles.colorError()));
             return;
         }
         org.bukkit.util.Vector dir = arrow.getVelocity();
         org.bukkit.Location center = toBlockCenter(base, dir);
         if (!withinWorldBounds(center)) {
-            player.sendMessage(OrzTPBow.logText("目标高度不合法!").color(OrzTextStyles.colorError()));
+            player.sendMessage(texts.logText("目标高度不合法!").color(styles.colorError()));
             return;
         }
         org.bukkit.Location safe = findNearestSafe(center, dir);
         if (safe == null) {
-            player.sendMessage(OrzTPBow.logText("目标位置不可站立!").color(OrzTextStyles.colorError()));
+            player.sendMessage(texts.logText("目标位置不可站立!").color(styles.colorError()));
             return;
         }
         player.teleport(safe);
         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_CAT_PURR, 1.0F, 1.0F);
-        player.sendMessage(OrzTPBow.logText("传送完成!").color(OrzTextStyles.colorSuccess()));
+        player.sendMessage(texts.logText("传送完成!").color(styles.colorSuccess()));
     }
 }

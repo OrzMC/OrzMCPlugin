@@ -1,76 +1,66 @@
 package com.jokerhub.paper.plugin.orzmc.infra.notify;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import net.kyori.adventure.text.Component;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public final class Notifier {
-    private Notifier() {}
+    private final ConfigService configService;
+    private final BotMessageService botMessageService;
+    private NotifierSink sink;
 
-    private static NotifierSink sink = new DefaultSink();
+    public Notifier(ConfigService configService, BotMessageService botMessageService) {
+        this.configService = configService;
+        this.botMessageService = botMessageService;
+        this.sink = new DefaultSink();
+    }
 
-    public static void server(Component message) {
+    public void server(Component message) {
         sink.server(message);
     }
 
-    public static void bot(String message) {
-        sink.botPublic(message);
+    public void event(String key, MessageEnvelope envelope) {
+        sink.event(key, envelope);
     }
 
-    public static void botPrivate(String message) {
-        sink.botPrivate(message);
-    }
-
-    public static void event(String key, String message) {
-        sink.event(key, message);
-    }
-
-    public static void registerSink(NotifierSink s) {
+    public void registerSink(NotifierSink s) {
         sink = s == null ? sink : s;
     }
 
-    private static final class DefaultSink implements NotifierSink {
+    private final class DefaultSink implements NotifierSink {
         @Override
         public void server(Component message) {
             OrzMC.server().sendMessage(message);
         }
 
         @Override
-        public void botPublic(String message) {
-            OrzMC.plugin().sendPublicMessage(message);
+        public void event(String key, MessageEnvelope envelope) {
+            routeEvent(key, envelope);
         }
+    }
 
-        @Override
-        public void botPrivate(String message) {
-            OrzMC.plugin().sendPrivateMessage(message);
+    public void routeEvent(String key, MessageEnvelope envelope) {
+        if (envelope == null) {
+            return;
         }
-
-        @Override
-        public void botChannel(String channelKey, String message) {
-            OrzMC.plugin().sendToChannel(channelKey, message);
+        FileConfiguration cfg = configService.getConfig("notifications");
+        TypedConfigs.Notifications ns = TypedConfigs.Notifications.from(cfg);
+        TypedConfigs.NotifyPolicy p =
+                ns.policies().getOrDefault(key, new TypedConfigs.NotifyPolicy(false, true, true, ""));
+        if (p.publicEnabled()) {
+            botMessageService.send(envelope.withTargetType(MessageEnvelope.TargetType.PUBLIC));
         }
-
-        @Override
-        public void event(String key, String message) {
-            FileConfiguration cfg = OrzMC.plugin().configManager.getConfig("notifications");
-            TypedConfigs.Notifications ns = TypedConfigs.Notifications.from(cfg);
-            TypedConfigs.NotifyPolicy p =
-                    ns.policies().getOrDefault(key, new TypedConfigs.NotifyPolicy(false, true, true));
-            if (p.publicEnabled()) {
-                botPublic(message);
-            }
-            if (p.privateEnabled()) {
-                botPrivate(message);
-            }
-            Object raw = OrzMC.plugin()
-                    .configManager
-                    .getConfig("notifications")
-                    .get("notifications." + key + ".channel_key");
-            String channelKey = raw == null ? null : String.valueOf(raw);
-            if (channelKey != null && !channelKey.isEmpty()) {
-                botChannel(channelKey, message);
-            }
+        if (p.privateEnabled()) {
+            botMessageService.send(envelope.withTargetType(MessageEnvelope.TargetType.PRIVATE));
+        }
+        String channelKey = p.channelKey();
+        if (channelKey != null && !channelKey.isEmpty()) {
+            botMessageService.send(
+                    envelope.withTargetType(MessageEnvelope.TargetType.CHANNEL).withChannelKey(channelKey));
         }
     }
 }

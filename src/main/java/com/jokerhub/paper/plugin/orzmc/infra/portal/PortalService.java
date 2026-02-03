@@ -1,9 +1,8 @@
-package com.jokerhub.paper.plugin.orzmc.features.portal;
+package com.jokerhub.paper.plugin.orzmc.infra.portal;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.PortalsWriter;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
-import com.jokerhub.paper.plugin.orzmc.infra.portal.IPortalService;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,7 +10,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Axis;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -25,20 +23,18 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 public class PortalService implements IPortalService {
-    private static final PortalService INSTANCE = new PortalService();
-
-    public static PortalService defaultImpl() {
-        return INSTANCE;
-    }
+    private final ConfigService configService;
 
     private final Map<String, String> interiorTargets = new HashMap<>();
     private final Map<String, PortalDef> portalCenters = new HashMap<>();
 
+    public PortalService(ConfigService configService) {
+        this.configService = configService;
+    }
+
     private String key(org.bukkit.World w, int x, int y, int z) {
         return w.getName() + ":" + x + ":" + y + ":" + z;
     }
-
-    public record PortalInfo(Location location, Axis axis) {}
 
     public record PortalDef(String world, int cx, int cy, int cz, Axis axis, String target) {
 
@@ -102,7 +98,6 @@ public class PortalService implements IPortalService {
                 }
             }
         }
-        // 仅添加底部装饰
         int padY = baseY - 1;
         if (axisX) {
             int y = padY;
@@ -186,8 +181,7 @@ public class PortalService implements IPortalService {
     }
 
     public void loadFromStorage() {
-        org.bukkit.configuration.file.FileConfiguration cfg =
-                OrzMC.plugin().configManager.getConfig("portals");
+        org.bukkit.configuration.file.FileConfiguration cfg = configService.getConfig("portals");
         TypedConfigs.Portals typed = TypedConfigs.Portals.from(cfg);
         for (java.util.Map.Entry<String, TypedConfigs.Portals.PortalEntry> e :
                 typed.entries().entrySet()) {
@@ -214,9 +208,16 @@ public class PortalService implements IPortalService {
         }
     }
 
+    @Override
+    public void setup() {
+        loadFromStorage();
+    }
+
+    @Override
+    public void tearDown() {}
+
     public void saveToStorage() {
-        org.bukkit.configuration.file.FileConfiguration cfg =
-                OrzMC.plugin().configManager.getConfig("portals");
+        org.bukkit.configuration.file.FileConfiguration cfg = configService.getConfig("portals");
         if (cfg == null) return;
         java.util.Map<String, TypedConfigs.Portals.PortalEntry> entries = new java.util.HashMap<>();
         for (PortalDef def : portalCenters.values()) {
@@ -225,7 +226,7 @@ public class PortalService implements IPortalService {
                     new TypedConfigs.Portals.PortalEntry(def.target, def.axis == org.bukkit.Axis.Z ? "Z" : "X"));
         }
         PortalsWriter.write(cfg, entries);
-        OrzMC.plugin().configManager.saveConfig("portals");
+        configService.saveConfig("portals");
     }
 
     public int removeByTarget(String target) {
@@ -242,7 +243,7 @@ public class PortalService implements IPortalService {
             clearLabels(def);
         }
         saveToStorage();
-        OrzMC.plugin().configManager.reloadConfig("portals");
+        configService.reloadConfig("portals");
         return toRemove.size();
     }
 
@@ -350,7 +351,6 @@ public class PortalService implements IPortalService {
     }
 
     private void rehydrateInterior(PortalDef def) {
-        // 2x3 interior based on center/axis
         if (def.axis == org.bukkit.Axis.X) {
             int z = def.cz;
             int x1 = def.cx;

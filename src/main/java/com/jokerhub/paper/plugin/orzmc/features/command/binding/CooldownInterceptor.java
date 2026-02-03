@@ -1,11 +1,13 @@
-package com.jokerhub.paper.plugin.orzmc.infra.binding;
+package com.jokerhub.paper.plugin.orzmc.features.command.binding;
 
+import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
 
 public class CooldownInterceptor implements CommandInterceptor {
     private final String commandName;
     private final int cooldownSeconds;
+    private final CommandFeedbackService feedbackService = new CommandFeedbackService();
 
     public CooldownInterceptor(String commandName, int cooldownSeconds) {
         this.commandName = commandName;
@@ -16,7 +18,7 @@ public class CooldownInterceptor implements CommandInterceptor {
     public Component preHandle(CommandSender sender, String ignored) {
         String key = commandName + "|" + sender.getName();
         if (CooldownRegistry.isCoolingDown(key, cooldownSeconds)) {
-            return Component.text("命令冷却中，请稍后再试");
+            return feedbackService.cooldownTip();
         }
         return null;
     }

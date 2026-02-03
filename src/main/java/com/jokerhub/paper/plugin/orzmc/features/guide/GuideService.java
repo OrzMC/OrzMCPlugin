@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.guide;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.GuideBookConfigParser;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.ContentItem;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.GuideBookConfig;
@@ -8,6 +9,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.LinkContent;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.TextContent;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.TextStyle;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
+import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.UUID;
@@ -25,8 +27,16 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 
 public final class GuideService {
+    private final ConfigService configService;
+    private final OrzTextStyles styles;
+
+    public GuideService(ConfigService configService, OrzTextStyles styles) {
+        this.configService = configService;
+        this.styles = styles;
+    }
+
     public ItemStack buildGuideBook() {
-        GuideBookConfigParser parser = new GuideBookConfigParser(OrzMC.plugin());
+        GuideBookConfigParser parser = new GuideBookConfigParser(OrzMC.plugin(), configService);
         GuideBookConfig cfg = parser.parseConfig();
         if (cfg == null || !cfg.enable()) return null;
         ItemStack guideBook = new ItemStack(Material.WRITTEN_BOOK);
@@ -92,7 +102,7 @@ public final class GuideService {
     public void openGuide(Player player) {
         ItemStack guideBook = buildGuideBook();
         if (guideBook == null) {
-            player.sendMessage(OrzUtil.failureText("服主未配置新手指南"));
+            player.sendMessage(OrzUtil.failureText(styles, "服主未配置新手指南"));
             return;
         }
         player.openBook(guideBook);
@@ -106,7 +116,7 @@ public final class GuideService {
             ItemStack guideBook = buildGuideBook();
             if (guideBook != null) {
                 player.getInventory().addItem(guideBook);
-                player.sendMessage(OrzUtil.successText("获得新手指南"));
+                player.sendMessage(OrzUtil.successText(styles, "获得新手指南"));
             }
         }
     }

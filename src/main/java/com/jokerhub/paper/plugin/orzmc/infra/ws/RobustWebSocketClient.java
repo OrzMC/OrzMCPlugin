@@ -13,6 +13,7 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
 public class RobustWebSocketClient {
+    private final ThrottledLogger throttledLogger;
     private final URI serverUri;
     private final ScheduledExecutorService executor;
     private final int maxRetries;
@@ -29,6 +30,7 @@ public class RobustWebSocketClient {
 
     public RobustWebSocketClient(
             String url,
+            ThrottledLogger throttledLogger,
             int maxRetries,
             long baseRetryInterval,
             long maxRetryInterval,
@@ -38,6 +40,7 @@ public class RobustWebSocketClient {
             WebSocketEventListener listener)
             throws URISyntaxException {
         this.serverUri = new URI(url);
+        this.throttledLogger = throttledLogger;
         this.maxRetries = maxRetries;
         this.baseRetryInterval = baseRetryInterval;
         this.maxRetryInterval = maxRetryInterval;
@@ -118,7 +121,7 @@ public class RobustWebSocketClient {
         }
         retryCount++;
         long delay = calculateBackoffDelay();
-        ThrottledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
+        throttledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
         isReconnecting = true;
         executor.schedule(
                 () -> {

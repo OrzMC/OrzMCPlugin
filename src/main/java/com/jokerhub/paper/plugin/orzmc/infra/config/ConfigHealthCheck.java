@@ -2,6 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public final class ConfigHealthCheck {
@@ -13,7 +14,7 @@ public final class ConfigHealthCheck {
         validateIpWhitelist(mgr.getConfig("ip_whitelist"), issues);
         validatePortals(mgr.getConfig("portals"), issues);
         validateTemplates(mgr.getConfig("templates"), issues);
-        validateNotifications(mgr.getConfig("notifications"), issues);
+        validateNotifications(mgr.getConfig("notifications"), mgr.getConfig("bot"), mgr.getConfig("templates"), issues);
         validateCommands(mgr.getConfig("commands"), issues);
         validateWhitelist(mgr.getConfig("whitelist"), issues);
         validateMaintenance(mgr.getConfig("maintenance"), issues);
@@ -48,14 +49,14 @@ public final class ConfigHealthCheck {
             return;
         }
         Object raw = cfg.get("portals");
-        if (raw instanceof org.bukkit.configuration.ConfigurationSection sec) {
+        if (raw instanceof ConfigurationSection sec) {
             for (String k : sec.getKeys(false)) {
-                org.bukkit.configuration.ConfigurationSection s = sec.getConfigurationSection(k);
+                ConfigurationSection s = sec.getConfigurationSection(k);
                 if (s == null) {
                     issues.add("非法: portals." + k + " 节点为空");
                     continue;
                 }
-                String target = com.jokerhub.paper.plugin.orzmc.infra.config.SafeKeys.decodeTargetKey(k);
+                String target = SafeKeys.decodeTargetKey(k);
                 for (String center : s.getKeys(false)) {
                     String[] parts = center.split(":");
                     if (parts.length != 4) {
@@ -139,16 +140,20 @@ public final class ConfigHealthCheck {
         String locale = cfg.getString(base + ".locale", "zh-CN");
         if (locale.isEmpty()) issues.add("缺失: templates.locale");
         Object wal = cfg.get("templates.i18n.world_alias");
-        if (wal != null && !(wal instanceof org.bukkit.configuration.ConfigurationSection)) {
+        if (wal != null && !(wal instanceof ConfigurationSection)) {
             issues.add("类型错误: templates.i18n.world_alias 需为对象映射");
         }
         Object ral = cfg.get("templates.i18n.role_alias");
-        if (ral != null && !(ral instanceof org.bukkit.configuration.ConfigurationSection)) {
+        if (ral != null && !(ral instanceof ConfigurationSection)) {
             issues.add("类型错误: templates.i18n.role_alias 需为对象映射");
         }
         Object sal = cfg.get("templates.i18n.stage_alias");
-        if (sal != null && !(sal instanceof org.bukkit.configuration.ConfigurationSection)) {
+        if (sal != null && !(sal instanceof ConfigurationSection)) {
             issues.add("类型错误: templates.i18n.stage_alias 需为对象映射");
+        }
+        Object cal = cfg.get("templates.i18n.command");
+        if (cal != null && !(cal instanceof ConfigurationSection)) {
+            issues.add("类型错误: templates.i18n.command 需为对象映射");
         }
         // 基础别名存在性
         if (!cfg.contains("templates.world_alias.world")) issues.add("建议: templates.world_alias.world 缺失");
@@ -158,9 +163,90 @@ public final class ConfigHealthCheck {
             issues.add("建议: templates.world_alias.world_the_end 缺失");
         if (!cfg.contains("templates.role_alias.admin")) issues.add("建议: templates.role_alias.admin 缺失");
         if (!cfg.contains("templates.role_alias.member")) issues.add("建议: templates.role_alias.member 缺失");
+        String[] commandKeys = {
+            "command_output",
+            "command_help",
+            "command_players",
+            "command_whitelist_header",
+            "command_whitelist_page",
+            "command_whitelist_cleanup",
+            "command_whitelist_add_result",
+            "command_whitelist_remove_result",
+            "command_admin_required",
+            "command_usage",
+            "command_backup",
+            "command_optimize",
+            "command_optimize_disabled"
+        };
+        String[] requiredTemplates = {
+            "command_output",
+            "command_help",
+            "command_players",
+            "command_whitelist_header",
+            "command_whitelist_page",
+            "command_whitelist_cleanup",
+            "command_whitelist_add_result",
+            "command_whitelist_remove_result",
+            "command_admin_required",
+            "command_usage",
+            "command_backup",
+            "command_optimize",
+            "command_optimize_disabled",
+            "server_load",
+            "server_stop",
+            "whitelist_block",
+            "whitelist_toggle_alert",
+            "player_join",
+            "player_quit",
+            "player_kick",
+            "exception_alert",
+            "geoip_block",
+            "tnt_alert",
+            "maintenance_backup_stage",
+            "maintenance_backup_done",
+            "maintenance_backup_error",
+            "maintenance_optimize_stage",
+            "maintenance_optimize_done",
+            "maintenance_optimize_error",
+            "server_maintenance_hint"
+        };
+        for (String key : requiredTemplates) {
+            if (!cfg.contains("templates." + key)) {
+                issues.add("缺失: templates." + key);
+            }
+        }
+        if (cal instanceof ConfigurationSection cmdSec) {
+            for (String localeKey : cmdSec.getKeys(false)) {
+                ConfigurationSection langSec = cmdSec.getConfigurationSection(localeKey);
+                if (langSec == null) continue;
+                for (String key : commandKeys) {
+                    if (!langSec.contains(key)) {
+                        issues.add("建议: templates.i18n.command." + localeKey + "." + key + " 缺失");
+                    }
+                }
+            }
+        }
+        Object rawFmt = cfg.get("templates.format");
+        if (rawFmt instanceof ConfigurationSection sec) {
+            for (String key : sec.getKeys(false)) {
+                String raw = sec.getString(key, "DEFAULT");
+                if (raw.isEmpty()) {
+                    issues.add("非法: templates.format." + key + " 不可为空");
+                    continue;
+                }
+                String v = raw.toUpperCase();
+                if (!("DEFAULT".equals(v) || "PLAIN".equals(v) || "CODE_BLOCK".equals(v))) {
+                    issues.add("非法: templates.format." + key + " 值无效: " + raw);
+                }
+                if (!cfg.contains("templates." + key)) {
+                    issues.add("建议: templates.format." + key + " 未找到对应模板");
+                }
+            }
+        }
     }
 
-    private static void validateNotifications(FileConfiguration cfg, List<String> issues) {
+    private static void validateNotifications(
+            FileConfiguration cfg, FileConfiguration botCfg, FileConfiguration templatesCfg, List<String> issues) {
         if (cfg == null) {
             issues.add("notifications.yml 未加载");
             return;
@@ -171,6 +257,24 @@ public final class ConfigHealthCheck {
         String ck = "notifications.tnt_alert.channel_key";
         Object ch = cfg.get(ck);
         if (ch != null && String.valueOf(ch).isEmpty()) issues.add("非法: " + ck + " 不可为空字符串");
+        Object raw = cfg.get("notifications");
+        if (raw instanceof ConfigurationSection sec) {
+            for (String eventKey : sec.getKeys(false)) {
+                if (templatesCfg != null && !templatesCfg.contains("templates." + eventKey)) {
+                    issues.add("通知事件缺少模板: notifications." + eventKey);
+                }
+                String ckey = cfg.getString("notifications." + eventKey + ".channel_key", "");
+                if (ckey.isEmpty()) continue;
+                String qq = botCfg == null ? null : botCfg.getString("channels." + ckey + ".qq");
+                String discord = botCfg == null ? null : botCfg.getString("channels." + ckey + ".discord");
+                String lark = botCfg == null ? null : botCfg.getString("channels." + ckey + ".lark");
+                if ((qq == null || qq.isEmpty())
+                        && (discord == null || discord.isEmpty())
+                        && (lark == null || lark.isEmpty())) {
+                    issues.add("通知频道未映射: notifications." + eventKey + ".channel_key=" + ckey);
+                }
+            }
+        }
     }
 
     private static void validateCommands(FileConfiguration cfg, List<String> issues) {

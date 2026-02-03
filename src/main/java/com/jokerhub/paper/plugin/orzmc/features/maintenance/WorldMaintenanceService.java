@@ -4,11 +4,14 @@ import static java.nio.file.Files.readAttributes;
 
 import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
+import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -21,6 +24,15 @@ import org.bukkit.entity.Player;
 public class WorldMaintenanceService {
     private static volatile boolean running = false;
     private volatile long startMs = 0L;
+    private final ConfigService configService;
+    private final OrzTextStyles styles;
+    private final Notifier notifier;
+
+    public WorldMaintenanceService(ConfigService configService, OrzTextStyles styles, Notifier notifier) {
+        this.configService = configService;
+        this.styles = styles;
+        this.notifier = notifier;
+    }
 
     public static boolean isRunningGlobal() {
         return running;
@@ -58,8 +70,7 @@ public class WorldMaintenanceService {
             }
             int percent = (int) Math.ceil(current * 100.0 / total);
             MaintenanceStage stage = mapProgressStage(progressEvent.getStage());
-            TypedConfigs.Templates tpls =
-                    TypedConfigs.Templates.from(OrzMC.plugin().configManager.getConfig("templates"));
+            TypedConfigs.Templates tpls = TypedConfigs.Templates.from(configService.getConfig("templates"));
             java.util.Map<String, String> vars = new java.util.HashMap<>();
             vars.put("label", label);
             vars.put("stage", stage.name());
@@ -69,8 +80,7 @@ public class WorldMaintenanceService {
             long elapsedMs = Math.max(1, System.currentTimeMillis() - startMs);
             double ratePerSec = (current * 1000.0) / elapsedMs;
             long etaMs = (long) Math.max(0, (total - current) / Math.max(1e-6, ratePerSec) * 1000.0);
-            TypedConfigs.TemplateOptions opt = TypedConfigs.TemplateOptions.from(
-                    OrzMC.plugin().configManager.getConfig("templates"));
+            TypedConfigs.TemplateOptions opt = TypedConfigs.TemplateOptions.from(configService.getConfig("templates"));
             double ratePer = ratePerSec;
             String rateUnit = "/s";
             if ("per_min".equalsIgnoreCase(opt.rateUnit())) {
@@ -96,15 +106,21 @@ public class WorldMaintenanceService {
             vars.put("eta_unit", etaUnit);
             vars.put("current", String.valueOf(current));
             vars.put("total", String.valueOf(total));
-            String msg = TemplateRenderer.render(
-                    "备份".equals(label) ? tpls.maintenanceBackupStage() : tpls.maintenanceOptimizeStage(), vars);
-            OrzMC.logger().info(msg);
+            String eventKey = "备份".equals(label) ? "maintenance_backup_stage" : "maintenance_optimize_stage";
+            MessageEnvelope env =
+                    TemplateService.renderEvent(eventKey, configService.getConfig("templates"), tpls, vars);
+            OrzMC.logger().info(env.message());
+            notifier.event(eventKey, env);
             if (progressEvent.getStage() == ProgressStage.Done) {
                 long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
-                String done = TemplateRenderer.render(
-                        "备份".equals(label) ? tpls.maintenanceBackupDone() : tpls.maintenanceOptimizeDone(),
+                String doneKey = "备份".equals(label) ? "maintenance_backup_done" : "maintenance_optimize_done";
+                MessageEnvelope done = TemplateService.renderEvent(
+                        doneKey,
+                        configService.getConfig("templates"),
+                        tpls,
                         java.util.Map.of("label", label, "duration_ms", String.valueOf(durationMs)));
-                callback.accept(done);
+                callback.accept(done.message());
+                notifier.event(doneKey, done);
             }
             return Unit.INSTANCE;
         };
@@ -113,13 +129,16 @@ public class WorldMaintenanceService {
     private Function1<Object, Unit> errorHandler(String label, Consumer<String> callback) {
         return obj -> {
             OrzMC.logger().warning(String.valueOf(obj));
-            TypedConfigs.Templates tpls =
-                    TypedConfigs.Templates.from(OrzMC.plugin().configManager.getConfig("templates"));
+            TypedConfigs.Templates tpls = TypedConfigs.Templates.from(configService.getConfig("templates"));
             long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
-            String msg = TemplateRenderer.render(
-                    "备份".equals(label) ? tpls.maintenanceBackupError() : tpls.maintenanceOptimizeError(),
+            String errKey = "备份".equals(label) ? "maintenance_backup_error" : "maintenance_optimize_error";
+            MessageEnvelope err = TemplateService.renderEvent(
+                    errKey,
+                    configService.getConfig("templates"),
+                    tpls,
                     java.util.Map.of("label", label, "duration_ms", String.valueOf(durationMs)));
-            callback.accept(msg);
+            callback.accept(err.message());
+            notifier.event(errKey, err);
             callback.accept("地图" + label + "失败");
             return Unit.INSTANCE;
         };
@@ -189,7 +208,7 @@ public class WorldMaintenanceService {
             running = true;
             startMs = System.currentTimeMillis();
             for (Player p : OrzMC.server().getOnlinePlayers()) {
-                p.kick(OrzTextStyles.warn(kickText));
+                p.kick(styles.warn(kickText));
             }
             OrzUtil.executeConsoleCmd(() -> {}, "save-off", "save-all flush");
             OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
@@ -245,7 +264,7 @@ public class WorldMaintenanceService {
         runOptimizerJob(false, input, null, tickTimeThreshold, s -> {});
     }
 
-    public void pruneOldZips(File backupDir, int retain) {
+    public static void pruneOldZips(File backupDir, int retain) {
         if (retain <= 0) retain = 10;
         File[] zips = backupDir.listFiles(f -> f.isFile() && f.getName().endsWith(".zip"));
         if (zips == null || zips.length <= retain) return;

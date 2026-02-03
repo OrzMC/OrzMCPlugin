@@ -68,11 +68,10 @@ log_throttle_ms: 5000
 # ==================================================
 #               频道映射示例
 # ==================================================
-qq_channels:
-  ops-alert: '987654321'
-discord_channels:
-  ops-alert: '123456789012345678'
-  safety-alerts: '234567890123456789'
-lark_channels:
+channels:
   ops-alert:
-    webhook: 'https://open.lark/xyz'
+    qq: '987654321'
+    discord: '123456789012345678'
+    lark: 'https://open.lark/xyz'
+  safety-alerts:
+    discord: '234567890123456789'

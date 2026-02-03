@@ -1,15 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.infra.notify;
 
+import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
 import net.kyori.adventure.text.Component;
 
 public interface NotifierSink {
     void server(Component message);
 
-    void botPublic(String message);
-
-    void botPrivate(String message);
-
-    void botChannel(String channelKey, String message);
-
-    void event(String key, String message);
+    void event(String key, MessageEnvelope envelope);
 }

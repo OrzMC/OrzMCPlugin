@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.guidebook;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,16 +12,18 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 public class GuideBookConfigParser {
     private final OrzMC plugin;
+    private final ConfigService configService;
 
-    public GuideBookConfigParser(OrzMC plugin) {
+    public GuideBookConfigParser(OrzMC plugin, ConfigService configService) {
         this.plugin = plugin;
+        this.configService = configService;
     }
 
     public GuideBookConfig parseConfig() {
         String guideBookConfigFileName = "guide_book";
         try {
-            plugin.configManager.reloadConfig(guideBookConfigFileName);
-            FileConfiguration configFile = plugin.configManager.getConfig("guide_book");
+            configService.reloadConfig(guideBookConfigFileName);
+            FileConfiguration configFile = configService.getConfig("guide_book");
             if (configFile instanceof YamlConfiguration) {
                 return parseGuideBookConfig((YamlConfiguration) configFile);
             } else {

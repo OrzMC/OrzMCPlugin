@@ -1,13 +1,16 @@
 package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.BotInboundHandler;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.server.ServerCommandEvent;
 
 public class OrzDebugEvent extends OrzBaseListener {
-    public OrzDebugEvent(OrzMC plugin) {
+    private final BotInboundHandler inboundHandler;
+
+    public OrzDebugEvent(OrzMC plugin, BotInboundHandler inboundHandler) {
         super(plugin);
+        this.inboundHandler = inboundHandler;
     }
 
     public static boolean debug = false;
@@ -24,7 +27,7 @@ public class OrzDebugEvent extends OrzBaseListener {
                 .getScheduler()
                 .runTaskAsynchronously(
                         plugin,
-                        () -> OrzMessageParser.parse(
-                                cmd, true, result -> plugin.getLogger().info("cmd debug: \n" + result)));
+                        () -> inboundHandler.handleMessage(
+                                cmd, true, env -> plugin.getLogger().info("cmd debug: \n" + env.message())));
     }
 }

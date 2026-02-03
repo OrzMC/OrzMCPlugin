@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.bot;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.net.AsyncHttp;
@@ -14,10 +15,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class OrzQQBot extends OrzBaseBot {
+    private final BotInboundHandler inboundHandler;
+    private final MessageFormatter formatter;
+    private final ThrottledLogger throttledLogger;
     private RobustWebSocketClient webSocketClient;
 
-    public OrzQQBot(OrzMC plugin) {
-        super(plugin);
+    public OrzQQBot(
+            OrzMC plugin,
+            ConfigService configService,
+            BotInboundHandler inboundHandler,
+            MessageFormatter formatter,
+            ThrottledLogger throttledLogger) {
+        super(plugin, configService);
+        this.inboundHandler = inboundHandler;
+        this.formatter = formatter;
+        this.throttledLogger = throttledLogger;
     }
 
     @Override
@@ -37,15 +49,17 @@ public class OrzQQBot extends OrzBaseBot {
     }
 
     @Override
-    public void sendMessage(String message) {
+    protected void sendPublic(String message) {
         if (!this.isEnable()) {
             return;
         }
         try {
             String groupId = botConfig.getString("qq_group_id");
-            String url = botConfig.getString("qq_bot_api_server") + "/send_group_msg?group_id=" + groupId + "&message="
-                    + URLEncoder.encode(message, StandardCharsets.UTF_8);
-            asyncHttpRequest(url);
+            for (String part : formatter.format(message, MessageEnvelope.Format.DEFAULT)) {
+                String url = botConfig.getString("qq_bot_api_server") + "/send_group_msg?group_id=" + groupId
+                        + "&message=" + URLEncoder.encode(part, StandardCharsets.UTF_8);
+                asyncHttpRequest(url);
+            }
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().info(e.toString());
@@ -53,15 +67,17 @@ public class OrzQQBot extends OrzBaseBot {
     }
 
     @Override
-    public void sendPrivateMessage(String message) {
+    protected void sendPrivate(String message) {
         if (!this.isEnable()) {
             return;
         }
         try {
             String userId = botConfig.getString("qq_admin_id");
-            String url = botConfig.getString("qq_bot_api_server") + "/send_msg?user_id=" + userId + "&message="
-                    + URLEncoder.encode(message, StandardCharsets.UTF_8);
-            asyncHttpRequest(url);
+            for (String part : formatter.format(message, MessageEnvelope.Format.DEFAULT)) {
+                String url = botConfig.getString("qq_bot_api_server") + "/send_msg?user_id=" + userId + "&message="
+                        + URLEncoder.encode(part, StandardCharsets.UTF_8);
+                asyncHttpRequest(url);
+            }
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().info(e.toString());
@@ -69,19 +85,21 @@ public class OrzQQBot extends OrzBaseBot {
     }
 
     @Override
-    public void sendToChannel(String channelKey, String message) {
+    protected void sendChannel(String channelKey, String message) {
         if (!this.isEnable()) {
             return;
         }
         try {
-            String groupId = botConfig.getString("qq_channels." + channelKey);
+            String groupId = botConfig.getString("channels." + channelKey + ".qq");
             if (groupId == null || groupId.isEmpty()) {
-                sendMessage(message);
+                sendPublic(message);
                 return;
             }
-            String url = botConfig.getString("qq_bot_api_server") + "/send_group_msg?group_id=" + groupId + "&message="
-                    + URLEncoder.encode(message, StandardCharsets.UTF_8);
-            asyncHttpRequest(url);
+            for (String part : formatter.format(message, MessageEnvelope.Format.DEFAULT)) {
+                String url = botConfig.getString("qq_bot_api_server") + "/send_group_msg?group_id=" + groupId
+                        + "&message=" + URLEncoder.encode(part, StandardCharsets.UTF_8);
+                asyncHttpRequest(url);
+            }
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
             OrzMC.logger().info(e.toString());
@@ -104,11 +122,7 @@ public class OrzQQBot extends OrzBaseBot {
             boolean isAdmin = senderRole.equals("admin");
             String qqGroupId = botConfig.getString("qq_group_id");
             if (groupId.equals(qqGroupId)) {
-                com.jokerhub.paper.plugin.orzmc.utils.OrzMessageParser.parse(message, isAdmin || isOwner, info -> {
-                    if (info != null) {
-                        sendMessage(info);
-                    }
-                });
+                BotInboundDispatcher.dispatch(inboundHandler, message, isAdmin || isOwner, this::send);
             }
         } catch (Exception e) {
             OrzMC.logger().info(e.toString());
@@ -136,7 +150,7 @@ public class OrzQQBot extends OrzBaseBot {
                     .exceptionally(e -> {
                         HealthRegistry.setHttpOk("qq", false);
                         HealthRegistry.setLastError("qq", e.toString());
-                        ThrottledLogger.error("qq-http", "QQ机器人无法连接，工作异常: " + e);
+                        throttledLogger.error("qq-http", "QQ机器人无法连接，工作异常: " + e);
                         return null;
                     });
         } catch (Exception e) {
@@ -177,6 +191,7 @@ public class OrzQQBot extends OrzBaseBot {
             webSocketClient =
                     new RobustWebSocketClient(
                             wsServer,
+                            throttledLogger,
                             wsRetries <= 0 ? 10 : wsRetries,
                             wsBaseMs <= 0 ? 5000 : wsBaseMs,
                             wsMaxMs <= 0 ? 60000 : wsMaxMs,
@@ -201,7 +216,7 @@ public class OrzQQBot extends OrzBaseBot {
                                 @Override
                                 public void onError(Exception ex) {
                                     HealthRegistry.setLastError("qq", ex.toString());
-                                    ThrottledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex);
+                                    throttledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex);
                                 }
                             }) {
                         @Override

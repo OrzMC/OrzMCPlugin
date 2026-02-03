@@ -1,29 +1,32 @@
-package com.jokerhub.paper.plugin.orzmc.infra.binding;
+package com.jokerhub.paper.plugin.orzmc.features.command.binding;
 
+import java.util.List;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
 
-public final class CooldownExecutor implements CommandExecutor {
+public final class InterceptorExecutor implements CommandExecutor {
     private final String commandName;
     private final CommandExecutor delegate;
-    private final int seconds;
+    private final List<CommandInterceptor> interceptors;
 
-    public CooldownExecutor(String commandName, CommandExecutor delegate, int seconds) {
+    public InterceptorExecutor(String commandName, CommandExecutor delegate, List<CommandInterceptor> interceptors) {
         this.commandName = commandName;
         this.delegate = delegate;
-        this.seconds = seconds;
+        this.interceptors = interceptors;
     }
 
     @Override
     public boolean onCommand(
             @NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String @NotNull [] args) {
-        String key = commandName + "|" + sender.getName();
-        if (CooldownRegistry.isCoolingDown(key, seconds)) {
-            sender.sendMessage(Component.text("命令冷却中，请稍后再试"));
-            return true;
+        for (CommandInterceptor ci : interceptors) {
+            Component res = ci.preHandle(sender, commandName);
+            if (res != null) {
+                sender.sendMessage(res);
+                return true;
+            }
         }
         return delegate.onCommand(sender, command, label, args);
     }
