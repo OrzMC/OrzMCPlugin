@@ -20,7 +20,7 @@ $ ./gradlew clean build
 命令行本地运行调试服务器（自动下载服务端并启动，需要同意 EULA 协议）：
 
 ```bash
-$ ./gradlew runServer  # 已默认添加 --nojline --nogui，避免终端特性告警
+$ ./gradlew runServer  # 已默认添加 --nojline --nogui --online-mode=false
 ```
 
 使用 IntelliJ IDEA CE（社区免费版）构建和运行插件，可以打断点调试，参考文档：
