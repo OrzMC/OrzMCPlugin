@@ -188,13 +188,17 @@ CommandBinder.bind(this, Map.of("portal", new InterceptorExecutor("portal", new 
 
 ```yaml
 commands:
-  bot:
-    cooldown_secs: 0
+  tpbow:
+    cooldown_secs: 5
+    admin_only: false
+  menu:
+    cooldown_secs: 5
     admin_only: false
   portal:
     cooldown_secs: 5
     admin_only: true
 ```
+备注：如需为 bot/guide 等其他命令设置策略，可在 commands.yml 中自行新增条目。
 
 - 加载与注入
     - 类型化解析：[TypedConfigs.CommandPolicies](file:///Users/bytedance/Documents/OrzMC/plugin/src/main/java/com/jokerhub/paper/plugin/orzmc/infra/config/TypedConfigs.java)
