@@ -9,13 +9,16 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
-import java.util.Map;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+
+import java.util.List;
+import java.util.Map;
 
 public final class WhitelistEventService {
     private final ConfigService configService;
@@ -43,26 +46,21 @@ public final class WhitelistEventService {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
             }
-            kickMsgBuilder
-                    .append(styles.playerName(player.getName()).decorate(TextDecoration.BOLD))
-                    .append(Component.space())
-                    .append(styles.warn("不在服务器白名单中，请先加入QQ群:"))
-                    .append(Component.space())
-                    .append(styles.warn(qqPlayerGroupId))
-                    .append(Component.space())
-                    .append(styles.info("，联系管理员添加白名单"));
+            kickMsgBuilder.append(styles.playerName(player.getName()).decorate(TextDecoration.BOLD)).append(Component.space()).append(styles.warn("不在服务器白名单中，请先加入QQ群:")).append(Component.space()).append(styles.success(qqPlayerGroupId).decorate(TextDecoration.BOLD)).append(Component.space()).append(styles.warn("，联系管理员添加白名单"));
         }
         String discordServerLink = botConfig.getString("discord_server_link");
         if (discordServerLink != null && !discordServerLink.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
             }
-            kickMsgBuilder
-                    .append(styles.info("you can also join the discord server: "))
-                    .append(Component.text(discordServerLink)
-                            .color(NamedTextColor.BLUE)
-                            .decorate(TextDecoration.UNDERLINED)
-                            .clickEvent(ClickEvent.openUrl(discordServerLink)));
+            kickMsgBuilder.append(styles.info("you can also join the discord server: ")).append(Component.text(discordServerLink).color(NamedTextColor.BLUE).decorate(TextDecoration.UNDERLINED).clickEvent(ClickEvent.openUrl(discordServerLink)));
+        }
+        TextComponent whitelistKickMessage = buildKickMessage(configService.getConfig("whitelist"));
+        if (!whitelistKickMessage.equals(Component.empty())) {
+            if (!kickMsgBuilder.build().equals(Component.empty())) {
+                kickMsgBuilder.append(Component.newline()).append(Component.newline());
+            }
+            kickMsgBuilder.append(whitelistKickMessage);
         }
         if (!kickMsgBuilder.build().equals(Component.empty())) {
             event.kickMessage(kickMsgBuilder.build());
@@ -71,8 +69,7 @@ public final class WhitelistEventService {
         String playChatGroupMsg = player.getName() + " 尝试加入服务器，被白名单拦截";
         FileConfiguration templatesCfg = configService.getConfig("templates");
         TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-        MessageEnvelope env =
-                TemplateService.renderEvent("whitelist_block", templatesCfg, tpls, Map.of("message", playChatGroupMsg));
+        MessageEnvelope env = TemplateService.renderEvent("whitelist_block", templatesCfg, tpls, Map.of("message", playChatGroupMsg));
         notifier.event("whitelist_block", env);
     }
 
@@ -81,8 +78,7 @@ public final class WhitelistEventService {
             String msg = "‼️服务器白名单异常关闭";
             FileConfiguration templatesCfg = configService.getConfig("templates");
             TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-            MessageEnvelope env =
-                    TemplateService.renderEvent("whitelist_toggle_alert", templatesCfg, tpls, Map.of("message", msg));
+            MessageEnvelope env = TemplateService.renderEvent("whitelist_toggle_alert", templatesCfg, tpls, Map.of("message", msg));
             notifier.event("whitelist_toggle_alert", env);
         }
     }
@@ -93,5 +89,49 @@ public final class WhitelistEventService {
         } catch (Exception e) {
             return true;
         }
+    }
+
+    private TextComponent buildKickMessage(FileConfiguration whitelistConfig) {
+        if (whitelistConfig == null) {
+            return Component.empty();
+        }
+        ConfigurationSection section = whitelistConfig.getConfigurationSection("kick_message");
+        if (section == null) {
+            return Component.empty();
+        }
+        String title = section.getString("title", "");
+        List<Map<?, ?>> ups = section.getMapList("ups");
+        TextComponent.Builder builder = Component.text();
+        boolean hasContent = false;
+        if (!title.isEmpty()) {
+            builder.append(Component.text(title).decorate(TextDecoration.BOLD));
+            hasContent = true;
+        }
+        if (!ups.isEmpty()) {
+            for (Map<?, ?> raw : ups.subList(0, 5)) {
+                if (raw == null) {
+                    continue;
+                }
+                String name = raw.get("name") == null ? "" : String.valueOf(raw.get("name"));
+                String platform = raw.get("platform") == null ? "" : String.valueOf(raw.get("platform"));
+                if (name.isEmpty() && platform.isEmpty()) {
+                    continue;
+                }
+                if (hasContent) {
+                    builder.append(Component.newline());
+                }
+                if (!name.isEmpty()) {
+                    TextComponent platformComponent = Component.empty();
+                    if (!platform.isEmpty()) {
+                        platformComponent = Component.text(platform).append(Component.text(":").append(Component.space()));
+                    }
+                    builder.append(Component.newline())
+                            .append(platformComponent)
+                            .append(Component.text(name).decorate(TextDecoration.BOLD).color(styles.colorPlayer()));
+                }
+                hasContent = true;
+            }
+        }
+        return hasContent ? builder.build() : Component.empty();
     }
 }

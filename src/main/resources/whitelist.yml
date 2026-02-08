@@ -7,3 +7,13 @@ force_whitelist: true
 cleanup_inactive_days: 90
 # 白名单内容过长分页发送时的间隔时长，防止乱序
 pagination_delay_ticks: 5
+# 白名单拦截时的提示文案补充
+#kick_message:
+#  title: 欢迎成为以下UP主的粉丝，关注任意一位，可带截图进群，加速审核进服。
+#  ups:
+#    - name: 悦音幻丝
+#      platform: B站
+#    - name: 布束
+#      platform: YouTube
+#    - name: 大漠叔叔
+#      platform: B站
