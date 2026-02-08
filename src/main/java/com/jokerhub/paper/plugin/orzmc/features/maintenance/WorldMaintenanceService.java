@@ -110,7 +110,6 @@ public class WorldMaintenanceService {
             MessageEnvelope env =
                     TemplateService.renderEvent(eventKey, configService.getConfig("templates"), tpls, vars);
             OrzMC.logger().info(env.message());
-            notifier.event(eventKey, env);
             if (progressEvent.getStage() == ProgressStage.Done) {
                 long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
                 String doneKey = "备份".equals(label) ? "maintenance_backup_done" : "maintenance_optimize_done";
@@ -120,7 +119,6 @@ public class WorldMaintenanceService {
                         tpls,
                         java.util.Map.of("label", label, "duration_ms", String.valueOf(durationMs)));
                 callback.accept(done.message());
-                notifier.event(doneKey, done);
             }
             return Unit.INSTANCE;
         };
