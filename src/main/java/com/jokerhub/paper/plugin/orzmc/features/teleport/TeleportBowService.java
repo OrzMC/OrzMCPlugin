@@ -113,14 +113,27 @@ public final class TeleportBowService {
         return gt.isSolid();
     }
 
+    private org.bukkit.Location findStandableAtOrAbove(
+            org.bukkit.World world, int bx, int by, int bz, org.bukkit.util.Vector facing) {
+        for (int dy = 0; dy <= 1; dy++) {
+            org.bukkit.Location loc =
+                    new org.bukkit.Location(world, bx + 0.5, by + dy, bz + 0.5, vectorYaw(facing), 0f);
+            if (withinWorldBounds(loc) && isStandable(loc)) {
+                return loc;
+            }
+        }
+        return null;
+    }
+
     private org.bukkit.Location findNearestSafe(org.bukkit.Location center, org.bukkit.util.Vector facing) {
-        if (isStandable(center)) return center;
         org.bukkit.World w = center.getWorld();
         if (w == null) return null;
         int bx = center.getBlockX();
         int by = center.getBlockY();
         int bz = center.getBlockZ();
         final org.bukkit.util.Vector facingNorm = facing.clone().normalize();
+        org.bukkit.Location standable = findStandableAtOrAbove(w, bx, by, bz, facingNorm);
+        if (standable != null) return standable;
         java.util.List<org.bukkit.Location> candidates = new java.util.ArrayList<>();
         final int radius = 1;
         for (int r = 1; r == radius; r++) {
@@ -140,9 +153,9 @@ public final class TeleportBowService {
             return Double.compare(db, da);
         });
         for (org.bukkit.Location cand : candidates) {
-            if (withinWorldBounds(cand) && isStandable(cand)) {
-                return cand;
-            }
+            org.bukkit.Location found =
+                    findStandableAtOrAbove(w, cand.getBlockX(), cand.getBlockY(), cand.getBlockZ(), facingNorm);
+            if (found != null) return found;
         }
         return null;
     }
