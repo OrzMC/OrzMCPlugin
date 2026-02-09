@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.util.Collections;
 import java.util.List;

@@ -1,6 +1,6 @@
 # 架构设计
 
-核心目标：组合根显式装配、服务层收敛业务逻辑、适配层只做转发，基础设施提供可替换实现。
+核心目标：组合根显式装配、服务层收敛业务逻辑、适配层只做转发，核心层沉淀端口与消息模型，基础设施提供可替换实现。
 
 ## 分层说明
 
@@ -13,57 +13,23 @@
 - 服务层（Features/Use Cases）
     - 承载业务流程与规则，依赖通过构造注入
     - 示例：PlayerEventService、TntEventService、WorldMaintenanceService
+- 核心层（Core）
+    - 业务端口与基础消息模型
+    - 示例：PortalPort/PortalInfo、TypedConfigProvider、MessageEnvelope
 - 基础设施层（Infra）
     - 通知、网络、限流、样式、配置、Bot 适配等实现细节
     - 示例：Notifier、ThrottledLogger、ThrottledNotifier、BotRouter、RobustWebSocketClient
 
 ## 架构设计图
 
-PNG 版本：
-
-![architecture](../images/architecture.png)
-
-```mermaid
-flowchart TB
-  subgraph CompositionRoot[Composition Root]
-    OrzMC[OrzMC]
-  end
-
-  subgraph Adapters[Events / Commands]
-    EventListeners[Orz*Event]
-    Commands[Orz*Command]
-  end
-
-  subgraph Services[Features / Services]
-    PlayerSvc[PlayerEventService]
-    TntSvc[TntEventService]
-    MaintainSvc[WorldMaintenanceService]
-    GuideSvc[GuideService]
-  end
-
-  subgraph Infra[Infrastructure]
-    Styles[OrzTextStyles]
-    Notifier[Notifier]
-    Throttled[ThrottledLogger / ThrottledNotifier]
-    Bot[BotRouter / BotAdapters]
-    Net[AsyncHttp / RobustWebSocketClient]
-    Config[ConfigService / TypedConfigs]
-  end
-
-  OrzMC --> EventListeners
-  OrzMC --> Commands
-  OrzMC --> Services
-  OrzMC --> Infra
-  EventListeners --> Services
-  Commands --> Services
-  Services --> Infra
-```
+![architecture](../images/architecture.svg)
 
 ## 架构/模块职责
 
 - Infra 层（基础设施能力）
     - config：配置加载、包装与健康检查
         - ConfigService/AdvancedConfigManager/ConfigManager/ConfigWrapper/ConfigHealthCheck
+        - DefaultTypedConfigProvider（对外提供 TypedConfigProvider）
     - notify：限流与事件派发
         - ThrottledNotifier、Notifier(支持自定义 NotifierSink)
     - logging：日志限流
@@ -73,11 +39,11 @@ flowchart TB
     - styles：统一文本样式与颜色
         - OrzTextStyles（读取 styles.yml）
     - server：服务端交互
-        - OrzUtil（控制台命令执行、成功/失败/警告文本）
+        - ServerFacade + ServerAccess/ServerLogger/ServerScheduler + OrzUtil（控制台命令执行、成功/失败/警告文本）
     - net：HTTP 客户端封装
         - AsyncHttp（超时/重试/退避）
     - ws：WebSocket 客户端封装
-        - RobustWebSocketClient/WebSocketEventListener（指数退避与抖动、稳定期重置）
+        - WsClient/WebSocketClientFactory(默认 DefaultWebSocketClientFactory)/RobustWebSocketClient/WebSocketEventListener（指数退避与抖动、稳定期重置、工厂注入便于测试替身与异常场景覆盖）
     - core：通用常量
         - OrzConstants（TPBOW_KEY、告警前缀）
     - templates：消息模板与解析
@@ -86,11 +52,16 @@ flowchart TB
         - BotMessageServiceProvider/OrzBotManager/BotRouter
     - scheduler/paging：调度与分页
         - Schedulers/Paginator
-    - portal：传送门基础模型
-        - IPortalService/PortalInfo
 - Feature 层（业务编排）
     - 维护、传送门、玩家/TNT/白名单事件、菜单、传送弓、新手指南等
-    - 依赖 Infra 能力进行配置读取、通知派发、样式渲染与服务端交互
+- Core 层（端口与消息）
+    - server：ServerAccess/ServerLogger/ServerScheduler
+    - portal：PortalPort/PortalInfo
+    - config：TypedConfigProvider
+    - bot：MessageEnvelope/BotInboundHandler
+- Feature 层（业务编排）
+    - 维护、传送门、玩家/TNT/白名单事件、菜单、传送弓、新手指南等
+    - 通过 TypedConfigProvider 获取类型化配置，依赖 Infra 能力进行通知派发、样式渲染与服务端交互
 
 ## 依赖关系图（简述）
 
@@ -98,19 +69,19 @@ flowchart TB
     - 组合根负责实例化与装配 ConfigService/OrzTextStyles/Throttled*/Notifier
     - 通过 BotMessageServiceProvider 创建 BotMessageService
 - 事件/功能（features.*）
-    - 读取配置：infra.config.ConfigService
+    - 读取配置：core.ports.config.TypedConfigProvider
     - 渲染样式：infra.styles.OrzTextStyles
     - 服务端交互：infra.server.OrzUtil
     - 通知派发：infra.notify.Notifier
     - 健康状态：infra.health.HealthRegistry
-    - 网络与WS：infra.net.AsyncHttp、infra.ws.RobustWebSocketClient
+    - 网络与WS：infra.net.AsyncHttp、infra.ws.WsClient/RobustWebSocketClient/WebSocketEventListener
 
 ## 设计原则
 
 - 分层清晰：Feature 只编排业务，Infra 提供能力
 - 显式依赖：通过构造注入与组合根装配，避免静态耦合
 - 配置类型化：集中 TypedConfigs/默认值与迁移
-- 可测试性：NotifierSink/接口封装便于替换与隔离外部交互
+- 可测试性：NotifierSink/接口封装便于替换与隔离外部交互，WS 通过工厂注入替身覆盖心跳/重连/异常路径
 - 线程安全：Bukkit 主线程进行方块与实体操作；异步任务做 I/O
 
 ## 类型化配置示例
@@ -142,6 +113,7 @@ flowchart TB
 ```
 OrzMC.onEnable
   -> new ConfigService
+  -> new DefaultTypedConfigProvider
   -> new OrzTextStyles/ThrottledLogger/ThrottledNotifier
   -> new BotCommandService
   -> BotMessageServiceProvider.create(...)
@@ -155,12 +127,11 @@ OrzMC.onEnable
 
 ## 示例代码段
 
-- 类型化策略读取
+- 类型化配置读取（通过 TypedConfigProvider）
 
 ```java
-FileConfiguration cmdsCfg = configService.getConfig("commands");
-TypedConfigs.CommandPolicies cp = TypedConfigs.CommandPolicies.from(cmdsCfg);
-TypedConfigs.CommandPolicy p = cp.policies().getOrDefault("portal", new TypedConfigs.CommandPolicy(0, false));
+TypedConfigs.TemplateOptions opt = configs.templateOptions();
+double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
 ```
 
 - 命令拦截器接入
@@ -239,6 +210,8 @@ portals:
 - 单元测试
     - 对服务类注入替身 Notifier/NotifierSink/OrzTextStyles，验证逻辑与路由
     - 对配置接口 TypedConfigs 使用内存配置对象，验证默认值与路径解析
+    - 对 WS 工厂注入（OrzQQBot）验证健康状态与异常路径，心跳逻辑验证缺失应答与恢复路径
+    - 对 AsyncHttp 进行重试与请求头/请求体行为验证
 - 集成测试
-    - 使用 Paper 的 TestServer 启动环境，验证命令与事件行为
+    - 使用 MockBukkit 模拟 Paper 环境，验证命令与事件行为（运行：./gradlew integrationTest）
     - 对高频事件（TNT/爆炸）启用 ThrottledLogger/Notifier 限流，验证日志与通知频率

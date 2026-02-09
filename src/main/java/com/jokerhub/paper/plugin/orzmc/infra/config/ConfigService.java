@@ -40,7 +40,6 @@ public final class ConfigService {
         });
         configManager.setDefaults("maintenance", cfg -> {
             if (!cfg.contains("optimize_enabled")) cfg.set("optimize_enabled", false);
-            if (!cfg.contains("optimize_on_shutdown")) cfg.set("optimize_on_shutdown", false);
             if (!cfg.contains("optimize_tick_time_threshold")) cfg.set("optimize_tick_time_threshold", 300);
             if (!cfg.contains("backup_retention_count")) cfg.set("backup_retention_count", 5);
             if (!cfg.contains("backup_maintenance_motd")) cfg.set("backup_maintenance_motd", "服务器维护中，稍后再试");

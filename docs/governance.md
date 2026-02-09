@@ -13,7 +13,7 @@
 
 ## 配置与兼容
 
-- 新配置先写入 resources 默认配置，并在 TypedConfigs 中建立类型映射
+- 新配置先写入 resources 默认配置，并在 TypedConfigs 中建立类型映射，透出到 TypedConfigProvider
 - 旧配置废弃需给出迁移说明与默认兼容策略
 
 ## 质量与验证

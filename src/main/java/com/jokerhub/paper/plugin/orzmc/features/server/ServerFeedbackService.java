@@ -1,8 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.features.server;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.botcommands.OrzUserCmd;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -12,17 +13,19 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.event.server.ServerLoadEvent;
 
 public final class ServerFeedbackService {
-    private final ConfigService configService;
+    private final ServerFacade server;
+    private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
 
-    public ServerFeedbackService(ConfigService configService, OrzTextStyles styles) {
-        this.configService = configService;
+    public ServerFeedbackService(ServerFacade server, TypedConfigProvider configs, OrzTextStyles styles) {
+        this.server = server;
+        this.configs = configs;
         this.styles = styles;
     }
 
     public String buildServerLoadMessage(ServerLoadEvent event) {
-        String onlineMode = OrzMC.server().getOnlineMode() ? "正版服" : "离线服";
-        String minecraftVersion = OrzMC.server().getMinecraftVersion();
+        String onlineMode = server.server().getOnlineMode() ? "正版服" : "离线服";
+        String minecraftVersion = server.server().getMinecraftVersion();
         String[] parts = {"Minecraft", minecraftVersion, onlineMode};
         StringBuilder stringBuilder = new StringBuilder(String.join(" ", parts)).append("\n");
         stringBuilder.append("------").append("\n");
@@ -31,17 +34,21 @@ public final class ServerFeedbackService {
             case RELOAD -> stringBuilder.append("重启完成");
         }
         stringBuilder.append("\n\n");
+        String prompt = configs.bot().cmdPromptChar();
         stringBuilder
                 .append("发送 \"")
-                .append(OrzUserCmd.SHOW_HELP.getCmdString())
+                .append(prompt)
+                .append(OrzUserCmd.SHOW_HELP.cmdName())
                 .append("\" 查看支持的命令消息");
         return stringBuilder.toString();
     }
 
     public Component buildMaintenanceMotd() {
-        String msg = configService.getConfig("maintenance").getString("backup_maintenance_motd", "服务器维护中，稍后再试");
-        String discordLink = configService.getConfig("bot").getString("discord_server_link");
-        String qqGroupId = configService.getConfig("bot").getString("qq_group_id");
+        TypedConfigs.MaintenanceConfig maintenance = configs.maintenance();
+        TypedConfigs.BotConfig botConfig = configs.bot();
+        String msg = maintenance.backupMaintenanceMotd();
+        String discordLink = botConfig.discordServerLink();
+        String qqGroupId = botConfig.qqGroupId();
         TextComponent.Builder motdBuilder = Component.text();
         motdBuilder.append(styles.warn("⚠ 维护中").decorate(TextDecoration.BOLD));
         motdBuilder.append(Component.newline());

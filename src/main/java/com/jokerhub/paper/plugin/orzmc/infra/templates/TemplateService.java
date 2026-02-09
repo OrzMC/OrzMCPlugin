@@ -1,6 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.templates;
 
-import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import java.util.Map;
 import org.bukkit.configuration.file.FileConfiguration;

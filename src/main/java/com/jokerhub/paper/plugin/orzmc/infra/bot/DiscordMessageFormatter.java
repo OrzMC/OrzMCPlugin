@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import java.util.List;
 import java.util.stream.Collectors;
 import net.dv8tion.jda.api.utils.SplitUtil;

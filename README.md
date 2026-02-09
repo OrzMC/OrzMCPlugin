@@ -16,7 +16,7 @@
 
 ## 插件能力
 - 📋服务器开启强制白名单: 未添加到白名单的玩家无法进入服务器
-- 💬社交软件群内管理服务器
+- 💬社交软件群内管理服务器（命令前缀来自 bot.yml 的 cmd_prompt_char，默认 `$`）
   ```
   👨‍💼 管理员命令：
   $a	添加玩家到白名单
@@ -56,6 +56,13 @@
 ## 问题反馈
 - 如果你在使用过程中发现问题，欢迎给项目提建议：[issues](https://github.com/OrzGeeker/OrzMCPlugin/issues)
 - 问题反馈可进入QQ频道：<br/> ![lark_issue_feedback_group](./images/lark_issue_feedback.png)
+
+## 架构概览
+- 组合根：OrzMC 负责装配依赖与绑定事件/命令
+- 适配层：Events/Commands 只做参数采集与转发
+- 服务层：Features 负责业务编排与规则
+- 核心层：core/ports 与 core/bot 提供端口与消息模型
+- 基础设施：infra 提供配置、通知、Bot、网络等实现
 
 ## 文档索引
 - [开发说明](./docs/development.md)

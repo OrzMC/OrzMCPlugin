@@ -1,4 +1,4 @@
-package com.jokerhub.paper.plugin.orzmc.infra.bot;
+package com.jokerhub.paper.plugin.orzmc.core.bot;
 
 import java.util.function.Consumer;
 

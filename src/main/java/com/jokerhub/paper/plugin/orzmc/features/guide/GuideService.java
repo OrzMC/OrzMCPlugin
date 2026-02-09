@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.features.guide;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.GuideBookConfigParser;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.ContentItem;
@@ -9,6 +8,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.LinkContent;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.TextContent;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.TextStyle;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
+import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,16 +27,18 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 
 public final class GuideService {
+    private final ServerFacade server;
     private final ConfigService configService;
     private final OrzTextStyles styles;
 
-    public GuideService(ConfigService configService, OrzTextStyles styles) {
+    public GuideService(ServerFacade server, ConfigService configService, OrzTextStyles styles) {
+        this.server = server;
         this.configService = configService;
         this.styles = styles;
     }
 
     public ItemStack buildGuideBook() {
-        GuideBookConfigParser parser = new GuideBookConfigParser(OrzMC.plugin(), configService);
+        GuideBookConfigParser parser = new GuideBookConfigParser(server.plugin(), configService);
         GuideBookConfig cfg = parser.parseConfig();
         if (cfg == null || !cfg.enable()) return null;
         ItemStack guideBook = new ItemStack(Material.WRITTEN_BOOK);
@@ -111,7 +113,7 @@ public final class GuideService {
     public void giveIfFirstJoin(Player player) {
         UUID playerUUID = player.getPlayerProfile().getId();
         if (playerUUID == null) return;
-        OfflinePlayer offlinePlayer = OrzMC.server().getOfflinePlayer(playerUUID);
+        OfflinePlayer offlinePlayer = server.server().getOfflinePlayer(playerUUID);
         if (!offlinePlayer.hasPlayedBefore()) {
             ItemStack guideBook = buildGuideBook();
             if (guideBook != null) {

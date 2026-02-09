@@ -3,9 +3,14 @@ import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import org.gradle.api.attributes.java.TargetJvmVersion
 
 buildscript {
     repositories {
+        // 中国大陆备用镜像站：阿里云
+        maven("https://maven.aliyun.com/repository/central")
+        maven("https://maven.aliyun.com/repository/public")
+        // 官方Maven中心仓
         mavenCentral()
     }
     dependencies {
@@ -31,11 +36,13 @@ repositories {
         name = "sonatype"
         url = uri("https://oss.sonatype.org/content/groups/public/")
     }
+    mavenCentral()
+    
 }
 dependencies {
     compileOnly("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
     // WebSocket Client For NapCat QQBot
-    implementation("org.java-websocket:Java-WebSocket:1.5.7")
+    implementation("org.java-websocket:Java-WebSocket:1.6.0")
     // Java Discord API
     implementation("net.dv8tion:JDA:6.2.1") {
         exclude(module = "opus-java")
@@ -44,7 +51,47 @@ dependencies {
     // Minecraft World Backup Lib
     implementation("io.github.wangzhizhou:backup-core:0.1.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.1")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.1")
     testImplementation("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+}
+
+val integrationTestSourceSet = sourceSets.create("integrationTest") {
+    java.srcDir("src/integrationTest/java")
+    resources.srcDir("src/integrationTest/resources")
+}
+integrationTestSourceSet.compileClasspath += sourceSets.main.get().output
+integrationTestSourceSet.runtimeClasspath += integrationTestSourceSet.output + integrationTestSourceSet.compileClasspath
+
+configurations.getByName("integrationTestCompileClasspath")
+    .attributes
+    .attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
+configurations.getByName("integrationTestRuntimeClasspath")
+    .attributes
+    .attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
+
+configurations.getByName("integrationTestImplementation").extendsFrom(
+    configurations.implementation.get(),
+    configurations.testImplementation.get()
+)
+configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
+    configurations.runtimeOnly.get(),
+    configurations.testRuntimeOnly.get()
+)
+
+dependencies {
+    val integrationPaperVersion = property("plugin_debug_server_version") as String
+    add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:5.10.1")
+    add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion-R0.1-SNAPSHOT")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.101.0")
+    add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:4.12.0")
+    add("integrationTestImplementation", "org.mockito:mockito-core:5.11.0")
+    add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.11.0")
+    add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:5.10.1")
+    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:1.10.1")
 }
 
 // 项目编译时插件添加
@@ -129,6 +176,12 @@ tasks {
         // 同时启用未检查的类型转换警告
         options.compilerArgs.add("-Xlint:unchecked")
     }
+    named<JavaCompile>("compileIntegrationTestJava") {
+        val java21 = serviceOf<JavaToolchainService>().compilerFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
+        javaCompiler.set(java21)
+    }
     // 配置工程内直接调试服务端插件
     // gradle-plugin: https://github.com/jpenilla/run-task#basic-usage
     val agreeEula = register("agreeEula") {
@@ -165,7 +218,22 @@ tasks {
     build {
         dependsOn("shadowJar")
     }
-    test {
+    withType<Test> {
         useJUnitPlatform()
+        jvmArgs("-Xshare:off")
+    }
+    named("check") {
+        dependsOn("integrationTest")
+    }
+    register<Test>("integrationTest") {
+        description = "Runs integration tests on a mocked Paper server."
+        group = "verification"
+        testClassesDirs = integrationTestSourceSet.output.classesDirs
+        classpath = integrationTestSourceSet.runtimeClasspath
+        shouldRunAfter(test)
+        val java21 = serviceOf<JavaToolchainService>().launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
+        javaLauncher.set(java21)
     }
 }

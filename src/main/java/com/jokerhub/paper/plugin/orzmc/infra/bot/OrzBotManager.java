@@ -1,6 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.util.Collections;
@@ -8,7 +12,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 class OrzBotManager implements BotMessageService {
-    private final OrzMC plugin;
+    private final ServerAccess server;
+    private final ServerScheduler scheduler;
+    private final ServerLogger logger;
     private final BotInboundHandler inboundHandler;
     private final ConfigService configService;
     private final ThrottledLogger throttledLogger;
@@ -18,11 +24,15 @@ class OrzBotManager implements BotMessageService {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public OrzBotManager(
-            OrzMC plugin,
+            ServerAccess server,
+            ServerScheduler scheduler,
+            ServerLogger logger,
             ConfigService configService,
             ThrottledLogger throttledLogger,
             BotInboundHandler inboundHandler) {
-        this.plugin = plugin;
+        this.server = server;
+        this.scheduler = scheduler;
+        this.logger = logger;
         this.configService = configService;
         this.throttledLogger = throttledLogger;
         this.inboundHandler = inboundHandler;
@@ -33,11 +43,11 @@ class OrzBotManager implements BotMessageService {
     @Override
     public void setup() {
         setupRequested.set(true);
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+        scheduler.runAsync(() -> {
             try {
                 startIfRequested();
             } catch (Exception e) {
-                plugin.getLogger().severe("OrzBotManager 初始化失败: " + e.getMessage());
+                logger.logger().severe("OrzBotManager 初始化失败: " + e.getMessage());
             }
         });
     }
@@ -50,10 +60,17 @@ class OrzBotManager implements BotMessageService {
             return;
         }
         adapters = List.of(
-                new OrzQQBot(plugin, configService, inboundHandler, new PlainMessageFormatter(), throttledLogger),
+                new OrzQQBot(
+                        server, logger, configService, inboundHandler, new PlainMessageFormatter(), throttledLogger),
                 new OrzDiscordBot(
-                        plugin, configService, inboundHandler, new DiscordMessageFormatter(), throttledLogger),
-                new OrzLarkBot(plugin, configService, new PlainMessageFormatter(), throttledLogger));
+                        server,
+                        logger,
+                        scheduler,
+                        configService,
+                        inboundHandler,
+                        new DiscordMessageFormatter(),
+                        throttledLogger),
+                new OrzLarkBot(server, logger, configService, new PlainMessageFormatter(), throttledLogger));
         router.setAdapters(adapters);
         router.setup();
     }
@@ -63,7 +80,7 @@ class OrzBotManager implements BotMessageService {
         if (envelope == null) {
             return;
         }
-        OrzMC.debugInfo(envelope.message());
+        throttledLogger.info("bot", envelope.message());
         router.route(envelope);
     }
 

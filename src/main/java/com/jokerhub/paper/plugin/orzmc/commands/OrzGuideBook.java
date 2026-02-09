@@ -1,8 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.commands;
 
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
-import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -12,8 +10,8 @@ import org.jetbrains.annotations.NotNull;
 public class OrzGuideBook implements CommandExecutor {
     private final GuideService guideService;
 
-    public OrzGuideBook(ConfigService configService, OrzTextStyles styles) {
-        this.guideService = new GuideService(configService, styles);
+    public OrzGuideBook(GuideService guideService) {
+        this.guideService = guideService;
     }
 
     @Override

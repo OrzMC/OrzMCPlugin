@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
-import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityShootBowEvent;
@@ -9,8 +8,8 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 public final class TeleportBowEventService {
     private final TeleportBowService service;
 
-    public TeleportBowEventService(OrzTextStyles styles) {
-        this.service = new TeleportBowService(styles);
+    public TeleportBowEventService(TeleportBowService service) {
+        this.service = service;
     }
 
     public void handleProjectileHit(ProjectileHitEvent event) {

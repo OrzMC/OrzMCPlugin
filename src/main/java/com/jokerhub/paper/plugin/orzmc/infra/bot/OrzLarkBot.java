@@ -1,7 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
 import com.google.gson.Gson;
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
@@ -14,8 +16,12 @@ public class OrzLarkBot extends OrzBaseBot {
     private final ThrottledLogger throttledLogger;
 
     public OrzLarkBot(
-            OrzMC plugin, ConfigService configService, MessageFormatter formatter, ThrottledLogger throttledLogger) {
-        super(plugin, configService);
+            ServerAccess server,
+            ServerLogger logger,
+            ConfigService configService,
+            MessageFormatter formatter,
+            ThrottledLogger throttledLogger) {
+        super(server, logger, configService);
         this.formatter = formatter;
         this.throttledLogger = throttledLogger;
     }
@@ -44,7 +50,7 @@ public class OrzLarkBot extends OrzBaseBot {
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("lark", e.toString());
-            OrzMC.logger().info(e.toString());
+            this.logger.logger().info(e.toString());
         }
     }
 
@@ -65,7 +71,7 @@ public class OrzLarkBot extends OrzBaseBot {
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("lark", e.toString());
-            OrzMC.logger().info(e.toString());
+            this.logger.logger().info(e.toString());
         }
     }
 
@@ -87,7 +93,7 @@ public class OrzLarkBot extends OrzBaseBot {
                         Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec),
                         retries <= 0 ? 3 : retries)
                 .thenAcceptAsync(response -> {
-                    OrzMC.debugInfo("Response : " + response.toString());
+                    throttledLogger.info("lark-http", "Response : " + response);
                     if (response.statusCode() == 200) {
                         HealthRegistry.setHttpOk("lark", true);
                         HealthRegistry.setLastError("lark", null);

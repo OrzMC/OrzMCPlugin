@@ -1,8 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.commands;
 
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalCommandService;
-import com.jokerhub.paper.plugin.orzmc.infra.portal.IPortalService;
-import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -12,8 +10,8 @@ import org.jetbrains.annotations.NotNull;
 public class OrzPortalCommand implements CommandExecutor {
     private final PortalCommandService service;
 
-    public OrzPortalCommand(IPortalService portalService, OrzTextStyles styles) {
-        this.service = new PortalCommandService(portalService, styles);
+    public OrzPortalCommand(PortalCommandService service) {
+        this.service = service;
     }
 
     @Override

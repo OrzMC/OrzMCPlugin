@@ -19,7 +19,11 @@ public final class ThrottledLogger {
     }
 
     public void info(String key, String message) {
-        info(key, message, defaultPeriodMs());
+        infoInternal(key, message, defaultPeriodMs());
+    }
+
+    public void info(String key, String message, long periodMs) {
+        infoInternal(key, message, periodMs <= 0 ? defaultPeriodMs() : periodMs);
     }
 
     public void warning(String key, String message) {
@@ -44,7 +48,7 @@ public final class ThrottledLogger {
         }
     }
 
-    private void info(String key, String message, long periodMs) {
+    private void infoInternal(String key, String message, long periodMs) {
         long now = System.currentTimeMillis();
         Long prev = last.get(key);
         if (prev == null || now - prev >= periodMs) {

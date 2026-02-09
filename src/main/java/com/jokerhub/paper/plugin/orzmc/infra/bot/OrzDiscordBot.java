@@ -1,6 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
@@ -29,16 +33,20 @@ public class OrzDiscordBot extends OrzBaseBot {
     private final BotInboundHandler inboundHandler;
     private final MessageFormatter formatter;
     private final ThrottledLogger throttledLogger;
+    private final ServerScheduler scheduler;
     private JDA api;
     private boolean isApiReady;
 
     public OrzDiscordBot(
-            OrzMC plugin,
+            ServerAccess server,
+            ServerLogger logger,
+            ServerScheduler scheduler,
             ConfigService configService,
             BotInboundHandler inboundHandler,
             MessageFormatter formatter,
             ThrottledLogger throttledLogger) {
-        super(plugin, configService);
+        super(server, logger, configService);
+        this.scheduler = scheduler;
         this.inboundHandler = inboundHandler;
         this.formatter = formatter;
         this.throttledLogger = throttledLogger;
@@ -73,11 +81,11 @@ public class OrzDiscordBot extends OrzBaseBot {
     @Override
     public void setup() {
         if (!this.isEnable()) {
-            OrzMC.debugInfo("Discord Bot Disabled!");
+            throttledLogger.info("discord", "Discord Bot Disabled!");
             return;
         }
         HealthRegistry.setEnabled("discord", true);
-        String minecraftVersion = OrzMC.server().getMinecraftVersion();
+        String minecraftVersion = server.server().getMinecraftVersion();
         String serverInfo = "Minecraft" + "(" + minecraftVersion + ")";
         String botTokenBase64Encoded = botConfig.getString("discord_bot_token_base64_encoded");
         String botToken = new String(Base64.getDecoder().decode(botTokenBase64Encoded));
@@ -153,21 +161,18 @@ public class OrzDiscordBot extends OrzBaseBot {
             boolean autoDisable = botConfig.getBoolean("discord_auto_disable_on_connect_error");
             if (autoDisable) {
                 int ticks = (graceSeconds <= 0 ? 10 : graceSeconds) * 20;
-                plugin.getServer()
-                        .getScheduler()
-                        .runTaskLater(
-                                plugin,
-                                () -> {
-                                    if (!isApiReady) {
-                                        try {
-                                            api.shutdown();
-                                        } catch (Exception ignored) {
-                                        }
-                                        HealthRegistry.setEnabled("discord", false);
-                                        throttledLogger.warning("discord-disable", "Discord不可达，已自动禁用机器人");
-                                    }
-                                },
-                                ticks);
+                scheduler.runLater(
+                        () -> {
+                            if (!isApiReady) {
+                                try {
+                                    api.shutdown();
+                                } catch (Exception ignored) {
+                                }
+                                HealthRegistry.setEnabled("discord", false);
+                                throttledLogger.warning("discord-disable", "Discord不可达，已自动禁用机器人");
+                            }
+                        },
+                        ticks);
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("discord", e.toString());
@@ -205,7 +210,7 @@ public class OrzDiscordBot extends OrzBaseBot {
             String playerTextChannelId = botConfig.getString("discord_player_text_channel_id");
             TextChannel channel = playerTextChannelId != null ? api.getTextChannelById(playerTextChannelId) : null;
             if (channel == null) {
-                OrzMC.logger().warning("your discord bot not in this text channel: " + playerTextChannelId);
+                logger.logger().warning("your discord bot not in this text channel: " + playerTextChannelId);
                 return;
             }
             formatter.format(message, MessageEnvelope.Format.DEFAULT).forEach(part -> channel.sendMessage(part)
@@ -245,7 +250,7 @@ public class OrzDiscordBot extends OrzBaseBot {
         String playerTextChannelId = botConfig.getString("discord_player_text_channel_id");
         TextChannel channel = playerTextChannelId != null ? api.getTextChannelById(playerTextChannelId) : null;
         if (channel == null) {
-            OrzMC.logger().warning("your discord bot not in this text channel: " + playerTextChannelId);
+            logger.logger().warning("your discord bot not in this text channel: " + playerTextChannelId);
             return;
         }
         parts.forEach(part -> channel.sendMessage(part).queue());

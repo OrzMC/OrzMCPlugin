@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.infra.server;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -26,11 +25,11 @@ public class OrzUtil {
         return styles.warn(content);
     }
 
-    public static void executeConsoleCmd(Runnable task, String... consoleCmds) {
-        ConsoleCommandSender console = OrzMC.server().getConsoleSender();
-        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
+    public static void executeConsoleCmd(ServerFacade server, Runnable task, String... consoleCmds) {
+        ConsoleCommandSender console = server.server().getConsoleSender();
+        server.runSync(() -> {
             for (String consoleCmd : consoleCmds) {
-                OrzMC.server().dispatchCommand(console, consoleCmd);
+                server.server().dispatchCommand(console, consoleCmd);
             }
             if (task != null) {
                 task.run();

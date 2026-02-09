@@ -2,10 +2,6 @@ package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.features.tnt.TntEventService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
-import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockExplodeEvent;
@@ -17,14 +13,9 @@ import org.jetbrains.annotations.NotNull;
 public class OrzTNTEvent extends OrzBaseListener {
     private final TntEventService service;
 
-    public OrzTNTEvent(
-            OrzMC plugin,
-            ConfigService configService,
-            OrzTextStyles styles,
-            Notifier notifier,
-            ThrottledNotifier throttledNotifier) {
+    public OrzTNTEvent(OrzMC plugin, TntEventService service) {
         super(plugin);
-        this.service = new TntEventService(configService, styles, notifier, throttledNotifier);
+        this.service = service;
     }
 
     @EventHandler

@@ -1,7 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.features.botcommands;
 
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
-
 public enum OrzUserCmd {
     SHOW_PLAYERS("l", "查看在线玩家", false),
     SHOW_WHITELIST("w", "查看白名单玩家", false),
@@ -14,7 +12,6 @@ public enum OrzUserCmd {
     private final String cmdName;
     private final String description;
     private final boolean needAdminPermission;
-    private static ConfigService configService;
 
     OrzUserCmd(String cmdName, String description, boolean needAdminPermission) {
         this.cmdName = cmdName;
@@ -22,30 +19,17 @@ public enum OrzUserCmd {
         this.needAdminPermission = needAdminPermission;
     }
 
-    public static void setConfigService(ConfigService service) {
-        configService = service;
+    public String cmdName() {
+        return cmdName;
     }
 
-    private static String cmdPromptChar() {
-        try {
-            if (configService == null) return "$";
-            return configService.getConfig("bot").getString("cmd_prompt_char", "$");
-        } catch (Exception e) {
-            return "$";
-        }
-    }
-
-    public static boolean isValidCmd(String message) {
-        return message.startsWith(cmdPromptChar());
-    }
-
-    public String getCmdString() {
-        return cmdPromptChar() + this.cmdName;
+    public String display(String promptChar) {
+        return promptChar + this.cmdName + "\t" + this.description;
     }
 
     @Override
     public String toString() {
-        return this.getCmdString() + "\t" + this.description;
+        return this.cmdName + "\t" + this.description;
     }
 
     public boolean needAdminPermission() {

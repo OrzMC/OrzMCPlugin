@@ -60,6 +60,8 @@ ws_base_retry_ms: 5000
 ws_max_delay_ms: 60000
 ws_jitter_percent: 10
 ws_stable_reset_ms: 20000
+ws_message_log_enabled: false
+ws_message_log_throttle_ms: 60000
 
 # 日志限流周期
 log_throttle_ms: 5000

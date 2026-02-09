@@ -1,9 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.features.portal;
 
+import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalInfo;
+import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalPort;
 import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandPermissionService;
-import com.jokerhub.paper.plugin.orzmc.infra.portal.IPortalService;
-import com.jokerhub.paper.plugin.orzmc.infra.portal.PortalInfo;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -12,10 +12,10 @@ import org.bukkit.entity.Player;
 public final class PortalCommandService {
     private final CommandFeedbackService feedbackService = new CommandFeedbackService();
     private final CommandPermissionService permissionService = new CommandPermissionService();
-    private final IPortalService portalService;
+    private final PortalPort portalService;
     private final OrzTextStyles styles;
 
-    public PortalCommandService(IPortalService portalService, OrzTextStyles styles) {
+    public PortalCommandService(PortalPort portalService, OrzTextStyles styles) {
         this.portalService = portalService;
         this.styles = styles;
     }

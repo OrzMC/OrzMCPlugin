@@ -1,6 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -11,11 +13,13 @@ public abstract class OrzBaseBot implements BotAdapter {
 
     public abstract void teardown();
 
-    protected final OrzMC plugin;
+    protected final ServerAccess server;
+    protected final ServerLogger logger;
     protected final FileConfiguration botConfig;
 
-    protected OrzBaseBot(OrzMC plugin, ConfigService configService) {
-        this.plugin = plugin;
+    protected OrzBaseBot(ServerAccess server, ServerLogger logger, ConfigService configService) {
+        this.server = server;
+        this.logger = logger;
         botConfig = configService.getConfig("bot");
     }
 

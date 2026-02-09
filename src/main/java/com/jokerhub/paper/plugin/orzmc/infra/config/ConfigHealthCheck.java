@@ -1,7 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
+import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplatePlaceholderValidator;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -9,16 +11,71 @@ public final class ConfigHealthCheck {
     private ConfigHealthCheck() {}
 
     public static List<String> validateAll(com.jokerhub.paper.plugin.orzmc.infra.config.AdvancedConfigManager mgr) {
+        return validateAll(mgr::getConfig);
+    }
+
+    public static List<String> validateAll(Function<String, FileConfiguration> provider) {
         List<String> issues = new ArrayList<>();
-        validateStyles(mgr.getConfig("styles"), issues);
-        validateIpWhitelist(mgr.getConfig("ip_whitelist"), issues);
-        validatePortals(mgr.getConfig("portals"), issues);
-        validateTemplates(mgr.getConfig("templates"), issues);
-        validateNotifications(mgr.getConfig("notifications"), mgr.getConfig("bot"), mgr.getConfig("templates"), issues);
-        validateCommands(mgr.getConfig("commands"), issues);
-        validateWhitelist(mgr.getConfig("whitelist"), issues);
-        validateMaintenance(mgr.getConfig("maintenance"), issues);
+        validateMainConfig(provider.apply("config"), issues);
+        validateBot(provider.apply("bot"), issues);
+        validateStyles(provider.apply("styles"), issues);
+        validateIpWhitelist(provider.apply("ip_whitelist"), issues);
+        validatePortals(provider.apply("portals"), issues);
+        validateTemplates(provider.apply("templates"), issues);
+        validateNotifications(
+                provider.apply("notifications"), provider.apply("bot"), provider.apply("templates"), issues);
+        validateCommands(provider.apply("commands"), issues);
+        validateWhitelist(provider.apply("whitelist"), issues);
+        validateMaintenance(provider.apply("maintenance"), issues);
+        validateTnt(provider.apply("tnt"), issues);
         return issues;
+    }
+
+    private static void validateMainConfig(FileConfiguration cfg, List<String> issues) {
+        if (cfg == null) {
+            issues.add("config.yml 未加载");
+            return;
+        }
+        Object fw = cfg.get("force_whitelist");
+        if (fw != null && !(fw instanceof Boolean)) issues.add("类型错误: config.force_whitelist 需为布尔值");
+        Object days = cfg.get("whitelist_cleanup_inactive_days");
+        if (days != null) {
+            try {
+                int v = Integer.parseInt(String.valueOf(days));
+                if (v <= 0) issues.add("非法: config.whitelist_cleanup_inactive_days 必须为正数");
+            } catch (Exception e) {
+                issues.add("类型错误: config.whitelist_cleanup_inactive_days 需为数字");
+            }
+        }
+        Object ticks = cfg.get("whitelist_pagination_delay_ticks");
+        if (ticks != null) {
+            try {
+                int v = Integer.parseInt(String.valueOf(ticks));
+                if (v < 0) issues.add("非法: config.whitelist_pagination_delay_ticks 不得为负数");
+            } catch (Exception e) {
+                issues.add("类型错误: config.whitelist_pagination_delay_ticks 需为数字");
+            }
+        }
+    }
+
+    private static void validateBot(FileConfiguration cfg, List<String> issues) {
+        if (cfg == null) {
+            issues.add("bot.yml 未加载");
+            return;
+        }
+        String[] boolKeys = {"enable_qq_bot", "enable_discord_bot", "enable_lark_bot", "ws_message_log_enabled"};
+        for (String k : boolKeys) {
+            Object v = cfg.get(k);
+            if (v != null && !(v instanceof Boolean)) issues.add("类型错误: bot." + k + " 需为布尔值");
+        }
+        Object prompt = cfg.get("cmd_prompt_char");
+        if (prompt != null && String.valueOf(prompt).isEmpty()) issues.add("非法: bot.cmd_prompt_char 不可为空");
+        int httpConn = cfg.getInt("http_connect_timeout_seconds", 3);
+        int httpReq = cfg.getInt("http_request_timeout_seconds", 3);
+        int httpRetries = cfg.getInt("http_max_retries", 3);
+        if (httpConn <= 0) issues.add("非法: bot.http_connect_timeout_seconds 必须为正数");
+        if (httpReq <= 0) issues.add("非法: bot.http_request_timeout_seconds 必须为正数");
+        if (httpRetries < 0) issues.add("非法: bot.http_max_retries 不得为负数");
     }
 
     private static void validateStyles(FileConfiguration cfg, List<String> issues) {
@@ -121,6 +178,7 @@ public final class ConfigHealthCheck {
             issues.add("templates.yml 未加载");
             return;
         }
+        issues.addAll(TemplatePlaceholderValidator.validate(cfg));
         String base = "templates";
         if (!cfg.contains(base + ".player_join")) issues.add("缺失: templates.player_join");
         double scale = cfg.getDouble(base + ".coord.scale", 1.0);
@@ -315,13 +373,31 @@ public final class ConfigHealthCheck {
         }
         Object en = cfg.get("optimize_enabled");
         if (!(en instanceof Boolean)) issues.add("类型错误: maintenance.optimize_enabled 需为布尔值");
-        Object os = cfg.get("optimize_on_shutdown");
-        if (!(os instanceof Boolean)) issues.add("类型错误: maintenance.optimize_on_shutdown 需为布尔值");
         int thr = cfg.getInt("optimize_tick_time_threshold", 300);
         if (thr <= 0) issues.add("非法: maintenance.optimize_tick_time_threshold 必须为正数");
         int retain = cfg.getInt("backup_retention_count", 5);
         if (retain < 0) issues.add("非法: maintenance.backup_retention_count 不得为负数");
         String motd = cfg.getString("backup_maintenance_motd", "");
         if (motd.isEmpty()) issues.add("缺失: maintenance.backup_maintenance_motd");
+    }
+
+    private static void validateTnt(FileConfiguration cfg, List<String> issues) {
+        if (cfg == null) {
+            issues.add("tnt.yml 未加载");
+            return;
+        }
+        Object enable = cfg.get("enable");
+        if (enable != null && !(enable instanceof Boolean)) issues.add("类型错误: tnt.enable 需为布尔值");
+        Object enableAnchor = cfg.get("enable_respawn_anchor");
+        if (enableAnchor != null && !(enableAnchor instanceof Boolean))
+            issues.add("类型错误: tnt.enable_respawn_anchor 需为布尔值");
+        int cd = cfg.getInt("place_cooldown", 0);
+        if (cd < 0) issues.add("非法: tnt.place_cooldown 不得为负数");
+        long thr = cfg.getLong("notify_throttle_ms", 1000L);
+        if (thr < 0) issues.add("非法: tnt.notify_throttle_ms 不得为负数");
+        Object wl = cfg.get("whitelist");
+        if (wl != null && !(wl instanceof java.util.List<?>)) issues.add("类型错误: tnt.whitelist 需为列表");
+        Object exempt = cfg.get("exempt_entities");
+        if (exempt != null && !(exempt instanceof java.util.List<?>)) issues.add("类型错误: tnt.exempt_entities 需为列表");
     }
 }

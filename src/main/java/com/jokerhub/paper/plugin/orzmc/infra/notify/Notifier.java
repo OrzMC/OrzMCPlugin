@@ -1,19 +1,21 @@
 package com.jokerhub.paper.plugin.orzmc.infra.notify;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import net.kyori.adventure.text.Component;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public final class Notifier {
+    private final ServerAccess server;
     private final ConfigService configService;
     private final BotMessageService botMessageService;
     private NotifierSink sink;
 
-    public Notifier(ConfigService configService, BotMessageService botMessageService) {
+    public Notifier(ServerAccess server, ConfigService configService, BotMessageService botMessageService) {
+        this.server = server;
         this.configService = configService;
         this.botMessageService = botMessageService;
         this.sink = new DefaultSink();
@@ -34,7 +36,7 @@ public final class Notifier {
     private final class DefaultSink implements NotifierSink {
         @Override
         public void server(Component message) {
-            OrzMC.server().sendMessage(message);
+            server.server().sendMessage(message);
         }
 
         @Override

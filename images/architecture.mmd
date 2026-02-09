@@ -15,13 +15,18 @@ flowchart TB
     GuideSvc[GuideService]
   end
 
+  subgraph Core[Core / Ports]
+    Ports[ServerAccess / PortalPort / TypedConfigProvider]
+    Msg[MessageEnvelope / BotInboundHandler]
+  end
+
   subgraph Infra[Infrastructure]
     Styles[OrzTextStyles]
     Notifier[Notifier]
     Throttled[ThrottledLogger / ThrottledNotifier]
     Bot[BotRouter / BotAdapters]
     Net[AsyncHttp / RobustWebSocketClient]
-    Config[ConfigService / TypedConfigs]
+    Config[ConfigService / TypedConfigs / DefaultTypedConfigProvider]
   end
 
   OrzMC --> EventListeners
@@ -30,4 +35,6 @@ flowchart TB
   OrzMC --> Infra
   EventListeners --> Services
   Commands --> Services
+  Services --> Core
+  Infra --> Core
   Services --> Infra

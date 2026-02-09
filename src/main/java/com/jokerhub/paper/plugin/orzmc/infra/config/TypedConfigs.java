@@ -16,7 +16,6 @@ public final class TypedConfigs {
             int whitelistPaginationDelayTicks,
             String cmdPromptChar,
             boolean optimizeEnabled,
-            boolean optimizeOnShutdown,
             long optimizeTickTimeThreshold,
             int backupRetentionCount,
             String backupMaintenanceMotd,
@@ -29,7 +28,6 @@ public final class TypedConfigs {
             int whitelistPaginationDelayTicks = cfg.getInt("whitelist_pagination_delay_ticks", 5);
             String cmdPromptChar = cfg.getString("cmd_prompt_char", "$");
             boolean optimizeEnabled = cfg.getBoolean("optimize_enabled", false);
-            boolean optimizeOnShutdown = cfg.getBoolean("optimize_on_shutdown", false);
             long optimizeTickTimeThreshold = cfg.getLong("optimize_tick_time_threshold", 300L);
             int backupRetentionCount = cfg.getInt("backup_retention_count", 5);
             String backupMaintenanceMotd = cfg.getString("backup_maintenance_motd", "服务器维护中，稍后再试");
@@ -58,7 +56,6 @@ public final class TypedConfigs {
                     whitelistPaginationDelayTicks,
                     cmdPromptChar,
                     optimizeEnabled,
-                    optimizeOnShutdown,
                     optimizeTickTimeThreshold,
                     backupRetentionCount,
                     backupMaintenanceMotd,
@@ -180,6 +177,68 @@ public final class TypedConfigs {
                 }
             }
             return new IpWhitelist(list);
+        }
+    }
+
+    public record BotConfig(String cmdPromptChar, String discordServerLink, String qqGroupId, String qqPlayerGroupId) {
+        public static BotConfig from(FileConfiguration cfg) {
+            String cmdPromptChar = cfg.getString("cmd_prompt_char", "$");
+            String discordServerLink = cfg.getString("discord_server_link");
+            String qqGroupId = cfg.getString("qq_group_id");
+            String qqPlayerGroupId = cfg.getString("qq_player_group_id", qqGroupId);
+            return new BotConfig(cmdPromptChar, discordServerLink, qqGroupId, qqPlayerGroupId);
+        }
+    }
+
+    public record MaintenanceConfig(
+            boolean optimizeEnabled,
+            long optimizeTickTimeThreshold,
+            int backupRetentionCount,
+            String backupMaintenanceMotd) {
+        public static MaintenanceConfig from(FileConfiguration cfg) {
+            boolean optimizeEnabled = cfg.getBoolean("optimize_enabled", false);
+            long optimizeTickTimeThreshold = cfg.getLong("optimize_tick_time_threshold", 300L);
+            int backupRetentionCount = cfg.getInt("backup_retention_count", 5);
+            String backupMaintenanceMotd = cfg.getString("backup_maintenance_motd", "服务器维护中，稍后再试");
+            return new MaintenanceConfig(
+                    optimizeEnabled, optimizeTickTimeThreshold, backupRetentionCount, backupMaintenanceMotd);
+        }
+    }
+
+    public record WhitelistConfig(boolean forceWhitelist, int cleanupInactiveDays, int paginationDelayTicks) {
+        public static WhitelistConfig from(FileConfiguration cfg) {
+            boolean forceWhitelist = cfg.getBoolean("force_whitelist", true);
+            int cleanupInactiveDays = cfg.getInt("cleanup_inactive_days", 90);
+            int paginationDelayTicks = cfg.getInt("pagination_delay_ticks", 5);
+            return new WhitelistConfig(forceWhitelist, cleanupInactiveDays, paginationDelayTicks);
+        }
+    }
+
+    public record WhitelistKickMessage(String title, List<WhitelistKickMessageItem> ups) {
+        public record WhitelistKickMessageItem(String name, String platform) {}
+
+        public static WhitelistKickMessage from(FileConfiguration cfg) {
+            String title = "";
+            List<WhitelistKickMessageItem> items = new ArrayList<>();
+            if (cfg == null) {
+                return new WhitelistKickMessage(title, items);
+            }
+            ConfigurationSection section = cfg.getConfigurationSection("kick_message");
+            if (section == null) {
+                return new WhitelistKickMessage(title, items);
+            }
+            title = section.getString("title", "");
+            List<Map<?, ?>> ups = section.getMapList("ups");
+            if (ups != null) {
+                for (Map<?, ?> raw : ups) {
+                    if (raw == null) continue;
+                    String name = raw.get("name") == null ? "" : String.valueOf(raw.get("name"));
+                    String platform = raw.get("platform") == null ? "" : String.valueOf(raw.get("platform"));
+                    if (name.isEmpty() && platform.isEmpty()) continue;
+                    items.add(new WhitelistKickMessageItem(name, platform));
+                }
+            }
+            return new WhitelistKickMessage(title, items);
         }
     }
 

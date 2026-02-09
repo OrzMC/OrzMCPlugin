@@ -5,9 +5,6 @@ import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
@@ -20,23 +17,26 @@ public class OrzPlayerEvent extends OrzBaseListener {
     private final PlayerEventService service;
     private final GuideService guideService;
     private final OrzTextStyles styles;
+    private final WorldMaintenanceService maintenanceService;
 
     public OrzPlayerEvent(
             OrzMC plugin,
-            ConfigService configService,
+            GeoIpAccessService geoIpAccessService,
+            PlayerEventService service,
+            GuideService guideService,
             OrzTextStyles styles,
-            Notifier notifier,
-            ThrottledNotifier throttledNotifier) {
+            WorldMaintenanceService maintenanceService) {
         super(plugin);
-        this.geoIpAccessService = new GeoIpAccessService(configService);
-        this.service = new PlayerEventService(configService, styles, notifier, throttledNotifier);
-        this.guideService = new GuideService(configService, styles);
+        this.geoIpAccessService = geoIpAccessService;
+        this.service = service;
+        this.guideService = guideService;
         this.styles = styles;
+        this.maintenanceService = maintenanceService;
     }
 
     @EventHandler
     public void onPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
-        if (WorldMaintenanceService.isRunningGlobal()) {
+        if (maintenanceService.isRunning()) {
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, styles.warn("服务器地图备份中，请稍后再尝试登录。"));
             return;
         }
