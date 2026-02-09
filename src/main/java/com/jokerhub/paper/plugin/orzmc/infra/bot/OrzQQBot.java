@@ -3,12 +3,17 @@ package com.jokerhub.paper.plugin.orzmc.infra.bot;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.net.AsyncHttp;
-import com.jokerhub.paper.plugin.orzmc.infra.ws.RobustWebSocketClient;
+import com.jokerhub.paper.plugin.orzmc.infra.ws.DefaultWebSocketClientFactory;
+import com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketClientFactory;
+import com.jokerhub.paper.plugin.orzmc.infra.ws.WsClient;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -19,18 +24,36 @@ public class OrzQQBot extends OrzBaseBot {
     private final BotInboundHandler inboundHandler;
     private final MessageFormatter formatter;
     private final ThrottledLogger throttledLogger;
-    private RobustWebSocketClient webSocketClient;
+    private WsClient webSocketClient;
+    private final WebSocketClientFactory wsFactory;
 
     public OrzQQBot(
-            OrzMC plugin,
+            ServerAccess server,
+            ServerLogger logger,
             ConfigService configService,
             BotInboundHandler inboundHandler,
             MessageFormatter formatter,
             ThrottledLogger throttledLogger) {
-        super(plugin, configService);
+        super(server, logger, configService);
         this.inboundHandler = inboundHandler;
         this.formatter = formatter;
         this.throttledLogger = throttledLogger;
+        this.wsFactory = new DefaultWebSocketClientFactory();
+    }
+
+    public OrzQQBot(
+            ServerAccess server,
+            ServerLogger logger,
+            ConfigService configService,
+            BotInboundHandler inboundHandler,
+            MessageFormatter formatter,
+            ThrottledLogger throttledLogger,
+            WebSocketClientFactory wsFactory) {
+        super(server, logger, configService);
+        this.inboundHandler = inboundHandler;
+        this.formatter = formatter;
+        this.throttledLogger = throttledLogger;
+        this.wsFactory = wsFactory == null ? new DefaultWebSocketClientFactory() : wsFactory;
     }
 
     @Override
@@ -63,7 +86,7 @@ public class OrzQQBot extends OrzBaseBot {
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
-            OrzMC.logger().info(e.toString());
+            this.logger.logger().info(e.toString());
         }
     }
 
@@ -81,7 +104,7 @@ public class OrzQQBot extends OrzBaseBot {
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
-            OrzMC.logger().info(e.toString());
+            this.logger.logger().info(e.toString());
         }
     }
 
@@ -103,7 +126,7 @@ public class OrzQQBot extends OrzBaseBot {
             }
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
-            OrzMC.logger().info(e.toString());
+            this.logger.logger().info(e.toString());
         }
     }
 
@@ -118,7 +141,14 @@ public class OrzQQBot extends OrzBaseBot {
             }
             String groupId = json.get("group_id").getAsString();
             String message = json.get("raw_message").getAsString().trim();
-            String senderRole = json.get("sender").getAsJsonObject().get("role").getAsString();
+            if (json.get("sender") == null || !json.get("sender").isJsonObject()) {
+                return;
+            }
+            JsonObject sender = json.get("sender").getAsJsonObject();
+            if (sender.get("role") == null) {
+                return;
+            }
+            String senderRole = sender.get("role").getAsString();
             boolean isOwner = senderRole.equals("owner");
             boolean isAdmin = senderRole.equals("admin");
             String qqGroupId = botConfig.getString("qq_group_id");
@@ -126,7 +156,8 @@ public class OrzQQBot extends OrzBaseBot {
                 BotInboundDispatcher.dispatch(inboundHandler, message, isAdmin || isOwner, this::send);
             }
         } catch (Exception e) {
-            OrzMC.logger().info(e.toString());
+            HealthRegistry.setLastError("qq", e.toString());
+            this.logger.logger().info(e.toString());
         }
     }
 
@@ -142,7 +173,6 @@ public class OrzQQBot extends OrzBaseBot {
                             Duration.ofSeconds(requestSec <= 0 ? 3 : requestSec),
                             retries <= 0 ? 3 : retries)
                     .thenAcceptAsync(response -> {
-                        OrzMC.debugInfo("Response Code : " + response.toString());
                         if (response.statusCode() == 200) {
                             HealthRegistry.setHttpOk("qq", true);
                             HealthRegistry.setLastError("qq", null);
@@ -156,7 +186,7 @@ public class OrzQQBot extends OrzBaseBot {
                     });
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
-            OrzMC.logger().severe(e.toString());
+            this.logger.logger().severe(e.toString());
         }
     }
 
@@ -183,51 +213,55 @@ public class OrzQQBot extends OrzBaseBot {
         if (!this.isEnable() || wsServer == null || wsServer.isEmpty()) {
             return;
         }
+        if (webSocketClient != null) {
+            shutdownWebSocketClient();
+        }
         try {
             int wsRetries = botConfig.getInt("ws_max_retries");
             long wsBaseMs = botConfig.getLong("ws_base_retry_ms");
             long wsMaxMs = botConfig.getLong("ws_max_delay_ms");
             int wsJitterPercent = botConfig.getInt("ws_jitter_percent");
             long wsStableResetMs = botConfig.getLong("ws_stable_reset_ms");
+            boolean wsMessageLogEnabled = botConfig.getBoolean("ws_message_log_enabled");
+            long wsMessageLogThrottleMs = botConfig.getLong("ws_message_log_throttle_ms");
             String bizHeartBeatPayload = new Gson().toJson(Map.of("action", "get_status"));
-            webSocketClient =
-                    new RobustWebSocketClient(
-                            wsServer,
-                            throttledLogger,
-                            wsRetries <= 0 ? 10 : wsRetries,
-                            wsBaseMs <= 0 ? 5000 : wsBaseMs,
-                            wsMaxMs <= 0 ? 60000 : wsMaxMs,
-                            wsJitterPercent <= 0 ? 10 : wsJitterPercent,
-                            wsStableResetMs <= 0 ? 20000 : wsStableResetMs,
-                            this.websocketServerHeaderMap(),
-                            bizHeartBeatPayload,
-                            new com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketEventListener() {
-                                @Override
-                                public void onOpen() {
-                                    HealthRegistry.setWsConnected("qq", true);
-                                }
-
-                                @Override
-                                public void onClose(int code, String reason, boolean remote) {
-                                    HealthRegistry.setWsConnected("qq", false);
-                                }
-
-                                @Override
-                                public void onError(Exception ex) {
-                                    HealthRegistry.setLastError("qq", ex.toString());
-                                    throttledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex);
-                                }
-                            }) {
+            webSocketClient = wsFactory.create(
+                    this.logger,
+                    wsServer,
+                    throttledLogger,
+                    wsRetries <= 0 ? 10 : wsRetries,
+                    wsBaseMs <= 0 ? 5000 : wsBaseMs,
+                    wsMaxMs <= 0 ? 60000 : wsMaxMs,
+                    wsJitterPercent <= 0 ? 10 : wsJitterPercent,
+                    wsStableResetMs <= 0 ? 20000 : wsStableResetMs,
+                    wsMessageLogEnabled,
+                    wsMessageLogThrottleMs <= 0 ? 60000 : wsMessageLogThrottleMs,
+                    this.websocketServerHeaderMap(),
+                    bizHeartBeatPayload,
+                    new com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketEventListener() {
                         @Override
-                        public void handleMessage(String message) {
-                            processJsonStringPayload(message);
+                        public void onOpen() {
+                            HealthRegistry.setWsConnected("qq", true);
                         }
-                    };
+
+                        @Override
+                        public void onClose(int code, String reason, boolean remote) {
+                            HealthRegistry.setWsConnected("qq", false);
+                        }
+
+                        @Override
+                        public void onError(Exception ex) {
+                            HealthRegistry.setWsConnected("qq", false);
+                            HealthRegistry.setLastError("qq", ex.toString());
+                            throttledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex);
+                        }
+                    },
+                    this::processJsonStringPayload);
 
             webSocketClient.connect();
         } catch (Exception e) {
             HealthRegistry.setLastError("qq", e.toString());
-            OrzMC.logger().info(e.toString());
+            this.logger.logger().info(e.toString());
         }
     }
 
@@ -236,5 +270,6 @@ public class OrzQQBot extends OrzBaseBot {
             return;
         }
         webSocketClient.disconnect();
+        webSocketClient = null;
     }
 }

@@ -36,9 +36,12 @@ whitelist:
 exempt_entities:
   - CREEPER        # 苦力怕
   - FIREBALL       # 火球（恶魂火球等）
+  - BREEZE         # 旋风人
   - WIND_CHARGE    # 风弹
   - BREEZE_WIND_CHARGE # 微风风弹
   - ENDER_DRAGON   # 末影龙
   - END_CRYSTAL    # 末地水晶
   - WITHER         # 凋灵
   - WITHER_SKULL   # 凋灵之首（弹射物）
+  - SLIME          # 史莱姆
+  - STRAY          # 流浪者(冰原版骷髅射手)

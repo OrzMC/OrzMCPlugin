@@ -5,6 +5,8 @@ import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzMenuCommand;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzPortalCommand;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
+import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.events.OrzBowShootEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzDebugEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzMenuEvent;
@@ -14,70 +16,102 @@ import com.jokerhub.paper.plugin.orzmc.events.OrzServerEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzTNTEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzTPEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzWhiteListEvent;
+import com.jokerhub.paper.plugin.orzmc.features.bot.BotStatusService;
 import com.jokerhub.paper.plugin.orzmc.features.botcommands.BotCommandService;
-import com.jokerhub.paper.plugin.orzmc.features.botcommands.OrzUserCmd;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CooldownInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.InterceptorExecutor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.PlayerOnlyInterceptor;
+import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
+import com.jokerhub.paper.plugin.orzmc.features.menu.MenuCommandService;
+import com.jokerhub.paper.plugin.orzmc.features.menu.MenuEventService;
+import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
+import com.jokerhub.paper.plugin.orzmc.features.portal.PortalCommandService;
+import com.jokerhub.paper.plugin.orzmc.features.portal.PortalEventService;
+import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
+import com.jokerhub.paper.plugin.orzmc.features.server.ServerEventService;
+import com.jokerhub.paper.plugin.orzmc.features.server.ServerFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerLifecycleService;
+import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowEventService;
+import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowService;
+import com.jokerhub.paper.plugin.orzmc.features.tnt.TntEventService;
+import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistEventService;
 import com.jokerhub.paper.plugin.orzmc.infra.binding.CommandBinder;
 import com.jokerhub.paper.plugin.orzmc.infra.binding.EventBinder;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageServiceProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.config.DefaultTypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.portal.PortalService;
+import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 import org.bukkit.GameMode;
-import org.bukkit.Server;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class OrzMC extends JavaPlugin implements Listener {
+public class OrzMC extends JavaPlugin implements Listener {
+    private ServerFacade serverFacade;
     private ServerLifecycleService serverLifecycleService;
     private WorldMaintenanceService worldMaintenanceService;
     private BotInboundHandler botInboundHandler;
     private ConfigService configService;
+    private TypedConfigProvider configs;
     private PortalService portalService;
     private BotMessageService botMessageService;
     private OrzTextStyles textStyles;
     private ThrottledLogger throttledLogger;
     private ThrottledNotifier throttledNotifier;
     private Notifier notifier;
+    private GeoIpAccessService geoIpAccessService;
+    private GuideService guideService;
+    private PlayerEventService playerEventService;
+    private TntEventService tntEventService;
+    private WhitelistEventService whitelistEventService;
+    private MenuEventService menuEventService;
+    private TeleportBowService teleportBowService;
+    private TeleportBowEventService teleportBowEventService;
+    private PortalEventService portalEventService;
+    private ServerFeedbackService serverFeedbackService;
+    private ServerEventService serverEventService;
+    private MenuCommandService menuCommandService;
+    private PortalCommandService portalCommandService;
+    private BotStatusService botStatusService;
 
     @Override
     public void onEnable() {
         getLogger().info("插件生效!");
+        serverFacade = new ServerFacade(this);
         configService = new ConfigService(this);
+        configService.setup();
+        configs = new DefaultTypedConfigProvider(configService);
         textStyles = new OrzTextStyles(configService);
         throttledLogger = new ThrottledLogger(configService, getLogger());
         throttledNotifier = new ThrottledNotifier(configService);
-        botInboundHandler = new BotCommandService(configService, textStyles);
+        botInboundHandler = new BotCommandService(serverFacade, configs);
         portalService = new PortalService(configService);
-        botMessageService = BotMessageServiceProvider.create(this, configService, throttledLogger, botInboundHandler);
-        OrzUserCmd.setConfigService(configService);
-        notifier = new Notifier(configService, botMessageService);
+        botMessageService = BotMessageServiceProvider.create(
+                serverFacade, serverFacade, serverFacade, configService, throttledLogger, botInboundHandler);
+        notifier = new Notifier(serverFacade, configService, botMessageService);
+        serverLifecycleService = new ServerLifecycleService(serverFacade, configs, notifier);
+        worldMaintenanceService = new WorldMaintenanceService(serverFacade, configs, textStyles, notifier);
         if (botInboundHandler instanceof BotCommandService service) {
             service.setNotifier(notifier);
+            service.setMaintenanceService(worldMaintenanceService);
         }
-        serverLifecycleService = new ServerLifecycleService(configService, notifier);
-        worldMaintenanceService = new WorldMaintenanceService(configService, textStyles, notifier);
-        configService.setup();
+        initServices();
         botMessageService.setup();
         portalService.setup();
         setupEventListener();
@@ -87,7 +121,6 @@ public final class OrzMC extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        optimizeWorldOnShutdownIfNeed();
         serverLifecycleService.notifyServerStop();
 
         botMessageService.tearDown();
@@ -96,32 +129,10 @@ public final class OrzMC extends JavaPlugin implements Listener {
         getLogger().info("插件失效!");
     }
 
-    // 公共静态成员
-    public static OrzMC plugin() {
-        return JavaPlugin.getPlugin(OrzMC.class);
-    }
-
-    public static Server server() {
-        return plugin().getServer();
-    }
-
-    public static Logger logger() {
-        return OrzMC.plugin().getLogger();
-    }
-
-    // 公共方法
-
-    public static void debugInfo(String msg) {
-        if (!OrzDebugEvent.debug) {
-            return;
-        }
-        OrzMC.logger().info(msg);
-    }
-
     private void setupServerForceWhitelist() {
         boolean forceWhitelist = false;
         try {
-            forceWhitelist = configService.getConfig("whitelist").getBoolean("force_whitelist");
+            forceWhitelist = configs.whitelist().forceWhitelist();
         } catch (Exception ignored) {
         }
         getServer().setWhitelist(forceWhitelist);
@@ -133,17 +144,35 @@ public final class OrzMC extends JavaPlugin implements Listener {
         }
     }
 
+    private void initServices() {
+        geoIpAccessService = new GeoIpAccessService(configs);
+        guideService = new GuideService(serverFacade, configService, textStyles);
+        playerEventService = new PlayerEventService(serverFacade, configs, textStyles, notifier, throttledNotifier);
+        tntEventService = new TntEventService(configs, textStyles, notifier, throttledNotifier);
+        whitelistEventService = new WhitelistEventService(configs, textStyles, notifier);
+        menuEventService = new MenuEventService(textStyles);
+        teleportBowService = new TeleportBowService(serverFacade, textStyles);
+        teleportBowEventService = new TeleportBowEventService(teleportBowService);
+        portalEventService = new PortalEventService(serverFacade, portalService);
+        serverFeedbackService = new ServerFeedbackService(serverFacade, configs, textStyles);
+        serverEventService = new ServerEventService(serverFeedbackService, worldMaintenanceService, configs, notifier);
+        menuCommandService = new MenuCommandService(textStyles);
+        portalCommandService = new PortalCommandService(portalService, textStyles);
+        botStatusService = new BotStatusService(textStyles);
+    }
+
     private void setupEventListener() {
         Listener[] eventListeners = new Listener[] {
-            new OrzBowShootEvent(this, textStyles),
-            new OrzPlayerEvent(this, configService, textStyles, notifier, throttledNotifier),
-            new OrzTPEvent(this),
-            new OrzTNTEvent(this, configService, textStyles, notifier, throttledNotifier),
-            new OrzMenuEvent(this, textStyles),
-            new OrzServerEvent(this, configService, textStyles, notifier),
-            new OrzWhiteListEvent(this, configService, textStyles, notifier),
+            new OrzBowShootEvent(this, teleportBowEventService),
+            new OrzPlayerEvent(
+                    this, geoIpAccessService, playerEventService, guideService, textStyles, worldMaintenanceService),
+            new OrzTPEvent(this, serverFacade),
+            new OrzTNTEvent(this, tntEventService),
+            new OrzMenuEvent(this, menuEventService),
+            new OrzServerEvent(this, serverEventService),
+            new OrzWhiteListEvent(this, whitelistEventService),
             new OrzDebugEvent(this, botInboundHandler),
-            new OrzPortalEvent(this, portalService)
+            new OrzPortalEvent(this, portalEventService)
         };
         EventBinder.bind(this, Arrays.asList(eventListeners));
     }
@@ -151,15 +180,15 @@ public final class OrzMC extends JavaPlugin implements Listener {
     private void setupCommandHandler() {
         Map<String, CommandExecutor> commandHandlers = Map.of(
                 "tpbow",
-                new OrzTPBow(textStyles),
+                new OrzTPBow(serverFacade, teleportBowService),
                 "guide",
-                new OrzGuideBook(configService, textStyles),
+                new OrzGuideBook(guideService),
                 "menu",
-                new OrzMenuCommand(textStyles),
+                new OrzMenuCommand(menuCommandService),
                 "bot",
-                new OrzBotStatus(textStyles),
+                new OrzBotStatus(botStatusService),
                 "portal",
-                new OrzPortalCommand(portalService, textStyles));
+                new OrzPortalCommand(portalCommandService));
         FileConfiguration cmdsCfg = configService.getConfig("commands");
         Map<String, CommandExecutor> enhanced = new HashMap<>();
         TypedConfigs.CommandPolicies cp = TypedConfigs.CommandPolicies.from(cmdsCfg);
@@ -172,21 +201,5 @@ public final class OrzMC extends JavaPlugin implements Listener {
             enhanced.put(name, new InterceptorExecutor(name, exec, interceptors));
         });
         CommandBinder.bind(this, enhanced);
-    }
-
-    private void optimizeWorldOnShutdownIfNeed() {
-        boolean optimizeOnShutdown = false;
-        boolean optimizeEnabled = false;
-        try {
-            optimizeOnShutdown = configService.getConfig("maintenance").getBoolean("optimize_on_shutdown");
-            optimizeEnabled = configService.getConfig("maintenance").getBoolean("optimize_enabled");
-        } catch (Exception ignored) {
-        }
-        if (optimizeEnabled && optimizeOnShutdown) {
-            long tickTimeThreshold =
-                    configService.getConfig("maintenance").getLong("optimize_tick_time_threshold", 300L);
-            worldMaintenanceService.optimizeOnShutdown(tickTimeThreshold);
-            getLogger().info("开始执行地图优化(关服阶段)");
-        }
     }
 }

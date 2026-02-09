@@ -1,5 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.portal;
 
+import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalInfo;
+import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalPort;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.PortalsWriter;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
@@ -22,7 +24,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-public class PortalService implements IPortalService {
+public class PortalService implements PortalPort {
     private final ConfigService configService;
 
     private final Map<String, String> interiorTargets = new HashMap<>();

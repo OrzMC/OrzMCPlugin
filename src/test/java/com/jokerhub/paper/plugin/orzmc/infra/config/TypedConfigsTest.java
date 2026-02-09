@@ -14,7 +14,6 @@ public class TypedConfigsTest {
         cfg.set("whitelist_pagination_delay_ticks", 7);
         cfg.set("cmd_prompt_char", "!");
         cfg.set("optimize_enabled", true);
-        cfg.set("optimize_on_shutdown", true);
         cfg.set("optimize_tick_time_threshold", 500L);
         cfg.set("backup_retention_count", 9);
         cfg.set("backup_maintenance_motd", "维护中");
@@ -26,7 +25,6 @@ public class TypedConfigsTest {
         Assertions.assertEquals(7, mc.whitelistPaginationDelayTicks());
         Assertions.assertEquals("!", mc.cmdPromptChar());
         Assertions.assertTrue(mc.optimizeEnabled());
-        Assertions.assertTrue(mc.optimizeOnShutdown());
         Assertions.assertEquals(500L, mc.optimizeTickTimeThreshold());
         Assertions.assertEquals(9, mc.backupRetentionCount());
         Assertions.assertEquals("维护中", mc.backupMaintenanceMotd());
@@ -53,5 +51,48 @@ public class TypedConfigsTest {
         Assertions.assertEquals(2000L, tc.notifyThrottleMs());
         Assertions.assertEquals(1, tc.whitelistRegions().size());
         Assertions.assertEquals(List.of("CREEPER", "FIREBALL"), tc.exemptEntities());
+    }
+
+    @Test
+    public void testBotConfigMapping() {
+        YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("cmd_prompt_char", "!");
+        cfg.set("discord_server_link", "https://discord.gg/example");
+        cfg.set("qq_group_id", "123");
+        cfg.set("qq_player_group_id", "456");
+
+        TypedConfigs.BotConfig bot = TypedConfigs.BotConfig.from(cfg);
+        Assertions.assertEquals("!", bot.cmdPromptChar());
+        Assertions.assertEquals("https://discord.gg/example", bot.discordServerLink());
+        Assertions.assertEquals("123", bot.qqGroupId());
+        Assertions.assertEquals("456", bot.qqPlayerGroupId());
+    }
+
+    @Test
+    public void testMaintenanceConfigMapping() {
+        YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("optimize_enabled", true);
+        cfg.set("optimize_tick_time_threshold", 600L);
+        cfg.set("backup_retention_count", 12);
+        cfg.set("backup_maintenance_motd", "维护中");
+
+        TypedConfigs.MaintenanceConfig maintenance = TypedConfigs.MaintenanceConfig.from(cfg);
+        Assertions.assertTrue(maintenance.optimizeEnabled());
+        Assertions.assertEquals(600L, maintenance.optimizeTickTimeThreshold());
+        Assertions.assertEquals(12, maintenance.backupRetentionCount());
+        Assertions.assertEquals("维护中", maintenance.backupMaintenanceMotd());
+    }
+
+    @Test
+    public void testWhitelistConfigMapping() {
+        YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("force_whitelist", false);
+        cfg.set("cleanup_inactive_days", 30);
+        cfg.set("pagination_delay_ticks", 9);
+
+        TypedConfigs.WhitelistConfig whitelist = TypedConfigs.WhitelistConfig.from(cfg);
+        Assertions.assertFalse(whitelist.forceWhitelist());
+        Assertions.assertEquals(30, whitelist.cleanupInactiveDays());
+        Assertions.assertEquals(9, whitelist.paginationDelayTicks());
     }
 }

@@ -1,7 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.BotInboundHandler;
+import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.server.ServerCommandEvent;
 

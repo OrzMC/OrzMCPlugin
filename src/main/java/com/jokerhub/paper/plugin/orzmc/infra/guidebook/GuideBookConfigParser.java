@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.infra.guidebook;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.*;
 import java.util.ArrayList;
@@ -9,12 +8,13 @@ import java.util.Map;
 import java.util.logging.Level;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.java.JavaPlugin;
 
 public class GuideBookConfigParser {
-    private final OrzMC plugin;
+    private final JavaPlugin plugin;
     private final ConfigService configService;
 
-    public GuideBookConfigParser(OrzMC plugin, ConfigService configService) {
+    public GuideBookConfigParser(JavaPlugin plugin, ConfigService configService) {
         this.plugin = plugin;
         this.configService = configService;
     }

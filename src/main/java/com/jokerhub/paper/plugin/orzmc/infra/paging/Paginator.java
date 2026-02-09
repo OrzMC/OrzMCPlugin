@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.paging;
 
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.scheduler.Schedulers;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +10,12 @@ public final class Paginator {
     private Paginator() {}
 
     public static void paginate(
-            Consumer<String> callback, String header, List<String> lines, int delayTicks, Integer page) {
+            ServerScheduler server,
+            Consumer<String> callback,
+            String header,
+            List<String> lines,
+            int delayTicks,
+            Integer page) {
         ArrayList<String> chunks = buildChunks(lines);
         int total = chunks.size();
         if (total == 0) {
@@ -25,6 +31,7 @@ public final class Paginator {
             for (int i = 0; i < total; i++) {
                 final int pageIndex = i;
                 Schedulers.runLater(
+                        server,
                         () -> {
                             String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
                             String body = chunks.get(pageIndex);
@@ -36,7 +43,12 @@ public final class Paginator {
     }
 
     public static void paginatePages(
-            PageConsumer callback, String header, List<String> lines, int delayTicks, Integer page) {
+            ServerScheduler server,
+            PageConsumer callback,
+            String header,
+            List<String> lines,
+            int delayTicks,
+            Integer page) {
         ArrayList<String> chunks = buildChunks(lines);
         int total = chunks.size();
         if (total == 0) {
@@ -51,6 +63,7 @@ public final class Paginator {
             for (int i = 0; i < total; i++) {
                 final int pageIndex = i;
                 Schedulers.runLater(
+                        server,
                         () -> {
                             String body = chunks.get(pageIndex);
                             callback.accept(pageIndex + 1, total, header, body);

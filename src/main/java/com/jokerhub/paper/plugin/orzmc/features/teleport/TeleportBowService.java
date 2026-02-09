@@ -1,7 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.infra.core.OrzConstants;
+import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -17,10 +17,12 @@ public final class TeleportBowService {
     public static final String name = "传送弓";
     private final OrzTextStyles styles;
     private final TeleportBowTexts texts;
+    private final NamespacedKey keyTpBow;
 
-    public TeleportBowService(OrzTextStyles styles) {
+    public TeleportBowService(ServerFacade server, OrzTextStyles styles) {
         this.styles = styles;
         this.texts = new TeleportBowTexts(styles);
+        this.keyTpBow = server.key(OrzConstants.TPBOW_KEY);
     }
 
     public TextComponent prefix() {
@@ -35,8 +37,7 @@ public final class TeleportBowService {
         java.util.ArrayList<Component> loreList = new java.util.ArrayList<>();
         loreList.add(Component.text("可以把你传送到箭落地的位置"));
         meta.lore(loreList);
-        NamespacedKey key = new NamespacedKey(OrzMC.plugin(), OrzConstants.TPBOW_KEY);
-        meta.getPersistentDataContainer().set(key, PersistentDataType.BYTE, (byte) 1);
+        meta.getPersistentDataContainer().set(keyTpBow, PersistentDataType.BYTE, (byte) 1);
         teleport_bow.setItemMeta(meta);
         ItemStack prev = player.getInventory().getItemInMainHand();
         if (prev.getType() != Material.AIR) {
@@ -48,12 +49,9 @@ public final class TeleportBowService {
         player.sendMessage(styles.success("你获得了" + name));
     }
 
-    private static final org.bukkit.NamespacedKey KEY_TPBOW =
-            new org.bukkit.NamespacedKey(OrzMC.plugin(), OrzConstants.TPBOW_KEY);
-
     public boolean isTPBowArrow(org.bukkit.entity.Projectile proj) {
         if (proj instanceof org.bukkit.entity.Arrow arrow) {
-            return arrow.getPersistentDataContainer().has(KEY_TPBOW, org.bukkit.persistence.PersistentDataType.BYTE);
+            return arrow.getPersistentDataContainer().has(keyTpBow, org.bukkit.persistence.PersistentDataType.BYTE);
         }
         return false;
     }
@@ -62,10 +60,10 @@ public final class TeleportBowService {
         org.bukkit.inventory.meta.ItemMeta meta =
                 event.getBow() != null ? event.getBow().getItemMeta() : null;
         if (meta != null
-                && meta.getPersistentDataContainer().has(KEY_TPBOW, org.bukkit.persistence.PersistentDataType.BYTE)) {
+                && meta.getPersistentDataContainer().has(keyTpBow, org.bukkit.persistence.PersistentDataType.BYTE)) {
             if (event.getProjectile() instanceof org.bukkit.entity.Arrow arrow) {
                 arrow.getPersistentDataContainer()
-                        .set(KEY_TPBOW, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+                        .set(keyTpBow, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
             }
         }
     }

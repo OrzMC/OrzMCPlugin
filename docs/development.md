@@ -9,6 +9,10 @@
 
 > 以下假设你在 MacOS 上进行插件开发
 
+## 环境要求
+
+- Java 21（CI 与 integrationTest 固定使用 Java 21）
+
 ## 使用 Gradle 构建
 
 使用 Gradle Wrapper 进行命令行构建，执行以下命令进行打包：
@@ -29,6 +33,36 @@ $ ./gradlew runServer  # 已默认添加 --nojline --nogui --online-mode=false
 - https://github.com/jpenilla/run-task/wiki
 
 ![gradle build](../images/gradle_build_guide.png)
+
+## 自动化测试
+
+运行全部测试：
+
+```bash
+$ ./gradlew test
+```
+
+配置与模板的冒烟测试会直接读取 resources 下的默认配置，确保类型化映射与模板解析可用。
+
+代码格式检查：
+
+```bash
+$ ./gradlew spotlessCheck
+```
+
+对齐 CI 的一键检查：
+
+```bash
+$ ./gradlew check
+```
+
+运行集成测试（MockBukkit 模拟 Paper 服务器）：
+
+```bash
+$ ./gradlew integrationTest
+```
+
+集成测试会在 MockBukkit 环境中执行命令与事件链路，同时对默认配置进行健康检查与模板变量校验。
 
 ## 相关链接
 

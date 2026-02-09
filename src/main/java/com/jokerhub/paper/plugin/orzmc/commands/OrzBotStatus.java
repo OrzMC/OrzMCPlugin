@@ -1,7 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.commands;
 
 import com.jokerhub.paper.plugin.orzmc.features.bot.BotStatusService;
-import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -10,8 +9,8 @@ import org.jetbrains.annotations.NotNull;
 public class OrzBotStatus implements CommandExecutor {
     private final BotStatusService statusService;
 
-    public OrzBotStatus(OrzTextStyles styles) {
-        this.statusService = new BotStatusService(styles);
+    public OrzBotStatus(BotStatusService statusService) {
+        this.statusService = statusService;
     }
 
     @Override

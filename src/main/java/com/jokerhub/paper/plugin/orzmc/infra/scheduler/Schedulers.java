@@ -1,19 +1,19 @@
 package com.jokerhub.paper.plugin.orzmc.infra.scheduler;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 
 public final class Schedulers {
     private Schedulers() {}
 
-    public static void runMain(Runnable r) {
-        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), r);
+    public static void runMain(ServerScheduler server, Runnable r) {
+        server.runSync(r);
     }
 
-    public static void runAsync(Runnable r) {
-        OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), r);
+    public static void runAsync(ServerScheduler server, Runnable r) {
+        server.runAsync(r);
     }
 
-    public static void runLater(Runnable r, long delayTicks) {
-        OrzMC.server().getScheduler().runTaskLater(OrzMC.plugin(), r, delayTicks);
+    public static void runLater(ServerScheduler server, Runnable r, long delayTicks) {
+        server.runLater(r, delayTicks);
     }
 }

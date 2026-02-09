@@ -1,9 +1,9 @@
-package com.jokerhub.paper.plugin.orzmc.infra.portal;
+package com.jokerhub.paper.plugin.orzmc.core.ports.portal;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-public interface IPortalService {
+public interface PortalPort {
     void setup();
 
     void tearDown();

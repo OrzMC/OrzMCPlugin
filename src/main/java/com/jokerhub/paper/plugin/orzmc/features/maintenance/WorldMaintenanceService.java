@@ -3,39 +3,42 @@ package com.jokerhub.paper.plugin.orzmc.features.maintenance;
 import static java.nio.file.Files.readAttributes;
 
 import com.jokerhub.orzmc.world.*;
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
+import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function1;
 import org.bukkit.entity.Player;
 
 public class WorldMaintenanceService {
-    private static volatile boolean running = false;
+    private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile long startMs = 0L;
-    private final ConfigService configService;
+    private final ServerFacade server;
+    private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
     private final Notifier notifier;
 
-    public WorldMaintenanceService(ConfigService configService, OrzTextStyles styles, Notifier notifier) {
-        this.configService = configService;
+    public WorldMaintenanceService(
+            ServerFacade server, TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier) {
+        this.server = server;
+        this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
     }
 
-    public static boolean isRunningGlobal() {
-        return running;
+    public boolean isRunning() {
+        return running.get();
     }
 
     public enum MaintenanceStage {
@@ -70,7 +73,7 @@ public class WorldMaintenanceService {
             }
             int percent = (int) Math.ceil(current * 100.0 / total);
             MaintenanceStage stage = mapProgressStage(progressEvent.getStage());
-            TypedConfigs.Templates tpls = TypedConfigs.Templates.from(configService.getConfig("templates"));
+            TypedConfigs.Templates tpls = configs.templates();
             java.util.Map<String, String> vars = new java.util.HashMap<>();
             vars.put("label", label);
             vars.put("stage", stage.name());
@@ -80,7 +83,7 @@ public class WorldMaintenanceService {
             long elapsedMs = Math.max(1, System.currentTimeMillis() - startMs);
             double ratePerSec = (current * 1000.0) / elapsedMs;
             long etaMs = (long) Math.max(0, (total - current) / Math.max(1e-6, ratePerSec) * 1000.0);
-            TypedConfigs.TemplateOptions opt = TypedConfigs.TemplateOptions.from(configService.getConfig("templates"));
+            TypedConfigs.TemplateOptions opt = configs.templateOptions();
             double ratePer = ratePerSec;
             String rateUnit = "/s";
             if ("per_min".equalsIgnoreCase(opt.rateUnit())) {
@@ -107,17 +110,13 @@ public class WorldMaintenanceService {
             vars.put("current", String.valueOf(current));
             vars.put("total", String.valueOf(total));
             String eventKey = "备份".equals(label) ? "maintenance_backup_stage" : "maintenance_optimize_stage";
-            MessageEnvelope env =
-                    TemplateService.renderEvent(eventKey, configService.getConfig("templates"), tpls, vars);
-            OrzMC.logger().info(env.message());
+            MessageEnvelope env = configs.renderEvent(eventKey, vars);
+            server.logger().info(env.message());
             if (progressEvent.getStage() == ProgressStage.Done) {
                 long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
                 String doneKey = "备份".equals(label) ? "maintenance_backup_done" : "maintenance_optimize_done";
-                MessageEnvelope done = TemplateService.renderEvent(
-                        doneKey,
-                        configService.getConfig("templates"),
-                        tpls,
-                        java.util.Map.of("label", label, "duration_ms", String.valueOf(durationMs)));
+                MessageEnvelope done = configs.renderEvent(
+                        doneKey, java.util.Map.of("label", label, "duration_ms", String.valueOf(durationMs)));
                 callback.accept(done.message());
             }
             return Unit.INSTANCE;
@@ -126,15 +125,11 @@ public class WorldMaintenanceService {
 
     private Function1<Object, Unit> errorHandler(String label, Consumer<String> callback) {
         return obj -> {
-            OrzMC.logger().warning(String.valueOf(obj));
-            TypedConfigs.Templates tpls = TypedConfigs.Templates.from(configService.getConfig("templates"));
+            server.logger().warning(String.valueOf(obj));
             long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
             String errKey = "备份".equals(label) ? "maintenance_backup_error" : "maintenance_optimize_error";
-            MessageEnvelope err = TemplateService.renderEvent(
-                    errKey,
-                    configService.getConfig("templates"),
-                    tpls,
-                    java.util.Map.of("label", label, "duration_ms", String.valueOf(durationMs)));
+            MessageEnvelope err = configs.renderEvent(
+                    errKey, java.util.Map.of("label", label, "duration_ms", String.valueOf(durationMs)));
             callback.accept(err.message());
             notifier.event(errKey, err);
             callback.accept("地图" + label + "失败");
@@ -199,22 +194,21 @@ public class WorldMaintenanceService {
     }
 
     public void runExclusive(String kickText, Runnable asyncWork, Runnable finallyWork) {
-        if (running) {
+        if (!running.compareAndSet(false, true)) {
             return;
         }
-        OrzMC.server().getScheduler().runTask(OrzMC.plugin(), () -> {
-            running = true;
+        server.runSync(() -> {
             startMs = System.currentTimeMillis();
-            for (Player p : OrzMC.server().getOnlinePlayers()) {
+            for (Player p : server.server().getOnlinePlayers()) {
                 p.kick(styles.warn(kickText));
             }
-            OrzUtil.executeConsoleCmd(() -> {}, "save-off", "save-all flush");
-            OrzMC.server().getScheduler().runTaskAsynchronously(OrzMC.plugin(), () -> {
+            OrzUtil.executeConsoleCmd(server, () -> {}, "save-off", "save-all flush");
+            server.runAsync(() -> {
                 try {
                     asyncWork.run();
                 } finally {
-                    OrzUtil.executeConsoleCmd(() -> {}, "save-on");
-                    running = false;
+                    OrzUtil.executeConsoleCmd(server, () -> {}, "save-on");
+                    running.set(false);
                     if (finallyWork != null) {
                         finallyWork.run();
                     }
@@ -227,10 +221,10 @@ public class WorldMaintenanceService {
         runExclusive(
                 "服务器地图备份中，请稍后再尝试登录。",
                 () -> {
-                    File worldContainerDir = OrzMC.server().getWorldContainer();
-                    File worldBackupDir = new File(OrzMC.plugin().getDataFolder(), "backup");
+                    File worldContainerDir = server.server().getWorldContainer();
+                    File worldBackupDir = new File(server.plugin().getDataFolder(), "backup");
                     if (!worldBackupDir.exists() && !worldBackupDir.mkdirs()) {
-                        OrzMC.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
+                        server.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
                         callback.accept("地图备份失败");
                         return;
                     }
@@ -240,7 +234,7 @@ public class WorldMaintenanceService {
                     Path output = Path.of(worldBackupTempDir.getAbsolutePath());
                     callback.accept("地图备份目录：" + worldBackupDir);
                     runOptimizerJob(true, input, output, tickTimeThreshold, callback);
-                    pruneOldZips(worldBackupDir, retainCount);
+                    pruneOldZipsWithLogger(worldBackupDir, retainCount, server.logger());
                 },
                 null);
     }
@@ -249,20 +243,18 @@ public class WorldMaintenanceService {
         runExclusive(
                 "服务器地图优化中，请稍后再尝试登录。",
                 () -> {
-                    File worldContainerDir = OrzMC.server().getWorldContainer();
+                    File worldContainerDir = server.server().getWorldContainer();
                     Path input = Path.of(worldContainerDir.getAbsolutePath());
                     runOptimizerJob(false, input, null, tickTimeThreshold, callback);
                 },
                 null);
     }
 
-    public void optimizeOnShutdown(long tickTimeThreshold) {
-        File worldContainerDir = OrzMC.server().getWorldContainer();
-        Path input = Path.of(worldContainerDir.getAbsolutePath());
-        runOptimizerJob(false, input, null, tickTimeThreshold, s -> {});
+    public static void pruneOldZips(File backupDir, int retain) {
+        pruneOldZipsWithLogger(backupDir, retain, null);
     }
 
-    public static void pruneOldZips(File backupDir, int retain) {
+    private static void pruneOldZipsWithLogger(File backupDir, int retain, java.util.logging.Logger logger) {
         if (retain <= 0) retain = 10;
         File[] zips = backupDir.listFiles(f -> f.isFile() && f.getName().endsWith(".zip"));
         if (zips == null || zips.length <= retain) return;
@@ -279,11 +271,13 @@ public class WorldMaintenanceService {
         for (int i = retain; i < zips.length; i++) {
             try {
                 boolean deleted = zips[i].delete();
-                if (!deleted) {
-                    OrzMC.logger().warning("删除旧备份失败: " + zips[i].getName());
+                if (!deleted && logger != null) {
+                    logger.warning("删除旧备份失败: " + zips[i].getName());
                 }
             } catch (Exception e) {
-                OrzMC.logger().severe("清理旧备份异常: " + e);
+                if (logger != null) {
+                    logger.severe("清理旧备份异常: " + e);
+                }
             }
         }
     }

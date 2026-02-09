@@ -1,6 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.ws;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -9,7 +9,8 @@ import java.util.concurrent.*;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
-public class RobustWebSocketClient {
+public class RobustWebSocketClient implements WsClient {
+    private final ServerLogger server;
     private final ThrottledLogger throttledLogger;
     private final URI serverUri;
     private final ScheduledExecutorService executor;
@@ -18,6 +19,8 @@ public class RobustWebSocketClient {
     private final long maxRetryInterval;
     private final int jitterPercent;
     private final long stableResetMs;
+    private final boolean logMessageEnabled;
+    private final long logMessageThrottleMs;
     private final Map<String, String> httpHeaders;
     private final WebSocketEventListener listener;
     private WebSocketClient client;
@@ -26,8 +29,13 @@ public class RobustWebSocketClient {
     private int retryCount = 0;
     private volatile ScheduledFuture<?> heartbeatFuture;
     private final String heartbeatPayload;
+    private volatile long lastMessageTs = 0L;
+    private volatile long lastHeartbeatSentTs = 0L;
+    private volatile int missedHeartbeatAcks = 0;
+    private final int heartbeatMissThreshold = 2;
 
     public RobustWebSocketClient(
+            ServerLogger server,
             String url,
             ThrottledLogger throttledLogger,
             int maxRetries,
@@ -35,10 +43,13 @@ public class RobustWebSocketClient {
             long maxRetryInterval,
             int jitterPercent,
             long stableResetMs,
+            boolean logMessageEnabled,
+            long logMessageThrottleMs,
             Map<String, String> httpHeaders,
             String heartbeatPayload,
             WebSocketEventListener listener)
             throws URISyntaxException {
+        this.server = server;
         this.serverUri = new URI(url);
         this.throttledLogger = throttledLogger;
         this.maxRetries = maxRetries;
@@ -46,6 +57,8 @@ public class RobustWebSocketClient {
         this.maxRetryInterval = maxRetryInterval;
         this.jitterPercent = jitterPercent;
         this.stableResetMs = stableResetMs;
+        this.logMessageEnabled = logMessageEnabled;
+        this.logMessageThrottleMs = logMessageThrottleMs;
         this.httpHeaders = httpHeaders;
         this.listener = listener;
         this.executor = Executors.newScheduledThreadPool(3);
@@ -57,8 +70,9 @@ public class RobustWebSocketClient {
         client = new WebSocketClient(serverUri, httpHeaders) {
             @Override
             public void onOpen(ServerHandshake handshakeData) {
-                OrzMC.logger().info("WebSocket连接建立");
+                server.logger().info("WebSocket连接建立");
                 startHeartbeat();
+                lastMessageTs = System.currentTimeMillis();
                 executor.schedule(
                         () -> {
                             if (client != null && client.isOpen()) {
@@ -72,13 +86,20 @@ public class RobustWebSocketClient {
 
             @Override
             public void onMessage(String message) {
-                OrzMC.debugInfo("接收到消息: " + message);
+                if (logMessageEnabled) {
+                    String clipped = message == null ? "" : message;
+                    if (clipped.length() > 256) {
+                        clipped = clipped.substring(0, 256) + "...";
+                    }
+                    throttledLogger.info("ws-message", "接收到消息: " + clipped, logMessageThrottleMs);
+                }
                 handleMessage(message);
+                lastMessageTs = System.currentTimeMillis();
             }
 
             @Override
             public void onClose(int code, String reason, boolean remote) {
-                OrzMC.logger().info("WebSocket连接关闭: " + "code: " + code + ", reason: " + reason);
+                server.logger().info("WebSocket连接关闭: " + "code: " + code + ", reason: " + reason);
                 stopHeartbeat();
                 if (listener != null) listener.onClose(code, reason, remote);
                 if (shouldReconnect) {
@@ -88,7 +109,7 @@ public class RobustWebSocketClient {
 
             @Override
             public void onError(Exception ex) {
-                OrzMC.logger().severe("WebSocket错误: " + ex.getMessage());
+                server.logger().severe("WebSocket错误: " + ex.getMessage());
                 stopHeartbeat();
                 if (listener != null) listener.onError(ex);
                 if (!isOpen() && shouldReconnect) {
@@ -101,10 +122,10 @@ public class RobustWebSocketClient {
 
     public void connect() {
         try {
-            OrzMC.logger().info("尝试连接WebSocket...");
+            server.logger().info("尝试连接WebSocket...");
             client.connect();
         } catch (Exception e) {
-            OrzMC.logger().severe("连接失败: " + e.getMessage());
+            server.logger().severe("连接失败: " + e.getMessage());
             scheduleReconnect();
         }
     }
@@ -121,7 +142,13 @@ public class RobustWebSocketClient {
             return;
         }
         if (retryCount >= maxRetries) {
-            OrzMC.logger().severe("达到最大重试次数，停止重连");
+            server.logger().severe("达到最大重试次数，停止重连");
+            if (listener != null) {
+                try {
+                    listener.onError(new RuntimeException("WS reconnect exhausted"));
+                } catch (Exception ignored) {
+                }
+            }
             return;
         }
         retryCount++;
@@ -139,7 +166,7 @@ public class RobustWebSocketClient {
                                 connect();
                             }
                         } catch (Exception e) {
-                            OrzMC.logger().severe("重连失败: " + e.getMessage());
+                            server.logger().severe("重连失败: " + e.getMessage());
                             isReconnecting = false;
                             scheduleReconnect();
                         }
@@ -166,7 +193,7 @@ public class RobustWebSocketClient {
                 client.send(message);
             }
         } catch (Exception e) {
-            OrzMC.logger().warning("WebSocket发送失败: " + e.getMessage());
+            server.logger().warning("WebSocket发送失败: " + e.getMessage());
         }
     }
 
@@ -175,13 +202,31 @@ public class RobustWebSocketClient {
             return;
         }
         stopHeartbeat();
-        heartbeatFuture = executor.scheduleAtFixedRate(
-                () -> {
-                    send(heartbeatPayload);
-                },
-                0,
-                30000,
-                TimeUnit.MILLISECONDS);
+        heartbeatFuture = executor.scheduleAtFixedRate(this::doHeartbeatTick, 0, 30000, TimeUnit.MILLISECONDS);
+    }
+
+    protected void doHeartbeatTick() {
+        try {
+            if (client != null && client.isOpen()) {
+                long prevSent = lastHeartbeatSentTs;
+                long now = System.currentTimeMillis();
+                if (prevSent > 0 && lastMessageTs < prevSent) {
+                    missedHeartbeatAcks++;
+                } else {
+                    missedHeartbeatAcks = 0;
+                }
+                if (missedHeartbeatAcks >= heartbeatMissThreshold) {
+                    try {
+                        client.close();
+                    } catch (Exception ignored) {
+                    }
+                    return;
+                }
+                client.send(heartbeatPayload);
+                lastHeartbeatSentTs = now;
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private void stopHeartbeat() {

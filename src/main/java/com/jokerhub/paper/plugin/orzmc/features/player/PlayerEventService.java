@@ -1,33 +1,37 @@
 package com.jokerhub.paper.plugin.orzmc.features.player;
 
-import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
+import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.ExceptionFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
 import java.util.ArrayList;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 
 public final class PlayerEventService {
-    private final ConfigService configService;
+    private final ServerFacade server;
+    private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
     private final Notifier notifier;
     private final ThrottledNotifier throttledNotifier;
 
     public PlayerEventService(
-            ConfigService configService, OrzTextStyles styles, Notifier notifier, ThrottledNotifier throttledNotifier) {
-        this.configService = configService;
+            ServerFacade server,
+            TypedConfigProvider configs,
+            OrzTextStyles styles,
+            Notifier notifier,
+            ThrottledNotifier throttledNotifier) {
+        this.server = server;
+        this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
         this.throttledNotifier = throttledNotifier;
@@ -50,9 +54,7 @@ public final class PlayerEventService {
         vars.put("country_code", decision.countryCode());
         vars.put("allow_list", String.join(",", decision.allowList()));
         vars.put("address_info", decision.rawJson());
-        FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-        MessageEnvelope envelope = TemplateService.renderEvent("geoip_block", templatesCfg, tpls, vars);
+        MessageEnvelope envelope = configs.renderEvent("geoip_block", vars);
         notifier.event("geoip_block", envelope);
         event.disallow(
                 AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
@@ -62,13 +64,9 @@ public final class PlayerEventService {
 
     public void handleGeoIpException(Throwable e) {
         String msgText = "IP地址解析服务异常: " + e.toString();
-        OrzMC.logger().warning(msgText);
-        FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-        MessageEnvelope envelope = TemplateService.renderEvent(
+        server.logger().warning(msgText);
+        MessageEnvelope envelope = configs.renderEvent(
                 "exception_alert",
-                templatesCfg,
-                tpls,
                 java.util.Map.of("message", msgText, "stack_summary", ExceptionFormatter.summarize(e)));
         notifier.event("exception_alert", envelope);
     }
@@ -79,14 +77,14 @@ public final class PlayerEventService {
             return;
         }
         ArrayList<Player> onlinePlayers = new ArrayList<>();
-        Object[] objects = OrzMC.server().getOnlinePlayers().toArray();
+        Object[] objects = server.server().getOnlinePlayers().toArray();
         for (Object obj : objects) {
             if (obj instanceof Player p) {
                 onlinePlayers.add(p);
             }
         }
         int onlinePlayerCount = onlinePlayers.size();
-        int maxPlayerCount = OrzMC.server().getMaxPlayers();
+        int maxPlayerCount = server.server().getMaxPlayers();
         String playerName = PlayerDisplayNames.format(player);
         boolean minusCurrent = (state == PlayerState.QUIT || state == PlayerState.KICK);
         int displayOnlineCount = onlinePlayerCount - (minusCurrent ? 1 : 0);
@@ -97,11 +95,11 @@ public final class PlayerEventService {
         }
         org.bukkit.Location loc = player.getLocation();
         String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = TypedConfigs.TemplateOptions.from(configService.getConfig("templates"));
+        TypedConfigs.TemplateOptions opt = configs.templateOptions();
         String worldAlias = TemplateResolvers.worldAlias(
                 world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
         double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = Math.max(0, configService.getConfig("templates").getInt("templates.coord.precision", 2));
+        int precision = Math.max(0, opt.coordPrecision());
         String fmt = "%." + precision + "f";
         String xUnit = String.format(fmt, loc.getBlockX() * scale);
         String yUnit = String.format(fmt, loc.getBlockY() * scale);
@@ -135,22 +133,19 @@ public final class PlayerEventService {
         vars.put("online_count", String.valueOf(displayOnlineCount));
         vars.put("max_count", String.valueOf(maxPlayerCount));
         vars.put("online_list", listBuilder.toString().trim());
-        FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
         String eventKey =
                 switch (state) {
                     case JOIN -> "player_join";
                     case QUIT -> "player_quit";
                     case KICK -> "player_kick";
                 };
-        MessageEnvelope envelope = TemplateService.renderEvent(eventKey, templatesCfg, tpls, vars);
+        MessageEnvelope envelope = configs.renderEvent(eventKey, vars);
         notifier.event(eventKey, envelope);
-        OrzMC.logger().info(envelope.message());
+        server.logger().info(envelope.message());
         if (displayOnlineCount == 0) {
-            Component motd = OrzMC.server().motd();
+            Component motd = server.server().motd();
             String motdText = PlainTextComponentSerializer.plainText().serialize(motd);
-            MessageEnvelope hint = TemplateService.renderEvent(
-                    "server_maintenance_hint", templatesCfg, tpls, java.util.Map.of("motd", motdText));
+            MessageEnvelope hint = configs.renderEvent("server_maintenance_hint", java.util.Map.of("motd", motdText));
             notifier.event("server_maintenance_hint", hint);
         }
     }

@@ -3,12 +3,11 @@ package com.jokerhub.paper.plugin.orzmc.features.whitelist;
 import com.destroystokyo.paper.event.profile.ProfileWhitelistVerifyEvent;
 import com.destroystokyo.paper.event.server.WhitelistToggleEvent;
 import com.destroystokyo.paper.profile.PlayerProfile;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
 import java.util.List;
 import java.util.Map;
 import net.kyori.adventure.text.Component;
@@ -16,16 +15,14 @@ import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
 
 public final class WhitelistEventService {
-    private final ConfigService configService;
+    private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
     private final Notifier notifier;
 
-    public WhitelistEventService(ConfigService configService, OrzTextStyles styles, Notifier notifier) {
-        this.configService = configService;
+    public WhitelistEventService(TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier) {
+        this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
     }
@@ -39,8 +36,8 @@ public final class WhitelistEventService {
             return;
         }
         TextComponent.Builder kickMsgBuilder = Component.text();
-        FileConfiguration botConfig = configService.getConfig("bot");
-        String qqPlayerGroupId = botConfig.getString("qq_player_group_id", botConfig.getString("qq_group_id"));
+        TypedConfigs.BotConfig botConfig = configs.bot();
+        String qqPlayerGroupId = botConfig.qqPlayerGroupId();
         if (qqPlayerGroupId != null && !qqPlayerGroupId.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
@@ -54,7 +51,7 @@ public final class WhitelistEventService {
                     .append(Component.space())
                     .append(styles.warn("，联系管理员添加白名单"));
         }
-        String discordServerLink = botConfig.getString("discord_server_link");
+        String discordServerLink = botConfig.discordServerLink();
         if (discordServerLink != null && !discordServerLink.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
@@ -66,7 +63,7 @@ public final class WhitelistEventService {
                             .decorate(TextDecoration.UNDERLINED)
                             .clickEvent(ClickEvent.openUrl(discordServerLink)));
         }
-        TextComponent whitelistKickMessage = buildKickMessage(configService.getConfig("whitelist"));
+        TextComponent whitelistKickMessage = buildKickMessage(configs.whitelistKickMessage());
         if (!whitelistKickMessage.equals(Component.empty())) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
@@ -78,42 +75,29 @@ public final class WhitelistEventService {
         }
 
         String playChatGroupMsg = player.getName() + " 尝试加入服务器，被白名单拦截";
-        FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-        MessageEnvelope env =
-                TemplateService.renderEvent("whitelist_block", templatesCfg, tpls, Map.of("message", playChatGroupMsg));
+        MessageEnvelope env = configs.renderEvent("whitelist_block", Map.of("message", playChatGroupMsg));
         notifier.event("whitelist_block", env);
     }
 
     public void handleToggle(WhitelistToggleEvent event) {
         if (isEnableForceWhitelist() && !event.isEnabled()) {
             String msg = "‼️服务器白名单异常关闭";
-            FileConfiguration templatesCfg = configService.getConfig("templates");
-            TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-            MessageEnvelope env =
-                    TemplateService.renderEvent("whitelist_toggle_alert", templatesCfg, tpls, Map.of("message", msg));
+            MessageEnvelope env = configs.renderEvent("whitelist_toggle_alert", Map.of("message", msg));
             notifier.event("whitelist_toggle_alert", env);
         }
     }
 
     private boolean isEnableForceWhitelist() {
         try {
-            return configService.getConfig("whitelist").getBoolean("force_whitelist");
+            return configs.whitelist().forceWhitelist();
         } catch (Exception e) {
             return true;
         }
     }
 
-    private TextComponent buildKickMessage(FileConfiguration whitelistConfig) {
-        if (whitelistConfig == null) {
-            return Component.empty();
-        }
-        ConfigurationSection section = whitelistConfig.getConfigurationSection("kick_message");
-        if (section == null) {
-            return Component.empty();
-        }
-        String title = section.getString("title", "");
-        List<Map<?, ?>> ups = section.getMapList("ups");
+    private TextComponent buildKickMessage(TypedConfigs.WhitelistKickMessage kickMessage) {
+        String title = kickMessage.title();
+        List<TypedConfigs.WhitelistKickMessage.WhitelistKickMessageItem> ups = kickMessage.ups();
         TextComponent.Builder builder = Component.text();
         boolean hasContent = false;
         if (!title.isEmpty()) {
@@ -122,12 +106,9 @@ public final class WhitelistEventService {
         }
         if (!ups.isEmpty()) {
             int limit = Math.min(5, ups.size());
-            for (Map<?, ?> raw : ups.subList(0, limit)) {
-                if (raw == null) {
-                    continue;
-                }
-                String name = raw.get("name") == null ? "" : String.valueOf(raw.get("name"));
-                String platform = raw.get("platform") == null ? "" : String.valueOf(raw.get("platform"));
+            for (TypedConfigs.WhitelistKickMessage.WhitelistKickMessageItem item : ups.subList(0, limit)) {
+                String name = item.name();
+                String platform = item.platform();
                 if (name.isEmpty() && platform.isEmpty()) {
                     continue;
                 }
@@ -140,8 +121,7 @@ public final class WhitelistEventService {
                         platformComponent = Component.text(platform)
                                 .append(Component.text(":").append(Component.space()));
                     }
-                    builder.append(Component.newline())
-                            .append(platformComponent)
+                    builder.append(platformComponent)
                             .append(Component.text(name)
                                     .decorate(TextDecoration.BOLD)
                                     .color(styles.colorPlayer()));

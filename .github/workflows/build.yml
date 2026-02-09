@@ -24,6 +24,10 @@ jobs:
           java-version: 21
       - name: spotless check
         run: ./gradlew spotlessCheck --stacktrace
+      - name: unit tests
+        run: ./gradlew test --stacktrace
+      - name: integration tests
+        run: ./gradlew integrationTest --stacktrace
       - name: build shadowJar
         run: ./gradlew clean build --stacktrace
       - name: upload jar to github

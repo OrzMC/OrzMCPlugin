@@ -1,14 +1,13 @@
 package com.jokerhub.paper.plugin.orzmc.features.tnt;
 
-import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import java.util.EnumSet;
 import java.util.List;
@@ -21,7 +20,6 @@ import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.BlockExplodeEvent;
@@ -33,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class TntEventService {
-    private final ConfigService configService;
+    private final TypedConfigProvider configs;
     private final TntPolicy policy;
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
     private final EnumSet<EntityType> explosionExemptTypes = EnumSet.noneOf(EntityType.class);
@@ -42,15 +40,14 @@ public final class TntEventService {
     private final ThrottledNotifier throttledNotifier;
 
     public TntEventService(
-            ConfigService configService, OrzTextStyles styles, Notifier notifier, ThrottledNotifier throttledNotifier) {
-        this.configService = configService;
+            TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier, ThrottledNotifier throttledNotifier) {
+        this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
         this.throttledNotifier = throttledNotifier;
-        FileConfiguration tntConfig = configService.getConfig("tnt");
-        TypedConfigs.TntConfig typed = TypedConfigs.TntConfig.from(tntConfig);
+        TypedConfigs.TntConfig typed = configs.tnt();
         this.policy = new TntPolicy(typed);
-        initExplosionExemptTypes(tntConfig);
+        initExplosionExemptTypes(typed);
     }
 
     public void onTNTPrime(@NotNull TNTPrimeEvent event) {
@@ -147,12 +144,11 @@ public final class TntEventService {
         java.util.Map<String, String> vars = new java.util.HashMap<>();
         org.bukkit.Location loc = block.getLocation();
         String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = TypedConfigs.TemplateOptions.from(configService.getConfig("templates"));
+        TypedConfigs.TemplateOptions opt = configs.templateOptions();
         String worldAlias = TemplateResolvers.worldAlias(
                 world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
         double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = configService.getConfig("templates").getInt("templates.coord.precision", 2);
-        if (precision < 0) precision = 2;
+        int precision = Math.max(0, opt.coordPrecision());
         String fmt = "%." + precision + "f";
         String xUnit = String.format(fmt, loc.getBlockX() * scale);
         String yUnit = String.format(fmt, loc.getBlockY() * scale);
@@ -168,9 +164,7 @@ public final class TntEventService {
         vars.put("msg", message);
         vars.put("actor", "");
         vars.put("block_type", block.getType().name());
-        FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-        MessageEnvelope envelope = TemplateService.renderEvent("tnt_alert", templatesCfg, tpls, vars);
+        MessageEnvelope envelope = configs.renderEvent("tnt_alert", vars);
         TextComponent msg = Component.text()
                 .append(styles.tntPrefix())
                 .append(Component.text(envelope.message()))
@@ -182,7 +176,7 @@ public final class TntEventService {
     private void notifyExplosionEvent(Location location, String message) {
         java.util.Map<String, String> vars = new java.util.HashMap<>();
         String world = location.getWorld() != null ? location.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = TypedConfigs.TemplateOptions.from(configService.getConfig("templates"));
+        TypedConfigs.TemplateOptions opt = configs.templateOptions();
         String worldAlias = TemplateResolvers.worldAlias(
                 world,
                 location.getWorld() != null
@@ -190,8 +184,7 @@ public final class TntEventService {
                         : "",
                 opt);
         double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = configService.getConfig("templates").getInt("templates.coord.precision", 2);
-        if (precision < 0) precision = 2;
+        int precision = Math.max(0, opt.coordPrecision());
         String fmt = "%." + precision + "f";
         String xUnit = String.format(fmt, location.getBlockX() * scale);
         String yUnit = String.format(fmt, location.getBlockY() * scale);
@@ -207,9 +200,7 @@ public final class TntEventService {
         vars.put("msg", message);
         vars.put("actor", "");
         vars.put("block_type", "EXPLOSION");
-        FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-        MessageEnvelope envelope = TemplateService.renderEvent("tnt_alert", templatesCfg, tpls, vars);
+        MessageEnvelope envelope = configs.renderEvent("tnt_alert", vars);
         TextComponent msg = Component.text()
                 .append(styles.explosionPrefix())
                 .append(Component.text(envelope.message()))
@@ -231,12 +222,11 @@ public final class TntEventService {
         java.util.Map<String, String> vars = new java.util.HashMap<>();
         org.bukkit.Location loc = block.getLocation();
         String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = TypedConfigs.TemplateOptions.from(configService.getConfig("templates"));
+        TypedConfigs.TemplateOptions opt = configs.templateOptions();
         String worldAlias = TemplateResolvers.worldAlias(
                 world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
         double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = configService.getConfig("templates").getInt("templates.coord.precision", 2);
-        if (precision < 0) precision = 2;
+        int precision = Math.max(0, opt.coordPrecision());
         String fmt = "%." + precision + "f";
         String xUnit = String.format(fmt, loc.getBlockX() * scale);
         String yUnit = String.format(fmt, loc.getBlockY() * scale);
@@ -252,18 +242,15 @@ public final class TntEventService {
         vars.put("msg", "放置TNT");
         vars.put("actor", PlayerDisplayNames.format(player));
         vars.put("block_type", "TNT");
-        FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
-        MessageEnvelope envelope = TemplateService.renderEvent("tnt_alert", templatesCfg, tpls, vars);
+        MessageEnvelope envelope = configs.renderEvent("tnt_alert", vars);
         notifier.event("tnt_alert", envelope);
     }
 
     private @NotNull TextComponent playerInfo(@Nullable Player player) {
         if (player != null) {
             return styles.playerName(player.getName());
-        } else {
-            return styles.unknownLabel();
         }
+        return styles.unknownLabel();
     }
 
     private @NotNull TextComponent locationComponent(@NotNull Block block) {
@@ -293,18 +280,21 @@ public final class TntEventService {
         }
     }
 
-    private void initExplosionExemptTypes(@NotNull FileConfiguration tntConfig) {
-        List<String> names = tntConfig.getStringList("exempt_entities");
+    private void initExplosionExemptTypes(@NotNull TypedConfigs.TntConfig tntConfig) {
+        List<String> names = tntConfig.exemptEntities();
         if (names.isEmpty()) {
             names = List.of(
                     "CREEPER",
                     "FIREBALL",
+                    "BREEZE",
                     "WIND_CHARGE",
                     "BREEZE_WIND_CHARGE",
                     "ENDER_DRAGON",
                     "END_CRYSTAL",
                     "WITHER",
-                    "WITHER_SKULL");
+                    "WITHER_SKULL",
+                    "SLIME",
+                    "STRAY");
         }
         names.forEach(this::addExemptTypeIfAvailable);
     }

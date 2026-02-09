@@ -1,6 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.notify;
 
-import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import net.kyori.adventure.text.Component;
 
 public interface NotifierSink {

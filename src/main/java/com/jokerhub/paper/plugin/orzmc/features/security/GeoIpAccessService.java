@@ -1,7 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.security;
 
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.net.GeoIpClient;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -10,20 +9,19 @@ public final class GeoIpAccessService {
     public record Decision(boolean allowed, String countryCode, List<String> allowList, String rawJson) {}
 
     private final GeoIpClient client;
-    private final ConfigService configService;
+    private final TypedConfigProvider configs;
 
-    public GeoIpAccessService(ConfigService configService) {
-        this(new GeoIpClient(), configService);
+    public GeoIpAccessService(TypedConfigProvider configs) {
+        this(new GeoIpClient(), configs);
     }
 
-    GeoIpAccessService(GeoIpClient client, ConfigService configService) {
+    GeoIpAccessService(GeoIpClient client, TypedConfigProvider configs) {
         this.client = client;
-        this.configService = configService;
+        this.configs = configs;
     }
 
     public CompletableFuture<Decision> decide(String ipAddress) {
-        List<String> allow = TypedConfigs.IpWhitelist.from(configService.getConfig("ip_whitelist"))
-                .allowCountryCode();
+        List<String> allow = configs.ipWhitelist().allowCountryCode();
         if (allow.isEmpty()) {
             return CompletableFuture.completedFuture(new Decision(true, "", allow, ""));
         }
