@@ -121,7 +121,8 @@ public final class WhitelistEventService {
             hasContent = true;
         }
         if (!ups.isEmpty()) {
-            for (Map<?, ?> raw : ups.subList(0, 5)) {
+            int limit = Math.min(5, ups.size());
+            for (Map<?, ?> raw : ups.subList(0, limit)) {
                 if (raw == null) {
                     continue;
                 }
