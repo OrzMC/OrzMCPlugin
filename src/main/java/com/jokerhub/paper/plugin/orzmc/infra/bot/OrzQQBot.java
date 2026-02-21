@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
@@ -188,6 +189,7 @@ public class OrzQQBot extends OrzBaseBot {
             long wsMaxMs = botConfig.getLong("ws_max_delay_ms");
             int wsJitterPercent = botConfig.getInt("ws_jitter_percent");
             long wsStableResetMs = botConfig.getLong("ws_stable_reset_ms");
+            String bizHeartBeatPayload = new Gson().toJson(Map.of("action", "get_status"));
             webSocketClient =
                     new RobustWebSocketClient(
                             wsServer,
@@ -198,14 +200,11 @@ public class OrzQQBot extends OrzBaseBot {
                             wsJitterPercent <= 0 ? 10 : wsJitterPercent,
                             wsStableResetMs <= 0 ? 20000 : wsStableResetMs,
                             this.websocketServerHeaderMap(),
+                            bizHeartBeatPayload,
                             new com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketEventListener() {
                                 @Override
                                 public void onOpen() {
                                     HealthRegistry.setWsConnected("qq", true);
-                                    String initMsg = botConfig.getString("ws_init_message");
-                                    if (initMsg != null && !initMsg.isEmpty()) {
-                                        webSocketClient.send(initMsg);
-                                    }
                                 }
 
                                 @Override
