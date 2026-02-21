@@ -92,7 +92,7 @@ public class RobustWebSocketClient {
                 }
             }
         };
-        client.setConnectionLostTimeout(0);
+        client.setConnectionLostTimeout(30);
     }
 
     public void connect() {
