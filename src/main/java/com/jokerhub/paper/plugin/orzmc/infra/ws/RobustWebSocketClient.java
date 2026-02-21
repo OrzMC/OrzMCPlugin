@@ -5,10 +5,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
@@ -27,6 +24,8 @@ public class RobustWebSocketClient {
     private volatile boolean shouldReconnect = true;
     private volatile boolean isReconnecting = false;
     private int retryCount = 0;
+    private volatile ScheduledFuture<?> heartbeatFuture;
+    private final String heartbeatPayload;
 
     public RobustWebSocketClient(
             String url,
@@ -37,6 +36,7 @@ public class RobustWebSocketClient {
             int jitterPercent,
             long stableResetMs,
             Map<String, String> httpHeaders,
+            String heartbeatPayload,
             WebSocketEventListener listener)
             throws URISyntaxException {
         this.serverUri = new URI(url);
@@ -49,6 +49,7 @@ public class RobustWebSocketClient {
         this.httpHeaders = httpHeaders;
         this.listener = listener;
         this.executor = Executors.newScheduledThreadPool(3);
+        this.heartbeatPayload = heartbeatPayload;
         createClient();
     }
 
@@ -57,6 +58,7 @@ public class RobustWebSocketClient {
             @Override
             public void onOpen(ServerHandshake handshakeData) {
                 OrzMC.logger().info("WebSocket连接建立");
+                startHeartbeat();
                 executor.schedule(
                         () -> {
                             if (client != null && client.isOpen()) {
@@ -76,7 +78,8 @@ public class RobustWebSocketClient {
 
             @Override
             public void onClose(int code, String reason, boolean remote) {
-                OrzMC.logger().info("WebSocket连接关闭: " + reason);
+                OrzMC.logger().info("WebSocket连接关闭: " + "code: " + code + ", reason: " + reason);
+                stopHeartbeat();
                 if (listener != null) listener.onClose(code, reason, remote);
                 if (shouldReconnect) {
                     scheduleReconnect();
@@ -86,13 +89,14 @@ public class RobustWebSocketClient {
             @Override
             public void onError(Exception ex) {
                 OrzMC.logger().severe("WebSocket错误: " + ex.getMessage());
+                stopHeartbeat();
                 if (listener != null) listener.onError(ex);
                 if (!isOpen() && shouldReconnect) {
                     scheduleReconnect();
                 }
             }
         };
-        client.setConnectionLostTimeout(30);
+        client.setConnectionLostTimeout(this.disableHeartbeat() ? 30 : 0);
     }
 
     public void connect() {
@@ -107,6 +111,7 @@ public class RobustWebSocketClient {
 
     public void disconnect() {
         shouldReconnect = false;
+        stopHeartbeat();
         client.close();
         executor.shutdown();
     }
@@ -163,5 +168,36 @@ public class RobustWebSocketClient {
         } catch (Exception e) {
             OrzMC.logger().warning("WebSocket发送失败: " + e.getMessage());
         }
+    }
+
+    private void startHeartbeat() {
+        if (this.disableHeartbeat()) {
+            return;
+        }
+        stopHeartbeat();
+        heartbeatFuture = executor.scheduleAtFixedRate(
+                () -> {
+                    send(heartbeatPayload);
+                },
+                0,
+                30000,
+                TimeUnit.MILLISECONDS);
+    }
+
+    private void stopHeartbeat() {
+        if (this.disableHeartbeat()) {
+            return;
+        }
+        if (heartbeatFuture != null) {
+            try {
+                heartbeatFuture.cancel(true);
+            } catch (Exception ignored) {
+            }
+            heartbeatFuture = null;
+        }
+    }
+
+    private boolean disableHeartbeat() {
+        return heartbeatPayload == null || heartbeatPayload.isEmpty();
     }
 }
