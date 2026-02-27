@@ -36,6 +36,10 @@ repositories {
         name = "sonatype"
         url = uri("https://oss.sonatype.org/content/groups/public/")
     }
+    // 中国大陆备用镜像站：阿里云
+    maven("https://maven.aliyun.com/repository/central")
+    maven("https://maven.aliyun.com/repository/public")
+    // 官方Maven中心仓
     mavenCentral()
     
 }
