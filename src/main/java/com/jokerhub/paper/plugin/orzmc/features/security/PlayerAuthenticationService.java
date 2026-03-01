@@ -1,5 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc.features.security;
 
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
 import org.bukkit.entity.Player;
 
 /**
@@ -7,6 +10,53 @@ import org.bukkit.entity.Player;
  * 统一处理玩家登录状态检查，支持内置在线状态检查和第三方插件认证检查
  */
 public final class PlayerAuthenticationService {
+    private static final List<String> LOGINSECURITY_PACKAGES =
+            Arrays.asList("com.github.games647.loginsecurity", "com.lenis0012.bukkit.loginsecurity");
+
+    // 缓存反射结果
+    private Class<?> loginSecurityClass;
+    private Method getInstanceMethod;
+    private Method getSessionManagerMethod;
+    private Class<?> sessionManagerClass;
+    private Method getPlayerSessionMethod;
+    private Class<?> playerSessionClass;
+    private Method isLoggedInMethod;
+    private Method isAuthenticatedMethod;
+
+    public PlayerAuthenticationService() {
+        initializeReflection();
+    }
+
+    /**
+     * 初始化反射缓存
+     */
+    private void initializeReflection() {
+        for (String pkg : LOGINSECURITY_PACKAGES) {
+            try {
+                // 尝试第一种API方式 (isAuthenticated)
+                try {
+                    loginSecurityClass = Class.forName(pkg + ".LoginSecurity");
+                    getInstanceMethod = loginSecurityClass.getMethod("getInstance");
+                    getSessionManagerMethod = loginSecurityClass.getMethod("getSessionManager");
+                    sessionManagerClass = Class.forName(pkg + ".session.SessionManager");
+                    isAuthenticatedMethod = sessionManagerClass.getMethod("isAuthenticated", Player.class);
+                    return;
+                } catch (NoSuchMethodException e) {
+                    // 尝试第二种API方式 (getPlayerSession + isLoggedIn)
+                    loginSecurityClass = Class.forName(pkg + ".LoginSecurity");
+                    getInstanceMethod = loginSecurityClass.getMethod("getInstance");
+                    getSessionManagerMethod = loginSecurityClass.getMethod("getSessionManager");
+                    sessionManagerClass = Class.forName(pkg + ".session.SessionManager");
+                    getPlayerSessionMethod = sessionManagerClass.getMethod("getPlayerSession", Player.class);
+                    playerSessionClass = Class.forName(pkg + ".session.PlayerSession");
+                    isLoggedInMethod = playerSessionClass.getMethod("isLoggedIn");
+                    return;
+                }
+            } catch (Exception e) {
+                // 尝试下一个包名
+            }
+        }
+    }
 
     /**
      * 检查玩家是否已完全认证
@@ -22,8 +72,6 @@ public final class PlayerAuthenticationService {
 
         // 检查LoginSecurity登录状态
         return isLoginSecurityAuthenticated(player);
-
-        // 可以在这里添加其他认证检查逻辑
     }
 
     /**
@@ -34,23 +82,27 @@ public final class PlayerAuthenticationService {
      */
     private boolean isLoginSecurityAuthenticated(Player player) {
         try {
-            // 尝试通过反射获取LoginSecurity的API实例
-            String loginsecurityGroup = "com.lenis0012.bukkit";
-            Class<?> loginSecurityClass = Class.forName(loginsecurityGroup + ".loginsecurity.LoginSecurity");
-            Object loginSecurityInstance =
-                    loginSecurityClass.getMethod("getInstance").invoke(null);
+            if (loginSecurityClass == null) {
+                // LoginSecurity未安装，默认认为已认证
+                return true;
+            }
 
-            // 检查玩家是否已登录
-            Class<?> sessionManagerClass = Class.forName(loginsecurityGroup + ".loginsecurity.session.SessionManager");
-            Object sessionManager =
-                    loginSecurityClass.getMethod("getSessionManager").invoke(loginSecurityInstance);
+            Object loginSecurityInstance = getInstanceMethod.invoke(null);
+            Object sessionManager = getSessionManagerMethod.invoke(loginSecurityInstance);
 
-            // 检查会话是否已认证
-            return (boolean) sessionManagerClass
-                    .getMethod("isAuthenticated", Player.class)
-                    .invoke(sessionManager, player);
+            if (isAuthenticatedMethod != null) {
+                // 使用isAuthenticated方法
+                return (boolean) isAuthenticatedMethod.invoke(sessionManager, player);
+            } else if (getPlayerSessionMethod != null && isLoggedInMethod != null) {
+                // 使用getPlayerSession + isLoggedIn方法
+                Object playerSession = getPlayerSessionMethod.invoke(sessionManager, player);
+                return (boolean) isLoggedInMethod.invoke(playerSession);
+            }
+
+            // 无法获取认证状态，默认认为已认证
+            return true;
         } catch (Exception e) {
-            // LoginSecurity未安装或API调用失败，默认认为已认证
+            // 认证检查失败，默认认为已认证
             return true;
         }
     }

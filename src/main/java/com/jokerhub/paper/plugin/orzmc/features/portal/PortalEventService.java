@@ -22,6 +22,8 @@ public final class PortalEventService {
         Player player = event.getPlayer();
         // 检查玩家是否已认证
         if (!authService.isAuthenticated(player)) {
+            // 未登录时，不进行传送
+            event.setCancelled(true);
             return;
         }
 
@@ -33,7 +35,6 @@ public final class PortalEventService {
         String host = parts[0];
         String port = parts.length > 1 ? parts[1] : "25565";
         String cmd = "transfer " + host + " " + port + " " + player.getName();
-        server.executeConsoleCommands(() -> {
-        }, cmd);
+        server.executeConsoleCommands(() -> {}, cmd);
     }
 }
