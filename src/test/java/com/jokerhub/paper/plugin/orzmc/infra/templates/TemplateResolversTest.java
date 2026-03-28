@@ -1,8 +1,11 @@
 package com.jokerhub.paper.plugin.orzmc.infra.templates;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
-import java.util.*;
-import org.jetbrains.annotations.NotNull;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -62,7 +65,7 @@ public class TemplateResolversTest {
         Assertions.assertEquals("玩家", TemplateResolvers.roleAlias(false, opt));
     }
 
-    private static TypedConfigs.@NotNull TemplateOptions getTemplateOptions(
+    private static TypedConfigs.TemplateOptions getTemplateOptions(
             Map<String, String> stage, Map<String, String> world, Map<String, String> role) {
         Map<String, Map<String, String>> roleAliasLocalized = new HashMap<>();
         Map<String, String> roleGroups = new HashMap<>();
@@ -92,7 +95,7 @@ public class TemplateResolversTest {
         Assertions.assertEquals("玩家", TemplateResolvers.roleGroupAliasFromPermissions(none, opt));
     }
 
-    private static TypedConfigs.@NotNull TemplateOptions getTemplateOptions(
+    private static TypedConfigs.TemplateOptions getTemplateOptions(
             Map<String, String> stage, Map<String, String> world) {
         Map<String, String> role = new HashMap<>();
         Map<String, Map<String, String>> roleAliasLocalized = new HashMap<>();

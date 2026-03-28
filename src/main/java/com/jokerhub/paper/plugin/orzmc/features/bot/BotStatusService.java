@@ -31,7 +31,10 @@ public final class BotStatusService {
                 .append(Component.space())
                 .append(discord.apiReady ? styles.success("apiReady") : styles.error("apiNotReady"))
                 .append(Component.space())
-                .append(discord.lastError == null ? styles.success("") : styles.error("larkError" + discord.lastError))
+                .append(
+                        discord.lastError == null
+                                ? styles.success("")
+                                : styles.error("lastError: " + discord.lastError))
                 .append(Component.newline())
                 .append(styles.warn("LarkBot:"))
                 .append(Component.space())

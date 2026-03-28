@@ -6,10 +6,12 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.bukkit.configuration.file.FileConfiguration;
 
 class OrzBotManager implements BotMessageService {
     private final ServerAccess server;
@@ -22,6 +24,7 @@ class OrzBotManager implements BotMessageService {
     private final BotRouter router;
     private final AtomicBoolean setupRequested = new AtomicBoolean(false);
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean qqReconnectInFlight = new AtomicBoolean(false);
 
     public OrzBotManager(
             ServerAccess server,
@@ -82,6 +85,43 @@ class OrzBotManager implements BotMessageService {
         }
         throttledLogger.info("bot", envelope.message());
         router.route(envelope);
+    }
+
+    @Override
+    public void tryReconnectQqWsIfDisconnected() {
+        FileConfiguration botCfg = configService.getConfig("bot");
+        boolean qqEnabled = botCfg.getBoolean("enable_qq_bot");
+        String wsServer = botCfg.getString("qq_bot_ws_server");
+        if (!qqEnabled || wsServer == null || wsServer.isEmpty()) {
+            return;
+        }
+        if (HealthRegistry.get("qq").wsConnected) {
+            return;
+        }
+        if (!qqReconnectInFlight.compareAndSet(false, true)) {
+            return;
+        }
+        scheduler.runAsync(() -> {
+            try {
+                startIfRequested();
+                HealthRegistry.Status qq = HealthRegistry.get("qq");
+                if (qq.wsConnected) {
+                    return;
+                }
+                for (BotAdapter adapter : adapters) {
+                    if (adapter instanceof OrzQQBot qqBot) {
+                        if (!HealthRegistry.get("qq").wsConnected) {
+                            qqBot.setupWebSocketClient();
+                        }
+                        return;
+                    }
+                }
+            } catch (Exception e) {
+                HealthRegistry.setLastError("qq", e.toString());
+            } finally {
+                qqReconnectInFlight.set(false);
+            }
+        });
     }
 
     @Override
