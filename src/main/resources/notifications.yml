@@ -1,0 +1,34 @@
+# ==================================================
+#             通知事件配置
+# ==================================================
+notifications:
+  tnt_alert:
+    private:
+      enabled: true
+      admin_only: false
+    public:
+      enabled: true
+    channel_key: safety-alerts
+  player_join:
+    public:
+      enabled: true
+  player_quit:
+    public:
+      enabled: true
+  player_kick:
+    public:
+      enabled: true
+  geoip_block:
+    private:
+      enabled: true
+      admin_only: true
+  exception_alert:
+    private:
+      enabled: true
+      admin_only: true
+  server_maintenance_hint:
+    private:
+      enabled: true
+      admin_only: true
+    public:
+      enabled: false

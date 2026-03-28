@@ -12,10 +12,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: checkout
-        uses: actions/checkout@v3
-      - name: gradle
+        uses: actions/checkout@v4
+      - name: gradle wrapper validation
         uses: gradle/actions/wrapper-validation@v4
       - name: jdk
         uses: actions/setup-java@v4
@@ -24,9 +26,13 @@ jobs:
           java-version: 21
       - name: spotless check
         run: ./gradlew spotlessCheck --stacktrace
+      - name: unit tests
+        run: ./gradlew test --stacktrace
+      - name: integration tests
+        run: ./gradlew integrationTest --stacktrace
       - name: build shadowJar
         run: ./gradlew clean build --stacktrace
-      - name: upload jar to github
+      - name: upload jar artifact
         id: artifact-upload-step
         uses: actions/upload-artifact@v4
         with:

@@ -1,10 +1,15 @@
 # ==================================================
+#               命令提示字符（聊天命令前缀）
+# ==================================================
+cmd_prompt_char: '$'
+
+# ==================================================
 #               机器人消息发送服务配置
 # ==================================================
 # 是否启用 QQBot 机器人功能：true/false
 enable_qq_bot: false
 # QQBot 所在QQ群号：group_id
-qq_group_id: '1057199014'
+qq_group_id: '1082305302'
 # QQBot 所在QQ群管理员帐号
 qq_admin_id: '1092760538'
 # QQBot 机器人 HTTP/HTTPS 服务端地址，OneBot 11协议
@@ -55,7 +60,19 @@ ws_base_retry_ms: 5000
 ws_max_delay_ms: 60000
 ws_jitter_percent: 10
 ws_stable_reset_ms: 20000
-ws_init_message: ''
+ws_message_log_enabled: false
+ws_message_log_throttle_ms: 60000
 
 # 日志限流周期
 log_throttle_ms: 5000
+
+# ==================================================
+#               频道映射示例
+# ==================================================
+channels:
+  ops-alert:
+    qq: '987654321'
+    discord: '123456789012345678'
+    lark: 'https://open.lark/xyz'
+  safety-alerts:
+    discord: '234567890123456789'

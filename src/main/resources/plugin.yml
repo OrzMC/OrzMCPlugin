@@ -19,6 +19,9 @@ commands:
   menu:
     description: 菜单展示
     usage: "/menu"
-  botstatus:
+  bot:
     description: 查看机器人健康状态
-    usage: "/botstatus"
+    usage: "/bot"
+  portal:
+    description: 创建或移除传送门
+    usage: "/portal <host> [port] 或 /portal remove <host> [port]"

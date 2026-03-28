@@ -1,0 +1,14 @@
+# ==================================================
+#             文案配色
+# ==================================================
+styles:
+  colors:
+    success: "#00FF00"
+    info: "#55AAFF"
+    warn: "#FFAA00"
+    error: "#FF5555"
+    coord: "#55FF55"
+    player: "#FF5555"
+    unknown: "#AAAAAA"
+    tnt_alert: "#FF5555"
+    explosion_alert: "#FFAA00"

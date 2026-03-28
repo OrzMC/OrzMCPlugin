@@ -1,0 +1,115 @@
+# ==================================================
+#             配置消息模板
+# ==================================================
+templates:
+  format:
+    tnt_alert: CODE_BLOCK
+    exception_alert: CODE_BLOCK
+    geoip_block: CODE_BLOCK
+    command_output: CODE_BLOCK
+    command_help: CODE_BLOCK
+    command_players: CODE_BLOCK
+    command_whitelist_page: CODE_BLOCK
+    command_whitelist_cleanup: CODE_BLOCK
+    command_whitelist_add_result: PLAIN
+    command_whitelist_remove_result: PLAIN
+    command_admin_required: PLAIN
+    command_usage: PLAIN
+    command_backup: PLAIN
+    command_optimize: PLAIN
+    command_optimize_disabled: PLAIN
+    server_load: PLAIN
+    server_stop: PLAIN
+    server_maintenance_hint: PLAIN
+    whitelist_block: PLAIN
+    whitelist_toggle_alert: PLAIN
+    maintenance_backup_stage: CODE_BLOCK
+    maintenance_backup_done: CODE_BLOCK
+    maintenance_backup_error: CODE_BLOCK
+    maintenance_optimize_stage: CODE_BLOCK
+    maintenance_optimize_done: CODE_BLOCK
+    maintenance_optimize_error: CODE_BLOCK
+  command_output: "{message}"
+  command_help: "{help}"
+  command_players: "------当前在线({online_count}/{max_count})------\n{online_list}"
+  command_whitelist_header: "------当前白名单玩家({count})------"
+  command_whitelist_page: "{header}\n第{page}/{total}页\n{body}"
+  command_whitelist_cleanup: "------白名单清理------\n{removed_list}"
+  command_whitelist_add_result: "{message}"
+  command_whitelist_remove_result: "{message}"
+  command_admin_required: "{message}"
+  command_usage: "{message}"
+  command_backup: "{message}"
+  command_optimize: "{message}"
+  command_optimize_disabled: "{message}"
+  server_load: "{message}"
+  server_stop: "{message}"
+  server_maintenance_hint: "{motd}"
+  whitelist_block: "{message}"
+  whitelist_toggle_alert: "{message}"
+  player_join: "{name} 上线\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  player_quit: "{name} 下线\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  player_kick: "{name} 被踢\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  exception_alert: "异常: {message}\n摘要: {stack_summary}"
+  geoip_block: "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}"
+  tnt_alert: "{msg}\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n触发:{actor} 方块:{block_type}"
+  maintenance_backup_stage: "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}"
+  maintenance_backup_done: "地图{label} 完成 用时:{duration_ms}ms"
+  maintenance_backup_error: "地图{label} 失败 用时:{duration_ms}ms"
+  maintenance_optimize_stage: "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}"
+  maintenance_optimize_done: "地图{label} 完成 用时:{duration_ms}ms"
+  maintenance_optimize_error: "地图{label} 失败 用时:{duration_ms}ms"
+  stage_cn:
+    Region: 区域
+    Chunk: 区块
+    File: 文件
+    Done: 完成
+  progress_units:
+    rate: per_min
+    eta: sec
+  world_alias:
+    world: 主世界
+    world_nether: 下界
+    world_the_end: 末地
+  role_alias:
+    admin: 管理员
+    member: 玩家
+  locale: zh-CN
+  i18n:
+    role_alias:
+      zh-CN:
+        admin: 管理员
+        member: 玩家
+      en-US:
+        admin: Admin
+        member: Member
+    command:
+      en-US:
+        command_output: "{message}"
+        command_help: "{help}"
+        command_players: "------Online ({online_count}/{max_count})------\n{online_list}"
+        command_whitelist_header: "------Whitelist ({count})------"
+        command_whitelist_page: "{header}\nPage {page}/{total}\n{body}"
+        command_whitelist_cleanup: "------Whitelist Cleanup------\n{removed_list}"
+        command_whitelist_add_result: "{message}"
+        command_whitelist_remove_result: "{message}"
+        command_admin_required: "{message}"
+        command_usage: "{message}"
+        command_backup: "{message}"
+        command_optimize: "{message}"
+        command_optimize_disabled: "{message}"
+    world_alias:
+      zh-CN:
+        world: 主世界
+        world_nether: 下界
+        world_the_end: 末地
+    stage_alias:
+      zh-CN:
+        Region: 区域
+        Chunk: 区块
+        File: 文件
+        Done: 完成
+  coord:
+    scale: 1.0
+    precision: 2
+    unit_label: block

@@ -1,0 +1,7 @@
+# ==================================================
+#             地图优化/备份
+# ==================================================
+optimize_enabled: false
+optimize_tick_time_threshold: 300
+backup_retention_count: 5
+backup_maintenance_motd: "服务器维护中，稍后再试"
