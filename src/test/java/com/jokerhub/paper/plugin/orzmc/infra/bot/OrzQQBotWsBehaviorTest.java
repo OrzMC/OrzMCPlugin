@@ -8,11 +8,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
-import com.jokerhub.paper.plugin.orzmc.infra.ws.MessageHandler;
 import com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketClientFactory;
-import com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketEventListener;
-import com.jokerhub.paper.plugin.orzmc.infra.ws.WsClient;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -22,12 +18,12 @@ import org.mockito.Mockito;
 
 public class OrzQQBotWsBehaviorTest {
     static class CapturingFactory implements WebSocketClientFactory {
-        WebSocketEventListener listener;
-        MessageHandler handler;
+        com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketEventListener listener;
+        com.jokerhub.paper.plugin.orzmc.infra.ws.MessageHandler handler;
         final FakeWs ws = new FakeWs(this);
 
         @Override
-        public WsClient create(
+        public com.jokerhub.paper.plugin.orzmc.infra.ws.WsClient create(
                 ServerLogger server,
                 String url,
                 ThrottledLogger throttledLogger,
@@ -38,17 +34,17 @@ public class OrzQQBotWsBehaviorTest {
                 long stableResetMs,
                 boolean logMessageEnabled,
                 long logMessageThrottleMs,
-                Map<String, String> httpHeaders,
+                java.util.Map<String, String> httpHeaders,
                 String heartbeatPayload,
-                WebSocketEventListener listener,
-                MessageHandler handler) {
+                com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketEventListener listener,
+                com.jokerhub.paper.plugin.orzmc.infra.ws.MessageHandler handler) {
             this.listener = listener;
             this.handler = handler;
             return ws;
         }
     }
 
-    static class FakeWs implements WsClient {
+    static class FakeWs implements com.jokerhub.paper.plugin.orzmc.infra.ws.WsClient {
         private final CapturingFactory factory;
         boolean connected;
 

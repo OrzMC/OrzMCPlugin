@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
@@ -25,7 +26,7 @@ public class RobustWebSocketClient implements WsClient {
     private final WebSocketEventListener listener;
     private WebSocketClient client;
     private volatile boolean shouldReconnect = true;
-    private volatile boolean isReconnecting = false;
+    private final AtomicBoolean reconnecting = new AtomicBoolean(false);
     private int retryCount = 0;
     private volatile ScheduledFuture<?> heartbeatFuture;
     private final String heartbeatPayload;
@@ -138,39 +139,53 @@ public class RobustWebSocketClient implements WsClient {
     }
 
     private void scheduleReconnect() {
-        if (isReconnecting) {
+        if (!reconnecting.compareAndSet(false, true)) {
             return;
         }
         if (retryCount >= maxRetries) {
             server.logger().severe("达到最大重试次数，停止重连");
+            shouldReconnect = false;
+            stopHeartbeat();
+            try {
+                if (client != null) {
+                    client.close();
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                executor.shutdown();
+            } catch (Exception ignored) {
+            }
             if (listener != null) {
                 try {
                     listener.onError(new RuntimeException("WS reconnect exhausted"));
                 } catch (Exception ignored) {
                 }
             }
+            reconnecting.set(false);
             return;
         }
         retryCount++;
         long delay = calculateBackoffDelay();
         throttledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
-        isReconnecting = true;
         executor.schedule(
                 () -> {
-                    if (shouldReconnect) {
-                        try {
-                            if (client != null) {
-                                client.reconnect();
-                            } else {
-                                createClient();
-                                connect();
-                            }
-                        } catch (Exception e) {
-                            server.logger().severe("重连失败: " + e.getMessage());
-                            isReconnecting = false;
-                            scheduleReconnect();
+                    if (!shouldReconnect) {
+                        reconnecting.set(false);
+                        return;
+                    }
+                    try {
+                        if (client != null) {
+                            client.reconnect();
+                        } else {
+                            createClient();
+                            connect();
                         }
-                        isReconnecting = false;
+                        reconnecting.set(false);
+                    } catch (Exception e) {
+                        server.logger().severe("重连失败: " + e.getMessage());
+                        reconnecting.set(false);
+                        scheduleReconnect();
                     }
                 },
                 delay,

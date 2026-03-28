@@ -186,7 +186,7 @@ public class OrzMC extends JavaPlugin implements Listener {
                 "menu",
                 new OrzMenuCommand(menuCommandService),
                 "bot",
-                new OrzBotStatus(botStatusService),
+                new OrzBotStatus(botStatusService, botMessageService),
                 "portal",
                 new OrzPortalCommand(portalCommandService));
         FileConfiguration cmdsCfg = configService.getConfig("commands");
@@ -195,7 +195,9 @@ public class OrzMC extends JavaPlugin implements Listener {
         commandHandlers.forEach((name, exec) -> {
             TypedConfigs.CommandPolicy p = cp.policies().getOrDefault(name, new TypedConfigs.CommandPolicy(0, false));
             List<CommandInterceptor> interceptors = new ArrayList<>();
-            interceptors.add(new PlayerOnlyInterceptor());
+            if (!"bot".equals(name)) {
+                interceptors.add(new PlayerOnlyInterceptor());
+            }
             interceptors.add(new AdminOnlyInterceptor(p.adminOnly()));
             interceptors.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
             enhanced.put(name, new InterceptorExecutor(name, exec, interceptors));
