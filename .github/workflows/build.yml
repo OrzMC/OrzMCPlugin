@@ -9,6 +9,10 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -47,6 +51,7 @@ jobs:
           echo
           echo you can download this artifact to test
       - name: post build summary to pull_request
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          path: summary.md       
+          path: summary.md
