@@ -59,6 +59,12 @@ public final class BotCommandService implements BotInboundHandler {
         String removeWhitelistCmd = cmdString(OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST, promptChar);
         String backupCmd = cmdString(OrzUserCmd.BACKUP, promptChar);
         String optimizeCmd = cmdString(OrzUserCmd.OPTIMIZE_WORLD, promptChar);
+        String executeConsoleCmd = cmdString(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, promptChar);
+
+        if (matchesCommandPrefix(message, executeConsoleCmd)) {
+            executeConsoleCommand(message, executeConsoleCmd, isAdmin, callback);
+            return;
+        }
 
         if (cmdString.equals(showPlayersCmd)) {
             onlinePlayersInfo(callback);
@@ -99,6 +105,13 @@ public final class BotCommandService implements BotInboundHandler {
 
     private String cmdString(OrzUserCmd cmd, String promptChar) {
         return promptChar + cmd.cmdName();
+    }
+
+    private boolean matchesCommandPrefix(String message, String fullCmd) {
+        return message.equals(fullCmd)
+                || (message.startsWith(fullCmd)
+                        && message.length() > fullCmd.length()
+                        && Character.isWhitespace(message.charAt(fullCmd.length())));
     }
 
     private void onlinePlayersInfo(Consumer<MessageEnvelope> callback) {
@@ -200,6 +213,32 @@ public final class BotCommandService implements BotInboundHandler {
         if (maintenanceService != null) {
             maintenanceService.optimize(tickTimeThreshold, msg -> emitOptimize(callback, msg));
         }
+    }
+
+    private void executeConsoleCommand(
+            String rawMessage, String executeConsoleCmd, boolean isAdmin, Consumer<MessageEnvelope> callback) {
+        if (!guardAdminCommand(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, isAdmin, callback)) {
+            return;
+        }
+        String consoleCmd = extractCommandArgs(rawMessage, executeConsoleCmd);
+        if (consoleCmd.isBlank()) {
+            emitUsage(
+                    callback,
+                    feedbackService.usageTip(
+                            OrzUserCmd.EXECUTE_CONSOLE_COMMAND, botConfig().cmdPromptChar()));
+            return;
+        }
+        server.runSync(() -> {
+            ServerFacade.ConsoleCommandResult result = server.executeConsoleCommand(consoleCmd);
+            emit(callback, "command_output", Map.of("message", result.message()), result.message());
+        });
+    }
+
+    private String extractCommandArgs(String rawMessage, String fullCmd) {
+        if (rawMessage.length() <= fullCmd.length()) {
+            return "";
+        }
+        return rawMessage.substring(fullCmd.length()).trim();
     }
 
     private void emitWhitelistCleanup(
