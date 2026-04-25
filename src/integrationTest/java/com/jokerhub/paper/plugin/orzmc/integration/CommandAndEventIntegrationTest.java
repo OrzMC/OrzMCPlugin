@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.integration;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.features.bot.BotStatusService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
@@ -8,6 +9,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.notify.NotifierSink;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -59,6 +61,20 @@ public class CommandAndEventIntegrationTest {
                 sink.keys.stream().anyMatch(k -> k.equals("player_join")), "player_join event not captured");
         Assertions.assertTrue(
                 sink.envelopes.stream().anyMatch(e -> e != null && e.message() != null), "missing event message");
+    }
+
+    @Test
+    public void testAdminBotCommandCanExecuteConsoleCommand() {
+        BotInboundHandler handler = (BotInboundHandler) getField(plugin, "botInboundHandler");
+        AtomicReference<MessageEnvelope> got = new AtomicReference<>();
+
+        Assertions.assertDoesNotThrow(() -> handler.handleMessage("$e bot", true, got::set));
+        server.getScheduler().performOneTick();
+
+        MessageEnvelope envelope = got.get();
+        Assertions.assertNotNull(envelope, "missing bot command response");
+        Assertions.assertEquals(MessageEnvelope.Format.CODE_BLOCK, envelope.format());
+        Assertions.assertTrue(envelope.message().contains("QQBot:"), envelope.message());
     }
 
     private Object getField(Object target, String name) {

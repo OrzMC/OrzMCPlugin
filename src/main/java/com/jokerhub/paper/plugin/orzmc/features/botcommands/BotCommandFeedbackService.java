@@ -11,6 +11,8 @@ public final class BotCommandFeedbackService {
                 + "\n"
                 + OrzUserCmd.OPTIMIZE_WORLD.display(promptChar)
                 + "\n"
+                + OrzUserCmd.EXECUTE_CONSOLE_COMMAND.display(promptChar)
+                + "\n"
                 + "👨🏻‍💻 通用命令: \n"
                 + OrzUserCmd.SHOW_PLAYERS.display(promptChar)
                 + "\n"
@@ -41,6 +43,17 @@ public final class BotCommandFeedbackService {
                     + cmd.cmdName()
                     + " "
                     + "[玩家1],[玩家2],[玩家3]\n";
+            case EXECUTE_CONSOLE_COMMAND -> "用法：\n"
+                    + promptChar
+                    + cmd.cmdName()
+                    + " "
+                    + "[控制台命令]\n"
+                    + promptChar
+                    + cmd.cmdName()
+                    + " plugins\n"
+                    + promptChar
+                    + cmd.cmdName()
+                    + " say hello";
             default -> "";
         };
     }

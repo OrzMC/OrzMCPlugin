@@ -7,7 +7,8 @@ public enum OrzUserCmd {
     ADD_PLAYER_TO_WHITELIST("a", "添加玩家到白名单", true),
     REMOVE_PLAYER_FROM_WHITELIST("r", "从白名单移除玩家", true),
     BACKUP("b", "地图备份", true),
-    OPTIMIZE_WORLD("o", "优化地图大小", true);
+    OPTIMIZE_WORLD("o", "优化地图大小", true),
+    EXECUTE_CONSOLE_COMMAND("e", "执行控制台命令", true);
 
     private final String cmdName;
     private final String description;
