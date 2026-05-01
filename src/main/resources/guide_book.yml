@@ -16,11 +16,11 @@ content:
         bold: true
   - link:
       content: '服务器主页'
-      url: 'https://minecraft.jokerhub.cn'
+      url: 'https://orzmc.jokerhub.cn'
       hover_text: '点击前往主页'
   - link:
       content: '玩家手册'
-      url: 'https://minecraft.jokerhub.cn/user/'
+      url: 'https://orzmc.jokerhub.cn/user/'
       hover_text: '点击查看玩家手册'
   - link:
       content: MC插件使用百科书
