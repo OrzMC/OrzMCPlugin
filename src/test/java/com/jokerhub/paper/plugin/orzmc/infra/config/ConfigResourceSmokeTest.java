@@ -18,6 +18,14 @@ public class ConfigResourceSmokeTest {
     @Test
     public void testMainConfigResource() throws Exception {
         YamlConfiguration cfg = load("config.yml");
+        // Test each section
+        Assertions.assertNotNull(TypedConfigs.WhitelistConfig.from(cfg.getConfigurationSection("whitelist")));
+        Assertions.assertNotNull(TypedConfigs.WhitelistKickMessage.from(cfg.getConfigurationSection("whitelist")));
+        Assertions.assertNotNull(TypedConfigs.MaintenanceConfig.from(cfg.getConfigurationSection("maintenance")));
+        Assertions.assertNotNull(TypedConfigs.TntConfig.from(cfg.getConfigurationSection("tnt")));
+        Assertions.assertNotNull(TypedConfigs.IpWhitelist.from(cfg.getConfigurationSection("geoip")));
+        Assertions.assertNotNull(TypedConfigs.CommandPolicies.from(cfg.getConfigurationSection("command_policies")));
+        // Legacy MainConfig reads flat keys — verify it at least doesn't crash
         Assertions.assertNotNull(TypedConfigs.MainConfig.from(cfg));
     }
 
@@ -28,58 +36,17 @@ public class ConfigResourceSmokeTest {
     }
 
     @Test
-    public void testMaintenanceConfigResource() throws Exception {
-        YamlConfiguration cfg = load("maintenance.yml");
-        Assertions.assertNotNull(TypedConfigs.MaintenanceConfig.from(cfg));
-    }
-
-    @Test
-    public void testWhitelistConfigResource() throws Exception {
-        YamlConfiguration cfg = load("whitelist.yml");
-        Assertions.assertNotNull(TypedConfigs.WhitelistConfig.from(cfg));
-        Assertions.assertNotNull(TypedConfigs.WhitelistKickMessage.from(cfg));
-    }
-
-    @Test
     public void testTemplatesResource() throws Exception {
         YamlConfiguration cfg = load("templates.yml");
         Assertions.assertNotNull(TypedConfigs.TemplateOptions.from(cfg));
         Assertions.assertNotNull(TypedConfigs.Templates.from(cfg));
-    }
-
-    @Test
-    public void testTntResource() throws Exception {
-        YamlConfiguration cfg = load("tnt.yml");
-        Assertions.assertNotNull(TypedConfigs.TntConfig.from(cfg));
-    }
-
-    @Test
-    public void testIpWhitelistResource() throws Exception {
-        YamlConfiguration cfg = load("ip_whitelist.yml");
-        Assertions.assertNotNull(TypedConfigs.IpWhitelist.from(cfg));
-    }
-
-    @Test
-    public void testNotificationsResource() throws Exception {
-        YamlConfiguration cfg = load("notifications.yml");
-        Assertions.assertNotNull(TypedConfigs.Notifications.from(cfg));
-    }
-
-    @Test
-    public void testStylesResource() throws Exception {
-        YamlConfiguration cfg = load("styles.yml");
-        Assertions.assertNotNull(TypedConfigs.Styles.from(cfg));
+        Assertions.assertNotNull(TypedConfigs.Notifications.from(cfg.getConfigurationSection("notifications")));
+        Assertions.assertNotNull(TypedConfigs.Styles.from(cfg.getConfigurationSection("styles")));
     }
 
     @Test
     public void testPortalsResource() throws Exception {
         YamlConfiguration cfg = load("portals.yml");
         Assertions.assertNotNull(TypedConfigs.Portals.from(cfg));
-    }
-
-    @Test
-    public void testCommandsResource() throws Exception {
-        YamlConfiguration cfg = load("commands.yml");
-        Assertions.assertNotNull(TypedConfigs.CommandPolicies.from(cfg));
     }
 }

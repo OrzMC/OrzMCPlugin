@@ -5,6 +5,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
 import java.util.Map;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public final class DefaultTypedConfigProvider implements TypedConfigProvider {
@@ -21,17 +22,20 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
 
     @Override
     public TypedConfigs.MaintenanceConfig maintenance() {
-        return TypedConfigs.MaintenanceConfig.from(configService.getConfig("maintenance"));
+        ConfigurationSection section = sectionOrLegacy("config", "maintenance", "maintenance.yml");
+        return TypedConfigs.MaintenanceConfig.from(section);
     }
 
     @Override
     public TypedConfigs.WhitelistConfig whitelist() {
-        return TypedConfigs.WhitelistConfig.from(configService.getConfig("whitelist"));
+        ConfigurationSection section = sectionOrLegacy("config", "whitelist", "whitelist.yml");
+        return TypedConfigs.WhitelistConfig.from(section);
     }
 
     @Override
     public TypedConfigs.WhitelistKickMessage whitelistKickMessage() {
-        return TypedConfigs.WhitelistKickMessage.from(configService.getConfig("whitelist"));
+        ConfigurationSection section = sectionOrLegacy("config", "whitelist", "whitelist.yml");
+        return TypedConfigs.WhitelistKickMessage.from(section);
     }
 
     @Override
@@ -46,12 +50,14 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
 
     @Override
     public TypedConfigs.TntConfig tnt() {
-        return TypedConfigs.TntConfig.from(configService.getConfig("tnt"));
+        ConfigurationSection section = sectionOrLegacy("config", "tnt", "tnt.yml");
+        return TypedConfigs.TntConfig.from(section);
     }
 
     @Override
     public TypedConfigs.IpWhitelist ipWhitelist() {
-        return TypedConfigs.IpWhitelist.from(configService.getConfig("ip_whitelist"));
+        ConfigurationSection section = sectionOrLegacy("config", "geoip", "ip_whitelist.yml");
+        return TypedConfigs.IpWhitelist.from(section);
     }
 
     @Override
@@ -71,5 +77,14 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
     @Override
     public String resolveTemplate(String templateKey, String fallback) {
         return TemplateRenderer.resolveTemplate(templateKey, configService.getConfig("templates"), fallback);
+    }
+
+    /**
+     * Read a ConfigurationSection from the merged config, with fallback to old individual file.
+     * Delegates to ConfigManager for the actual lookup logic.
+     * Returns null if neither path has data.
+     */
+    private ConfigurationSection sectionOrLegacy(String mergedConfigName, String section, String legacyFileName) {
+        return configService.sectionOrLegacy(mergedConfigName, section, legacyFileName);
     }
 }

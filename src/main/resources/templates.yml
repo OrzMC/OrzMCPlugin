@@ -1,6 +1,8 @@
 # ==================================================
 #             配置消息模板
 # ==================================================
+config-version: 2
+
 templates:
   format:
     tnt_alert: CODE_BLOCK
@@ -113,3 +115,53 @@ templates:
     scale: 1.0
     precision: 2
     unit_label: block
+
+# ==================================================
+#             通知事件配置
+# ==================================================
+notifications:
+  tnt_alert:
+    private:
+      enabled: true
+      admin_only: false
+    public:
+      enabled: true
+    channel_key: safety-alerts
+  player_join:
+    public:
+      enabled: true
+  player_quit:
+    public:
+      enabled: true
+  player_kick:
+    public:
+      enabled: true
+  geoip_block:
+    private:
+      enabled: true
+      admin_only: true
+  exception_alert:
+    private:
+      enabled: true
+      admin_only: true
+  server_maintenance_hint:
+    private:
+      enabled: true
+      admin_only: true
+    public:
+      enabled: false
+
+# ==================================================
+#             文案配色
+# ==================================================
+styles:
+  colors:
+    success: "#00FF00"
+    info: "#55AAFF"
+    warn: "#FFAA00"
+    error: "#FF5555"
+    coord: "#55FF55"
+    player: "#FF5555"
+    unknown: "#AAAAAA"
+    tnt_alert: "#FF5555"
+    explosion_alert: "#FFAA00"

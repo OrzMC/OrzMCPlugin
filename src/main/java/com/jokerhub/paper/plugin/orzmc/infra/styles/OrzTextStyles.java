@@ -9,6 +9,8 @@ import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.TextColor;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 
 public final class OrzTextStyles {
     private final ConfigService configService;
@@ -19,7 +21,13 @@ public final class OrzTextStyles {
 
     private TextColor colorOrDefault(String key, String defaultHex) {
         try {
-            TypedConfigs.Styles styles = TypedConfigs.Styles.from(configService.getConfig("styles"));
+            ConfigurationSection stylesSection =
+                    configService.getConfig("templates").getConfigurationSection("styles");
+            if (stylesSection == null) {
+                FileConfiguration legacy = configService.loadFile("styles.yml");
+                stylesSection = legacy != null ? legacy.getConfigurationSection("styles") : null;
+            }
+            TypedConfigs.Styles styles = TypedConfigs.Styles.from(stylesSection);
             String hex = styles.colors().getOrDefault(key, defaultHex);
             if (hex == null || hex.isEmpty()) return TextColor.fromCSSHexString(defaultHex);
             return TextColor.fromCSSHexString(hex);

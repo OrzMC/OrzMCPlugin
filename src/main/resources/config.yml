@@ -1,2 +1,69 @@
-# [YAML语言教程](https://www.ruanyifeng.com/blog/2016/07/yaml.html)
-# Config.yml中的内容是在开发过程中添加了，待功能成熟后，会迁移到对应模块的配置文件中
+# ==================================================
+#              OrzMC 核心配置 (合并)
+# ==================================================
+config-version: 2
+
+# ==================================================
+#             服务器白名单配置
+# ==================================================
+whitelist:
+  force_whitelist: true
+  cleanup_inactive_days: 90
+  pagination_delay_ticks: 5
+
+# ==================================================
+#             地图优化/备份
+# ==================================================
+maintenance:
+  optimize_enabled: false
+  optimize_tick_time_threshold: 300
+  backup_retention_count: 5
+  backup_maintenance_motd: "服务器维护中，稍后再试"
+
+# ==================================================
+#                   TNT 检查配置
+# ==================================================
+tnt:
+  enable: false
+  enable_respawn_anchor: false
+  place_cooldown: 5
+  notify_throttle_ms: 1000
+  whitelist:
+    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world' }
+    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_nether' }
+    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_the_end' }
+  exempt_entities:
+    - CREEPER
+    - FIREBALL
+    - BREEZE
+    - WIND_CHARGE
+    - BREEZE_WIND_CHARGE
+    - ENDER_DRAGON
+    - END_CRYSTAL
+    - WITHER
+    - WITHER_SKULL
+    - SLIME
+    - STRAY
+
+# ==================================================
+#                IP 地区白名单
+# ==================================================
+geoip:
+  allow_country_code: []
+  #  - CN
+  #  - JP
+  #  - TW
+
+# ==================================================
+#              命令策略
+# ==================================================
+command_policies:
+  tpbow:
+    cooldown_secs: 3
+    admin_only: false
+  menu:
+    cooldown_secs: 0
+    admin_only: false
+  portal:
+    cooldown_secs: 5
+    admin_only: true
