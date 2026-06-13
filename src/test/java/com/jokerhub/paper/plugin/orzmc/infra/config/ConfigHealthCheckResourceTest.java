@@ -22,18 +22,12 @@ public class ConfigHealthCheckResourceTest {
 
     @Test
     public void testDefaultConfigsPassHealthCheck() throws Exception {
+        // Only load the 5 registered config files (old individual files removed)
         Map<String, FileConfiguration> cfgs = new HashMap<>();
         cfgs.put("config", load("config.yml"));
         cfgs.put("bot", load("bot.yml"));
         cfgs.put("guide_book", load("guide_book.yml"));
-        cfgs.put("tnt", load("tnt.yml"));
         cfgs.put("templates", load("templates.yml"));
-        cfgs.put("notifications", load("notifications.yml"));
-        cfgs.put("commands", load("commands.yml"));
-        cfgs.put("maintenance", load("maintenance.yml"));
-        cfgs.put("whitelist", load("whitelist.yml"));
-        cfgs.put("styles", load("styles.yml"));
-        cfgs.put("ip_whitelist", load("ip_whitelist.yml"));
         cfgs.put("portals", load("portals.yml"));
 
         List<String> issues = ConfigHealthCheck.validateAll(cfgs::get);

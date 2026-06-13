@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import net.kyori.adventure.text.Component;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public final class Notifier {
@@ -49,8 +50,13 @@ public final class Notifier {
         if (envelope == null) {
             return;
         }
-        FileConfiguration cfg = configService.getConfig("notifications");
-        TypedConfigs.Notifications ns = TypedConfigs.Notifications.from(cfg);
+        ConfigurationSection notificationsSection =
+                configService.getConfig("templates").getConfigurationSection("notifications");
+        if (notificationsSection == null) {
+            FileConfiguration legacy = configService.loadFile("notifications.yml");
+            notificationsSection = legacy != null ? legacy.getConfigurationSection("notifications") : null;
+        }
+        TypedConfigs.Notifications ns = TypedConfigs.Notifications.from(notificationsSection);
         TypedConfigs.NotifyPolicy p =
                 ns.policies().getOrDefault(key, new TypedConfigs.NotifyPolicy(false, true, true, ""));
         if (p.publicEnabled()) {

@@ -31,7 +31,7 @@ public class CommandAndEventIntegrationTest {
         server = MockBukkit.mock();
         plugin = MockBukkit.load(OrzMC.class);
         sink = new CapturingSink();
-        Notifier notifier = (Notifier) getField(plugin, "notifier");
+        Notifier notifier = (Notifier) getServiceField(plugin, "notifier");
         notifier.registerSink(sink);
     }
 
@@ -45,7 +45,7 @@ public class CommandAndEventIntegrationTest {
         PlayerMock player = server.addPlayer();
         Assertions.assertDoesNotThrow(() -> server.dispatchCommand(player, "bot"));
         Component actual = player.nextComponentMessage();
-        BotStatusService statusService = (BotStatusService) getField(plugin, "botStatusService");
+        BotStatusService statusService = (BotStatusService) getServiceField(plugin, "botStatusService");
         Component expected = statusService.buildStatusMessage();
         String actualText = PlainTextComponentSerializer.plainText().serialize(actual);
         String expectedText = PlainTextComponentSerializer.plainText().serialize(expected);
@@ -65,7 +65,7 @@ public class CommandAndEventIntegrationTest {
 
     @Test
     public void testAdminBotCommandCanExecuteConsoleCommand() {
-        BotInboundHandler handler = (BotInboundHandler) getField(plugin, "botInboundHandler");
+        BotInboundHandler handler = (BotInboundHandler) getServiceField(plugin, "botInboundHandler");
         AtomicReference<MessageEnvelope> got = new AtomicReference<>();
 
         Assertions.assertDoesNotThrow(() -> handler.handleMessage("$e bot", true, got::set));
@@ -77,7 +77,7 @@ public class CommandAndEventIntegrationTest {
         Assertions.assertTrue(envelope.message().contains("QQBot:"), envelope.message());
     }
 
-    private Object getField(Object target, String name) {
+    private static Object getField(Object target, String name) {
         Class<?> type = target.getClass();
         while (type != null) {
             try {
@@ -91,6 +91,12 @@ public class CommandAndEventIntegrationTest {
             }
         }
         throw new IllegalStateException(new NoSuchFieldException(name));
+    }
+
+    /** Access a field on the OrzServices graph via the plugin reference. */
+    private static Object getServiceField(OrzMC plugin, String fieldName) {
+        Object services = getField(plugin, "services");
+        return getField(services, fieldName);
     }
 
     private static final class CapturingSink implements NotifierSink {

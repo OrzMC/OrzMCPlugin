@@ -2,6 +2,8 @@ package com.jokerhub.paper.plugin.orzmc.infra.notify;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import java.util.concurrent.ConcurrentHashMap;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 
 public final class ThrottledNotifier {
     private final ConfigService configService;
@@ -38,8 +40,17 @@ public final class ThrottledNotifier {
 
     private long defaultPeriodMs() {
         try {
-            long v = configService.getConfig("tnt").getLong("notify_throttle_ms");
-            return v <= 0 ? 1000L : v;
+            ConfigurationSection tntSection = configService.getConfig("config").getConfigurationSection("tnt");
+            if (tntSection != null) {
+                long v = tntSection.getLong("notify_throttle_ms");
+                return v <= 0 ? 1000L : v;
+            }
+            FileConfiguration legacy = configService.loadFile("tnt.yml");
+            if (legacy != null) {
+                long v = legacy.getLong("notify_throttle_ms");
+                return v <= 0 ? 1000L : v;
+            }
+            return 1000L;
         } catch (Exception ignored) {
             return 1000L;
         }

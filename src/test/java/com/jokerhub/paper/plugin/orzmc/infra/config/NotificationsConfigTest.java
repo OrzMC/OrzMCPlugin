@@ -7,15 +7,16 @@ import org.junit.jupiter.api.Test;
 public class NotificationsConfigTest {
     @Test
     public void testNotificationsMapping() {
+        // Simulates a "notifications" ConfigurationSection (not the full file root)
         YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("notifications.whitelist_cleanup.private.enabled", true);
-        cfg.set("notifications.whitelist_cleanup.private.admin_only", true);
-        cfg.set("notifications.whitelist_cleanup.public.enabled", false);
-        cfg.set("notifications.whitelist_cleanup.channel_key", "ops-alert");
-        cfg.set("notifications.tnt_alert.private.enabled", true);
-        cfg.set("notifications.tnt_alert.private.admin_only", false);
-        cfg.set("notifications.tnt_alert.public.enabled", true);
-        cfg.set("notifications.tnt_alert.channel_key", "safety-alerts");
+        cfg.set("whitelist_cleanup.private.enabled", true);
+        cfg.set("whitelist_cleanup.private.admin_only", true);
+        cfg.set("whitelist_cleanup.public.enabled", false);
+        cfg.set("whitelist_cleanup.channel_key", "ops-alert");
+        cfg.set("tnt_alert.private.enabled", true);
+        cfg.set("tnt_alert.private.admin_only", false);
+        cfg.set("tnt_alert.public.enabled", true);
+        cfg.set("tnt_alert.channel_key", "safety-alerts");
 
         TypedConfigs.Notifications ns = TypedConfigs.Notifications.from(cfg);
         Assertions.assertTrue(ns.policies().containsKey("whitelist_cleanup"));

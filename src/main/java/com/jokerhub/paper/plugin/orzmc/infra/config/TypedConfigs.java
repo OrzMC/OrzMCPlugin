@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
 
 public final class TypedConfigs {
     private TypedConfigs() {}
@@ -22,7 +21,7 @@ public final class TypedConfigs {
             List<String> allowCountryCode,
             Map<String, CommandPolicy> commandPolicies) {
 
-        public static MainConfig from(FileConfiguration cfg) {
+        public static MainConfig from(ConfigurationSection cfg) {
             boolean forceWhitelist = cfg.getBoolean("force_whitelist", true);
             int whitelistCleanupInactiveDays = cfg.getInt("whitelist_cleanup_inactive_days", 90);
             int whitelistPaginationDelayTicks = cfg.getInt("whitelist_pagination_delay_ticks", 5);
@@ -73,7 +72,10 @@ public final class TypedConfigs {
             List<String> exemptEntities) {
 
         @SuppressWarnings("unchecked")
-        public static TntConfig from(FileConfiguration cfg) {
+        public static TntConfig from(ConfigurationSection cfg) {
+            if (cfg == null) {
+                return new TntConfig(false, false, 5, 1000L, List.of(), List.of());
+            }
             boolean enable = cfg.getBoolean("enable", false);
             boolean enableRespawnAnchor = cfg.getBoolean("enable_respawn_anchor", false);
             int placeCooldownSeconds = cfg.getInt("place_cooldown", 5);
@@ -108,17 +110,15 @@ public final class TypedConfigs {
 
     public record CommandPolicies(Map<String, CommandPolicy> policies) {
 
-        public static CommandPolicies from(FileConfiguration cfg) {
+        public static CommandPolicies from(ConfigurationSection cfg) {
             Map<String, CommandPolicy> policies = new HashMap<>();
-            Object rawCmds = cfg.get("commands");
-            if (rawCmds instanceof ConfigurationSection section) {
-                for (String key : section.getKeys(false)) {
-                    ConfigurationSection s = section.getConfigurationSection(key);
-                    if (s != null) {
-                        int cooldown = s.getInt("cooldown_secs", 0);
-                        boolean adminOnly = s.getBoolean("admin_only", false);
-                        policies.put(key, new CommandPolicy(cooldown, adminOnly));
-                    }
+            if (cfg == null) return new CommandPolicies(policies);
+            for (String key : cfg.getKeys(false)) {
+                ConfigurationSection s = cfg.getConfigurationSection(key);
+                if (s != null) {
+                    int cooldown = s.getInt("cooldown_secs", 0);
+                    boolean adminOnly = s.getBoolean("admin_only", false);
+                    policies.put(key, new CommandPolicy(cooldown, adminOnly));
                 }
             }
             return new CommandPolicies(policies);
@@ -127,9 +127,11 @@ public final class TypedConfigs {
 
     public record Styles(Map<String, String> colors) {
 
-        public static Styles from(FileConfiguration cfg) {
+        public static Styles from(ConfigurationSection cfg) {
             Map<String, String> colors = new HashMap<>();
-            String base = "styles.colors";
+            if (cfg == null) return new Styles(colors);
+            ConfigurationSection colorsSection = cfg.getConfigurationSection("colors");
+            if (colorsSection == null) return new Styles(colors);
             Map<String, String> defaults = Map.of(
                     "success", "#00FF00",
                     "info", "#55AAFF",
@@ -140,7 +142,7 @@ public final class TypedConfigs {
                     "unknown", "#AAAAAA",
                     "tnt_alert", "#FF5555",
                     "explosion_alert", "#FFAA00");
-            defaults.forEach((k, v) -> colors.put(k, cfg.getString(base + "." + k, v)));
+            defaults.forEach((k, v) -> colors.put(k, colorsSection.getString(k, v)));
             return new Styles(colors);
         }
     }
@@ -148,8 +150,9 @@ public final class TypedConfigs {
     public record Portals(Map<String, PortalEntry> entries) {
         public record PortalEntry(String target, String axis) {}
 
-        public static Portals from(FileConfiguration cfg) {
+        public static Portals from(ConfigurationSection cfg) {
             Map<String, PortalEntry> entries = new HashMap<>();
+            if (cfg == null) return new Portals(entries);
             Object raw = cfg.get("portals");
             if (raw instanceof ConfigurationSection sec) {
                 for (String targetKey : sec.getKeys(false)) {
@@ -168,8 +171,9 @@ public final class TypedConfigs {
 
     public record IpWhitelist(List<String> allowCountryCode) {
 
-        public static IpWhitelist from(FileConfiguration cfg) {
+        public static IpWhitelist from(ConfigurationSection cfg) {
             List<String> list = new ArrayList<>();
+            if (cfg == null) return new IpWhitelist(list);
             Object raw = cfg.get("allow_country_code");
             if (raw instanceof List<?> l) {
                 for (Object o : l) {
@@ -181,7 +185,7 @@ public final class TypedConfigs {
     }
 
     public record BotConfig(String cmdPromptChar, String discordServerLink, String qqGroupId, String qqPlayerGroupId) {
-        public static BotConfig from(FileConfiguration cfg) {
+        public static BotConfig from(ConfigurationSection cfg) {
             String cmdPromptChar = cfg.getString("cmd_prompt_char", "$");
             String discordServerLink = cfg.getString("discord_server_link");
             String qqGroupId = cfg.getString("qq_group_id");
@@ -195,7 +199,8 @@ public final class TypedConfigs {
             long optimizeTickTimeThreshold,
             int backupRetentionCount,
             String backupMaintenanceMotd) {
-        public static MaintenanceConfig from(FileConfiguration cfg) {
+        public static MaintenanceConfig from(ConfigurationSection cfg) {
+            if (cfg == null) return new MaintenanceConfig(false, 300L, 5, "服务器维护中，稍后再试");
             boolean optimizeEnabled = cfg.getBoolean("optimize_enabled", false);
             long optimizeTickTimeThreshold = cfg.getLong("optimize_tick_time_threshold", 300L);
             int backupRetentionCount = cfg.getInt("backup_retention_count", 5);
@@ -206,7 +211,8 @@ public final class TypedConfigs {
     }
 
     public record WhitelistConfig(boolean forceWhitelist, int cleanupInactiveDays, int paginationDelayTicks) {
-        public static WhitelistConfig from(FileConfiguration cfg) {
+        public static WhitelistConfig from(ConfigurationSection cfg) {
+            if (cfg == null) return new WhitelistConfig(true, 90, 5);
             boolean forceWhitelist = cfg.getBoolean("force_whitelist", true);
             int cleanupInactiveDays = cfg.getInt("cleanup_inactive_days", 90);
             int paginationDelayTicks = cfg.getInt("pagination_delay_ticks", 5);
@@ -217,7 +223,7 @@ public final class TypedConfigs {
     public record WhitelistKickMessage(String title, List<WhitelistKickMessageItem> ups) {
         public record WhitelistKickMessageItem(String name, String platform) {}
 
-        public static WhitelistKickMessage from(FileConfiguration cfg) {
+        public static WhitelistKickMessage from(ConfigurationSection cfg) {
             String title = "";
             List<WhitelistKickMessageItem> items = new ArrayList<>();
             if (cfg == null) {
@@ -247,20 +253,17 @@ public final class TypedConfigs {
 
     public record Notifications(Map<String, NotifyPolicy> policies) {
 
-        public static Notifications from(FileConfiguration cfg) {
+        public static Notifications from(ConfigurationSection cfg) {
             Map<String, NotifyPolicy> policies = new HashMap<>();
-            Object raw = cfg.get("notifications");
-            if (raw instanceof ConfigurationSection section) {
-                for (String key : section.getKeys(false)) {
-                    ConfigurationSection s = section.getConfigurationSection(key);
-                    if (s != null) {
-                        boolean privateEnabled = s.getBoolean("private.enabled", false);
-                        boolean privateAdminOnly = s.getBoolean("private.admin_only", true);
-                        boolean publicEnabled = s.getBoolean("public.enabled", true);
-                        String channelKey = s.getString("channel_key", "");
-                        policies.put(
-                                key, new NotifyPolicy(privateEnabled, privateAdminOnly, publicEnabled, channelKey));
-                    }
+            if (cfg == null) return new Notifications(policies);
+            for (String key : cfg.getKeys(false)) {
+                ConfigurationSection s = cfg.getConfigurationSection(key);
+                if (s != null) {
+                    boolean privateEnabled = s.getBoolean("private.enabled", false);
+                    boolean privateAdminOnly = s.getBoolean("private.admin_only", true);
+                    boolean publicEnabled = s.getBoolean("public.enabled", true);
+                    String channelKey = s.getString("channel_key", "");
+                    policies.put(key, new NotifyPolicy(privateEnabled, privateAdminOnly, publicEnabled, channelKey));
                 }
             }
             return new Notifications(policies);
@@ -286,7 +289,7 @@ public final class TypedConfigs {
             String whitelistBlock,
             String whitelistToggleAlert) {
 
-        public static Templates from(FileConfiguration cfg) {
+        public static Templates from(ConfigurationSection cfg) {
             String base = "templates";
             String join = cfg.getString(
                     base + ".player_join",
@@ -383,7 +386,7 @@ public final class TypedConfigs {
                     stageAliasLocalized);
         }
 
-        public static TemplateOptions from(FileConfiguration cfg) {
+        public static TemplateOptions from(ConfigurationSection cfg) {
             Map<String, String> m = new HashMap<>();
             Object raw = cfg.get("templates.stage_cn");
             if (raw instanceof ConfigurationSection sec) {

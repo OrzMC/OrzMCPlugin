@@ -25,3 +25,12 @@ commands:
   portal:
     description: 创建或移除传送门
     usage: "/portal <host> [port] 或 /portal remove <host> [port]"
+  orzmc:
+    description: OrzMC 管理命令
+    usage: "/orzmc reload [config-name] | /orzmc config <list|get|set|reset|dump>"
+    permission: orzmc.admin
+
+permissions:
+  orzmc.admin:
+    description: OrzMC 管理命令权限
+    default: op
