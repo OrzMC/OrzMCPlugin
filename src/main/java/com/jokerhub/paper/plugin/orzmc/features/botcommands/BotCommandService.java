@@ -188,7 +188,8 @@ public final class BotCommandService implements BotInboundHandler {
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
         int retain = maintenance.backupRetentionCount();
         if (maintenanceService != null) {
-            maintenanceService.backup(tickTimeThreshold, retain, msg -> emit(callback, "command_backup", Map.of("message", msg), msg));
+            maintenanceService.backup(
+                    tickTimeThreshold, retain, msg -> emit(callback, "command_backup", Map.of("message", msg), msg));
         }
     }
 
@@ -212,7 +213,8 @@ public final class BotCommandService implements BotInboundHandler {
         if (consoleCmd.isBlank()) {
             emitUsage(
                     callback,
-                    feedbackService.usageTip(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, botConfig().cmdPromptChar()));
+                    feedbackService.usageTip(
+                            OrzUserCmd.EXECUTE_CONSOLE_COMMAND, botConfig().cmdPromptChar()));
             return;
         }
         server.runSync(() -> {
