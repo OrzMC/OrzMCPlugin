@@ -96,7 +96,8 @@ class BotCommandListFeedbackServiceTest {
 
     @Test
     void buildWhitelistHeader_returnsHeaderWithCount() {
-        when(configs.resolveTemplate(eq("command_whitelist_header"), anyString())).thenAnswer(i -> i.getArgument(1));
+        when(configs.resolveTemplate(eq("command_whitelist_header"), anyString()))
+                .thenAnswer(i -> i.getArgument(1));
         templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 
         BotCommandListFeedbackService.WhitelistHeader result = service.buildWhitelistHeader(42);
@@ -113,7 +114,8 @@ class BotCommandListFeedbackServiceTest {
     @Test
     void buildCleanupNotice_includesRemovedNames() {
         Set<String> removed = Set.of("Alice", "Bob");
-        when(configs.resolveTemplate(eq("command_whitelist_cleanup"), anyString())).thenAnswer(i -> i.getArgument(1));
+        when(configs.resolveTemplate(eq("command_whitelist_cleanup"), anyString()))
+                .thenAnswer(i -> i.getArgument(1));
         templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 
         BotCommandListFeedbackService.CleanupNotice result = service.buildCleanupNotice(removed);

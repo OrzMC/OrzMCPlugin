@@ -10,7 +10,6 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.TargetType;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import org.junit.jupiter.api.BeforeEach;
@@ -207,8 +206,8 @@ class BotCommandServiceTest {
 
     private boolean invokeMatchesPrefix(String message, String cmd) {
         try {
-            java.lang.reflect.Method m = BotCommandService.class.getDeclaredMethod(
-                    "matchesCommandPrefix", String.class, String.class);
+            java.lang.reflect.Method m =
+                    BotCommandService.class.getDeclaredMethod("matchesCommandPrefix", String.class, String.class);
             m.setAccessible(true);
             return (boolean) m.invoke(service, message, cmd);
         } catch (Exception e) {
@@ -218,8 +217,8 @@ class BotCommandServiceTest {
 
     private String invokeExtractArgs(String rawMessage, String fullCmd) {
         try {
-            java.lang.reflect.Method m = BotCommandService.class.getDeclaredMethod(
-                    "extractCommandArgs", String.class, String.class);
+            java.lang.reflect.Method m =
+                    BotCommandService.class.getDeclaredMethod("extractCommandArgs", String.class, String.class);
             m.setAccessible(true);
             return (String) m.invoke(service, rawMessage, fullCmd);
         } catch (Exception e) {
