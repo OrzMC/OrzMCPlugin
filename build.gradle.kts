@@ -142,23 +142,14 @@ val versionString: String = version as String
 val isRelease: Boolean = (githubRefType == "tag")
 val isPrBuild: Boolean = (githubEventName == "pull_request")
 
-val suffixedVersion: String = if (isRelease) {
-    // Tag push → Hangar Release: {version}
+val shadowJarVersion: String = if (isPrBuild) {
+    "${versionString}-dev-${timestampString}"
+} else if (isRelease) {
+    // Tag push → Release: {version}
     versionString
 } else {
-    // Branch push (main) → Hangar Snapshot: {version}-snapshot-{run_number}
+    // Branch push (main) → Snapshot: {version}-snapshot-{run_number}
     "${versionString}-snapshot-${githubRunNumber}"
-}
-
-val archiveClassifierSuffix: String = if (isPrBuild) {
-    // PR 构件文件名: {version}-dev-{timestamp}
-    "dev-${timestampString}"
-} else if (isRelease) {
-    // Release 构件: 无后缀
-    ""
-} else {
-    // Snapshot 构件: {version}-snapshot-{run_number}
-    "snapshot-${githubRunNumber}"
 }
 
 // Use the commit description for the changelog
@@ -166,7 +157,7 @@ val changelogContent: String = latestCommitMessage()
 
 hangarPublish {
     publications.register("plugin") {
-        version = suffixedVersion
+        version = shadowJarVersion
         channel = if (isRelease) "Release" else "Snapshot"
         changelog = changelogContent
         id = pluginYaml["name"] as String
@@ -231,12 +222,12 @@ tasks {
         dependsOn(agreeEula)
     }
     jar {
-        archiveClassifier.set(archiveClassifierSuffix)
+        enabled = false
     }
     shadowJar {
         minimize()
-        dependsOn("jar")
-        archiveClassifier.set(archiveClassifierSuffix)
+        archiveClassifier.set(null as String?)
+        archiveVersion.set(shadowJarVersion)
     }
     build {
         dependsOn("shadowJar")
