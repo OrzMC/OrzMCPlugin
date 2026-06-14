@@ -10,9 +10,16 @@ import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 class OrzBotManager implements BotMessageService {
+
+    private enum State {
+        IDLE,
+        SETUP_REQUESTED,
+        STARTED
+    }
+
     private final ServerAccess server;
     private final ServerScheduler scheduler;
     private final ServerLogger logger;
@@ -23,8 +30,7 @@ class OrzBotManager implements BotMessageService {
     private final BotReconnectionManager reconnectionManager;
     private List<BotAdapter> adapters;
     private final BotRouter router;
-    private final AtomicBoolean setupRequested = new AtomicBoolean(false);
-    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicReference<State> state = new AtomicReference<>(State.IDLE);
 
     public OrzBotManager(
             ServerAccess server,
@@ -48,7 +54,7 @@ class OrzBotManager implements BotMessageService {
 
     @Override
     public void setup() {
-        setupRequested.set(true);
+        state.set(State.SETUP_REQUESTED);
         scheduler.runAsync(() -> {
             try {
                 startIfRequested();
@@ -59,10 +65,7 @@ class OrzBotManager implements BotMessageService {
     }
 
     void startIfRequested() {
-        if (!setupRequested.get()) {
-            return;
-        }
-        if (!started.compareAndSet(false, true)) {
+        if (!state.compareAndSet(State.SETUP_REQUESTED, State.STARTED)) {
             return;
         }
         adapters = List.of(
