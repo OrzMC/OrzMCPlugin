@@ -14,7 +14,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.List;
-import java.util.Map;
 import net.kyori.adventure.text.Component;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,8 +51,7 @@ class WhitelistEventServiceTest {
         when(styles.warn(anyString())).thenReturn(Component.text("warn"));
         when(styles.success(anyString())).thenReturn(Component.text("success"));
         when(styles.info(anyString())).thenReturn(Component.text("info"));
-        when(styles.colorPlayer())
-                .thenReturn(net.kyori.adventure.text.format.NamedTextColor.GOLD);
+        when(styles.colorPlayer()).thenReturn(net.kyori.adventure.text.format.NamedTextColor.GOLD);
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", null, Format.DEFAULT));
 

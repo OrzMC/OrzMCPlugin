@@ -3,7 +3,6 @@ package com.jokerhub.paper.plugin.orzmc.features.security;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.Test;
 

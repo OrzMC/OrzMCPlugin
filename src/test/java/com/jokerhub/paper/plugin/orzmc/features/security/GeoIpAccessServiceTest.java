@@ -61,8 +61,7 @@ class GeoIpAccessServiceTest {
     @Test
     void decide_allowsOnLookupFailure() {
         when(configs.ipWhitelist()).thenReturn(new TypedConfigs.IpWhitelist(List.of("CN")));
-        when(client.lookup("1.2.3.4"))
-                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("timeout")));
+        when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.failedFuture(new RuntimeException("timeout")));
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 

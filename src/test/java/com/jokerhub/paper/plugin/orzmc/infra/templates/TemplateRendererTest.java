@@ -12,7 +12,8 @@ class TemplateRendererTest {
     @Test
     void render_replacesPlaceholders() {
         String tpl = "{name} 上线 世界:{world} 坐标:{x},{y},{z}";
-        String out = TemplateRenderer.render(tpl, Map.of("name", "Steve", "world", "world", "x", "1", "y", "64", "z", "1"));
+        String out =
+                TemplateRenderer.render(tpl, Map.of("name", "Steve", "world", "world", "x", "1", "y", "64", "z", "1"));
         assertEquals("Steve 上线 世界:world 坐标:1,64,1", out);
     }
 

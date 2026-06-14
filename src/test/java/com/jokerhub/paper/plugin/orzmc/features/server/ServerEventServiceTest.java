@@ -8,8 +8,6 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
-import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
-import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import org.bukkit.event.server.ServerListPingEvent;
 import org.bukkit.event.server.ServerLoadEvent;
@@ -49,8 +47,7 @@ class ServerEventServiceTest {
         ServerException exception = new ServerException("err", new RuntimeException("cause"));
 
         // handleException creates ExceptionAlertService internally; it delegates to notifier
-        when(configs.renderEvent(eq("exception_alert"), anyMap()))
-                .thenReturn(MessageEnvelope.publicMessage("err"));
+        when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("err"));
 
         service.handleException(exception);
 

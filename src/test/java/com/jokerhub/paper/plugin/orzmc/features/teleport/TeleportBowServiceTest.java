@@ -15,7 +15,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -189,7 +188,9 @@ class TeleportBowServiceTest {
 
         ArgumentCaptor<Component> captor = ArgumentCaptor.captor();
         verify(player).sendMessage(captor.capture());
-        assertTrue(PlainTextComponentSerializer.plainText().serialize(captor.getValue()).contains("水"));
+        assertTrue(PlainTextComponentSerializer.plainText()
+                .serialize(captor.getValue())
+                .contains("水"));
     }
 
     @Test
@@ -202,7 +203,9 @@ class TeleportBowServiceTest {
 
         ArgumentCaptor<Component> captor = ArgumentCaptor.captor();
         verify(player).sendMessage(captor.capture());
-        assertTrue(PlainTextComponentSerializer.plainText().serialize(captor.getValue()).contains("岩浆"));
+        assertTrue(PlainTextComponentSerializer.plainText()
+                .serialize(captor.getValue())
+                .contains("岩浆"));
     }
 
     @Test
@@ -221,6 +224,8 @@ class TeleportBowServiceTest {
 
         ArgumentCaptor<Component> captor = ArgumentCaptor.captor();
         verify(player).sendMessage(captor.capture());
-        assertTrue(PlainTextComponentSerializer.plainText().serialize(captor.getValue()).contains("跨世界"));
+        assertTrue(PlainTextComponentSerializer.plainText()
+                .serialize(captor.getValue())
+                .contains("跨世界"));
     }
 }
