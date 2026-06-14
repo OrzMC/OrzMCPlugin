@@ -17,8 +17,10 @@ class InterceptorExecutorTest {
 
     @Mock
     private CommandSender sender;
+
     @Mock
     private Command command;
+
     @Mock
     private CommandExecutor delegate;
 

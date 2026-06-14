@@ -11,7 +11,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
@@ -24,13 +23,26 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class PlayerEventServiceTest {
 
-    @Mock private ServerFacade server;
-    @Mock private TypedConfigProvider configs;
-    @Mock private OrzTextStyles styles;
-    @Mock private Notifier notifier;
-    @Mock private ThrottledNotifier throttledNotifier;
-    @Mock private AsyncPlayerPreLoginEvent loginEvent;
-    @Mock private Logger logger;
+    @Mock
+    private ServerFacade server;
+
+    @Mock
+    private TypedConfigProvider configs;
+
+    @Mock
+    private OrzTextStyles styles;
+
+    @Mock
+    private Notifier notifier;
+
+    @Mock
+    private ThrottledNotifier throttledNotifier;
+
+    @Mock
+    private AsyncPlayerPreLoginEvent loginEvent;
+
+    @Mock
+    private Logger logger;
 
     private PlayerEventService service;
 
