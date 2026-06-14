@@ -157,8 +157,7 @@ public final class BotCommandService implements BotInboundHandler {
         }
     }
 
-    private void handleShowHelp(
-            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleShowHelp(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         String help = feedbackService.helpInfo(botConfig().cmdPromptChar());
         emit(callback, "command_help", Map.of("help", help), help);
     }
@@ -183,16 +182,13 @@ public final class BotCommandService implements BotInboundHandler {
         });
     }
 
-    private void handleBackup(
-            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleBackup(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         if (!guardAdminCommand(cmd, isAdmin, callback)) return;
         MaintenanceConfig maintenance = configs.maintenance();
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
         int retain = maintenance.backupRetentionCount();
         if (maintenanceService != null) {
-            maintenanceService.backup(
-                    tickTimeThreshold, retain,
-                    msg -> emit(callback, "command_backup", Map.of("message", msg), msg));
+            maintenanceService.backup(tickTimeThreshold, retain, msg -> emit(callback, "command_backup", Map.of("message", msg), msg));
         }
     }
 
@@ -202,7 +198,8 @@ public final class BotCommandService implements BotInboundHandler {
         MaintenanceConfig maintenance = configs.maintenance();
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
         if (maintenanceService != null) {
-            maintenanceService.optimize(tickTimeThreshold, msg -> emit(callback, "command_optimize", Map.of("message", msg), msg));
+            maintenanceService.optimize(
+                    tickTimeThreshold, msg -> emit(callback, "command_optimize", Map.of("message", msg), msg));
         }
     }
 
@@ -213,7 +210,9 @@ public final class BotCommandService implements BotInboundHandler {
         if (!guardAdminCommand(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, isAdmin, callback)) return;
         String consoleCmd = extractArgs(rawMessage, execPrefix);
         if (consoleCmd.isBlank()) {
-            emitUsage(callback, feedbackService.usageTip(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, botConfig().cmdPromptChar()));
+            emitUsage(
+                    callback,
+                    feedbackService.usageTip(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, botConfig().cmdPromptChar()));
             return;
         }
         server.runSync(() -> {
