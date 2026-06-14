@@ -62,8 +62,15 @@ jobs:
             const base = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo;
             const runUrl = base + '/actions/runs/' + context.runId;
             const commitUrl = base + '/commit/' + fullSha;
-            const artifactId = '${{ steps.artifact-upload-step.outputs.artifact-id }}';
-            const downloadUrl = context.apiUrl + '/repos/' + context.repo.owner + '/' + context.repo.repo + '/actions/artifacts/' + artifactId + '/zip';
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+              name: artifactName
+            });
+            const downloadUrl = artifacts.artifacts.length > 0
+              ? artifacts.artifacts[0].archive_download_url
+              : runUrl;
             const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
             const body = marker + '\n## ✅ Build Passed  (' + now + ')' +
               '\n- **BuildID:** [' + context.runId + '](' + runUrl + ')' +
