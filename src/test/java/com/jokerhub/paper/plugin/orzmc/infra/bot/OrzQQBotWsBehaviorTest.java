@@ -113,8 +113,8 @@ public class OrzQQBotWsBehaviorTest {
                 server, logger, configService, (m, a, s) -> {}, new PlainMessageFormatter(), throttled, factory);
         bot.setup();
         factory.ws.fireError(new RuntimeException("WS reconnect exhausted"));
-        assertFalse(HealthRegistry.get("qq").wsConnected);
-        assertTrue(String.valueOf(HealthRegistry.get("qq").lastError).contains("WS reconnect exhausted"));
+        assertFalse(HealthRegistry.getRaw("qq").wsConnected);
+        assertTrue(String.valueOf(HealthRegistry.getRaw("qq").lastError).contains("WS reconnect exhausted"));
     }
 
     @Test

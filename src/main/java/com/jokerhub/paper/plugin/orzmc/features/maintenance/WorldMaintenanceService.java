@@ -17,6 +17,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function1;
 import org.bukkit.entity.Player;
@@ -206,6 +207,8 @@ public class WorldMaintenanceService {
             server.runAsync(() -> {
                 try {
                     asyncWork.run();
+                } catch (Exception e) {
+                    server.logger().log(Level.SEVERE, "WorldMaintenanceService 异步任务异常", e);
                 } finally {
                     OrzUtil.executeConsoleCmd(server, () -> {}, "save-on");
                     running.set(false);

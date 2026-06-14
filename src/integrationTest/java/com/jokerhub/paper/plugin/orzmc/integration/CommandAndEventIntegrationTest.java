@@ -96,7 +96,20 @@ public class CommandAndEventIntegrationTest {
     /** Access a field on the OrzServices graph via the plugin reference. */
     private static Object getServiceField(OrzMC plugin, String fieldName) {
         Object services = getField(plugin, "services");
-        return getField(services, fieldName);
+        // After module decomposition, fields live inside modules
+        if ("notifier".equals(fieldName)) {
+            Object botModule = getField(services, "botModule");
+            return getField(botModule, "notifier");
+        }
+        if ("botStatusService".equals(fieldName)) {
+            Object botModule = getField(services, "botModule");
+            return getField(botModule, "botStatusService");
+        }
+        if ("botInboundHandler".equals(fieldName)) {
+            Object botModule = getField(services, "botModule");
+            return getField(botModule, "botCommandService");
+        }
+        throw new IllegalArgumentException("Unknown service field: " + fieldName);
     }
 
     private static final class CapturingSink implements NotifierSink {

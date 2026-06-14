@@ -44,6 +44,9 @@ repositories {
     
 }
 dependencies {
+    // orc-mc-api 子模块（纯 Java 端口与模型）
+    implementation(project(":orzmc-api"))
+
     compileOnly("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
     // WebSocket Client For NapCat QQBot
     implementation("org.java-websocket:Java-WebSocket:1.6.0")

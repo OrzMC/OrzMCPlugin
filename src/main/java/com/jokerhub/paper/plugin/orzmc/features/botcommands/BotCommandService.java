@@ -6,7 +6,6 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.paging.Paginator;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.ArrayList;
@@ -15,6 +14,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 import org.bukkit.entity.Player;
 
 public final class BotCommandService implements BotInboundHandler {
@@ -22,17 +22,12 @@ public final class BotCommandService implements BotInboundHandler {
     private final BotCommandListFeedbackService listFeedbackService;
     private final ServerFacade server;
     private final TypedConfigProvider configs;
-    private Notifier notifier;
     private WorldMaintenanceService maintenanceService;
 
     public BotCommandService(ServerFacade server, TypedConfigProvider configs) {
         this.server = server;
         this.configs = configs;
         this.listFeedbackService = new BotCommandListFeedbackService(server, configs);
-    }
-
-    public void setNotifier(Notifier notifier) {
-        this.notifier = notifier;
     }
 
     public void setMaintenanceService(WorldMaintenanceService maintenanceService) {
@@ -74,7 +69,8 @@ public final class BotCommandService implements BotInboundHandler {
                 String token = cmd.get(0);
                 try {
                     page = Integer.parseInt(token);
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    server.logger().warning("白名单页码解析失败: " + token + " - " + e.getMessage());
                 }
             }
             whiteListInfo(callback, page, isAdmin);
@@ -99,6 +95,7 @@ public final class BotCommandService implements BotInboundHandler {
         try {
             return configs.bot();
         } catch (Exception e) {
+            server.logger().warning("读取 botConfig 失败，使用默认值: " + e.getMessage());
             return new TypedConfigs.BotConfig("$", null, null, null);
         }
     }
@@ -116,22 +113,30 @@ public final class BotCommandService implements BotInboundHandler {
 
     private void onlinePlayersInfo(Consumer<MessageEnvelope> callback) {
         server.runAsync(() -> {
-            ArrayList<Player> onlinePlayers = listFeedbackService.currentOnlinePlayers();
-            BotCommandListFeedbackService.OnlineList online = listFeedbackService.buildOnlineList(
-                    onlinePlayers, server.server().getMaxPlayers());
-            emit(callback, "command_players", listFeedbackService.onlineVars(online), online.fallback());
+            try {
+                ArrayList<Player> onlinePlayers = listFeedbackService.currentOnlinePlayers();
+                BotCommandListFeedbackService.OnlineList online = listFeedbackService.buildOnlineList(
+                        onlinePlayers, server.server().getMaxPlayers());
+                emit(callback, "command_players", listFeedbackService.onlineVars(online), online.fallback());
+            } catch (Exception e) {
+                server.logger().log(Level.SEVERE, "onlinePlayersInfo 异步任务异常", e);
+            }
         });
     }
 
     private void whiteListInfo(Consumer<MessageEnvelope> callback, Integer page, boolean isAdmin) {
         server.runAsync(() -> {
-            TypedConfigs.WhitelistConfig whitelistConfig = configs.whitelist();
-            WhitelistService svc = WhitelistService.defaultImpl();
-            int delayTicks = Math.max(0, whitelistConfig.paginationDelayTicks());
-            if (isAdmin) {
-                renderWhitelistWithCleanup(callback, page, delayTicks, svc, whitelistConfig);
-            } else {
-                renderWhitelistPages(callback, page, delayTicks, svc);
+            try {
+                TypedConfigs.WhitelistConfig whitelistConfig = configs.whitelist();
+                WhitelistService svc = WhitelistService.defaultImpl();
+                int delayTicks = Math.max(0, whitelistConfig.paginationDelayTicks());
+                if (isAdmin) {
+                    renderWhitelistWithCleanup(callback, page, delayTicks, svc, whitelistConfig);
+                } else {
+                    renderWhitelistPages(callback, page, delayTicks, svc);
+                }
+            } catch (Exception e) {
+                server.logger().log(Level.SEVERE, "whiteListInfo 异步任务异常", e);
             }
         });
     }
@@ -146,15 +151,19 @@ public final class BotCommandService implements BotInboundHandler {
             java.util.Set<String> removed =
                     svc.cleanupInactivePlayers(server.server(), Math.max(1, whitelistConfig.cleanupInactiveDays()));
             server.runAsync(() -> {
-                ArrayList<String> updatedLines = new ArrayList<>(svc.buildWhitelistLines(server.server()));
-                BotCommandListFeedbackService.WhitelistHeader updatedHeaderInfo =
-                        listFeedbackService.buildWhitelistHeader(updatedLines.size());
-                if (!removed.isEmpty()) {
-                    BotCommandListFeedbackService.CleanupNotice cleanupNotice =
-                            listFeedbackService.buildCleanupNotice(removed);
-                    emitWhitelistCleanup(callback, cleanupNotice);
+                try {
+                    ArrayList<String> updatedLines = new ArrayList<>(svc.buildWhitelistLines(server.server()));
+                    BotCommandListFeedbackService.WhitelistHeader updatedHeaderInfo =
+                            listFeedbackService.buildWhitelistHeader(updatedLines.size());
+                    if (!removed.isEmpty()) {
+                        BotCommandListFeedbackService.CleanupNotice cleanupNotice =
+                                listFeedbackService.buildCleanupNotice(removed);
+                        emitWhitelistCleanup(callback, cleanupNotice);
+                    }
+                    emitWhitelistPages(callback, updatedHeaderInfo.header(), updatedLines, delayTicks, page);
+                } catch (Exception e) {
+                    server.logger().log(Level.SEVERE, "renderWhitelistWithCleanup 异步任务异常", e);
                 }
-                emitWhitelistPages(callback, updatedHeaderInfo.header(), updatedLines, delayTicks, page);
             });
         });
     }
@@ -275,7 +284,8 @@ public final class BotCommandService implements BotInboundHandler {
         boolean enabled = false;
         try {
             enabled = configs.maintenance().optimizeEnabled();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            server.logger().warning("读取 optimizeEnabled 配置失败: " + e.getMessage());
         }
         if (!enabled) {
             emitOptimizeDisabled(callback, "地图优化功能已禁用");

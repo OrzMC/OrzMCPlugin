@@ -100,8 +100,8 @@ public class OrzQQBotWsInjectionTest {
         OrzQQBot bot =
                 new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory);
         bot.setup();
-        assertTrue(HealthRegistry.get("qq").wsConnected);
+        assertTrue(HealthRegistry.getRaw("qq").wsConnected);
         bot.teardown();
-        assertFalse(HealthRegistry.get("qq").wsConnected);
+        assertFalse(HealthRegistry.getRaw("qq").wsConnected);
     }
 }

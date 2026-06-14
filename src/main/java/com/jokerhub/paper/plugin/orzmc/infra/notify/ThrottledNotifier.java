@@ -52,6 +52,7 @@ public final class ThrottledNotifier {
             }
             return 1000L;
         } catch (Exception ignored) {
+            // 配置段未就绪时使用默认值 —— 安全兜底，无需日志
             return 1000L;
         }
     }

@@ -19,6 +19,10 @@ public final class HealthRegistry {
         return map.computeIfAbsent(service, k -> new Status());
     }
 
+    public static Status getRaw(String service) {
+        return map.computeIfAbsent(service, k -> new Status());
+    }
+
     public static void setEnabled(String service, boolean v) {
         Status s = get(service);
         s.enabled = v;

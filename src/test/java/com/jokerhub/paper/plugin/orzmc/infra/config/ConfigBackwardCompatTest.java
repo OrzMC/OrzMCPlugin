@@ -120,24 +120,24 @@ public class ConfigBackwardCompatTest {
         Assertions.assertNotNull(config.getConfigurationSection("maintenance"), "新式 config 应有 maintenance 分段");
         Assertions.assertNotNull(config.getConfigurationSection("tnt"), "新式 config 应有 tnt 分段");
         Assertions.assertNotNull(config.getConfigurationSection("geoip"), "新式 config 应有 geoip 分段");
-        Assertions.assertNotNull(config.getConfigurationSection("command_policies"), "新式 config 应有 command_policies 分段");
+        Assertions.assertNotNull(
+                config.getConfigurationSection("command_policies"), "新式 config 应有 command_policies 分段");
     }
 
     @Test
     public void testNewStyleConfigTypedConfigsParse() {
         FileConfiguration config = newStyleConfig();
 
-        TypedConfigs.WhitelistConfig wl = TypedConfigs.WhitelistConfig.from(
-                config.getConfigurationSection("whitelist"));
+        TypedConfigs.WhitelistConfig wl =
+                TypedConfigs.WhitelistConfig.from(config.getConfigurationSection("whitelist"));
         Assertions.assertTrue(wl.forceWhitelist());
         Assertions.assertEquals(90, wl.cleanupInactiveDays());
 
-        TypedConfigs.MaintenanceConfig mt = TypedConfigs.MaintenanceConfig.from(
-                config.getConfigurationSection("maintenance"));
+        TypedConfigs.MaintenanceConfig mt =
+                TypedConfigs.MaintenanceConfig.from(config.getConfigurationSection("maintenance"));
         Assertions.assertFalse(mt.optimizeEnabled());
 
-        TypedConfigs.TntConfig tnt = TypedConfigs.TntConfig.from(
-                config.getConfigurationSection("tnt"));
+        TypedConfigs.TntConfig tnt = TypedConfigs.TntConfig.from(config.getConfigurationSection("tnt"));
         Assertions.assertFalse(tnt.enable());
     }
 
@@ -235,8 +235,7 @@ public class ConfigBackwardCompatTest {
         cfgs.put("templates", load("templates.yml"));
         cfgs.put("portals", load("portals.yml"));
 
-        Assertions.assertDoesNotThrow(() -> ConfigHealthCheck.validateAll(cfgs::get),
-                "旧式配置也不应抛出异常");
+        Assertions.assertDoesNotThrow(() -> ConfigHealthCheck.validateAll(cfgs::get), "旧式配置也不应抛出异常");
     }
 
     // ---------------------------------------------------------------
@@ -263,7 +262,6 @@ public class ConfigBackwardCompatTest {
                 fatal.add(s);
             }
         }
-        Assertions.assertTrue(fatal.isEmpty(),
-                "新式完整配置应无致命问题，发现: " + String.join("\n", fatal));
+        Assertions.assertTrue(fatal.isEmpty(), "新式完整配置应无致命问题，发现: " + String.join("\n", fatal));
     }
 }

@@ -5,6 +5,8 @@ import com.jokerhub.paper.plugin.orzmc.infra.scheduler.Schedulers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class Paginator {
     private Paginator() {}
@@ -33,9 +35,13 @@ public final class Paginator {
                 Schedulers.runLater(
                         server,
                         () -> {
-                            String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
-                            String body = chunks.get(pageIndex);
-                            callback.accept(pageHeader + "\n" + body);
+                            try {
+                                String pageHeader = header + "\n第" + (pageIndex + 1) + "/" + total + "页";
+                                String body = chunks.get(pageIndex);
+                                callback.accept(pageHeader + "\n" + body);
+                            } catch (Exception e) {
+                                Logger.getGlobal().log(Level.SEVERE, "Paginator 延迟任务异常", e);
+                            }
                         },
                         i * (delayTicks <= 0 ? 5L : delayTicks));
             }
@@ -65,8 +71,12 @@ public final class Paginator {
                 Schedulers.runLater(
                         server,
                         () -> {
-                            String body = chunks.get(pageIndex);
-                            callback.accept(pageIndex + 1, total, header, body);
+                            try {
+                                String body = chunks.get(pageIndex);
+                                callback.accept(pageIndex + 1, total, header, body);
+                            } catch (Exception e) {
+                                Logger.getGlobal().log(Level.SEVERE, "Paginator paginatePages 延迟任务异常", e);
+                            }
                         },
                         i * (delayTicks <= 0 ? 5L : delayTicks));
             }
