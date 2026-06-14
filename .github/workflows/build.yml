@@ -42,6 +42,13 @@ jobs:
           echo "- **CommitID:** ${GITHUB_SHA:0:10}" >> $GITHUB_STEP_SUMMARY
           echo "- **PR:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Author:** ${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
+      - name: upload jar artifact
+        id: artifact-upload-step
+        uses: actions/upload-artifact@v7
+        with:
+          name: orzmc-plugin-${{ github.event.pull_request.head.sha }}
+          path: build/libs/*.jar
+          if-no-files-found: error
       - name: post PR comment
         uses: actions/github-script@v7
         if: success()
@@ -54,11 +61,13 @@ jobs:
             const base = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo;
             const runUrl = base + '/actions/runs/' + context.runId;
             const commitUrl = base + '/commit/' + fullSha;
+            const artifactId = '${{ steps.artifact-upload-step.outputs.artifact-id }}';
+            const downloadUrl = context.apiUrl + '/repos/' + context.repo.owner + '/' + context.repo.repo + '/actions/artifacts/' + artifactId + '/zip';
             const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
             const body = marker + '\n## ✅ Build Passed  (' + now + ')' +
               '\n- **BuildID:** [' + context.runId + '](' + runUrl + ')' +
               '\n- **CommitID:** [' + shortSha + '](' + commitUrl + ')' +
-              '\n- **Artifact:** [Download orzmc-plugin-' + shortSha + '.jar](' + runUrl + ')' +
+              '\n- **Artifact:** [Download orzmc-plugin-' + shortSha + '.jar](' + downloadUrl + ')' +
               '\n- **Author:** @' + context.payload.pull_request.user.login;
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -81,10 +90,3 @@ jobs:
                 body: body
               });
             }
-      - name: upload jar artifact
-        id: artifact-upload-step
-        uses: actions/upload-artifact@v7
-        with:
-          name: orzmc-plugin-${{ github.event.pull_request.head.sha }}
-          path: build/libs/*.jar
-          if-no-files-found: error
