@@ -1,16 +1,14 @@
-name: Publish to Hangar
+name: Create GitHub Release
 on:
   push:
-    branches:
-      - main                # → Snapshot 发布
     tags:
-      - '*.*.*'             # → Release 发布（SemVer，无 v 前缀）
+      - '*.*.*'             # SemVer 格式，无 v 前缀
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -27,14 +25,13 @@ jobs:
           distribution: 'temurin'
           java-version: 21
 
-      - name: check (tag only)
-        if: github.ref_type == 'tag'
-        run: ./gradlew check --stacktrace
-
       - name: build shadowJar
         run: ./gradlew clean build --stacktrace
 
-      - name: publish to Hangar
-        env:
-          HANGAR_API_TOKEN: ${{ secrets.HANGAR_API_TOKEN }}
-        run: ./gradlew clean publishPluginPublicationToHangar --stacktrace
+      - name: create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: build/libs/*.jar
+          generate_release_notes: true

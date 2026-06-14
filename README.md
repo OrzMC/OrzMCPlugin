@@ -9,6 +9,11 @@
 
 [![OrzMC](https://api.mcbanners.com/banner/resource/hangar/OrzMC/banner.png?background__template=DARK_GUNMETAL)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
 
+## 参与贡献
+
+欢迎通过 [Issue](https://github.com/OrzGeeker/OrzMCPlugin/issues/new/choose) 报告 Bug 或提出建议。
+提交代码前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 [私服](https://orzmc.jokerhub.cn)开服自研插件，用来辅助管理员运维。
 
 本插件针对[PaperMC](https://papermc.io/)服务器进行开发，由于`PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
