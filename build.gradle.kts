@@ -14,7 +14,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("org.yaml:snakeyaml:2.4")
+        classpath("org.yaml:snakeyaml:2.6")
     }
 }
 
@@ -59,11 +59,11 @@ dependencies {
     implementation("io.github.wangzhizhou:backup-core:0.1.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.1")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
     testImplementation("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-    testImplementation("org.mockito:mockito-core:5.11.0")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
 }
 
 val integrationTestSourceSet = sourceSets.create("integrationTest") {
@@ -93,18 +93,18 @@ dependencies {
     val integrationPaperVersion = property("plugin_debug_server_version") as String
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:5.10.1")
     add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion-R0.1-SNAPSHOT")
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.101.0")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.110.0")
     add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:4.12.0")
-    add("integrationTestImplementation", "org.mockito:mockito-core:5.11.0")
-    add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.11.0")
+    add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
+    add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
     add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:5.10.1")
-    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:1.10.1")
+    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:6.1.0")
 }
 
 // 项目编译时插件添加
 plugins {
-    kotlin("jvm") version "2.2.0"
-    id("com.gradleup.shadow") version "8.3.8"
+    kotlin("jvm") version "2.4.0"
+    id("com.gradleup.shadow") version "9.4.2"
     // 工程内直接调试服务端插件：https://docs.papermc.io/paper/dev/debugging#using-direct-debugging
     id("xyz.jpenilla.run-paper") version "3.0.2"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
