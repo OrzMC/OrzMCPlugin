@@ -72,6 +72,7 @@ public class OrzQQBotWsMultipleSetupTest {
     private BotInboundHandler inbound;
     private YamlConfiguration cfg;
     private ConfigService configService;
+    private HealthRegistry healthRegistry;
 
     @BeforeEach
     void init() {
@@ -94,22 +95,24 @@ public class OrzQQBotWsMultipleSetupTest {
         configService = Mockito.mock(ConfigService.class);
         Mockito.when(configService.getConfig("bot")).thenReturn(cfg);
         throttled = new ThrottledLogger(configService, rawLogger);
+        healthRegistry = new HealthRegistry();
     }
 
     @Test
     void multipleSetupDisconnectsPreviousAndKeepsHealth() {
         CountingFactory factory = new CountingFactory();
         OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory);
+                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory,
+                        healthRegistry);
         bot.setup();
         assertEquals(1, factory.ws.connectCount.get());
-        assertTrue(HealthRegistry.getRaw("qq").wsConnected);
+        assertTrue(healthRegistry.getRaw("qq").wsConnected);
         bot.setup(); // second setup should disconnect old and connect new
         assertEquals(2, factory.ws.connectCount.get());
         assertEquals(1, factory.ws.disconnectCount.get());
-        assertTrue(HealthRegistry.getRaw("qq").wsConnected);
+        assertTrue(healthRegistry.getRaw("qq").wsConnected);
         bot.teardown();
         assertEquals(2, factory.ws.disconnectCount.get());
-        assertFalse(HealthRegistry.getRaw("qq").wsConnected);
+        assertFalse(healthRegistry.getRaw("qq").wsConnected);
     }
 }

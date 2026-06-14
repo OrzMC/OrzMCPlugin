@@ -20,6 +20,7 @@ class OrzBotManager implements BotMessageService {
     private final BotInboundHandler inboundHandler;
     private final ConfigService configService;
     private final ThrottledLogger throttledLogger;
+    private final HealthRegistry healthRegistry;
     private List<BotAdapter> adapters;
     private final BotRouter router;
     private final AtomicBoolean setupRequested = new AtomicBoolean(false);
@@ -32,13 +33,15 @@ class OrzBotManager implements BotMessageService {
             ServerLogger logger,
             ConfigService configService,
             ThrottledLogger throttledLogger,
-            BotInboundHandler inboundHandler) {
+            BotInboundHandler inboundHandler,
+            HealthRegistry healthRegistry) {
         this.server = server;
         this.scheduler = scheduler;
         this.logger = logger;
         this.configService = configService;
         this.throttledLogger = throttledLogger;
         this.inboundHandler = inboundHandler;
+        this.healthRegistry = healthRegistry;
         this.adapters = Collections.emptyList();
         this.router = new BotRouter(throttledLogger);
     }
@@ -64,7 +67,8 @@ class OrzBotManager implements BotMessageService {
         }
         adapters = List.of(
                 new OrzQQBot(
-                        server, logger, configService, inboundHandler, new PlainMessageFormatter(), throttledLogger),
+                        server, logger, configService, inboundHandler, new PlainMessageFormatter(), throttledLogger,
+                        healthRegistry),
                 new OrzDiscordBot(
                         server,
                         logger,
@@ -72,8 +76,9 @@ class OrzBotManager implements BotMessageService {
                         configService,
                         inboundHandler,
                         new DiscordMessageFormatter(),
-                        throttledLogger),
-                new OrzLarkBot(server, logger, configService, new PlainMessageFormatter(), throttledLogger));
+                        throttledLogger,
+                        healthRegistry),
+                new OrzLarkBot(server, logger, configService, new PlainMessageFormatter(), throttledLogger, healthRegistry));
         router.setAdapters(adapters);
         router.setup();
     }
@@ -95,7 +100,7 @@ class OrzBotManager implements BotMessageService {
         if (!qqEnabled || wsServer == null || wsServer.isEmpty()) {
             return;
         }
-        if (HealthRegistry.getRaw("qq").wsConnected) {
+        if (healthRegistry.getRaw("qq").wsConnected) {
             return;
         }
         if (!qqReconnectInFlight.compareAndSet(false, true)) {
@@ -104,20 +109,20 @@ class OrzBotManager implements BotMessageService {
         scheduler.runAsync(() -> {
             try {
                 startIfRequested();
-                HealthRegistry.Status qq = HealthRegistry.getRaw("qq");
+                HealthRegistry.Status qq = healthRegistry.getRaw("qq");
                 if (qq.wsConnected) {
                     return;
                 }
                 for (BotAdapter adapter : adapters) {
                     if (adapter instanceof OrzQQBot qqBot) {
-                        if (!HealthRegistry.getRaw("qq").wsConnected) {
+                        if (!healthRegistry.getRaw("qq").wsConnected) {
                             qqBot.setupWebSocketClient();
                         }
                         return;
                     }
                 }
             } catch (Exception e) {
-                HealthRegistry.setLastError("qq", e.toString());
+                healthRegistry.setLastError("qq", e.toString());
             } finally {
                 qqReconnectInFlight.set(false);
             }

@@ -1,12 +1,12 @@
 package com.jokerhub.paper.plugin.orzmc.infra.templates;
 
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import java.util.Map;
 
 public final class TemplateResolvers {
     private TemplateResolvers() {}
 
-    public static String worldAlias(String worldName, String environment, TypedConfigs.TemplateOptions opt) {
+    public static String worldAlias(String worldName, String environment, TemplateOptions opt) {
         Map<String, String> localized =
                 opt.worldAliasLocalized().getOrDefault(opt.locale() == null ? "" : opt.locale(), null);
         String alias = localized != null ? localized.getOrDefault(worldName, null) : null;
@@ -20,7 +20,7 @@ public final class TemplateResolvers {
         return opt.worldAlias().getOrDefault("world", "主世界");
     }
 
-    public static String roleAlias(boolean isAdmin, TypedConfigs.TemplateOptions opt) {
+    public static String roleAlias(boolean isAdmin, TemplateOptions opt) {
         Map<String, String> localized =
                 opt.roleAliasLocalized().getOrDefault(opt.locale() == null ? "" : opt.locale(), null);
         if (localized != null) {
@@ -31,7 +31,7 @@ public final class TemplateResolvers {
     }
 
     public static String roleGroupAliasFromPermissions(
-            java.util.Collection<String> permKeys, TypedConfigs.TemplateOptions opt) {
+            java.util.Collection<String> permKeys, TemplateOptions opt) {
         for (java.util.Map.Entry<String, String> e : opt.roleGroupAliases().entrySet()) {
             String key = e.getKey();
             if (!"default".equalsIgnoreCase(key) && permKeys.contains(key)) {
@@ -41,7 +41,7 @@ public final class TemplateResolvers {
         return opt.roleGroupAliases().getOrDefault("default", roleAlias(false, opt));
     }
 
-    public static String stageAlias(String stageName, TypedConfigs.TemplateOptions opt) {
+    public static String stageAlias(String stageName, TemplateOptions opt) {
         if (stageName == null) return opt.stageCnMap().getOrDefault("Running", "进行中");
         Map<String, String> localized =
                 opt.stageAliasLocalized().getOrDefault(opt.locale() == null ? "" : opt.locale(), null);

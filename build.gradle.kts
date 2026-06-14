@@ -110,6 +110,7 @@ plugins {
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     id("com.diffplug.spotless") version "6.25.0"
+    id("jacoco")
 }
 
 // 代码格式化
@@ -243,6 +244,14 @@ tasks {
     withType<Test> {
         useJUnitPlatform()
         jvmArgs("-Xshare:off")
+        finalizedBy("jacocoTestReport")
+    }
+    jacocoTestReport {
+        dependsOn(test)
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+        }
     }
     named("check") {
         dependsOn("integrationTest")

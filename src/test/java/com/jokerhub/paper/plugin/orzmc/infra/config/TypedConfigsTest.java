@@ -1,5 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import java.util.List;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
@@ -19,7 +24,7 @@ public class TypedConfigsTest {
         cfg.set("backup_maintenance_motd", "维护中");
         cfg.set("allow_country_code", List.of("CN", "JP"));
 
-        TypedConfigs.MainConfig mc = TypedConfigs.MainConfig.from(cfg);
+        MainConfig mc = MainConfig.from(cfg);
         Assertions.assertTrue(mc.forceWhitelist());
         Assertions.assertEquals(30, mc.whitelistCleanupInactiveDays());
         Assertions.assertEquals(7, mc.whitelistPaginationDelayTicks());
@@ -44,7 +49,7 @@ public class TypedConfigsTest {
                         "minX", 0, "maxX", 10, "minY", 0, "maxY", 255, "minZ", 0, "maxZ", 10, "world", "world")));
         cfg.set("exempt_entities", List.of("CREEPER", "FIREBALL"));
 
-        TypedConfigs.TntConfig tc = TypedConfigs.TntConfig.from(cfg);
+        TntConfig tc = TntConfig.from(cfg);
         Assertions.assertTrue(tc.enable());
         Assertions.assertTrue(tc.enableRespawnAnchor());
         Assertions.assertEquals(10, tc.placeCooldownSeconds());
@@ -61,7 +66,7 @@ public class TypedConfigsTest {
         cfg.set("qq_group_id", "123");
         cfg.set("qq_player_group_id", "456");
 
-        TypedConfigs.BotConfig bot = TypedConfigs.BotConfig.from(cfg);
+        BotConfig bot = BotConfig.from(cfg);
         Assertions.assertEquals("!", bot.cmdPromptChar());
         Assertions.assertEquals("https://discord.gg/example", bot.discordServerLink());
         Assertions.assertEquals("123", bot.qqGroupId());
@@ -76,7 +81,7 @@ public class TypedConfigsTest {
         cfg.set("backup_retention_count", 12);
         cfg.set("backup_maintenance_motd", "维护中");
 
-        TypedConfigs.MaintenanceConfig maintenance = TypedConfigs.MaintenanceConfig.from(cfg);
+        MaintenanceConfig maintenance = MaintenanceConfig.from(cfg);
         Assertions.assertTrue(maintenance.optimizeEnabled());
         Assertions.assertEquals(600L, maintenance.optimizeTickTimeThreshold());
         Assertions.assertEquals(12, maintenance.backupRetentionCount());
@@ -90,7 +95,7 @@ public class TypedConfigsTest {
         cfg.set("cleanup_inactive_days", 30);
         cfg.set("pagination_delay_ticks", 9);
 
-        TypedConfigs.WhitelistConfig whitelist = TypedConfigs.WhitelistConfig.from(cfg);
+        WhitelistConfig whitelist = WhitelistConfig.from(cfg);
         Assertions.assertFalse(whitelist.forceWhitelist());
         Assertions.assertEquals(30, whitelist.cleanupInactiveDays());
         Assertions.assertEquals(9, whitelist.paginationDelayTicks());

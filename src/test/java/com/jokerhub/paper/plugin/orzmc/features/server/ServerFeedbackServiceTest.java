@@ -4,7 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
@@ -45,7 +46,7 @@ class ServerFeedbackServiceTest {
         when(server.server()).thenReturn(bukkitServer);
         when(bukkitServer.getOnlineMode()).thenReturn(true);
         when(bukkitServer.getMinecraftVersion()).thenReturn("1.21.4");
-        when(configs.bot()).thenReturn(new TypedConfigs.BotConfig("$", null, null, null));
+        when(configs.bot()).thenReturn(new BotConfig("$", null, null, null));
         when(event.getType()).thenReturn(ServerLoadEvent.LoadType.STARTUP);
 
         String msg = service.buildServerLoadMessage(event);
@@ -61,7 +62,7 @@ class ServerFeedbackServiceTest {
         when(server.server()).thenReturn(bukkitServer);
         when(bukkitServer.getOnlineMode()).thenReturn(false);
         when(bukkitServer.getMinecraftVersion()).thenReturn("1.21");
-        when(configs.bot()).thenReturn(new TypedConfigs.BotConfig("!", null, null, null));
+        when(configs.bot()).thenReturn(new BotConfig("!", null, null, null));
         when(event.getType()).thenReturn(ServerLoadEvent.LoadType.RELOAD);
 
         String msg = service.buildServerLoadMessage(event);
@@ -72,8 +73,8 @@ class ServerFeedbackServiceTest {
 
     @Test
     void buildMaintenanceMotd_containsMaintenanceWarn() {
-        TypedConfigs.MaintenanceConfig maint = new TypedConfigs.MaintenanceConfig(true, 300L, 5, "维护中请稍后");
-        TypedConfigs.BotConfig bot = new TypedConfigs.BotConfig("$", null, null, null);
+        MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护中请稍后");
+        BotConfig bot = new BotConfig("$", null, null, null);
         when(configs.maintenance()).thenReturn(maint);
         when(configs.bot()).thenReturn(bot);
         when(styles.warn(anyString())).thenReturn(Component.text("⚠ 维护中"));
@@ -87,8 +88,8 @@ class ServerFeedbackServiceTest {
 
     @Test
     void buildMaintenanceMotd_withDiscord() {
-        TypedConfigs.MaintenanceConfig maint = new TypedConfigs.MaintenanceConfig(true, 300L, 5, "维护公告");
-        TypedConfigs.BotConfig bot = new TypedConfigs.BotConfig("$", "https://discord.gg/test", null, null);
+        MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护公告");
+        BotConfig bot = new BotConfig("$", "https://discord.gg/test", null, null);
         when(configs.maintenance()).thenReturn(maint);
         when(configs.bot()).thenReturn(bot);
         when(styles.warn(anyString())).thenReturn(Component.text("⚠ 维护中"));

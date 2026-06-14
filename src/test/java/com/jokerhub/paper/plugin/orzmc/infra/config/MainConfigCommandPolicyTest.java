@@ -4,6 +4,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
+
 public class MainConfigCommandPolicyTest {
     @Test
     public void testPoliciesMapping() {
@@ -11,7 +13,7 @@ public class MainConfigCommandPolicyTest {
         cfg.set("commands.tpbow.cooldown_secs", 5);
         cfg.set("commands.tpbow.admin_only", true);
         cfg.set("commands.menu.cooldown_secs", 0);
-        TypedConfigs.MainConfig mc = TypedConfigs.MainConfig.from(cfg);
+        MainConfig mc = MainConfig.from(cfg);
         Assertions.assertTrue(mc.commandPolicies().containsKey("tpbow"));
         Assertions.assertEquals(5, mc.commandPolicies().get("tpbow").cooldownSeconds());
         Assertions.assertTrue(mc.commandPolicies().get("tpbow").adminOnly());

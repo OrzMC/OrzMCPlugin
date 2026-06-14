@@ -1,12 +1,13 @@
 package com.jokerhub.paper.plugin.orzmc.integration;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.OrzServices;
+import com.jokerhub.paper.plugin.orzmc.assembly.BotModule;
 import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.features.bot.BotStatusService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.NotifierSink;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,8 +32,8 @@ public class CommandAndEventIntegrationTest {
         server = MockBukkit.mock();
         plugin = MockBukkit.load(OrzMC.class);
         sink = new CapturingSink();
-        Notifier notifier = (Notifier) getServiceField(plugin, "notifier");
-        notifier.registerSink(sink);
+        BotModule botModule = getBotModule(plugin);
+        botModule.notifier().registerSink(sink);
     }
 
     @AfterEach
@@ -45,8 +46,8 @@ public class CommandAndEventIntegrationTest {
         PlayerMock player = server.addPlayer();
         Assertions.assertDoesNotThrow(() -> server.dispatchCommand(player, "bot"));
         Component actual = player.nextComponentMessage();
-        BotStatusService statusService = (BotStatusService) getServiceField(plugin, "botStatusService");
-        Component expected = statusService.buildStatusMessage();
+        BotModule botModule = getBotModule(plugin);
+        Component expected = botModule.botStatusService().buildStatusMessage();
         String actualText = PlainTextComponentSerializer.plainText().serialize(actual);
         String expectedText = PlainTextComponentSerializer.plainText().serialize(expected);
         Assertions.assertEquals(expectedText, actualText);
@@ -65,7 +66,8 @@ public class CommandAndEventIntegrationTest {
 
     @Test
     public void testAdminBotCommandCanExecuteConsoleCommand() {
-        BotInboundHandler handler = (BotInboundHandler) getServiceField(plugin, "botInboundHandler");
+        BotModule botModule = getBotModule(plugin);
+        BotInboundHandler handler = botModule.botInboundHandler();
         AtomicReference<MessageEnvelope> got = new AtomicReference<>();
 
         Assertions.assertDoesNotThrow(() -> handler.handleMessage("$e bot", true, got::set));
@@ -77,39 +79,19 @@ public class CommandAndEventIntegrationTest {
         Assertions.assertTrue(envelope.message().contains("QQBot:"), envelope.message());
     }
 
-    private static Object getField(Object target, String name) {
-        Class<?> type = target.getClass();
-        while (type != null) {
-            try {
-                Field field = type.getDeclaredField(name);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException ignored) {
-                type = type.getSuperclass();
-            } catch (Exception e) {
-                throw new IllegalStateException(e);
-            }
-        }
-        throw new IllegalStateException(new NoSuchFieldException(name));
+    private static BotModule getBotModule(OrzMC plugin) {
+        OrzServices services = getServicesField(plugin);
+        return services.botModule();
     }
 
-    /** Access a field on the OrzServices graph via the plugin reference. */
-    private static Object getServiceField(OrzMC plugin, String fieldName) {
-        Object services = getField(plugin, "services");
-        // After module decomposition, fields live inside modules
-        if ("notifier".equals(fieldName)) {
-            Object botModule = getField(services, "botModule");
-            return getField(botModule, "notifier");
+    private static OrzServices getServicesField(OrzMC plugin) {
+        try {
+            java.lang.reflect.Field field = OrzMC.class.getDeclaredField("services");
+            field.setAccessible(true);
+            return (OrzServices) field.get(plugin);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot access OrzServices from OrzMC", e);
         }
-        if ("botStatusService".equals(fieldName)) {
-            Object botModule = getField(services, "botModule");
-            return getField(botModule, "botStatusService");
-        }
-        if ("botInboundHandler".equals(fieldName)) {
-            Object botModule = getField(services, "botModule");
-            return getField(botModule, "botCommandService");
-        }
-        throw new IllegalArgumentException("Unknown service field: " + fieldName);
     }
 
     private static final class CapturingSink implements NotifierSink {

@@ -2,12 +2,13 @@ package com.jokerhub.paper.plugin.orzmc.features.tnt;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
+import com.jokerhub.paper.plugin.orzmc.infra.templates.CoordFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import java.util.EnumSet;
 import java.util.List;
@@ -45,7 +46,7 @@ public final class TntEventService {
         this.styles = styles;
         this.notifier = notifier;
         this.throttledNotifier = throttledNotifier;
-        TypedConfigs.TntConfig typed = configs.tnt();
+        TntConfig typed = configs.tnt();
         this.policy = new TntPolicy(typed);
         initExplosionExemptTypes(typed);
     }
@@ -141,26 +142,8 @@ public final class TntEventService {
     }
 
     private void notifyTNTEvent(Block block, String message) {
-        java.util.Map<String, String> vars = new java.util.HashMap<>();
-        org.bukkit.Location loc = block.getLocation();
-        String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = configs.templateOptions();
-        String worldAlias = TemplateResolvers.worldAlias(
-                world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
-        double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = Math.max(0, opt.coordPrecision());
-        String fmt = "%." + precision + "f";
-        String xUnit = String.format(fmt, loc.getBlockX() * scale);
-        String yUnit = String.format(fmt, loc.getBlockY() * scale);
-        String zUnit = String.format(fmt, loc.getBlockZ() * scale);
-        vars.put("world", worldAlias);
-        vars.put("x", String.valueOf(loc.getBlockX()));
-        vars.put("y", String.valueOf(loc.getBlockY()));
-        vars.put("z", String.valueOf(loc.getBlockZ()));
-        vars.put("x_unit", xUnit);
-        vars.put("y_unit", yUnit);
-        vars.put("z_unit", zUnit);
-        vars.put("coord_unit", opt.coordUnitLabel());
+        TemplateOptions opt = configs.templateOptions();
+        java.util.Map<String, String> vars = CoordFormatter.format(block.getLocation(), opt);
         vars.put("msg", message);
         vars.put("actor", "");
         vars.put("block_type", block.getType().name());
@@ -174,29 +157,8 @@ public final class TntEventService {
     }
 
     private void notifyExplosionEvent(Location location, String message) {
-        java.util.Map<String, String> vars = new java.util.HashMap<>();
-        String world = location.getWorld() != null ? location.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = configs.templateOptions();
-        String worldAlias = TemplateResolvers.worldAlias(
-                world,
-                location.getWorld() != null
-                        ? location.getWorld().getEnvironment().name()
-                        : "",
-                opt);
-        double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = Math.max(0, opt.coordPrecision());
-        String fmt = "%." + precision + "f";
-        String xUnit = String.format(fmt, location.getBlockX() * scale);
-        String yUnit = String.format(fmt, location.getBlockY() * scale);
-        String zUnit = String.format(fmt, location.getBlockZ() * scale);
-        vars.put("world", worldAlias);
-        vars.put("x", String.valueOf(location.getBlockX()));
-        vars.put("y", String.valueOf(location.getBlockY()));
-        vars.put("z", String.valueOf(location.getBlockZ()));
-        vars.put("x_unit", xUnit);
-        vars.put("y_unit", yUnit);
-        vars.put("z_unit", zUnit);
-        vars.put("coord_unit", opt.coordUnitLabel());
+        TemplateOptions opt = configs.templateOptions();
+        java.util.Map<String, String> vars = CoordFormatter.format(location, opt);
         vars.put("msg", message);
         vars.put("actor", "");
         vars.put("block_type", "EXPLOSION");
@@ -219,26 +181,8 @@ public final class TntEventService {
                 .append(Component.text("放置了 " + "TNT"))
                 .build();
         notifier.server(msg);
-        java.util.Map<String, String> vars = new java.util.HashMap<>();
-        org.bukkit.Location loc = block.getLocation();
-        String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = configs.templateOptions();
-        String worldAlias = TemplateResolvers.worldAlias(
-                world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
-        double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = Math.max(0, opt.coordPrecision());
-        String fmt = "%." + precision + "f";
-        String xUnit = String.format(fmt, loc.getBlockX() * scale);
-        String yUnit = String.format(fmt, loc.getBlockY() * scale);
-        String zUnit = String.format(fmt, loc.getBlockZ() * scale);
-        vars.put("world", worldAlias);
-        vars.put("x", String.valueOf(loc.getBlockX()));
-        vars.put("y", String.valueOf(loc.getBlockY()));
-        vars.put("z", String.valueOf(loc.getBlockZ()));
-        vars.put("x_unit", xUnit);
-        vars.put("y_unit", yUnit);
-        vars.put("z_unit", zUnit);
-        vars.put("coord_unit", opt.coordUnitLabel());
+        TemplateOptions opt = configs.templateOptions();
+        java.util.Map<String, String> vars = CoordFormatter.format(block.getLocation(), opt);
         vars.put("msg", "放置TNT");
         vars.put("actor", PlayerDisplayNames.format(player));
         vars.put("block_type", "TNT");
@@ -280,7 +224,7 @@ public final class TntEventService {
         }
     }
 
-    private void initExplosionExemptTypes(@NotNull TypedConfigs.TntConfig tntConfig) {
+    private void initExplosionExemptTypes(@NotNull TntConfig tntConfig) {
         List<String> names = tntConfig.exemptEntities();
         if (names.isEmpty()) {
             names = List.of(

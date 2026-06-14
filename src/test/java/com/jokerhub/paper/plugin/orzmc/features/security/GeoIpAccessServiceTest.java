@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.net.GeoIpClient;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -26,7 +26,7 @@ class GeoIpAccessServiceTest {
 
     @Test
     void decide_allowsAll_whenAllowListEmpty() {
-        when(configs.ipWhitelist()).thenReturn(new TypedConfigs.IpWhitelist(List.of()));
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of()));
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
@@ -36,7 +36,7 @@ class GeoIpAccessServiceTest {
 
     @Test
     void decide_allowsMatchingCountry() {
-        when(configs.ipWhitelist()).thenReturn(new TypedConfigs.IpWhitelist(List.of("CN")));
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         when(client.lookup("1.2.3.4"))
                 .thenReturn(CompletableFuture.completedFuture(new GeoIpClient.GeoIpResult("CN", "{}")));
 
@@ -48,7 +48,7 @@ class GeoIpAccessServiceTest {
 
     @Test
     void decide_blocksNonMatchingCountry() {
-        when(configs.ipWhitelist()).thenReturn(new TypedConfigs.IpWhitelist(List.of("CN")));
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         when(client.lookup("1.2.3.4"))
                 .thenReturn(CompletableFuture.completedFuture(new GeoIpClient.GeoIpResult("US", "{}")));
 
@@ -60,7 +60,7 @@ class GeoIpAccessServiceTest {
 
     @Test
     void decide_allowsOnLookupFailure() {
-        when(configs.ipWhitelist()).thenReturn(new TypedConfigs.IpWhitelist(List.of("CN")));
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.failedFuture(new RuntimeException("timeout")));
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();

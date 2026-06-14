@@ -7,7 +7,8 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.Format;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.TargetType;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
@@ -50,7 +51,7 @@ class TntEventServiceTest {
         notifier = mock(Notifier.class);
         throttledNotifier = mock(ThrottledNotifier.class);
 
-        TypedConfigs.TntConfig tntConfig = new TypedConfigs.TntConfig(
+        TntConfig tntConfig = new TntConfig(
                 false, // enable = false (TNT globally disabled)
                 true, // enableRespawnAnchor
                 0, // placeCooldownSeconds (0 = no cooldown)
@@ -66,7 +67,7 @@ class TntEventServiceTest {
         when(styles.coordComponent(anyString())).thenReturn(Component.text("(0,0,0)"));
         when(styles.coordString(any())).thenReturn("(0,0,0)");
 
-        TypedConfigs.TemplateOptions templateOpts = mock(TypedConfigs.TemplateOptions.class);
+        TemplateOptions templateOpts = mock(TemplateOptions.class);
         when(templateOpts.coordScale()).thenReturn(1.0);
         when(templateOpts.coordPrecision()).thenReturn(1);
         when(templateOpts.coordUnitLabel()).thenReturn("m");
@@ -126,7 +127,7 @@ class TntEventServiceTest {
     @Test
     void onTNTPrime_tntEnabled_doesNotCancel() {
         // Recreate service with TNT enabled
-        TypedConfigs.TntConfig tntConfig = new TypedConfigs.TntConfig(true, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.CHANNEL, "msg", "alert", Format.DEFAULT));
@@ -149,7 +150,7 @@ class TntEventServiceTest {
     @Test
     void onPlaceBlock_placingTnt_noCooldown_notCancelled() {
         // TNT enabled with whitelist covering location
-        TypedConfigs.TntConfig tntConfig = new TypedConfigs.TntConfig(true, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.CHANNEL, "msg", "alert", Format.DEFAULT));
@@ -173,7 +174,7 @@ class TntEventServiceTest {
 
     @Test
     void onPlaceBlock_placingTnt_disabledAndNotInWhitelist_cancels() {
-        TypedConfigs.TntConfig tntConfig = new TypedConfigs.TntConfig(false, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(false, false, 0, 1000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.CHANNEL, "msg", "alert", Format.DEFAULT));
@@ -195,7 +196,7 @@ class TntEventServiceTest {
 
     @Test
     void onPlaceBlock_placingRespawnAnchor_disabled_cancels() {
-        TypedConfigs.TntConfig tntConfig = new TypedConfigs.TntConfig(false, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(false, false, 0, 1000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         service = new TntEventService(configs, styles, notifier, throttledNotifier);
 
@@ -283,8 +284,8 @@ class TntEventServiceTest {
     @Test
     void onEntityExplode_exemptEntity_doesNothing() {
         // Creeper is in the default exempt list
-        TypedConfigs.TntConfig tntConfig =
-                new TypedConfigs.TntConfig(false, true, 0, 1000L, List.of(), List.of("CREEPER"));
+        TntConfig tntConfig =
+                new TntConfig(false, true, 0, 1000L, List.of(), List.of("CREEPER"));
         when(configs.tnt()).thenReturn(tntConfig);
         service = new TntEventService(configs, styles, notifier, throttledNotifier);
 

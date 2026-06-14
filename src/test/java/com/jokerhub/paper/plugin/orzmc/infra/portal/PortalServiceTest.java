@@ -70,57 +70,32 @@ class PortalServiceTest {
         assertNull(portalService.findTarget(loc));
     }
 
-    // ---- loadFromStorage ----
+    // ---- setup (loadFromStorage) ----
 
     @Test
-    void loadFromStorage_emptyConfig() {
-        portalService.loadFromStorage();
+    void setup_emptyConfig() {
+        portalService.setup();
         // No portals loaded — no exception expected
         assertNull(portalService.findTarget(new Location(world, 0, 0, 0)));
     }
 
     @Test
-    void loadFromStorage_skipsMalformedEntry() {
+    void setup_skipsMalformedEntry() {
         // A key that doesn't parse to 4 colon-separated parts should be skipped
         portalCfg.set("portals.bad_target.bad_key_no_colons", "X");
-        portalService.loadFromStorage();
+        portalService.setup();
         // Should not throw
         assertNull(portalService.findTarget(new Location(world, 0, 0, 0)));
     }
 
     @Test
-    void loadFromStorage_multiplePortals() {
+    void setup_multiplePortals() {
         loadPortal("world:100:64:200", "hub1:25565", "X");
         loadPortal("world:200:64:300", "hub2:25566", "Z");
         reloadPortals();
 
         assertEquals("hub1:25565", portalService.findTarget(new Location(world, 100, 64, 200)));
         assertEquals("hub2:25566", portalService.findTarget(new Location(world, 200, 64, 300)));
-    }
-
-    // ---- saveToStorage ----
-
-    @Test
-    void saveToStorage_persistsPortalEntries() {
-        loadPortal("world:100:64:200", "host:25565", "X");
-        reloadPortals();
-
-        portalService.saveToStorage();
-
-        verify(configService).saveConfig("portals");
-    }
-
-    @Test
-    void saveToStorage_clearsOldEntriesBeforeWrite() {
-        loadPortal("world:100:64:200", "host:25565", "X");
-        reloadPortals();
-        portalService.saveToStorage();
-
-        int removed = portalService.removeByTarget("host:25565");
-        assertEquals(1, removed);
-
-        portalService.saveToStorage();
-        verify(configService, times(3)).saveConfig("portals");
     }
 
     // ---- removeByTarget ----
@@ -154,6 +129,6 @@ class PortalServiceTest {
     }
 
     private void reloadPortals() {
-        portalService.loadFromStorage();
+        portalService.setup();
     }
 }

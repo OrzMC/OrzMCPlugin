@@ -10,7 +10,10 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.Format;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.TargetType;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage.WhitelistKickMessageItem;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.List;
@@ -31,11 +34,11 @@ class WhitelistEventServiceTest {
         styles = mock(OrzTextStyles.class);
         notifier = mock(Notifier.class);
 
-        TypedConfigs.WhitelistConfig whitelistCfg = mock(TypedConfigs.WhitelistConfig.class);
-        TypedConfigs.BotConfig botConfig = mock(TypedConfigs.BotConfig.class);
-        TypedConfigs.WhitelistKickMessage kickMsg = mock(TypedConfigs.WhitelistKickMessage.class);
-        TypedConfigs.WhitelistKickMessage.WhitelistKickMessageItem item =
-                mock(TypedConfigs.WhitelistKickMessage.WhitelistKickMessageItem.class);
+        WhitelistConfig whitelistCfg = mock(WhitelistConfig.class);
+        BotConfig botConfig = mock(BotConfig.class);
+        WhitelistKickMessage kickMsg = mock(WhitelistKickMessage.class);
+        WhitelistKickMessageItem item =
+                mock(WhitelistKickMessageItem.class);
 
         when(configs.whitelist()).thenReturn(whitelistCfg);
         when(whitelistCfg.forceWhitelist()).thenReturn(true);
@@ -101,7 +104,7 @@ class WhitelistEventServiceTest {
 
     @Test
     void handleVerify_noQqGroup_onlyDiscord() {
-        TypedConfigs.BotConfig botConfig = configs.bot();
+        BotConfig botConfig = configs.bot();
         when(botConfig.qqPlayerGroupId()).thenReturn(null);
 
         ProfileWhitelistVerifyEvent event = mock(ProfileWhitelistVerifyEvent.class);
@@ -118,7 +121,7 @@ class WhitelistEventServiceTest {
 
     @Test
     void handleVerify_noDiscordLink_onlyQqGroup() {
-        TypedConfigs.BotConfig botConfig = configs.bot();
+        BotConfig botConfig = configs.bot();
         when(botConfig.discordServerLink()).thenReturn(null);
 
         ProfileWhitelistVerifyEvent event = mock(ProfileWhitelistVerifyEvent.class);

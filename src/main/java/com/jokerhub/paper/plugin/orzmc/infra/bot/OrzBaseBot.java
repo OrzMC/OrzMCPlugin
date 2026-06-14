@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public abstract class OrzBaseBot implements BotAdapter {
@@ -16,10 +17,12 @@ public abstract class OrzBaseBot implements BotAdapter {
     protected final ServerAccess server;
     protected final ServerLogger logger;
     protected final FileConfiguration botConfig;
+    protected final HealthRegistry healthRegistry;
 
-    protected OrzBaseBot(ServerAccess server, ServerLogger logger, ConfigService configService) {
+    protected OrzBaseBot(ServerAccess server, ServerLogger logger, ConfigService configService, HealthRegistry healthRegistry) {
         this.server = server;
         this.logger = logger;
+        this.healthRegistry = healthRegistry;
         botConfig = configService.getConfig("bot");
     }
 

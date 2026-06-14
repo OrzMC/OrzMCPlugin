@@ -4,7 +4,8 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.NotifyPolicy;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.NotifyPolicy.Notifications;
 import net.kyori.adventure.text.Component;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -56,9 +57,9 @@ public final class Notifier {
             FileConfiguration legacy = configService.loadFile("notifications.yml");
             notificationsSection = legacy != null ? legacy.getConfigurationSection("notifications") : null;
         }
-        TypedConfigs.Notifications ns = TypedConfigs.Notifications.from(notificationsSection);
-        TypedConfigs.NotifyPolicy p =
-                ns.policies().getOrDefault(key, new TypedConfigs.NotifyPolicy(false, true, true, ""));
+        Notifications ns = Notifications.from(notificationsSection);
+        NotifyPolicy p =
+                ns.policies().getOrDefault(key, new NotifyPolicy(false, true, true, ""));
         if (p.publicEnabled()) {
             botMessageService.send(envelope.withTargetType(MessageEnvelope.TargetType.PUBLIC));
         }

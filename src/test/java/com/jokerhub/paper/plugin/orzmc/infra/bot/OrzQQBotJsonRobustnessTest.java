@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.ws.MessageHandler;
 import com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketClientFactory;
@@ -66,6 +67,7 @@ public class OrzQQBotJsonRobustnessTest {
     private ThrottledLogger throttled;
     private YamlConfiguration cfg;
     private ConfigService configService;
+    private HealthRegistry healthRegistry;
 
     @BeforeEach
     void init() {
@@ -88,6 +90,7 @@ public class OrzQQBotJsonRobustnessTest {
         configService = Mockito.mock(ConfigService.class);
         Mockito.when(configService.getConfig("bot")).thenReturn(cfg);
         throttled = new ThrottledLogger(configService, rawLogger);
+        healthRegistry = new HealthRegistry();
     }
 
     @Test
@@ -96,7 +99,8 @@ public class OrzQQBotJsonRobustnessTest {
         BotInboundHandler inbound = (message, isAdmin, sender) -> dispatchCount.incrementAndGet();
         HandlerCapturingFactory factory = new HandlerCapturingFactory();
         OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory);
+                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory,
+                        healthRegistry);
         bot.setup();
         factory.fireMessage("{\"group_id\":\"123\",\"raw_message\":\"$hi\"}");
         factory.fireMessage("{\"group_id\":\"123\",\"raw_message\":\"$hi\",\"sender\":{}}");

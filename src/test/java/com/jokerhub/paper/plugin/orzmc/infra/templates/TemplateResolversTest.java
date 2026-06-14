@@ -1,6 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.templates;
 
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,7 +18,7 @@ public class TemplateResolversTest {
         java.util.Map<String, Map<String, String>> roleAliasLocalized = new HashMap<>();
         java.util.Map<String, Map<String, String>> worldAliasLocalized = new HashMap<>();
         Map<String, String> roleGroups = new HashMap<>();
-        TypedConfigs.TemplateOptions opt = new TypedConfigs.TemplateOptions(
+        TemplateOptions opt = new TemplateOptions(
                 stage,
                 "per_sec",
                 "ms",
@@ -38,7 +38,7 @@ public class TemplateResolversTest {
         Assertions.assertEquals("主世界", TemplateResolvers.worldAlias("unknown_world", "", opt));
         Map<String, String> m = new HashMap<>();
         m.put("my_world", "我的世界");
-        opt = new TypedConfigs.TemplateOptions(
+        opt = new TemplateOptions(
                 stage,
                 "per_sec",
                 "ms",
@@ -60,16 +60,16 @@ public class TemplateResolversTest {
         Map<String, String> world = new HashMap<>();
         Map<String, String> role = new HashMap<>();
         role.put("admin", "超管");
-        TypedConfigs.TemplateOptions opt = getTemplateOptions(stage, world, role);
+        TemplateOptions opt = getTemplateOptions(stage, world, role);
         Assertions.assertEquals("超管", TemplateResolvers.roleAlias(true, opt));
         Assertions.assertEquals("玩家", TemplateResolvers.roleAlias(false, opt));
     }
 
-    private static TypedConfigs.TemplateOptions getTemplateOptions(
+    private static TemplateOptions getTemplateOptions(
             Map<String, String> stage, Map<String, String> world, Map<String, String> role) {
         Map<String, Map<String, String>> roleAliasLocalized = new HashMap<>();
         Map<String, String> roleGroups = new HashMap<>();
-        return new TypedConfigs.TemplateOptions(
+        return new TemplateOptions(
                 stage,
                 "per_sec",
                 "ms",
@@ -88,21 +88,21 @@ public class TemplateResolversTest {
     public void testRoleGroupAliasMatching() {
         Map<String, String> stage = new HashMap<>();
         Map<String, String> world = new HashMap<>();
-        TypedConfigs.TemplateOptions opt = getTemplateOptions(stage, world);
+        TemplateOptions opt = getTemplateOptions(stage, world);
         List<String> perms = Arrays.asList("foo.bar", "server.vip");
         Assertions.assertEquals("VIP", TemplateResolvers.roleGroupAliasFromPermissions(perms, opt));
         List<String> none = Collections.emptyList();
         Assertions.assertEquals("玩家", TemplateResolvers.roleGroupAliasFromPermissions(none, opt));
     }
 
-    private static TypedConfigs.TemplateOptions getTemplateOptions(
+    private static TemplateOptions getTemplateOptions(
             Map<String, String> stage, Map<String, String> world) {
         Map<String, String> role = new HashMap<>();
         Map<String, Map<String, String>> roleAliasLocalized = new HashMap<>();
         Map<String, String> roleGroups = new HashMap<>();
         roleGroups.put("server.vip", "VIP");
         roleGroups.put("default", "玩家");
-        return new TypedConfigs.TemplateOptions(
+        return new TemplateOptions(
                 stage,
                 "per_sec",
                 "ms",
@@ -129,7 +129,7 @@ public class TemplateResolversTest {
         zh.put("Region", "区域");
         zh.put("Chunk", "区块");
         stageAliasLocalized.put("zh-CN", zh);
-        TypedConfigs.TemplateOptions opt = new TypedConfigs.TemplateOptions(
+        TemplateOptions opt = new TemplateOptions(
                 stage,
                 "per_sec",
                 "ms",

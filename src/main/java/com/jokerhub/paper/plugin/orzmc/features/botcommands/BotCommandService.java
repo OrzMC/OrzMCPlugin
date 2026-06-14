@@ -5,7 +5,9 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.paging.Paginator;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.ArrayList;
@@ -40,7 +42,7 @@ public final class BotCommandService implements BotInboundHandler {
     }
 
     public void parse(String message, Boolean isAdmin, Consumer<MessageEnvelope> callback) {
-        TypedConfigs.BotConfig botConfig = botConfig();
+        BotConfig botConfig = botConfig();
         String promptChar = botConfig.cmdPromptChar();
         if (!message.startsWith(promptChar)) return;
 
@@ -91,12 +93,12 @@ public final class BotCommandService implements BotInboundHandler {
         }
     }
 
-    private TypedConfigs.BotConfig botConfig() {
+    private BotConfig botConfig() {
         try {
             return configs.bot();
         } catch (Exception e) {
             server.logger().warning("读取 botConfig 失败，使用默认值: " + e.getMessage());
-            return new TypedConfigs.BotConfig("$", null, null, null);
+            return new BotConfig("$", null, null, null);
         }
     }
 
@@ -127,7 +129,7 @@ public final class BotCommandService implements BotInboundHandler {
     private void whiteListInfo(Consumer<MessageEnvelope> callback, Integer page, boolean isAdmin) {
         server.runAsync(() -> {
             try {
-                TypedConfigs.WhitelistConfig whitelistConfig = configs.whitelist();
+                WhitelistConfig whitelistConfig = configs.whitelist();
                 WhitelistService svc = WhitelistService.defaultImpl();
                 int delayTicks = Math.max(0, whitelistConfig.paginationDelayTicks());
                 if (isAdmin) {
@@ -146,7 +148,7 @@ public final class BotCommandService implements BotInboundHandler {
             Integer page,
             int delayTicks,
             WhitelistService svc,
-            TypedConfigs.WhitelistConfig whitelistConfig) {
+            WhitelistConfig whitelistConfig) {
         server.runSync(() -> {
             java.util.Set<String> removed =
                     svc.cleanupInactivePlayers(server.server(), Math.max(1, whitelistConfig.cleanupInactiveDays()));
@@ -202,7 +204,7 @@ public final class BotCommandService implements BotInboundHandler {
         if (!guardAdminCommand(OrzUserCmd.BACKUP, isAdmin, callback)) {
             return;
         }
-        TypedConfigs.MaintenanceConfig maintenance = configs.maintenance();
+        MaintenanceConfig maintenance = configs.maintenance();
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
         int retain = maintenance.backupRetentionCount();
         if (maintenanceService != null) {
@@ -217,7 +219,7 @@ public final class BotCommandService implements BotInboundHandler {
         if (!guardOptimizeEnabled(callback)) {
             return;
         }
-        TypedConfigs.MaintenanceConfig maintenance = configs.maintenance();
+        MaintenanceConfig maintenance = configs.maintenance();
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
         if (maintenanceService != null) {
             maintenanceService.optimize(tickTimeThreshold, msg -> emitOptimize(callback, msg));

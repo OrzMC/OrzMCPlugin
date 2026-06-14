@@ -8,7 +8,8 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.Format;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.TargetType;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -31,8 +32,8 @@ class BotCommandServiceTest {
         callback = mock(Consumer.class);
         logger = mock(Logger.class);
 
-        TypedConfigs.BotConfig botConfig = new TypedConfigs.BotConfig("$", null, null, null);
-        TypedConfigs.WhitelistConfig whitelistConfig = mock(TypedConfigs.WhitelistConfig.class);
+        BotConfig botConfig = new BotConfig("$", null, null, null);
+        WhitelistConfig whitelistConfig = mock(WhitelistConfig.class);
         when(configs.bot()).thenReturn(botConfig);
         when(configs.whitelist()).thenReturn(whitelistConfig);
         when(configs.renderTemplate(anyString(), anyMap(), anyString()))

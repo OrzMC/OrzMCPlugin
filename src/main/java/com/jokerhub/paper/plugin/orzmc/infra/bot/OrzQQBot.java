@@ -33,8 +33,9 @@ public class OrzQQBot extends OrzBaseBot {
             ConfigService configService,
             BotInboundHandler inboundHandler,
             MessageFormatter formatter,
-            ThrottledLogger throttledLogger) {
-        super(server, logger, configService);
+            ThrottledLogger throttledLogger,
+            HealthRegistry healthRegistry) {
+        super(server, logger, configService, healthRegistry);
         this.inboundHandler = inboundHandler;
         this.formatter = formatter;
         this.throttledLogger = throttledLogger;
@@ -48,8 +49,9 @@ public class OrzQQBot extends OrzBaseBot {
             BotInboundHandler inboundHandler,
             MessageFormatter formatter,
             ThrottledLogger throttledLogger,
-            WebSocketClientFactory wsFactory) {
-        super(server, logger, configService);
+            WebSocketClientFactory wsFactory,
+            HealthRegistry healthRegistry) {
+        super(server, logger, configService, healthRegistry);
         this.inboundHandler = inboundHandler;
         this.formatter = formatter;
         this.throttledLogger = throttledLogger;
@@ -63,7 +65,7 @@ public class OrzQQBot extends OrzBaseBot {
 
     @Override
     public void setup() {
-        HealthRegistry.setEnabled("qq", this.isEnable());
+        healthRegistry.setEnabled("qq", this.isEnable());
         this.setupWebSocketClient();
     }
 
@@ -85,7 +87,7 @@ public class OrzQQBot extends OrzBaseBot {
                 asyncHttpRequest(url);
             }
         } catch (Exception e) {
-            HealthRegistry.setLastError("qq", e.toString());
+            healthRegistry.setLastError("qq", e.toString());
             this.logger.logger().info(e.toString());
         }
     }
@@ -103,7 +105,7 @@ public class OrzQQBot extends OrzBaseBot {
                 asyncHttpRequest(url);
             }
         } catch (Exception e) {
-            HealthRegistry.setLastError("qq", e.toString());
+            healthRegistry.setLastError("qq", e.toString());
             this.logger.logger().info(e.toString());
         }
     }
@@ -125,7 +127,7 @@ public class OrzQQBot extends OrzBaseBot {
                 asyncHttpRequest(url);
             }
         } catch (Exception e) {
-            HealthRegistry.setLastError("qq", e.toString());
+            healthRegistry.setLastError("qq", e.toString());
             this.logger.logger().info(e.toString());
         }
     }
@@ -156,7 +158,7 @@ public class OrzQQBot extends OrzBaseBot {
                 BotInboundDispatcher.dispatch(inboundHandler, message, isAdmin || isOwner, this::send);
             }
         } catch (Exception e) {
-            HealthRegistry.setLastError("qq", e.toString());
+            healthRegistry.setLastError("qq", e.toString());
             this.logger.logger().info(e.toString());
         }
     }
@@ -174,18 +176,18 @@ public class OrzQQBot extends OrzBaseBot {
                             retries <= 0 ? 3 : retries)
                     .thenAcceptAsync(response -> {
                         if (response.statusCode() == 200) {
-                            HealthRegistry.setHttpOk("qq", true);
-                            HealthRegistry.setLastError("qq", null);
+                            healthRegistry.setHttpOk("qq", true);
+                            healthRegistry.setLastError("qq", null);
                         }
                     })
                     .exceptionally(e -> {
-                        HealthRegistry.setHttpOk("qq", false);
-                        HealthRegistry.setLastError("qq", e.toString());
+                        healthRegistry.setHttpOk("qq", false);
+                        healthRegistry.setLastError("qq", e.toString());
                         throttledLogger.error("qq-http", "QQ机器人无法连接，工作异常: " + e);
                         return null;
                     });
         } catch (Exception e) {
-            HealthRegistry.setLastError("qq", e.toString());
+            healthRegistry.setLastError("qq", e.toString());
             this.logger.logger().severe(e.toString());
         }
     }
@@ -241,18 +243,18 @@ public class OrzQQBot extends OrzBaseBot {
                     new com.jokerhub.paper.plugin.orzmc.infra.ws.WebSocketEventListener() {
                         @Override
                         public void onOpen() {
-                            HealthRegistry.setWsConnected("qq", true);
+                            healthRegistry.setWsConnected("qq", true);
                         }
 
                         @Override
                         public void onClose(int code, String reason, boolean remote) {
-                            HealthRegistry.setWsConnected("qq", false);
+                            healthRegistry.setWsConnected("qq", false);
                         }
 
                         @Override
                         public void onError(Exception ex) {
-                            HealthRegistry.setWsConnected("qq", false);
-                            HealthRegistry.setLastError("qq", ex.toString());
+                            healthRegistry.setWsConnected("qq", false);
+                            healthRegistry.setLastError("qq", ex.toString());
                             throttledLogger.error("qq-ws", "QQ机器人WebSocket异常: " + ex);
                         }
                     },
@@ -260,7 +262,7 @@ public class OrzQQBot extends OrzBaseBot {
 
             webSocketClient.connect();
         } catch (Exception e) {
-            HealthRegistry.setLastError("qq", e.toString());
+            healthRegistry.setLastError("qq", e.toString());
             this.logger.logger().info(e.toString());
         }
     }

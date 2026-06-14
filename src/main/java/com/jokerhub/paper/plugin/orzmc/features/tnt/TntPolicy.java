@@ -1,6 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.tnt;
 
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +36,7 @@ public class TntPolicy {
     private final List<Region> whitelistRegions = new ArrayList<>();
     private final List<String> exemptEntities;
 
-    public TntPolicy(TypedConfigs.TntConfig cfg) {
+    public TntPolicy(TntConfig cfg) {
         this.enableTnt = cfg.enable();
         this.enableRespawnAnchor = cfg.enableRespawnAnchor();
         this.placeCooldownSeconds = cfg.placeCooldownSeconds();

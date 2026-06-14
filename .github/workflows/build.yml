@@ -35,6 +35,14 @@ jobs:
         run: ./gradlew integrationTest --stacktrace
       - name: build shadowJar
         run: ./gradlew clean build --stacktrace
+      - name: jacoco coverage report
+        run: ./gradlew jacocoTestReport --stacktrace
+      - name: upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: build/reports/jacoco/
+          if-no-files-found: warn
       - name: generate build summary
         run: |
           echo "### Build Summary" >> $GITHUB_STEP_SUMMARY

@@ -1,7 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.templates;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import java.util.Map;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -11,13 +11,13 @@ public final class TemplateService {
     public static MessageEnvelope renderEvent(
             String eventKey,
             FileConfiguration templatesCfg,
-            TypedConfigs.Templates templates,
+            Templates templates,
             Map<String, String> vars) {
         String template = templateForEvent(eventKey, templates);
         return TemplateRenderer.renderEnvelope(eventKey, template, vars, templatesCfg);
     }
 
-    private static String templateForEvent(String eventKey, TypedConfigs.Templates templates) {
+    private static String templateForEvent(String eventKey, Templates templates) {
         if (eventKey == null || eventKey.isEmpty()) {
             return "";
         }
