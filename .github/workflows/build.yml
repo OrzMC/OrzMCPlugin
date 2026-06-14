@@ -68,9 +68,7 @@ jobs:
               run_id: context.runId,
               name: artifactName
             });
-            const downloadUrl = artifacts.artifacts.length > 0
-              ? artifacts.artifacts[0].archive_download_url
-              : runUrl;
+            const downloadUrl = artifacts.artifacts[0].archive_download_url;
             const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
             const body = marker + '\n## ✅ Build Passed  (' + now + ')' +
               '\n- **BuildID:** [' + context.runId + '](' + runUrl + ')' +
