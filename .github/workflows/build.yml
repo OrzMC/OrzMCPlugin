@@ -71,10 +71,12 @@ jobs:
             const downloadUrl = artifacts.artifacts[0].archive_download_url;
             const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
             const body = marker + '\n## ✅ Build Passed  (' + now + ')' +
-              '\n- **BuildID:** [' + context.runId + '](' + runUrl + ')' +
-              '\n- **CommitID:** [' + shortSha + '](' + commitUrl + ')' +
-              '\n- **Artifact:** [' + artifactName + '.zip](' + downloadUrl + ')' +
-              '\n- **Author:** @' + context.payload.pull_request.user.login;
+              '\n| 项目 | 详情 |' +
+              '\n|------|------|' +
+              '\n| **BuildID** | [' + context.runId + '](' + runUrl + ') |' +
+              '\n| **CommitID** | [' + shortSha + '](' + commitUrl + ') |' +
+              '\n| **Artifact** | [' + artifactName + '.zip](' + downloadUrl + ') |' +
+              '\n| **Author** | @' + context.payload.pull_request.user.login + ' |';
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
