@@ -62,8 +62,8 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.1")
     testImplementation("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-    testImplementation("org.mockito:mockito-core:5.11.0")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
 }
 
 val integrationTestSourceSet = sourceSets.create("integrationTest") {
@@ -95,8 +95,8 @@ dependencies {
     add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion-R0.1-SNAPSHOT")
     add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.110.0")
     add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:4.12.0")
-    add("integrationTestImplementation", "org.mockito:mockito-core:5.11.0")
-    add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.11.0")
+    add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
+    add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
     add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:5.10.1")
     add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:1.10.1")
 }
