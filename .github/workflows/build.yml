@@ -42,6 +42,24 @@ jobs:
           echo "- **CommitID:** ${GITHUB_SHA:0:10}" >> $GITHUB_STEP_SUMMARY
           echo "- **PR:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Author:** ${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
+      - name: post PR comment
+        uses: actions/github-script@v7
+        if: success()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = context.payload.pull_request.head.sha.substring(0, 10);
+            const summary = '## ✅ Build Passed' +
+              '\n- **BuildID:** `' + context.runId + '`' +
+              '\n- **CommitID:** `' + sha + '`' +
+              '\n- **Artifact:** `orzmc-plugin-' + sha + '`' +
+              '\n- **Author:** @' + context.payload.pull_request.user.login;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summary
+            });
       - name: upload jar artifact
         id: artifact-upload-step
         uses: actions/upload-artifact@v7
