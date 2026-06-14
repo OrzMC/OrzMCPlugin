@@ -95,7 +95,7 @@ class OrzBotManager implements BotMessageService {
         if (!qqEnabled || wsServer == null || wsServer.isEmpty()) {
             return;
         }
-        if (HealthRegistry.get("qq").wsConnected) {
+        if (HealthRegistry.getRaw("qq").wsConnected) {
             return;
         }
         if (!qqReconnectInFlight.compareAndSet(false, true)) {
@@ -104,13 +104,13 @@ class OrzBotManager implements BotMessageService {
         scheduler.runAsync(() -> {
             try {
                 startIfRequested();
-                HealthRegistry.Status qq = HealthRegistry.get("qq");
+                HealthRegistry.Status qq = HealthRegistry.getRaw("qq");
                 if (qq.wsConnected) {
                     return;
                 }
                 for (BotAdapter adapter : adapters) {
                     if (adapter instanceof OrzQQBot qqBot) {
-                        if (!HealthRegistry.get("qq").wsConnected) {
+                        if (!HealthRegistry.getRaw("qq").wsConnected) {
                             qqBot.setupWebSocketClient();
                         }
                         return;

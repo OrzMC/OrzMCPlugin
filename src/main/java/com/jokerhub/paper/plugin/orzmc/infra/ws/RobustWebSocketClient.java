@@ -150,16 +150,19 @@ public class RobustWebSocketClient implements WsClient {
                 if (client != null) {
                     client.close();
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                server.logger().warning("关闭 WebSocket 客户端时异常: " + e.getMessage());
             }
             try {
                 executor.shutdown();
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                server.logger().warning("关闭 WS 执行器时异常: " + e.getMessage());
             }
             if (listener != null) {
                 try {
                     listener.onError(new RuntimeException("WS reconnect exhausted"));
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    server.logger().warning("WS listener.onError 异常: " + e.getMessage());
                 }
             }
             reconnecting.set(false);
@@ -233,14 +236,16 @@ public class RobustWebSocketClient implements WsClient {
                 if (missedHeartbeatAcks >= heartbeatMissThreshold) {
                     try {
                         client.close();
-                    } catch (Exception ignored) {
+                    } catch (Exception e) {
+                        throttledLogger.warning("ws-heartbeat-close", "心跳触发关闭客户端异常: " + e.getMessage());
                     }
                     return;
                 }
                 client.send(heartbeatPayload);
                 lastHeartbeatSentTs = now;
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            throttledLogger.warning("ws-heartbeat", "心跳 tick 异常: " + e.getMessage());
         }
     }
 
@@ -251,7 +256,8 @@ public class RobustWebSocketClient implements WsClient {
         if (heartbeatFuture != null) {
             try {
                 heartbeatFuture.cancel(true);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                throttledLogger.warning("ws-heartbeat-cancel", "取消心跳任务异常: " + e.getMessage());
             }
             heartbeatFuture = null;
         }

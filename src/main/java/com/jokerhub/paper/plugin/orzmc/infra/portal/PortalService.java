@@ -2,12 +2,15 @@ package com.jokerhub.paper.plugin.orzmc.infra.portal;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalInfo;
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalPort;
+import com.jokerhub.paper.plugin.orzmc.core.ports.portal.WorldProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.PortalsWriter;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -26,12 +29,20 @@ import org.bukkit.util.Vector;
 
 public class PortalService implements PortalPort {
     private final ConfigService configService;
+    private final WorldProvider worldProvider;
+    private final Logger logger;
 
     private final Map<String, String> interiorTargets = new HashMap<>();
     private final Map<String, PortalDef> portalCenters = new HashMap<>();
 
     public PortalService(ConfigService configService) {
+        this(configService, new BukkitWorldProvider());
+    }
+
+    public PortalService(ConfigService configService, WorldProvider worldProvider) {
         this.configService = configService;
+        this.worldProvider = worldProvider;
+        this.logger = Logger.getLogger("PortalService");
     }
 
     private String key(org.bukkit.World w, int x, int y, int z) {
@@ -196,7 +207,8 @@ public class PortalService implements PortalPort {
                 cx = Integer.parseInt(parts[1]);
                 cy = Integer.parseInt(parts[2]);
                 cz = Integer.parseInt(parts[3]);
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                logger.log(Level.WARNING, "PortalService 读取配置坐标失败，跳过: " + k, ex);
                 continue;
             }
             String axisStr = e.getValue().axis();
@@ -265,8 +277,21 @@ public class PortalService implements PortalPort {
     }
 
     private void clearPortalBlocks(PortalDef def) {
-        org.bukkit.World w = org.bukkit.Bukkit.getWorld(def.world());
-        if (w == null) return;
+        org.bukkit.World w = worldProvider.getWorld(def.world());
+        if (w == null) {
+            logger.warning("clearPortalBlocks: 世界 " + def.world() + " 不存在，跳过");
+            return;
+        }
+        // 预加载所需区块，避免每 getBlockAt() 触发一次 chunk load
+        if (def.axis == org.bukkit.Axis.X) {
+            w.getChunkAt(def.cx >> 4, (def.cz - 1) >> 4);
+            w.getChunkAt(def.cx >> 4, def.cz >> 4);
+            w.getChunkAt(def.cx >> 4, (def.cz + 1) >> 4);
+        } else {
+            w.getChunkAt((def.cx - 1) >> 4, def.cz >> 4);
+            w.getChunkAt(def.cx >> 4, def.cz >> 4);
+            w.getChunkAt((def.cx + 1) >> 4, def.cz >> 4);
+        }
         int baseY = def.cy - 2;
         int fw = 4;
         int fh = 5;
@@ -335,8 +360,11 @@ public class PortalService implements PortalPort {
     }
 
     private void clearLabels(PortalDef def) {
-        org.bukkit.World w = org.bukkit.Bukkit.getWorld(def.world());
-        if (w == null) return;
+        org.bukkit.World w = worldProvider.getWorld(def.world());
+        if (w == null) {
+            logger.warning("clearLabels: 世界 " + def.world() + " 不存在，跳过");
+            return;
+        }
         org.bukkit.Location base = new org.bukkit.Location(w, def.cx + 0.5, def.cy + 1.9, def.cz + 0.5);
         Collection<Entity> nearby = w.getNearbyEntities(base, 2.5, 2.5, 2.5);
         for (Entity e : nearby) {
@@ -383,7 +411,7 @@ public class PortalService implements PortalPort {
     }
 
     private void spawnLabel(PortalDef def) {
-        org.bukkit.World w = org.bukkit.Bukkit.getWorld(def.world());
+        org.bukkit.World w = worldProvider.getWorld(def.world());
         if (w == null) return;
         org.bukkit.Location base = new org.bukkit.Location(w, def.cx() + 0.5, def.cy() + 1.9, def.cz() + 0.5);
         Collection<Entity> nearby = w.getNearbyEntities(base, 2.0, 2.0, 2.0);

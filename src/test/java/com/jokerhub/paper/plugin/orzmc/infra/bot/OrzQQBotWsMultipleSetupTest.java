@@ -103,13 +103,13 @@ public class OrzQQBotWsMultipleSetupTest {
                 new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory);
         bot.setup();
         assertEquals(1, factory.ws.connectCount.get());
-        assertTrue(HealthRegistry.get("qq").wsConnected);
+        assertTrue(HealthRegistry.getRaw("qq").wsConnected);
         bot.setup(); // second setup should disconnect old and connect new
         assertEquals(2, factory.ws.connectCount.get());
         assertEquals(1, factory.ws.disconnectCount.get());
-        assertTrue(HealthRegistry.get("qq").wsConnected);
+        assertTrue(HealthRegistry.getRaw("qq").wsConnected);
         bot.teardown();
         assertEquals(2, factory.ws.disconnectCount.get());
-        assertFalse(HealthRegistry.get("qq").wsConnected);
+        assertFalse(HealthRegistry.getRaw("qq").wsConnected);
     }
 }

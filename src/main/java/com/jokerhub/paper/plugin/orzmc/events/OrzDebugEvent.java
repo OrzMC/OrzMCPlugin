@@ -2,6 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.events;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
+import java.util.logging.Level;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.server.ServerCommandEvent;
 
@@ -23,11 +24,13 @@ public class OrzDebugEvent extends OrzBaseListener {
             return;
         }
         String cmd = event.getCommand().substring(debugCmdPrefix.length()).trim();
-        plugin.getServer()
-                .getScheduler()
-                .runTaskAsynchronously(
-                        plugin,
-                        () -> inboundHandler.handleMessage(
-                                cmd, true, env -> plugin.getLogger().info("cmd debug: \n" + env.message())));
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                inboundHandler.handleMessage(
+                        cmd, true, env -> plugin.getLogger().info("cmd debug: \n" + env.message()));
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "debug 命令异步执行异常", e);
+            }
+        });
     }
 }
