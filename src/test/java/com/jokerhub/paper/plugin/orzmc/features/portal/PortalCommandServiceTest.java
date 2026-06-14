@@ -19,9 +19,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class PortalCommandServiceTest {
 
-    @Mock private PortalPort portalService;
-    @Mock private OrzTextStyles styles;
-    @Mock private Player player;
+    @Mock
+    private PortalPort portalService;
+
+    @Mock
+    private OrzTextStyles styles;
+
+    @Mock
+    private Player player;
 
     private PortalCommandService service;
 

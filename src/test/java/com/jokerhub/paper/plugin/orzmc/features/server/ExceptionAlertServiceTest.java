@@ -16,8 +16,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ExceptionAlertServiceTest {
 
-    @Mock private TypedConfigProvider configs;
-    @Mock private Notifier notifier;
+    @Mock
+    private TypedConfigProvider configs;
+
+    @Mock
+    private Notifier notifier;
 
     private ExceptionAlertService service;
 

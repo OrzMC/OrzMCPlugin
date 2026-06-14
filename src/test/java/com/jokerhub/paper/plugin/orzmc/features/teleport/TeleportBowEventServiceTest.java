@@ -17,9 +17,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class TeleportBowEventServiceTest {
 
-    @Mock private TeleportBowService bowService;
-    @Mock private ProjectileHitEvent hitEvent;
-    @Mock private EntityShootBowEvent shootEvent;
+    @Mock
+    private TeleportBowService bowService;
+
+    @Mock
+    private ProjectileHitEvent hitEvent;
+
+    @Mock
+    private EntityShootBowEvent shootEvent;
 
     private TeleportBowEventService service;
 

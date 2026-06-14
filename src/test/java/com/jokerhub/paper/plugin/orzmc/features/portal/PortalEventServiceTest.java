@@ -16,11 +16,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class PortalEventServiceTest {
 
-    @Mock private ServerFacade server;
-    @Mock private PortalPort portalService;
-    @Mock private PlayerPortalEvent event;
-    @Mock private Player player;
-    @Mock private Location location;
+    @Mock
+    private ServerFacade server;
+
+    @Mock
+    private PortalPort portalService;
+
+    @Mock
+    private PlayerPortalEvent event;
+
+    @Mock
+    private Player player;
+
+    @Mock
+    private Location location;
 
     private PortalEventService service;
 

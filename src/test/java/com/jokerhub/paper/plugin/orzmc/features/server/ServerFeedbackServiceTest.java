@@ -20,10 +20,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ServerFeedbackServiceTest {
 
-    @Mock private ServerFacade server;
-    @Mock private TypedConfigProvider configs;
-    @Mock private OrzTextStyles styles;
-    @Mock private ServerLoadEvent event;
+    @Mock
+    private ServerFacade server;
+
+    @Mock
+    private TypedConfigProvider configs;
+
+    @Mock
+    private OrzTextStyles styles;
+
+    @Mock
+    private ServerLoadEvent event;
 
     private ServerFeedbackService service;
 

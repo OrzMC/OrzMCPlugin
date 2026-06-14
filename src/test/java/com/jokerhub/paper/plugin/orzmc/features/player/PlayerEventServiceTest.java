@@ -53,8 +53,8 @@ class PlayerEventServiceTest {
 
     @Test
     void handleGeoIpDecision_allowed_doesNothing() {
-        service.handleGeoIpDecision(loginEvent, "player1", "1.2.3.4",
-                new GeoIpAccessService.Decision(true, "CN", List.of("CN"), "{}"));
+        service.handleGeoIpDecision(
+                loginEvent, "player1", "1.2.3.4", new GeoIpAccessService.Decision(true, "CN", List.of("CN"), "{}"));
 
         verifyNoInteractions(notifier, configs, styles);
         verifyNoInteractions(loginEvent);
@@ -62,12 +62,11 @@ class PlayerEventServiceTest {
 
     @Test
     void handleGeoIpDecision_blocked_sendsNotification() {
-        when(configs.renderEvent(eq("geoip_block"), anyMap()))
-                .thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
         when(styles.error(anyString())).thenReturn(net.kyori.adventure.text.Component.text("error"));
 
-        service.handleGeoIpDecision(loginEvent, "player1", "1.2.3.4",
-                new GeoIpAccessService.Decision(false, "US", List.of("CN"), "{}"));
+        service.handleGeoIpDecision(
+                loginEvent, "player1", "1.2.3.4", new GeoIpAccessService.Decision(false, "US", List.of("CN"), "{}"));
 
         verify(notifier).event(eq("geoip_block"), any(MessageEnvelope.class));
         verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
@@ -76,8 +75,7 @@ class PlayerEventServiceTest {
     @Test
     void handleGeoIpException_logsWarning() {
         when(server.logger()).thenReturn(logger);
-        when(configs.renderEvent(eq("exception_alert"), anyMap()))
-                .thenReturn(MessageEnvelope.publicMessage("error"));
+        when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("error"));
 
         service.handleGeoIpException(new RuntimeException("lookup failed"));
 

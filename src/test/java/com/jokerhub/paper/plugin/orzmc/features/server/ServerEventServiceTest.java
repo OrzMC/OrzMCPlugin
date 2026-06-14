@@ -22,11 +22,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ServerEventServiceTest {
 
-    @Mock private ServerFeedbackService feedbackService;
-    @Mock private WorldMaintenanceService maintenanceService;
-    @Mock private TypedConfigProvider configs;
-    @Mock private Notifier notifier;
-    @Mock private ServerLoadEvent loadEvent;
+    @Mock
+    private ServerFeedbackService feedbackService;
+
+    @Mock
+    private WorldMaintenanceService maintenanceService;
+
+    @Mock
+    private TypedConfigProvider configs;
+
+    @Mock
+    private Notifier notifier;
+
+    @Mock
+    private ServerLoadEvent loadEvent;
 
     private ServerEventService service;
 

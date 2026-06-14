@@ -18,9 +18,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ServerLifecycleServiceTest {
 
-    @Mock private ServerFacade server;
-    @Mock private TypedConfigProvider configs;
-    @Mock private Notifier notifier;
+    @Mock
+    private ServerFacade server;
+
+    @Mock
+    private TypedConfigProvider configs;
+
+    @Mock
+    private Notifier notifier;
 
     private ServerLifecycleService service;
 
