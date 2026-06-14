@@ -50,8 +50,7 @@ class BotCommandListFeedbackServiceTest {
 
     @Test
     void onlineVars_returnsCorrectMapping() {
-        var online = new BotCommandListFeedbackService.OnlineList(
-                "Alice\nBob", "fallback", "header", "2", "20");
+        var online = new BotCommandListFeedbackService.OnlineList("Alice\nBob", "fallback", "header", "2", "20");
         Map<String, String> vars = service.onlineVars(online);
 
         assertEquals("2", vars.get("online_count"));
@@ -69,10 +68,8 @@ class BotCommandListFeedbackServiceTest {
 
         displayNamesMock.when(() -> PlayerDisplayNames.format(alice)).thenReturn("§aAlice");
         displayNamesMock.when(() -> PlayerDisplayNames.format(bob)).thenReturn("§bBob");
-        when(configs.resolveTemplate(eq("command_players"), anyString()))
-                .thenAnswer(i -> i.getArgument(1));
-        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap()))
-                .thenAnswer(i -> i.getArgument(0));
+        when(configs.resolveTemplate(eq("command_players"), anyString())).thenAnswer(i -> i.getArgument(1));
+        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 
         BotCommandListFeedbackService.OnlineList result = service.buildOnlineList(players, 20);
 
@@ -86,10 +83,8 @@ class BotCommandListFeedbackServiceTest {
     @Test
     void buildOnlineList_emptyPlayers_returnsEmptyList() {
         ArrayList<Player> players = new ArrayList<>();
-        when(configs.resolveTemplate(eq("command_players"), anyString()))
-                .thenAnswer(i -> i.getArgument(1));
-        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap()))
-                .thenAnswer(i -> i.getArgument(0));
+        when(configs.resolveTemplate(eq("command_players"), anyString())).thenAnswer(i -> i.getArgument(1));
+        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 
         BotCommandListFeedbackService.OnlineList result = service.buildOnlineList(players, 10);
 
@@ -101,10 +96,8 @@ class BotCommandListFeedbackServiceTest {
 
     @Test
     void buildWhitelistHeader_returnsHeaderWithCount() {
-        when(configs.resolveTemplate(eq("command_whitelist_header"), anyString()))
-                .thenAnswer(i -> i.getArgument(1));
-        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap()))
-                .thenAnswer(i -> i.getArgument(0));
+        when(configs.resolveTemplate(eq("command_whitelist_header"), anyString())).thenAnswer(i -> i.getArgument(1));
+        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 
         BotCommandListFeedbackService.WhitelistHeader result = service.buildWhitelistHeader(42);
 
@@ -120,10 +113,8 @@ class BotCommandListFeedbackServiceTest {
     @Test
     void buildCleanupNotice_includesRemovedNames() {
         Set<String> removed = Set.of("Alice", "Bob");
-        when(configs.resolveTemplate(eq("command_whitelist_cleanup"), anyString()))
-                .thenAnswer(i -> i.getArgument(1));
-        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap()))
-                .thenAnswer(i -> i.getArgument(0));
+        when(configs.resolveTemplate(eq("command_whitelist_cleanup"), anyString())).thenAnswer(i -> i.getArgument(1));
+        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 
         BotCommandListFeedbackService.CleanupNotice result = service.buildCleanupNotice(removed);
 
@@ -133,10 +124,8 @@ class BotCommandListFeedbackServiceTest {
 
     @Test
     void buildWhitelistPage_containsHeaderAndPage() {
-        when(configs.resolveTemplate(eq("command_whitelist_page"), anyString()))
-                .thenAnswer(i -> i.getArgument(1));
-        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap()))
-                .thenAnswer(i -> i.getArgument(0));
+        when(configs.resolveTemplate(eq("command_whitelist_page"), anyString())).thenAnswer(i -> i.getArgument(1));
+        templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 
         BotCommandListFeedbackService.WhitelistPage result =
                 service.buildWhitelistPage("白名单列表", 2, 3, "player1\nplayer2");
