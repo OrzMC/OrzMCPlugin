@@ -50,10 +50,11 @@ jobs:
           script: |
             const marker = '<!-- orzmc-build-summary -->';
             const sha = context.payload.pull_request.head.sha.substring(0, 10);
+            const runUrl = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId;
             const body = marker + '\n## ✅ Build Passed' +
               '\n- **BuildID:** `' + context.runId + '`' +
               '\n- **CommitID:** `' + sha + '`' +
-              '\n- **Artifact:** `orzmc-plugin-' + sha + '`' +
+              '\n- **Artifact:** [Download orzmc-plugin-' + sha + '.jar](' + runUrl + ')' +
               '\n- **Author:** @' + context.payload.pull_request.user.login;
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
