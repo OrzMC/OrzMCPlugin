@@ -145,19 +145,19 @@ val suffixedVersion: String = if (isRelease) {
     // Tag push → Hangar Release: {version}
     versionString
 } else {
-    // Branch push (main) → Hangar Snapshot: {version}.{run_number}
-    "${versionString}.${githubRunNumber}"
+    // Branch push (main) → Hangar Snapshot: {version}-snapshot-{run_number}
+    "${versionString}-snapshot-${githubRunNumber}"
 }
 
 val archiveClassifierSuffix: String = if (isPrBuild) {
-    // PR 构件文件名: {version}-dev_{timestamp}
-    "dev_${timestampString}"
+    // PR 构件文件名: {version}-dev-{timestamp}
+    "dev-${timestampString}"
 } else if (isRelease) {
     // Release 构件: 无后缀
     ""
 } else {
-    // Snapshot 构件: 当前行为
-    githubRunNumber ?: ""
+    // Snapshot 构件: {version}-snapshot-{run_number}
+    "snapshot-${githubRunNumber}"
 }
 
 // Use the commit description for the changelog

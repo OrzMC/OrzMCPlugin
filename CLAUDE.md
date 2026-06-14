@@ -77,8 +77,8 @@ OrzMC/
 
 | 事件 | 版本号格式 | 目标 |
 |------|-----------|------|
-| PR → main | `{version}-dev_{timestamp}` | PR 构建产物 |
-| Push → main | `{version}.{GITHUB_RUN_NUMBER}` | Hangar Snapshot |
+| PR → main | `{version}-dev-{timestamp}` | PR 构建产物 |
+| Push → main | `{version}-snapshot-{GITHUB_RUN_NUMBER}` | Hangar Snapshot |
 | Push tag `1.0.0` | `{version}`（纯 SemVer） | Hangar Release + GitHub Release |
 
 Tag 使用严格 SemVer，**不加 `v` 前缀**。
