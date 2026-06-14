@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.portal;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -12,12 +13,9 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class PortalCommandServiceTest {
+class PortalCommandServiceTest extends ServiceTestBase {
 
     @Mock
     private PortalPort portalService;

@@ -4,17 +4,15 @@ import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalPort;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerPortalEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class PortalEventServiceTest {
+class PortalEventServiceTest extends ServiceTestBase {
 
     @Mock
     private ServerFacade server;

@@ -3,10 +3,11 @@ package com.jokerhub.paper.plugin.orzmc.features.teleport;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.bukkit.entity.*;
 import org.junit.jupiter.api.Test;
 
-class EntityTeleportPolicyServiceTest {
+class EntityTeleportPolicyServiceTest extends ServiceTestBase {
 
     private final EntityTeleportPolicyService service = new EntityTeleportPolicyService();
 

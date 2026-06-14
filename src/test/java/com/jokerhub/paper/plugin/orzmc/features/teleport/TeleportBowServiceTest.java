@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import com.jokerhub.paper.plugin.orzmc.infra.core.OrzConstants;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -31,7 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
-class TeleportBowServiceTest {
+class TeleportBowServiceTest extends ServiceTestBase {
 
     private ServerFacade serverFacade;
     private OrzTextStyles styles;

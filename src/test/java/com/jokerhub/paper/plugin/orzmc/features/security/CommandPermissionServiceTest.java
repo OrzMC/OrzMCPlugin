@@ -1,12 +1,14 @@
 package com.jokerhub.paper.plugin.orzmc.features.security;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.Test;
 
-class CommandPermissionServiceTest {
+class CommandPermissionServiceTest extends ServiceTestBase {
 
     private final CommandPermissionService service = new CommandPermissionService();
 

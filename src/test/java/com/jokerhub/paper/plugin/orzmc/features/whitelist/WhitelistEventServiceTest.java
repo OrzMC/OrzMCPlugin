@@ -1,5 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.whitelist;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -21,7 +23,7 @@ import net.kyori.adventure.text.Component;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class WhitelistEventServiceTest {
+class WhitelistEventServiceTest extends ServiceTestBase {
 
     private TypedConfigProvider configs;
     private OrzTextStyles styles;

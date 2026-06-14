@@ -2,11 +2,12 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import org.bukkit.configuration.file.YamlConfiguration;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TemplateOptionsTest {
+public class TemplateOptionsTest extends ServiceTestBase {
     @Test
     public void testOptionsMapping() {
         YamlConfiguration cfg = getYamlConfiguration();

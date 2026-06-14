@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.destroystokyo.paper.exception.ServerException;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
@@ -18,7 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ServerEventServiceTest {
+class ServerEventServiceTest extends ServiceTestBase {
 
     @Mock
     private ServerFeedbackService feedbackService;

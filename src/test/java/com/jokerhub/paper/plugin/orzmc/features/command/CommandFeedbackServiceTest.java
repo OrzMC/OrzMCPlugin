@@ -2,10 +2,11 @@ package com.jokerhub.paper.plugin.orzmc.features.command;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Test;
 
-class CommandFeedbackServiceTest {
+class CommandFeedbackServiceTest extends ServiceTestBase {
 
     private final CommandFeedbackService service = new CommandFeedbackService();
 

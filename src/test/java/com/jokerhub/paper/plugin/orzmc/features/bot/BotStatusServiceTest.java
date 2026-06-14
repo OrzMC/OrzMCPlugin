@@ -3,13 +3,14 @@ package com.jokerhub.paper.plugin.orzmc.features.bot;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import com.jokerhub.paper.plugin.orzmc.core.ports.health.HealthStatus;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Test;
 
-class BotStatusServiceTest {
+class BotStatusServiceTest extends ServiceTestBase {
 
     @Test
     void buildStatusMessage_containsBotNames() {

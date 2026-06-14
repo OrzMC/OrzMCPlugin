@@ -4,11 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Test;
 
-class TeleportBowTextsTest {
+class TeleportBowTextsTest extends ServiceTestBase {
 
     @Test
     void logText_withContent_includesPrefix() {

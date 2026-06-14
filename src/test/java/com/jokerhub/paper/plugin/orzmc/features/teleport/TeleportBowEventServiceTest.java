@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import static org.mockito.Mockito.*;
 
 import org.bukkit.entity.Arrow;
@@ -10,12 +11,9 @@ import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class TeleportBowEventServiceTest {
+class TeleportBowEventServiceTest extends ServiceTestBase {
 
     @Mock
     private TeleportBowService bowService;

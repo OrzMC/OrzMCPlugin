@@ -7,8 +7,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 
-public class NotificationsConfigTest {
+public class NotificationsConfigTest extends ServiceTestBase {
     @Test
     public void testNotificationsMapping() {
         // Simulates a "notifications" ConfigurationSection (not the full file root)
