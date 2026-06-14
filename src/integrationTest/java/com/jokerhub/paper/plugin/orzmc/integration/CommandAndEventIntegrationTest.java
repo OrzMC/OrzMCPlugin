@@ -78,18 +78,7 @@ public class CommandAndEventIntegrationTest {
     }
 
     private static BotModule getBotModule(OrzMC plugin) {
-        OrzServices services = getServicesField(plugin);
-        return services.botModule();
-    }
-
-    private static OrzServices getServicesField(OrzMC plugin) {
-        try {
-            java.lang.reflect.Field field = OrzMC.class.getDeclaredField("services");
-            field.setAccessible(true);
-            return (OrzServices) field.get(plugin);
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot access OrzServices from OrzMC", e);
-        }
+        return plugin.services().botModule();
     }
 
     private static final class CapturingSink implements NotifierSink {

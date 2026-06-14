@@ -1,6 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc;
 
+import com.jokerhub.paper.plugin.orzmc.assembly.Initializable;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.VisibleForTesting;
 
 public class OrzMC extends JavaPlugin {
     private OrzServices services;
@@ -16,5 +18,10 @@ public class OrzMC extends JavaPlugin {
     public void onDisable() {
         services.shutdownAll();
         getLogger().info("插件失效!");
+    }
+
+    @VisibleForTesting
+    public OrzServices services() {
+        return services;
     }
 }

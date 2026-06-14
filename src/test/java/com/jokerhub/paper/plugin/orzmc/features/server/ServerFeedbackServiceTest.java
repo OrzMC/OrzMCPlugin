@@ -14,12 +14,10 @@ import org.bukkit.Server;
 import org.bukkit.event.server.ServerLoadEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class ServerFeedbackServiceTest {
+class ServerFeedbackServiceTest extends ServiceTestBase {
 
     @Mock
     private ServerFacade server;

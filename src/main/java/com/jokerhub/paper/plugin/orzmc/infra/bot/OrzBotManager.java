@@ -11,7 +11,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.bukkit.configuration.file.FileConfiguration;
 
 class OrzBotManager implements BotMessageService {
     private final ServerAccess server;
@@ -21,11 +20,11 @@ class OrzBotManager implements BotMessageService {
     private final ConfigService configService;
     private final ThrottledLogger throttledLogger;
     private final HealthRegistry healthRegistry;
+    private final BotReconnectionManager reconnectionManager;
     private List<BotAdapter> adapters;
     private final BotRouter router;
     private final AtomicBoolean setupRequested = new AtomicBoolean(false);
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final AtomicBoolean qqReconnectInFlight = new AtomicBoolean(false);
 
     public OrzBotManager(
             ServerAccess server,
@@ -42,6 +41,7 @@ class OrzBotManager implements BotMessageService {
         this.throttledLogger = throttledLogger;
         this.inboundHandler = inboundHandler;
         this.healthRegistry = healthRegistry;
+        this.reconnectionManager = new BotReconnectionManager(configService, healthRegistry);
         this.adapters = Collections.emptyList();
         this.router = new BotRouter(throttledLogger);
     }
@@ -100,39 +100,8 @@ class OrzBotManager implements BotMessageService {
 
     @Override
     public void tryReconnectQqWsIfDisconnected() {
-        FileConfiguration botCfg = configService.getConfig("bot");
-        boolean qqEnabled = botCfg.getBoolean("enable_qq_bot");
-        String wsServer = botCfg.getString("qq_bot_ws_server");
-        if (!qqEnabled || wsServer == null || wsServer.isEmpty()) {
-            return;
-        }
-        if (healthRegistry.getRaw("qq").wsConnected) {
-            return;
-        }
-        if (!qqReconnectInFlight.compareAndSet(false, true)) {
-            return;
-        }
-        scheduler.runAsync(() -> {
-            try {
-                startIfRequested();
-                HealthRegistry.Status qq = healthRegistry.getRaw("qq");
-                if (qq.wsConnected) {
-                    return;
-                }
-                for (BotAdapter adapter : adapters) {
-                    if (adapter instanceof OrzQQBot qqBot) {
-                        if (!healthRegistry.getRaw("qq").wsConnected) {
-                            qqBot.setupWebSocketClient();
-                        }
-                        return;
-                    }
-                }
-            } catch (Exception e) {
-                healthRegistry.setLastError("qq", e.toString());
-            } finally {
-                qqReconnectInFlight.set(false);
-            }
-        });
+        scheduler.runAsync(() ->
+                reconnectionManager.tryReconnectIfDisconnected(adapters, this::startIfRequested));
     }
 
     @Override

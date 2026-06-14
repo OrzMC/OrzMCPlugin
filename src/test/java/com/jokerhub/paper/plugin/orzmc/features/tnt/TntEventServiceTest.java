@@ -28,12 +28,13 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.TNTPrimeEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.inventory.ItemStack;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
-class TntEventServiceTest {
+class TntEventServiceTest extends ServiceTestBase {
 
     private TypedConfigProvider configs;
     private OrzTextStyles styles;
