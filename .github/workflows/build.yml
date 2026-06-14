@@ -3,7 +3,6 @@ on:
   pull_request:
     branches:
       - main
-      - dev
     types:
       - opened
       - reopened
@@ -36,22 +35,17 @@ jobs:
         run: ./gradlew integrationTest --stacktrace
       - name: build shadowJar
         run: ./gradlew clean build --stacktrace
+      - name: generate build summary
+        run: |
+          echo "### Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **BuildID:** $GITHUB_RUN_ID" >> $GITHUB_STEP_SUMMARY
+          echo "- **CommitID:** ${GITHUB_SHA:0:10}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author:** ${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
       - name: upload jar artifact
         id: artifact-upload-step
         uses: actions/upload-artifact@v4
         with:
+          name: orzmc-plugin-${{ github.event.pull_request.head.sha }}
           path: build/libs/*.jar
           if-no-files-found: error
-      - name: generate build summary
-        run: |
-          echo "### Build Summary" > summary.md
-          echo "- **BuildID:** $GITHUB_RUN_ID" >> summary.md
-          echo "- **CommitID:** ${GITHUB_SHA:0:10}" >> summary.md
-          echo "- **Artifact:** [Download](${{ steps.artifact-upload-step.outputs.artifact-url }})" >> summary.md
-          echo
-          echo you can download this artifact to test
-      - name: post build summary to pull_request
-        if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          path: summary.md

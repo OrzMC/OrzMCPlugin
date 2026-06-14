@@ -134,16 +134,31 @@ fun latestCommitMessage(): String {
 }
 
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
-val githubBranchName: String? = System.getenv("GITHUB_REF_NAME")
+val githubRefType: String? = System.getenv("GITHUB_REF_TYPE")
+val githubEventName: String? = System.getenv("GITHUB_EVENT_NAME")
 val timestampString: String? = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmSS"))
 val versionString: String = version as String
-val isRelease: Boolean = (githubBranchName == "main")
+val isRelease: Boolean = (githubRefType == "tag")
+val isPrBuild: Boolean = (githubEventName == "pull_request")
+
 val suffixedVersion: String = if (isRelease) {
-    "${versionString}.${githubRunNumber}"
+    // Tag push → Hangar Release: {version}
+    versionString
 } else {
-    "${versionString}_${timestampString}"
+    // Branch push (main) → Hangar Snapshot: {version}.{run_number}
+    "${versionString}.${githubRunNumber}"
 }
-val archiveClassifierSuffix: String = githubRunNumber ?: ""
+
+val archiveClassifierSuffix: String = if (isPrBuild) {
+    // PR 构件文件名: {version}-dev_{timestamp}
+    "dev_${timestampString}"
+} else if (isRelease) {
+    // Release 构件: 无后缀
+    ""
+} else {
+    // Snapshot 构件: 当前行为
+    githubRunNumber ?: ""
+}
 
 // Use the commit description for the changelog
 val changelogContent: String = latestCommitMessage()

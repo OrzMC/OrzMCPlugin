@@ -1,0 +1,59 @@
+name: Bug 报告
+description: 提交插件缺陷或异常行为
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢提交 Bug 报告。请尽量提供完整信息，以便我们快速定位问题。
+
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本
+      description: 插件 jar 文件名中的版本号，或 Hangar 页面显示的最新版本
+      placeholder: 例如 1.0.0.42
+    validations:
+      required: true
+
+  - type: input
+    id: mc_version
+    attributes:
+      label: Minecraft 版本 / 服务端核心
+      description: 你使用的服务端类型和版本
+      placeholder: 例如 Paper 1.21.4
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 清晰描述你遇到的问题是什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 如何复现该问题
+      placeholder: |
+        1. 执行 ...
+        2. 触发 ...
+        3. 观察到 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 正常情况下应该发生什么
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      description: 服务端日志（latest.log）的相关段落、错误堆栈或截图
+      render: shell
