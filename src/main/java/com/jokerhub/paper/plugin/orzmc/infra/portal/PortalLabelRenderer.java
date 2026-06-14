@@ -1,7 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.portal;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.WorldProvider;
-
 import java.util.Collection;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
@@ -105,7 +104,9 @@ public final class PortalLabelRenderer {
         for (Entity e : nearby) {
             if (e instanceof ArmorStand as) {
                 Component name = as.customName();
-                String plain = name == null ? "" : PlainTextComponentSerializer.plainText().serialize(name);
+                String plain = name == null
+                        ? ""
+                        : PlainTextComponentSerializer.plainText().serialize(name);
                 if (!plain.isEmpty() && plain.contains(target)) {
                     return true;
                 }
@@ -119,7 +120,9 @@ public final class PortalLabelRenderer {
         for (Entity e : nearby) {
             if (e instanceof ArmorStand as) {
                 Component name = as.customName();
-                String plain = name == null ? "" : PlainTextComponentSerializer.plainText().serialize(name);
+                String plain = name == null
+                        ? ""
+                        : PlainTextComponentSerializer.plainText().serialize(name);
                 if (!plain.isEmpty() && (plain.contains(target) || plain.contains("跨服传送"))) {
                     e.remove();
                 }

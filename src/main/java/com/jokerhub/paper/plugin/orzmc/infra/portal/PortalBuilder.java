@@ -113,12 +113,5 @@ public final class PortalBuilder {
 
     /** 传送门构建结果，包含中心坐标等信息。 */
     public record PortalBuildResult(
-            Location center,
-            Axis infoAxis,
-            Axis portalAxis,
-            String worldName,
-            int cx,
-            int cy,
-            int cz,
-            String target) {}
+            Location center, Axis infoAxis, Axis portalAxis, String worldName, int cx, int cy, int cz, String target) {}
 }

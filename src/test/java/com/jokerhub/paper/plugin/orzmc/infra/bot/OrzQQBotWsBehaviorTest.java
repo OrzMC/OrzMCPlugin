@@ -112,7 +112,14 @@ public class OrzQQBotWsBehaviorTest {
     void reportsHealthOnReconnectExhausted() {
         CapturingFactory factory = new CapturingFactory();
         OrzQQBot bot = new OrzQQBot(
-                server, logger, configService, (m, a, s) -> {}, new PlainMessageFormatter(), throttled, factory, healthRegistry);
+                server,
+                logger,
+                configService,
+                (m, a, s) -> {},
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
         factory.ws.fireError(new RuntimeException("WS reconnect exhausted"));
         assertFalse(healthRegistry.getRaw("qq").wsConnected);
@@ -128,8 +135,15 @@ public class OrzQQBotWsBehaviorTest {
             gotPriv.set(isAdmin);
         };
         CapturingFactory factory = new CapturingFactory();
-        OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory, healthRegistry);
+        OrzQQBot bot = new OrzQQBot(
+                server,
+                logger,
+                configService,
+                inbound,
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
         String json = "{\"group_id\":\"123\",\"raw_message\":\"$hi\",\"sender\":{\"role\":\"admin\"}}";
         factory.ws.fireMessage(json);

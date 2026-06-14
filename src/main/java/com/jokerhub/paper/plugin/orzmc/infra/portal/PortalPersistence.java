@@ -69,9 +69,7 @@ public final class PortalPersistence {
         if (cfg == null) return;
         Map<String, PortalEntry> entries = new HashMap<>();
         for (PortalService.PortalDef def : portalCenters.values()) {
-            entries.put(
-                    def.centerKey(),
-                    new PortalEntry(def.target(), def.axis() == Axis.Z ? "Z" : "X"));
+            entries.put(def.centerKey(), new PortalEntry(def.target(), def.axis() == Axis.Z ? "Z" : "X"));
         }
         PortalsWriter.write(cfg, entries);
         configService.saveConfig("portals");

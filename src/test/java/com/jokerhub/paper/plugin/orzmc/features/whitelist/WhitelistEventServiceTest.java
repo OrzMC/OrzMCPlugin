@@ -37,8 +37,7 @@ class WhitelistEventServiceTest {
         WhitelistConfig whitelistCfg = mock(WhitelistConfig.class);
         BotConfig botConfig = mock(BotConfig.class);
         WhitelistKickMessage kickMsg = mock(WhitelistKickMessage.class);
-        WhitelistKickMessageItem item =
-                mock(WhitelistKickMessageItem.class);
+        WhitelistKickMessageItem item = mock(WhitelistKickMessageItem.class);
 
         when(configs.whitelist()).thenReturn(whitelistCfg);
         when(whitelistCfg.forceWhitelist()).thenReturn(true);

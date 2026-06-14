@@ -2,11 +2,6 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
-import java.util.Map;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
@@ -15,6 +10,11 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
+import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
+import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
+import java.util.Map;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 
 public final class DefaultTypedConfigProvider implements TypedConfigProvider {
     private final ConfigService configService;

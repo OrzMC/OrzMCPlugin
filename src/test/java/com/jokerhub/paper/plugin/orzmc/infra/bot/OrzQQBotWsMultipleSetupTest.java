@@ -101,9 +101,15 @@ public class OrzQQBotWsMultipleSetupTest {
     @Test
     void multipleSetupDisconnectsPreviousAndKeepsHealth() {
         CountingFactory factory = new CountingFactory();
-        OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory,
-                        healthRegistry);
+        OrzQQBot bot = new OrzQQBot(
+                server,
+                logger,
+                configService,
+                inbound,
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
         assertEquals(1, factory.ws.connectCount.get());
         assertTrue(healthRegistry.getRaw("qq").wsConnected);

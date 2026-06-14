@@ -19,7 +19,8 @@ public abstract class OrzBaseBot implements BotAdapter {
     protected final FileConfiguration botConfig;
     protected final HealthRegistry healthRegistry;
 
-    protected OrzBaseBot(ServerAccess server, ServerLogger logger, ConfigService configService, HealthRegistry healthRegistry) {
+    protected OrzBaseBot(
+            ServerAccess server, ServerLogger logger, ConfigService configService, HealthRegistry healthRegistry) {
         this.server = server;
         this.logger = logger;
         this.healthRegistry = healthRegistry;

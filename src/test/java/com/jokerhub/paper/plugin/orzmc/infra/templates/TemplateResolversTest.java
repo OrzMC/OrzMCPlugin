@@ -95,8 +95,7 @@ public class TemplateResolversTest {
         Assertions.assertEquals("玩家", TemplateResolvers.roleGroupAliasFromPermissions(none, opt));
     }
 
-    private static TemplateOptions getTemplateOptions(
-            Map<String, String> stage, Map<String, String> world) {
+    private static TemplateOptions getTemplateOptions(Map<String, String> stage, Map<String, String> world) {
         Map<String, String> role = new HashMap<>();
         Map<String, Map<String, String>> roleAliasLocalized = new HashMap<>();
         Map<String, String> roleGroups = new HashMap<>();

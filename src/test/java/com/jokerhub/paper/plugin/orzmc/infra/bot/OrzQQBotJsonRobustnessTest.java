@@ -98,9 +98,15 @@ public class OrzQQBotJsonRobustnessTest {
         AtomicInteger dispatchCount = new AtomicInteger(0);
         BotInboundHandler inbound = (message, isAdmin, sender) -> dispatchCount.incrementAndGet();
         HandlerCapturingFactory factory = new HandlerCapturingFactory();
-        OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory,
-                        healthRegistry);
+        OrzQQBot bot = new OrzQQBot(
+                server,
+                logger,
+                configService,
+                inbound,
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
         factory.fireMessage("{\"group_id\":\"123\",\"raw_message\":\"$hi\"}");
         factory.fireMessage("{\"group_id\":\"123\",\"raw_message\":\"$hi\",\"sender\":{}}");

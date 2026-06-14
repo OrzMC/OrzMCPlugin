@@ -140,8 +140,18 @@ public record TemplateOptions(
         int coordPrecision = cfg.getInt("templates.coord.precision", 2);
         String coordUnitLabel = cfg.getString("templates.coord.unit_label", "block");
         return new TemplateOptions(
-                m, rate, eta, worldAlias, worldAliasLocalized,
-                coordScale, coordPrecision, coordUnitLabel, roleAlias,
-                locale, roleAliasLocalized, roleGroups, stageAliasLocalized);
+                m,
+                rate,
+                eta,
+                worldAlias,
+                worldAliasLocalized,
+                coordScale,
+                coordPrecision,
+                coordUnitLabel,
+                roleAlias,
+                locale,
+                roleAliasLocalized,
+                roleGroups,
+                stageAliasLocalized);
     }
 }

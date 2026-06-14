@@ -9,10 +9,7 @@ public final class TemplateService {
     private TemplateService() {}
 
     public static MessageEnvelope renderEvent(
-            String eventKey,
-            FileConfiguration templatesCfg,
-            Templates templates,
-            Map<String, String> vars) {
+            String eventKey, FileConfiguration templatesCfg, Templates templates, Map<String, String> vars) {
         String template = templateForEvent(eventKey, templates);
         return TemplateRenderer.renderEnvelope(eventKey, template, vars, templatesCfg);
     }

@@ -4,8 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.bukkit.configuration.ConfigurationSection;
 
-public record NotifyPolicy(
-        boolean privateEnabled, boolean privateAdminOnly, boolean publicEnabled, String channelKey) {
+public record NotifyPolicy(boolean privateEnabled, boolean privateAdminOnly, boolean publicEnabled, String channelKey) {
 
     public record Notifications(Map<String, NotifyPolicy> policies) {
 

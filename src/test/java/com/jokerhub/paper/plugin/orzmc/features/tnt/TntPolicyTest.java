@@ -83,15 +83,15 @@ class TntPolicyTest {
 
     @ParameterizedTest
     @CsvSource({
-        "world, 5, 64, 5, false",       // inside region
-        "world, 50, 64, 50, true",      // outside region
-        "other_world, 5, 64, 5, true",  // different world
-        "world, 0, 0, 0, false",        // edge min
-        "world, 10, 255, 10, false",    // edge max
-        "world, -1, 64, 5, true",       // minX out of bounds
-        "world, 11, 64, 5, true",       // maxX out of bounds
-        "world, 5, 64, -1, true",       // minZ out of bounds
-        "world, 5, 64, 11, true",       // maxZ out of bounds
+        "world, 5, 64, 5, false", // inside region
+        "world, 50, 64, 50, true", // outside region
+        "other_world, 5, 64, 5, true", // different world
+        "world, 0, 0, 0, false", // edge min
+        "world, 10, 255, 10, false", // edge max
+        "world, -1, 64, 5, true", // minX out of bounds
+        "world, 11, 64, 5, true", // maxX out of bounds
+        "world, 5, 64, -1, true", // minZ out of bounds
+        "world, 5, 64, 11, true", // maxZ out of bounds
     })
     void isNotInWhiteList_parameterized(String worldName, int x, int y, int z, boolean expectedOutside) {
         assertEquals(expectedOutside, policy.isNotInWhiteList(worldName, x, y, z));

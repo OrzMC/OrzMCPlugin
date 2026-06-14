@@ -39,11 +39,6 @@ public record TntConfig(
             }
         }
         return new TntConfig(
-                enable,
-                enableRespawnAnchor,
-                placeCooldownSeconds,
-                notifyThrottleMs,
-                whitelistRegions,
-                exemptEntities);
+                enable, enableRespawnAnchor, placeCooldownSeconds, notifyThrottleMs, whitelistRegions, exemptEntities);
     }
 }

@@ -284,8 +284,7 @@ class TntEventServiceTest {
     @Test
     void onEntityExplode_exemptEntity_doesNothing() {
         // Creeper is in the default exempt list
-        TntConfig tntConfig =
-                new TntConfig(false, true, 0, 1000L, List.of(), List.of("CREEPER"));
+        TntConfig tntConfig = new TntConfig(false, true, 0, 1000L, List.of(), List.of("CREEPER"));
         when(configs.tnt()).thenReturn(tntConfig);
         service = new TntEventService(configs, styles, notifier, throttledNotifier);
 

@@ -58,8 +58,7 @@ public final class Notifier {
             notificationsSection = legacy != null ? legacy.getConfigurationSection("notifications") : null;
         }
         Notifications ns = Notifications.from(notificationsSection);
-        NotifyPolicy p =
-                ns.policies().getOrDefault(key, new NotifyPolicy(false, true, true, ""));
+        NotifyPolicy p = ns.policies().getOrDefault(key, new NotifyPolicy(false, true, true, ""));
         if (p.publicEnabled()) {
             botMessageService.send(envelope.withTargetType(MessageEnvelope.TargetType.PUBLIC));
         }

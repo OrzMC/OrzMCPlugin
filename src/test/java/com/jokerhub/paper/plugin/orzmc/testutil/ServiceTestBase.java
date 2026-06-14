@@ -113,7 +113,7 @@ public abstract class ServiceTestBase {
      */
     protected TemplateOptions defaultTemplateOptions() {
         return new TemplateOptions(
-                Map.of(), "per_sec", "ms", Map.of(), Map.of(), 1.0, 2, "block", Map.of(), "zh-CN",
-                Map.of(), Map.of(), Map.of());
+                Map.of(), "per_sec", "ms", Map.of(), Map.of(), 1.0, 2, "block", Map.of(), "zh-CN", Map.of(), Map.of(),
+                Map.of());
     }
 }

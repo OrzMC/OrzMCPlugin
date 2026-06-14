@@ -65,8 +65,8 @@ public class PortalService implements PortalPort {
     public PortalInfo createPortal(Player player, String host, int port) {
         String target = host + ":" + port;
         PortalBuildResult result = portalBuilder.build(player, target);
-        PortalDef def = new PortalDef(
-                result.worldName(), result.cx(), result.cy(), result.cz(), result.portalAxis(), target);
+        PortalDef def =
+                new PortalDef(result.worldName(), result.cx(), result.cy(), result.cz(), result.portalAxis(), target);
         portalCenters.put(def.centerKey(), def);
         rehydrateInterior(def);
         labelRenderer.spawnLabel(def.world(), def.cx(), def.cy(), def.cz(), def.target());

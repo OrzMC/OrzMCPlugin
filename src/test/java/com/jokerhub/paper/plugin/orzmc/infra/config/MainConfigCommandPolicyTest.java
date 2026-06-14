@@ -1,10 +1,9 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
 
 public class MainConfigCommandPolicyTest {
     @Test

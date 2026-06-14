@@ -1,7 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config.configs;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.bukkit.configuration.ConfigurationSection;
 
 public record WhitelistConfig(boolean forceWhitelist, int cleanupInactiveDays, int paginationDelayTicks) {

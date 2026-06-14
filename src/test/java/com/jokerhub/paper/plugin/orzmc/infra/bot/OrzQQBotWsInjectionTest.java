@@ -99,9 +99,15 @@ public class OrzQQBotWsInjectionTest {
     @Test
     void setupUsesFactoryAndUpdatesHealthOnOpenClose() {
         FakeFactory factory = new FakeFactory();
-        OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory,
-                        healthRegistry);
+        OrzQQBot bot = new OrzQQBot(
+                server,
+                logger,
+                configService,
+                inbound,
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
         assertTrue(healthRegistry.getRaw("qq").wsConnected);
         bot.teardown();

@@ -30,8 +30,7 @@ public final class TemplateResolvers {
         return opt.roleAlias().getOrDefault(isAdmin ? "admin" : "member", isAdmin ? "管理员" : "玩家");
     }
 
-    public static String roleGroupAliasFromPermissions(
-            java.util.Collection<String> permKeys, TemplateOptions opt) {
+    public static String roleGroupAliasFromPermissions(java.util.Collection<String> permKeys, TemplateOptions opt) {
         for (java.util.Map.Entry<String, String> e : opt.roleGroupAliases().entrySet()) {
             String key = e.getKey();
             if (!"default".equalsIgnoreCase(key) && permKeys.contains(key)) {

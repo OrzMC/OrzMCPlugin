@@ -56,7 +56,9 @@ public final class CoordFormatter {
     public static @NotNull Map<String, String> format(@NotNull Location location, @NotNull TemplateOptions opt) {
         Map<String, String> vars = new HashMap<>();
         String world = location.getWorld() != null ? location.getWorld().getName() : "unknown";
-        String env = location.getWorld() != null ? location.getWorld().getEnvironment().name() : "";
+        String env = location.getWorld() != null
+                ? location.getWorld().getEnvironment().name()
+                : "";
         String worldAlias = TemplateResolvers.worldAlias(world, env, opt);
         double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
         int precision = Math.max(0, opt.coordPrecision());

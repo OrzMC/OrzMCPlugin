@@ -1,5 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -12,12 +17,6 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 
 /**
  * 验证配置合并后的向后兼容性。
@@ -134,13 +133,11 @@ public class ConfigBackwardCompatTest {
     public void testNewStyleConfigTypedConfigsParse() {
         FileConfiguration config = newStyleConfig();
 
-        WhitelistConfig wl =
-                WhitelistConfig.from(config.getConfigurationSection("whitelist"));
+        WhitelistConfig wl = WhitelistConfig.from(config.getConfigurationSection("whitelist"));
         Assertions.assertTrue(wl.forceWhitelist());
         Assertions.assertEquals(90, wl.cleanupInactiveDays());
 
-        MaintenanceConfig mt =
-                MaintenanceConfig.from(config.getConfigurationSection("maintenance"));
+        MaintenanceConfig mt = MaintenanceConfig.from(config.getConfigurationSection("maintenance"));
         Assertions.assertFalse(mt.optimizeEnabled());
 
         TntConfig tnt = TntConfig.from(config.getConfigurationSection("tnt"));

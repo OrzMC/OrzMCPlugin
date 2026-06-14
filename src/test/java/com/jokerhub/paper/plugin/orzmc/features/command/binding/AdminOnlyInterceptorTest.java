@@ -42,10 +42,10 @@ class AdminOnlyInterceptorTest {
 
     @ParameterizedTest
     @CsvSource({
-        "true, true, null",       // adminOnly + isOp = allowed
-        "true, false, error",     // adminOnly + nonOp = blocked
-        "false, true, null",      // not adminOnly + isOp = allowed
-        "false, false, null"      // not adminOnly + nonOp = allowed
+        "true, true, null", // adminOnly + isOp = allowed
+        "true, false, error", // adminOnly + nonOp = blocked
+        "false, true, null", // not adminOnly + isOp = allowed
+        "false, false, null" // not adminOnly + nonOp = allowed
     })
     void preHandle_parameterized(boolean adminOnly, boolean isOp, String expected) {
         AdminOnlyInterceptor interceptor = new AdminOnlyInterceptor(adminOnly);

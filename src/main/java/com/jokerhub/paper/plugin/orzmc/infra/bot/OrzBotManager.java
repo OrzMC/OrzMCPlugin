@@ -67,7 +67,12 @@ class OrzBotManager implements BotMessageService {
         }
         adapters = List.of(
                 new OrzQQBot(
-                        server, logger, configService, inboundHandler, new PlainMessageFormatter(), throttledLogger,
+                        server,
+                        logger,
+                        configService,
+                        inboundHandler,
+                        new PlainMessageFormatter(),
+                        throttledLogger,
                         healthRegistry),
                 new OrzDiscordBot(
                         server,
@@ -78,7 +83,8 @@ class OrzBotManager implements BotMessageService {
                         new DiscordMessageFormatter(),
                         throttledLogger,
                         healthRegistry),
-                new OrzLarkBot(server, logger, configService, new PlainMessageFormatter(), throttledLogger, healthRegistry));
+                new OrzLarkBot(
+                        server, logger, configService, new PlainMessageFormatter(), throttledLogger, healthRegistry));
         router.setAdapters(adapters);
         router.setup();
     }
