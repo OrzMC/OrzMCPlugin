@@ -164,7 +164,7 @@ class BotCommandServiceTest {
         verify(callback).accept(any(MessageEnvelope.class));
     }
 
-    // ---- extractCommandArgs (private, via reflection) ----
+    // ---- extractArgs (private, via reflection) ----
 
     @Test
     void extractCommandArgs_shorterThanCmd_returnsEmpty() {
@@ -219,7 +219,7 @@ class BotCommandServiceTest {
     private String invokeExtractArgs(String rawMessage, String fullCmd) {
         try {
             java.lang.reflect.Method m =
-                    BotCommandService.class.getDeclaredMethod("extractCommandArgs", String.class, String.class);
+                    BotCommandService.class.getDeclaredMethod("extractArgs", String.class, String.class);
             m.setAccessible(true);
             return (String) m.invoke(service, rawMessage, fullCmd);
         } catch (Exception e) {
