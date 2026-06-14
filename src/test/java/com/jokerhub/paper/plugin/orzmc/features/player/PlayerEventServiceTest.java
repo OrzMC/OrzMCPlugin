@@ -10,14 +10,13 @@ import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.util.List;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
-import org.junit.jupiter.api.BeforeEach;
 import org.mockito.Mock;
 
 class PlayerEventServiceTest extends ServiceTestBase {

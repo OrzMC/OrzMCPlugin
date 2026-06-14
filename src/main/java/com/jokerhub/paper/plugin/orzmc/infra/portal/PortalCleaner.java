@@ -97,7 +97,9 @@ public final class PortalCleaner {
         Collection<Entity> nearby = w.getNearbyEntities(c, 3.0, 3.0, 3.0);
         for (Entity e : nearby) {
             if (e instanceof ArmorStand as) {
-                String plain = as.customName() == null ? "" : PlainTextComponentSerializer.plainText().serialize(as.customName());
+                String plain = as.customName() == null
+                        ? ""
+                        : PlainTextComponentSerializer.plainText().serialize(as.customName());
                 if (!plain.isEmpty() && (plain.contains(def.target()) || plain.contains("跨服传送"))) {
                     e.remove();
                 }

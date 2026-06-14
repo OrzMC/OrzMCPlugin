@@ -231,18 +231,27 @@ public final class BotCommandService implements BotInboundHandler {
     // ---- Whitelist rendering ----
 
     private void renderWhitelistWithCleanup(
-            Consumer<MessageEnvelope> callback, Integer page, int delayTicks,
-            WhitelistService svc, WhitelistConfig whitelistConfig) {
+            Consumer<MessageEnvelope> callback,
+            Integer page,
+            int delayTicks,
+            WhitelistService svc,
+            WhitelistConfig whitelistConfig) {
         server.runSync(() -> {
-            Set<String> removed = svc.cleanupInactivePlayers(server.server(), Math.max(1, whitelistConfig.cleanupInactiveDays()));
+            Set<String> removed =
+                    svc.cleanupInactivePlayers(server.server(), Math.max(1, whitelistConfig.cleanupInactiveDays()));
             server.runAsync(() -> {
                 try {
                     ArrayList<String> updatedLines = new ArrayList<>(svc.buildWhitelistLines(server.server()));
                     BotCommandListFeedbackService.WhitelistHeader headerInfo =
                             listFeedbackService.buildWhitelistHeader(updatedLines.size());
                     if (!removed.isEmpty()) {
-                        BotCommandListFeedbackService.CleanupNotice notice = listFeedbackService.buildCleanupNotice(removed);
-                        emit(callback, "command_whitelist_cleanup", listFeedbackService.cleanupVars(notice), notice.fallback());
+                        BotCommandListFeedbackService.CleanupNotice notice =
+                                listFeedbackService.buildCleanupNotice(removed);
+                        emit(
+                                callback,
+                                "command_whitelist_cleanup",
+                                listFeedbackService.cleanupVars(notice),
+                                notice.fallback());
                     }
                     emitWhitelistPages(callback, headerInfo.header(), updatedLines, delayTicks, page);
                 } catch (Exception e) {
@@ -255,7 +264,8 @@ public final class BotCommandService implements BotInboundHandler {
     private void renderWhitelistPages(
             Consumer<MessageEnvelope> callback, Integer page, int delayTicks, WhitelistService svc) {
         ArrayList<String> lines = new ArrayList<>(svc.buildWhitelistLines(server.server()));
-        BotCommandListFeedbackService.WhitelistHeader headerInfo = listFeedbackService.buildWhitelistHeader(lines.size());
+        BotCommandListFeedbackService.WhitelistHeader headerInfo =
+                listFeedbackService.buildWhitelistHeader(lines.size());
         emitWhitelistPages(callback, headerInfo.header(), lines, delayTicks, page);
     }
 
@@ -278,14 +288,16 @@ public final class BotCommandService implements BotInboundHandler {
 
     private boolean guardAdminCommand(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback) {
         if (isAdmin) return true;
-        emitAdminRequired(callback, feedbackService.adminRequiredTip(cmd, botConfig().cmdPromptChar()));
+        emitAdminRequired(
+                callback, feedbackService.adminRequiredTip(cmd, botConfig().cmdPromptChar()));
         return false;
     }
 
     private boolean guardWhitelistCommand(
             OrzUserCmd cmd, boolean isAdmin, Set<String> userNames, Consumer<MessageEnvelope> callback) {
         if (!isAdmin) {
-            emitAdminRequired(callback, feedbackService.adminRequiredTip(cmd, botConfig().cmdPromptChar()));
+            emitAdminRequired(
+                    callback, feedbackService.adminRequiredTip(cmd, botConfig().cmdPromptChar()));
             return false;
         }
         if (userNames.isEmpty()) {
@@ -319,7 +331,8 @@ public final class BotCommandService implements BotInboundHandler {
         emit(callback, "command_usage", Map.of("message", tip), tip);
     }
 
-    private void emit(Consumer<MessageEnvelope> callback, String templateKey, Map<String, String> vars, String fallback) {
+    private void emit(
+            Consumer<MessageEnvelope> callback, String templateKey, Map<String, String> vars, String fallback) {
         MessageEnvelope env = configs.renderTemplate(templateKey, vars, fallback);
         callback.accept(env);
     }

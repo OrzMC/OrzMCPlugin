@@ -85,17 +85,11 @@ public interface WhitelistService {
             failed.removeAll(allWhiteListName);
             StringBuilder message = new StringBuilder("------白名单添加------\n");
             if (!added.isEmpty()) {
-                message.append(added.stream()
-                        .sorted()
-                        .map(name -> "✔︎ " + name)
-                        .collect(Collectors.joining("\n")));
+                message.append(added.stream().sorted().map(name -> "✔︎ " + name).collect(Collectors.joining("\n")));
             }
             if (!failed.isEmpty()) {
                 if (!added.isEmpty()) message.append("\n");
-                message.append(failed.stream()
-                        .sorted()
-                        .map(name -> "✘ " + name)
-                        .collect(Collectors.joining("\n")));
+                message.append(failed.stream().sorted().map(name -> "✘ " + name).collect(Collectors.joining("\n")));
             }
             return message.toString();
         }
@@ -122,17 +116,13 @@ public interface WhitelistService {
             notRemoved.retainAll(allWhiteListName);
             StringBuilder message = new StringBuilder("------白名单移除------\n");
             if (!removed.isEmpty()) {
-                message.append(removed.stream()
-                        .sorted()
-                        .map(name -> "✔︎ " + name)
-                        .collect(Collectors.joining("\n")));
+                message.append(
+                        removed.stream().sorted().map(name -> "✔︎ " + name).collect(Collectors.joining("\n")));
             }
             if (!notRemoved.isEmpty()) {
                 if (!removed.isEmpty()) message.append("\n");
-                message.append(notRemoved.stream()
-                        .sorted()
-                        .map(name -> "✘ " + name)
-                        .collect(Collectors.joining("\n")));
+                message.append(
+                        notRemoved.stream().sorted().map(name -> "✘ " + name).collect(Collectors.joining("\n")));
             }
             return message.toString();
         }

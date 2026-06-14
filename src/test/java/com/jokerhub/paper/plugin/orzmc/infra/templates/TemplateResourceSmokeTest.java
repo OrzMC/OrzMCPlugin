@@ -1,11 +1,11 @@
 package com.jokerhub.paper.plugin.orzmc.infra.templates;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.bukkit.configuration.file.YamlConfiguration;
-import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -1,8 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
-import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import static org.mockito.Mockito.*;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;

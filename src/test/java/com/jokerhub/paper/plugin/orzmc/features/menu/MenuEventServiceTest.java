@@ -1,10 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.features.menu;
 
-import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;

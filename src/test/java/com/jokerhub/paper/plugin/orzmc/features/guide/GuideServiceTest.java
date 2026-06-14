@@ -96,7 +96,7 @@ class GuideServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "false, Test, Server, null",    // disabled config
+        "false, Test, Server, null", // disabled config
         "true, 指南, 服主, WRITTEN_BOOK", // enabled with content
     })
     void buildGuideBook_parameterized(boolean enable, String title, String author, String expectedType) {

@@ -2,12 +2,12 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.NotifyPolicy;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.NotifyPolicy.Notifications;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 
 public class NotificationsConfigTest extends ServiceTestBase {
     @Test

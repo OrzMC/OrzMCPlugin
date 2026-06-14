@@ -79,5 +79,4 @@ public final class ConfigService {
     public ConfigurationSection sectionOrLegacy(String mergedConfigName, String section, String legacyFileName) {
         return configManager.sectionOrLegacy(mergedConfigName, section, legacyFileName);
     }
-
 }

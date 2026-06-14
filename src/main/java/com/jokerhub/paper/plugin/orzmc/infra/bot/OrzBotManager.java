@@ -103,8 +103,7 @@ class OrzBotManager implements BotMessageService {
 
     @Override
     public void tryReconnectQqWsIfDisconnected() {
-        scheduler.runAsync(() ->
-                reconnectionManager.tryReconnectIfDisconnected(adapters, this::startIfRequested));
+        scheduler.runAsync(() -> reconnectionManager.tryReconnectIfDisconnected(adapters, this::startIfRequested));
     }
 
     @Override

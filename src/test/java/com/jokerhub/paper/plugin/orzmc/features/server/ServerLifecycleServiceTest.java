@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.features.server;
 
-import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -8,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import org.bukkit.Server;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

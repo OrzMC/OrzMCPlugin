@@ -1,7 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.features.whitelist;
 
-import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
-
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -18,6 +16,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage.WhitelistKickMessageItem;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.util.List;
 import net.kyori.adventure.text.Component;
 import org.junit.jupiter.api.BeforeEach;
