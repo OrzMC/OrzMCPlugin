@@ -27,6 +27,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.MockedStatic;
 
 class GuideServiceTest {
@@ -92,14 +94,27 @@ class GuideServiceTest {
         return item;
     }
 
-    @Test
-    void buildGuideBook_configDisabled_returnsNull() {
-        YamlConfiguration yaml = createGuideConfig(false, "Test", "Server", new ArrayList<>());
+    @ParameterizedTest
+    @CsvSource({
+        "false, Test, Server, null",    // disabled config
+        "true, 指南, 服主, WRITTEN_BOOK", // enabled with content
+    })
+    void buildGuideBook_parameterized(boolean enable, String title, String author, String expectedType) {
+        java.util.List<Map<?, ?>> content = new ArrayList<>();
+        if (enable) {
+            content.add(textContentItem("Hello World"));
+        }
+        YamlConfiguration yaml = createGuideConfig(enable, title, author, content);
         when(configService.getConfig("guide_book")).thenReturn(yaml);
 
         ItemStack result = guideService.buildGuideBook();
 
-        assertNull(result);
+        if ("null".equals(expectedType)) {
+            assertNull(result);
+        } else {
+            assertNotNull(result);
+            assertEquals(Material.valueOf(expectedType), result.getType());
+        }
     }
 
     @Test
@@ -109,20 +124,6 @@ class GuideServiceTest {
         ItemStack result = guideService.buildGuideBook();
 
         assertNull(result);
-    }
-
-    @Test
-    void buildGuideBook_withTextContent_returnsBook() {
-        java.util.List<Map<?, ?>> content = new ArrayList<>();
-        content.add(textContentItem("Hello World"));
-
-        YamlConfiguration yaml = createGuideConfig(true, "指南", "服主", content);
-        when(configService.getConfig("guide_book")).thenReturn(yaml);
-
-        ItemStack result = guideService.buildGuideBook();
-
-        assertNotNull(result);
-        assertEquals(Material.WRITTEN_BOOK, result.getType());
     }
 
     @Test
