@@ -15,9 +15,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class InterceptorExecutorTest {
 
-    @Mock private CommandSender sender;
-    @Mock private Command command;
-    @Mock private CommandExecutor delegate;
+    @Mock
+    private CommandSender sender;
+    @Mock
+    private Command command;
+    @Mock
+    private CommandExecutor delegate;
 
     @Test
     void onCommand_noInterceptors_delegates() {

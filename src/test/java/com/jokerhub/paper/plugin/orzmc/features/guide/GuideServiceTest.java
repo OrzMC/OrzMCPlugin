@@ -129,8 +129,7 @@ class GuideServiceTest {
     void openGuide_bookDisabled_sendsFailure() {
         YamlConfiguration yaml = createGuideConfig(false, "Test", "Server", new ArrayList<>());
         when(configService.getConfig("guide_book")).thenReturn(yaml);
-        orzUtilMock.when(() -> OrzUtil.failureText(eq(styles), eq("服主未配置新手指南")))
-                .thenReturn(Component.text("failed"));
+        orzUtilMock.when(() -> OrzUtil.failureText(eq(styles), eq("服主未配置新手指南"))).thenReturn(Component.text("failed"));
 
         Player player = mock(Player.class);
         guideService.openGuide(player);
@@ -198,7 +197,8 @@ class GuideServiceTest {
         when(offlinePlayer.hasPlayedBefore()).thenReturn(false);
         when(player.getInventory()).thenReturn(inventory);
 
-        orzUtilMock.when(() -> OrzUtil.successText(eq(styles), anyString()))
+        orzUtilMock
+                .when(() -> OrzUtil.successText(eq(styles), anyString()))
                 .thenAnswer(i -> ((OrzTextStyles) i.getArgument(0)).success(i.getArgument(1)));
 
         guideService.giveIfFirstJoin(player);

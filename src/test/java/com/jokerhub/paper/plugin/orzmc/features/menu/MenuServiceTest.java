@@ -48,8 +48,8 @@ class MenuServiceTest {
         Inventory result = service.buildMenu();
 
         assertSame(inventory, result);
-        bukkitMock.verify(() -> Bukkit.createInventory(
-                any(OrzMenuHolder.class), eq(InventoryType.CHEST), any(Component.class)));
+        bukkitMock.verify(
+                () -> Bukkit.createInventory(any(OrzMenuHolder.class), eq(InventoryType.CHEST), any(Component.class)));
     }
 
     @Test
