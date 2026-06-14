@@ -113,7 +113,8 @@ public final class BotCommandService implements BotInboundHandler {
 
     // ---- Command handlers (all follow CmdHandler interface) ----
 
-    private void handleShowPlayers(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleShowPlayers(
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         server.runAsync(() -> {
             try {
                 ArrayList<Player> onlinePlayers = listFeedbackService.currentOnlinePlayers();
@@ -126,7 +127,8 @@ public final class BotCommandService implements BotInboundHandler {
         });
     }
 
-    private void handleShowWhitelist(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleShowWhitelist(
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         server.runAsync(() -> {
             try {
                 WhitelistConfig whitelistConfig = configs.whitelist();
@@ -155,12 +157,14 @@ public final class BotCommandService implements BotInboundHandler {
         }
     }
 
-    private void handleShowHelp(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleShowHelp(
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         String help = feedbackService.helpInfo(botConfig().cmdPromptChar());
         emit(callback, "command_help", Map.of("help", help), help);
     }
 
-    private void handleAddWhitelist(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleAddWhitelist(
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         if (!guardWhitelistCommand(cmd, isAdmin, args, callback)) return;
         server.runSync(() -> {
             WhitelistService svc = WhitelistService.defaultImpl();
@@ -169,7 +173,8 @@ public final class BotCommandService implements BotInboundHandler {
         });
     }
 
-    private void handleRemoveWhitelist(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleRemoveWhitelist(
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         if (!guardWhitelistCommand(cmd, isAdmin, args, callback)) return;
         server.runSync(() -> {
             WhitelistService svc = WhitelistService.defaultImpl();
@@ -178,13 +183,16 @@ public final class BotCommandService implements BotInboundHandler {
         });
     }
 
-    private void handleBackup(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleBackup(
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
         if (!guardAdminCommand(cmd, isAdmin, callback)) return;
         MaintenanceConfig maintenance = configs.maintenance();
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
         int retain = maintenance.backupRetentionCount();
         if (maintenanceService != null) {
-            maintenanceService.backup(tickTimeThreshold, retain, msg -> emit(callback, "command_backup", Map.of("message", msg), msg));
+            maintenanceService.backup(
+                    tickTimeThreshold, retain,
+                    msg -> emit(callback, "command_backup", Map.of("message", msg), msg));
         }
     }
 

@@ -1,7 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.integration;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.OrzServices;
 import com.jokerhub.paper.plugin.orzmc.assembly.BotModule;
 import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;

@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc;
 
-import com.jokerhub.paper.plugin.orzmc.assembly.Initializable;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.VisibleForTesting;
 
