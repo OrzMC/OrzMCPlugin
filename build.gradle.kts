@@ -7,10 +7,8 @@ import org.gradle.api.attributes.java.TargetJvmVersion
 
 buildscript {
     repositories {
-        // 中国大陆备用镜像站：阿里云
-        maven("https://maven.aliyun.com/repository/central")
-        maven("https://maven.aliyun.com/repository/public")
-        // 官方Maven中心仓
+        // 官方Maven中心仓（仅用于解析 snakeyaml，不用于 Gradle 插件，
+        // 插件通过 plugins {} 块中的默认仓库解析，避免阿里云镜像 502 阻断 CI）
         mavenCentral()
     }
     dependencies {
@@ -36,12 +34,11 @@ repositories {
         name = "sonatype"
         url = uri("https://oss.sonatype.org/content/groups/public/")
     }
-    // 中国大陆备用镜像站：阿里云
+    // 官方Maven中心仓（放在阿里云镜像之前，避免 CI 被阿里云 502 阻断）
+    mavenCentral()
+    // 中国大陆备用镜像站：阿里云（仅作 fallback）
     maven("https://maven.aliyun.com/repository/central")
     maven("https://maven.aliyun.com/repository/public")
-    // 官方Maven中心仓
-    mavenCentral()
-    
 }
 dependencies {
     // orc-mc-api 子模块（纯 Java 端口与模型）
