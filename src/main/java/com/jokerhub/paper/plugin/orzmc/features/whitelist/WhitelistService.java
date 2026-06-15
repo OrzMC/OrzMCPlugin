@@ -79,18 +79,19 @@ public interface WhitelistService {
             Set<String> allWhiteListName = server.getWhitelistedPlayers().stream()
                     .map(OfflinePlayer::getName)
                     .collect(Collectors.toSet());
-            String message = "------白名单添加------\n";
-            if (allWhiteListName.containsAll(userNames)) {
-                message += String.join(
-                        "\n", userNames.stream().map(name -> "✔︎ ︎" + name).collect(Collectors.toSet()));
-            }
+            Set<String> added = new HashSet<>(userNames);
+            added.retainAll(allWhiteListName);
             Set<String> failed = new HashSet<>(userNames);
             failed.removeAll(allWhiteListName);
-            if (!failed.isEmpty()) {
-                message += String.join(
-                        "\n", failed.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
+            StringBuilder message = new StringBuilder("------白名单添加------\n");
+            if (!added.isEmpty()) {
+                message.append(added.stream().sorted().map(name -> "✔︎ " + name).collect(Collectors.joining("\n")));
             }
-            return message;
+            if (!failed.isEmpty()) {
+                if (!added.isEmpty()) message.append("\n");
+                message.append(failed.stream().sorted().map(name -> "✘ " + name).collect(Collectors.joining("\n")));
+            }
+            return message.toString();
         }
 
         @Override
@@ -109,20 +110,21 @@ public interface WhitelistService {
             Set<String> allWhiteListName = server.getWhitelistedPlayers().stream()
                     .map(OfflinePlayer::getName)
                     .collect(Collectors.toSet());
-            String message = "------白名单移除------\n";
             Set<String> removed = new HashSet<>(userNames);
             removed.removeAll(allWhiteListName);
-            if (!removed.isEmpty()) {
-                message += String.join(
-                        "\n", removed.stream().map(name -> "✔︎ " + name).collect(Collectors.toSet()));
-            }
             Set<String> notRemoved = new HashSet<>(userNames);
             notRemoved.retainAll(allWhiteListName);
-            if (!notRemoved.isEmpty()) {
-                message += String.join(
-                        "\n", notRemoved.stream().map(name -> "✘ " + name).collect(Collectors.toSet()));
+            StringBuilder message = new StringBuilder("------白名单移除------\n");
+            if (!removed.isEmpty()) {
+                message.append(
+                        removed.stream().sorted().map(name -> "✔︎ " + name).collect(Collectors.joining("\n")));
             }
-            return message;
+            if (!notRemoved.isEmpty()) {
+                if (!removed.isEmpty()) message.append("\n");
+                message.append(
+                        notRemoved.stream().sorted().map(name -> "✘ " + name).collect(Collectors.joining("\n")));
+            }
+            return message.toString();
         }
     }
 }

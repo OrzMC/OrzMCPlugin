@@ -1,25 +1,32 @@
 package com.jokerhub.paper.plugin.orzmc.core.ports.config;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import java.util.Map;
 
 public interface TypedConfigProvider {
-    TypedConfigs.BotConfig bot();
+    BotConfig bot();
 
-    TypedConfigs.MaintenanceConfig maintenance();
+    MaintenanceConfig maintenance();
 
-    TypedConfigs.WhitelistConfig whitelist();
+    WhitelistConfig whitelist();
 
-    TypedConfigs.WhitelistKickMessage whitelistKickMessage();
+    WhitelistKickMessage whitelistKickMessage();
 
-    TypedConfigs.TemplateOptions templateOptions();
+    TemplateOptions templateOptions();
 
-    TypedConfigs.Templates templates();
+    Templates templates();
 
-    TypedConfigs.TntConfig tnt();
+    TntConfig tnt();
 
-    TypedConfigs.IpWhitelist ipWhitelist();
+    IpWhitelist ipWhitelist();
 
     MessageEnvelope renderEvent(String eventKey, Map<String, String> vars);
 

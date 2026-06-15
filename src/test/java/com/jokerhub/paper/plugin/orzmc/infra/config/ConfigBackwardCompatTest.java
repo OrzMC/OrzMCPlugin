@@ -1,5 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -128,16 +133,14 @@ public class ConfigBackwardCompatTest {
     public void testNewStyleConfigTypedConfigsParse() {
         FileConfiguration config = newStyleConfig();
 
-        TypedConfigs.WhitelistConfig wl =
-                TypedConfigs.WhitelistConfig.from(config.getConfigurationSection("whitelist"));
+        WhitelistConfig wl = WhitelistConfig.from(config.getConfigurationSection("whitelist"));
         Assertions.assertTrue(wl.forceWhitelist());
         Assertions.assertEquals(90, wl.cleanupInactiveDays());
 
-        TypedConfigs.MaintenanceConfig mt =
-                TypedConfigs.MaintenanceConfig.from(config.getConfigurationSection("maintenance"));
+        MaintenanceConfig mt = MaintenanceConfig.from(config.getConfigurationSection("maintenance"));
         Assertions.assertFalse(mt.optimizeEnabled());
 
-        TypedConfigs.TntConfig tnt = TypedConfigs.TntConfig.from(config.getConfigurationSection("tnt"));
+        TntConfig tnt = TntConfig.from(config.getConfigurationSection("tnt"));
         Assertions.assertFalse(tnt.enable());
     }
 
@@ -151,7 +154,7 @@ public class ConfigBackwardCompatTest {
         // sectionOrLegacy 会返回 legacy 文件本身作为 section。
         FileConfiguration legacy = oldWhitelistYml();
 
-        TypedConfigs.WhitelistConfig wl = TypedConfigs.WhitelistConfig.from(legacy);
+        WhitelistConfig wl = WhitelistConfig.from(legacy);
         Assertions.assertTrue(wl.forceWhitelist());
         Assertions.assertEquals(90, wl.cleanupInactiveDays());
         Assertions.assertEquals(5, wl.paginationDelayTicks());
@@ -161,7 +164,7 @@ public class ConfigBackwardCompatTest {
     public void testOldMaintenanceFileDirectParse() {
         FileConfiguration legacy = oldMaintenanceYml();
 
-        TypedConfigs.MaintenanceConfig mt = TypedConfigs.MaintenanceConfig.from(legacy);
+        MaintenanceConfig mt = MaintenanceConfig.from(legacy);
         Assertions.assertFalse(mt.optimizeEnabled());
         Assertions.assertEquals(300L, mt.optimizeTickTimeThreshold());
         Assertions.assertEquals("服务器维护中，稍后再试", mt.backupMaintenanceMotd());
@@ -171,7 +174,7 @@ public class ConfigBackwardCompatTest {
     public void testOldTntFileDirectParse() {
         FileConfiguration legacy = oldTntYml();
 
-        TypedConfigs.TntConfig tnt = TypedConfigs.TntConfig.from(legacy);
+        TntConfig tnt = TntConfig.from(legacy);
         Assertions.assertFalse(tnt.enable());
         Assertions.assertEquals(5, tnt.placeCooldownSeconds());
         Assertions.assertEquals(1000L, tnt.notifyThrottleMs());
@@ -181,7 +184,7 @@ public class ConfigBackwardCompatTest {
     public void testOldIpWhitelistFileDirectParse() {
         FileConfiguration legacy = oldIpWhitelistYml();
 
-        TypedConfigs.IpWhitelist ip = TypedConfigs.IpWhitelist.from(legacy);
+        IpWhitelist ip = IpWhitelist.from(legacy);
         Assertions.assertTrue(ip.allowCountryCode().isEmpty());
     }
 
@@ -203,20 +206,20 @@ public class ConfigBackwardCompatTest {
     @Test
     public void testNullSectionIsHandledGracefully() {
         // TypedConfigs.from() 在 section 为 null 时应返回安全的默认值
-        TypedConfigs.WhitelistConfig wl = TypedConfigs.WhitelistConfig.from(null);
+        WhitelistConfig wl = WhitelistConfig.from(null);
         Assertions.assertTrue(wl.forceWhitelist(), "null 时应有默认值");
         Assertions.assertEquals(90, wl.cleanupInactiveDays());
 
-        TypedConfigs.MaintenanceConfig mt = TypedConfigs.MaintenanceConfig.from(null);
+        MaintenanceConfig mt = MaintenanceConfig.from(null);
         Assertions.assertFalse(mt.optimizeEnabled());
 
-        TypedConfigs.TntConfig tnt = TypedConfigs.TntConfig.from(null);
+        TntConfig tnt = TntConfig.from(null);
         Assertions.assertFalse(tnt.enable());
 
-        TypedConfigs.IpWhitelist ip = TypedConfigs.IpWhitelist.from(null);
+        IpWhitelist ip = IpWhitelist.from(null);
         Assertions.assertTrue(ip.allowCountryCode().isEmpty());
 
-        TypedConfigs.CommandPolicies cp = TypedConfigs.CommandPolicies.from(null);
+        CommandPolicies cp = CommandPolicies.from(null);
         Assertions.assertTrue(cp.policies().isEmpty());
     }
 

@@ -21,7 +21,7 @@ public final class MenuService {
         OrzMenuHolder holder = new OrzMenuHolder();
         Inventory menu = Bukkit.createInventory(holder, InventoryType.CHEST, title);
         holder.setInventory(menu);
-        ItemStack item1 = new ItemStack(Material.CHIPPED_ANVIL);
+        ItemStack item1 = new ItemStack(Material.STONE);
         menu.addItem(item1);
         return menu;
     }

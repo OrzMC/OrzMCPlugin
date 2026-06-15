@@ -10,21 +10,27 @@ import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.bukkit.configuration.file.FileConfiguration;
+import java.util.concurrent.atomic.AtomicReference;
 
 class OrzBotManager implements BotMessageService {
+
+    private enum State {
+        IDLE,
+        SETUP_REQUESTED,
+        STARTED
+    }
+
     private final ServerAccess server;
     private final ServerScheduler scheduler;
     private final ServerLogger logger;
     private final BotInboundHandler inboundHandler;
     private final ConfigService configService;
     private final ThrottledLogger throttledLogger;
+    private final HealthRegistry healthRegistry;
+    private final BotReconnectionManager reconnectionManager;
     private List<BotAdapter> adapters;
     private final BotRouter router;
-    private final AtomicBoolean setupRequested = new AtomicBoolean(false);
-    private final AtomicBoolean started = new AtomicBoolean(false);
-    private final AtomicBoolean qqReconnectInFlight = new AtomicBoolean(false);
+    private final AtomicReference<State> state = new AtomicReference<>(State.IDLE);
 
     public OrzBotManager(
             ServerAccess server,
@@ -32,20 +38,23 @@ class OrzBotManager implements BotMessageService {
             ServerLogger logger,
             ConfigService configService,
             ThrottledLogger throttledLogger,
-            BotInboundHandler inboundHandler) {
+            BotInboundHandler inboundHandler,
+            HealthRegistry healthRegistry) {
         this.server = server;
         this.scheduler = scheduler;
         this.logger = logger;
         this.configService = configService;
         this.throttledLogger = throttledLogger;
         this.inboundHandler = inboundHandler;
+        this.healthRegistry = healthRegistry;
+        this.reconnectionManager = new BotReconnectionManager(configService, healthRegistry);
         this.adapters = Collections.emptyList();
         this.router = new BotRouter(throttledLogger);
     }
 
     @Override
     public void setup() {
-        setupRequested.set(true);
+        state.set(State.SETUP_REQUESTED);
         scheduler.runAsync(() -> {
             try {
                 startIfRequested();
@@ -56,15 +65,18 @@ class OrzBotManager implements BotMessageService {
     }
 
     void startIfRequested() {
-        if (!setupRequested.get()) {
-            return;
-        }
-        if (!started.compareAndSet(false, true)) {
+        if (!state.compareAndSet(State.SETUP_REQUESTED, State.STARTED)) {
             return;
         }
         adapters = List.of(
                 new OrzQQBot(
-                        server, logger, configService, inboundHandler, new PlainMessageFormatter(), throttledLogger),
+                        server,
+                        logger,
+                        configService,
+                        inboundHandler,
+                        new PlainMessageFormatter(),
+                        throttledLogger,
+                        healthRegistry),
                 new OrzDiscordBot(
                         server,
                         logger,
@@ -72,8 +84,10 @@ class OrzBotManager implements BotMessageService {
                         configService,
                         inboundHandler,
                         new DiscordMessageFormatter(),
-                        throttledLogger),
-                new OrzLarkBot(server, logger, configService, new PlainMessageFormatter(), throttledLogger));
+                        throttledLogger,
+                        healthRegistry),
+                new OrzLarkBot(
+                        server, logger, configService, new PlainMessageFormatter(), throttledLogger, healthRegistry));
         router.setAdapters(adapters);
         router.setup();
     }
@@ -89,39 +103,7 @@ class OrzBotManager implements BotMessageService {
 
     @Override
     public void tryReconnectQqWsIfDisconnected() {
-        FileConfiguration botCfg = configService.getConfig("bot");
-        boolean qqEnabled = botCfg.getBoolean("enable_qq_bot");
-        String wsServer = botCfg.getString("qq_bot_ws_server");
-        if (!qqEnabled || wsServer == null || wsServer.isEmpty()) {
-            return;
-        }
-        if (HealthRegistry.getRaw("qq").wsConnected) {
-            return;
-        }
-        if (!qqReconnectInFlight.compareAndSet(false, true)) {
-            return;
-        }
-        scheduler.runAsync(() -> {
-            try {
-                startIfRequested();
-                HealthRegistry.Status qq = HealthRegistry.getRaw("qq");
-                if (qq.wsConnected) {
-                    return;
-                }
-                for (BotAdapter adapter : adapters) {
-                    if (adapter instanceof OrzQQBot qqBot) {
-                        if (!HealthRegistry.getRaw("qq").wsConnected) {
-                            qqBot.setupWebSocketClient();
-                        }
-                        return;
-                    }
-                }
-            } catch (Exception e) {
-                HealthRegistry.setLastError("qq", e.toString());
-            } finally {
-                qqReconnectInFlight.set(false);
-            }
-        });
+        scheduler.runAsync(() -> reconnectionManager.tryReconnectIfDisconnected(adapters, this::startIfRequested));
     }
 
     @Override

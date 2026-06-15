@@ -1,6 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs.Portals.PortalEntry;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Portals.PortalEntry;
 import java.util.Map;
 import org.bukkit.configuration.file.FileConfiguration;
 

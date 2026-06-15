@@ -5,6 +5,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 
 public final class BotMessageServiceProvider {
@@ -16,7 +17,9 @@ public final class BotMessageServiceProvider {
             ServerScheduler scheduler,
             ConfigService configService,
             ThrottledLogger throttledLogger,
-            BotInboundHandler inboundHandler) {
-        return new OrzBotManager(server, scheduler, logger, configService, throttledLogger, inboundHandler);
+            BotInboundHandler inboundHandler,
+            HealthRegistry healthRegistry) {
+        return new OrzBotManager(
+                server, scheduler, logger, configService, throttledLogger, inboundHandler, healthRegistry);
     }
 }

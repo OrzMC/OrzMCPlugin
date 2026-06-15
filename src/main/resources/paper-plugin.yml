@@ -1,0 +1,17 @@
+# paper-plugin.yml: https://docs.papermc.io/paper/dev/paper-plugin-yml
+name: OrzMC
+version: 1.0.0
+main: com.jokerhub.paper.plugin.orzmc.OrzMC
+description: OrzMC for Paper Server Plugin
+authors: [ wangzhizhou ]
+contributors: [ wangzhizhou ]
+website: https://orzmc.jokerhub.cn
+api-version: '26.1.2'
+folia-supported: false
+
+# Paper 26.1 插件模式忽略 YAML 命令声明，命令通过 CommandBinder 使用 CommandMap API 注册。
+# 此处只保留权限声明，供 Bukkit Permission 系统使用。
+permissions:
+  orzmc.admin:
+    description: OrzMC 管理命令权限
+    default: op

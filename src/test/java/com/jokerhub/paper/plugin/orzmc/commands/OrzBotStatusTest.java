@@ -5,17 +5,15 @@ import static org.mockito.Mockito.when;
 
 import com.jokerhub.paper.plugin.orzmc.features.bot.BotStatusService;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-public class OrzBotStatusTest {
+public class OrzBotStatusTest extends ServiceTestBase {
     @Mock
     private BotStatusService statusService;
 

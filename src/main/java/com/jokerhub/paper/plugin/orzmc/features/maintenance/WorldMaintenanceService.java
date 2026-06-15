@@ -5,7 +5,8 @@ import static java.nio.file.Files.readAttributes;
 import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
@@ -74,7 +75,7 @@ public class WorldMaintenanceService {
             }
             int percent = (int) Math.ceil(current * 100.0 / total);
             MaintenanceStage stage = mapProgressStage(progressEvent.getStage());
-            TypedConfigs.Templates tpls = configs.templates();
+            Templates tpls = configs.templates();
             java.util.Map<String, String> vars = new java.util.HashMap<>();
             vars.put("label", label);
             vars.put("stage", stage.name());
@@ -84,7 +85,7 @@ public class WorldMaintenanceService {
             long elapsedMs = Math.max(1, System.currentTimeMillis() - startMs);
             double ratePerSec = (current * 1000.0) / elapsedMs;
             long etaMs = (long) Math.max(0, (total - current) / Math.max(1e-6, ratePerSec) * 1000.0);
-            TypedConfigs.TemplateOptions opt = configs.templateOptions();
+            TemplateOptions opt = configs.templateOptions();
             double ratePer = ratePerSec;
             String rateUnit = "/s";
             if ("per_min".equalsIgnoreCase(opt.rateUnit())) {

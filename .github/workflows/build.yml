@@ -26,7 +26,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: 21
+          java-version: 25
       - name: spotless check
         run: ./gradlew spotlessCheck --stacktrace
       - name: unit tests
@@ -35,6 +35,14 @@ jobs:
         run: ./gradlew integrationTest --stacktrace
       - name: build shadowJar
         run: ./gradlew clean build --stacktrace
+      - name: jacoco coverage report
+        run: ./gradlew jacocoTestReport --stacktrace
+      - name: upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: build/reports/jacoco/
+          if-no-files-found: warn
       - name: generate build summary
         run: |
           echo "### Build Summary" >> $GITHUB_STEP_SUMMARY
@@ -49,3 +57,53 @@ jobs:
           name: orzmc-plugin-${{ github.event.pull_request.head.sha }}
           path: build/libs/*.jar
           if-no-files-found: error
+      - name: post PR comment
+        uses: actions/github-script@v7
+        if: success()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- orzmc-build-summary -->';
+            const fullSha = context.payload.pull_request.head.sha;
+            const shortSha = fullSha.substring(0, 10);
+            const artifactName = 'orzmc-plugin-' + fullSha;
+            const base = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo;
+            const runUrl = base + '/actions/runs/' + context.runId;
+            const commitUrl = base + '/commit/' + fullSha;
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+              name: artifactName
+            });
+            const artifactId = artifacts.artifacts[0].id;
+            const downloadUrl = base + '/actions/runs/' + context.runId + '/artifacts/' + artifactId;
+            const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+            const body = marker + '\n## ✅ Build Passed  (' + now + ')' +
+              '\n| 项目 | 详情 |' +
+              '\n|------|------|' +
+              '\n| **BuildID** | [' + context.runId + '](' + runUrl + ') |' +
+              '\n| **CommitID** | [' + shortSha + '](' + commitUrl + ') |' +
+              '\n| **Artifact** | [' + artifactName + '.zip](' + downloadUrl + ') |' +
+              '\n| **Author** | @' + context.payload.pull_request.user.login + ' |';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }

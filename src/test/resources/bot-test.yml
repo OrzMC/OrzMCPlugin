@@ -1,0 +1,13 @@
+# 测试用 bot.yml 样例
+cmd_prompt_char: "$"
+discord_server_link: "https://discord.gg/test"
+qq_group_id: "123456"
+qq_player_group_id: "123456"
+enable_qq_bot: true
+qq_bot_ws_server: "ws://localhost:8080/ws"
+qq_bot_token: "test-token"
+enable_discord_bot: false
+discord_bot_token: ""
+enable_lark_bot: false
+lark_bot_webhook: ""
+lark_bot_secret: ""

@@ -5,7 +5,9 @@ import com.destroystokyo.paper.event.server.WhitelistToggleEvent;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage.WhitelistKickMessageItem;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.List;
@@ -36,7 +38,7 @@ public final class WhitelistEventService {
             return;
         }
         TextComponent.Builder kickMsgBuilder = Component.text();
-        TypedConfigs.BotConfig botConfig = configs.bot();
+        BotConfig botConfig = configs.bot();
         String qqPlayerGroupId = botConfig.qqPlayerGroupId();
         if (qqPlayerGroupId != null && !qqPlayerGroupId.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
@@ -95,9 +97,9 @@ public final class WhitelistEventService {
         }
     }
 
-    private TextComponent buildKickMessage(TypedConfigs.WhitelistKickMessage kickMessage) {
+    private TextComponent buildKickMessage(WhitelistKickMessage kickMessage) {
         String title = kickMessage.title();
-        List<TypedConfigs.WhitelistKickMessage.WhitelistKickMessageItem> ups = kickMessage.ups();
+        List<WhitelistKickMessageItem> ups = kickMessage.ups();
         TextComponent.Builder builder = Component.text();
         boolean hasContent = false;
         if (!title.isEmpty()) {
@@ -106,7 +108,7 @@ public final class WhitelistEventService {
         }
         if (!ups.isEmpty()) {
             int limit = Math.min(5, ups.size());
-            for (TypedConfigs.WhitelistKickMessage.WhitelistKickMessageItem item : ups.subList(0, limit)) {
+            for (WhitelistKickMessageItem item : ups.subList(0, limit)) {
                 String name = item.name();
                 String platform = item.platform();
                 if (name.isEmpty() && platform.isEmpty()) {

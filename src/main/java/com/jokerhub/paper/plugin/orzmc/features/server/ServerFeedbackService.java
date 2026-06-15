@@ -2,7 +2,8 @@ package com.jokerhub.paper.plugin.orzmc.features.server;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.botcommands.OrzUserCmd;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
@@ -44,8 +45,8 @@ public final class ServerFeedbackService {
     }
 
     public Component buildMaintenanceMotd() {
-        TypedConfigs.MaintenanceConfig maintenance = configs.maintenance();
-        TypedConfigs.BotConfig botConfig = configs.bot();
+        MaintenanceConfig maintenance = configs.maintenance();
+        BotConfig botConfig = configs.bot();
         String msg = maintenance.backupMaintenanceMotd();
         String discordLink = botConfig.discordServerLink();
         String qqGroupId = botConfig.qqGroupId();

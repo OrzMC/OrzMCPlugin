@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.maintenance;
 
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
@@ -8,7 +9,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class WorldMaintenanceServiceTest {
+public class WorldMaintenanceServiceTest extends ServiceTestBase {
     @Test
     public void testPruneOldZips() throws Exception {
         File tmp = Files.createTempDirectory("wm-prune").toFile();

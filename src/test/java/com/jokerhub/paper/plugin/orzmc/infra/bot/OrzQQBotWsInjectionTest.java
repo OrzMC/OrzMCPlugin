@@ -70,6 +70,7 @@ public class OrzQQBotWsInjectionTest {
     private ThrottledLogger throttled;
     private YamlConfiguration cfg;
     private ConfigService configService;
+    private HealthRegistry healthRegistry;
 
     @BeforeEach
     void setUp() {
@@ -92,16 +93,24 @@ public class OrzQQBotWsInjectionTest {
         configService = Mockito.mock(ConfigService.class);
         Mockito.when(configService.getConfig("bot")).thenReturn(cfg);
         throttled = new ThrottledLogger(configService, rawLogger);
+        healthRegistry = new HealthRegistry();
     }
 
     @Test
     void setupUsesFactoryAndUpdatesHealthOnOpenClose() {
         FakeFactory factory = new FakeFactory();
-        OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory);
+        OrzQQBot bot = new OrzQQBot(
+                server,
+                logger,
+                configService,
+                inbound,
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
-        assertTrue(HealthRegistry.getRaw("qq").wsConnected);
+        assertTrue(healthRegistry.getRaw("qq").wsConnected);
         bot.teardown();
-        assertFalse(HealthRegistry.getRaw("qq").wsConnected);
+        assertFalse(healthRegistry.getRaw("qq").wsConnected);
     }
 }

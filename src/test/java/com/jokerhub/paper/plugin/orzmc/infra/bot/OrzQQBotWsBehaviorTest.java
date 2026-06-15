@@ -82,9 +82,11 @@ public class OrzQQBotWsBehaviorTest {
     private ThrottledLogger throttled;
     private YamlConfiguration cfg;
     private ConfigService configService;
+    private HealthRegistry healthRegistry;
 
     @BeforeEach
     void init() {
+        healthRegistry = new HealthRegistry();
         rawLogger = java.util.logging.Logger.getLogger("test");
         rawLogger.setUseParentHandlers(false);
         rawLogger.setLevel(java.util.logging.Level.OFF);
@@ -110,11 +112,18 @@ public class OrzQQBotWsBehaviorTest {
     void reportsHealthOnReconnectExhausted() {
         CapturingFactory factory = new CapturingFactory();
         OrzQQBot bot = new OrzQQBot(
-                server, logger, configService, (m, a, s) -> {}, new PlainMessageFormatter(), throttled, factory);
+                server,
+                logger,
+                configService,
+                (m, a, s) -> {},
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
         factory.ws.fireError(new RuntimeException("WS reconnect exhausted"));
-        assertFalse(HealthRegistry.getRaw("qq").wsConnected);
-        assertTrue(String.valueOf(HealthRegistry.getRaw("qq").lastError).contains("WS reconnect exhausted"));
+        assertFalse(healthRegistry.getRaw("qq").wsConnected);
+        assertTrue(String.valueOf(healthRegistry.getRaw("qq").lastError).contains("WS reconnect exhausted"));
     }
 
     @Test
@@ -126,8 +135,15 @@ public class OrzQQBotWsBehaviorTest {
             gotPriv.set(isAdmin);
         };
         CapturingFactory factory = new CapturingFactory();
-        OrzQQBot bot =
-                new OrzQQBot(server, logger, configService, inbound, new PlainMessageFormatter(), throttled, factory);
+        OrzQQBot bot = new OrzQQBot(
+                server,
+                logger,
+                configService,
+                inbound,
+                new PlainMessageFormatter(),
+                throttled,
+                factory,
+                healthRegistry);
         bot.setup();
         String json = "{\"group_id\":\"123\",\"raw_message\":\"$hi\",\"sender\":{\"role\":\"admin\"}}";
         factory.ws.fireMessage(json);

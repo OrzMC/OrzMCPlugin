@@ -20,8 +20,9 @@ public class OrzLarkBot extends OrzBaseBot {
             ServerLogger logger,
             ConfigService configService,
             MessageFormatter formatter,
-            ThrottledLogger throttledLogger) {
-        super(server, logger, configService);
+            ThrottledLogger throttledLogger,
+            HealthRegistry healthRegistry) {
+        super(server, logger, configService, healthRegistry);
         this.formatter = formatter;
         this.throttledLogger = throttledLogger;
     }
@@ -42,14 +43,14 @@ public class OrzLarkBot extends OrzBaseBot {
         if (!this.isEnable()) {
             return;
         }
-        HealthRegistry.setEnabled("lark", true);
+        healthRegistry.setEnabled("lark", true);
         try {
             String larkBotWebhookUrl = botConfig.getString("lark_bot_webhook");
             for (String part : formatter.format(msg, MessageEnvelope.Format.DEFAULT)) {
                 asyncHttpRequest(larkBotWebhookUrl, part);
             }
         } catch (Exception e) {
-            HealthRegistry.setLastError("lark", e.toString());
+            healthRegistry.setLastError("lark", e.toString());
             this.logger.logger().info(e.toString());
         }
     }
@@ -70,7 +71,7 @@ public class OrzLarkBot extends OrzBaseBot {
                 asyncHttpRequest(url, part);
             }
         } catch (Exception e) {
-            HealthRegistry.setLastError("lark", e.toString());
+            healthRegistry.setLastError("lark", e.toString());
             this.logger.logger().info(e.toString());
         }
     }
@@ -95,13 +96,13 @@ public class OrzLarkBot extends OrzBaseBot {
                 .thenAcceptAsync(response -> {
                     throttledLogger.info("lark-http", "Response : " + response);
                     if (response.statusCode() == 200) {
-                        HealthRegistry.setHttpOk("lark", true);
-                        HealthRegistry.setLastError("lark", null);
+                        healthRegistry.setHttpOk("lark", true);
+                        healthRegistry.setLastError("lark", null);
                     }
                 })
                 .exceptionally(e -> {
-                    HealthRegistry.setHttpOk("lark", false);
-                    HealthRegistry.setLastError("lark", e.toString());
+                    healthRegistry.setHttpOk("lark", false);
+                    healthRegistry.setLastError("lark", e.toString());
                     throttledLogger.error("lark-http", "Lark机器人无法连接，工作异常: " + e);
                     return null;
                 });

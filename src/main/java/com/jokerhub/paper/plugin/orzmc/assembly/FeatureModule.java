@@ -37,7 +37,8 @@ import com.jokerhub.paper.plugin.orzmc.features.tnt.TntEventService;
 import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistEventService;
 import com.jokerhub.paper.plugin.orzmc.infra.binding.CommandBinder;
 import com.jokerhub.paper.plugin.orzmc.infra.binding.EventBinder;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -169,9 +170,9 @@ public final class FeatureModule implements ServiceModule {
             cmdSection = legacy != null ? legacy.getConfigurationSection("commands") : null;
         }
         Map<String, CommandExecutor> enhanced = new HashMap<>();
-        TypedConfigs.CommandPolicies cp = TypedConfigs.CommandPolicies.from(cmdSection);
+        CommandPolicies cp = CommandPolicies.from(cmdSection);
         commandHandlers.forEach((name, exec) -> {
-            TypedConfigs.CommandPolicy p = cp.policies().getOrDefault(name, new TypedConfigs.CommandPolicy(0, false));
+            CommandPolicy p = cp.policies().getOrDefault(name, new CommandPolicy(0, false));
             List<CommandInterceptor> interceptors = new ArrayList<>();
             if (!"bot".equals(name)) {
                 interceptors.add(new PlayerOnlyInterceptor());
