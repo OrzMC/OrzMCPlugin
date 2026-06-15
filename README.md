@@ -1,7 +1,7 @@
 # OrzMCPlugin
 
-[![Pull Request Build Check](https://github.com/OrzGeeker/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzGeeker/OrzMCPlugin/actions/workflows/build.yml)
-[![Publish to Hangar](https://github.com/OrzGeeker/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzGeeker/OrzMCPlugin/actions/workflows/publish.yml)
+[![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
+[![Publish to Hangar](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
 [![OrzMC](https://img.shields.io/hangar/dt/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
 [![OrzMC](https://img.shields.io/hangar/stars/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
@@ -11,7 +11,7 @@
 
 ## 参与贡献
 
-欢迎通过 [Issue](https://github.com/OrzGeeker/OrzMCPlugin/issues/new/choose) 报告 Bug 或提出建议。
+欢迎通过 [Issue](https://github.com/OrzMC/OrzMCPlugin/issues/new/choose) 报告 Bug 或提出建议。
 提交代码前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 [私服](https://orzmc.jokerhub.cn)开服自研插件，用来辅助管理员运维。
@@ -21,14 +21,15 @@
 
 ## 插件能力
 - 📋服务器开启强制白名单: 未添加到白名单的玩家无法进入服务器
-- 💬社交软件群内管理服务器（命令前缀来自 bot.yml 的 cmd_prompt_char，默认 `$`）
+- 💬社交软件群内管理服务器（命令前缀来自 `config.yml` → `bot.cmd_prompt_char`，默认 `$`）
   ```
   👨‍💼 管理员命令：
   $a	添加玩家到白名单
   $r	从白名单移除玩家
   $b	地图备份
   $o	地图优化
-  👨🏻‍💻 通用命令: 
+  $e	执行控制台命令
+  👨🏻‍💻 通用命令:
   $l	查看在线玩家
   $w	查看白名单玩家
   $h	查看帮助信息
@@ -44,7 +45,9 @@
   - `/bot` 查看当前机器人状态，用来随时进行机器人通知服务的状态查询
   - `/portal <host> [port]` 创建跨服跳转传送门
   - `/portal remove|rm <host> [port]` 移除跨服跳转传送门（需 OP 或 orzmc.admin）
-  - `/menu` 打开内置菜单(当前为占位界面，点击提示“功能开发中”，后续将逐步增加快捷功能)
+  - `/menu` 打开内置菜单(当前为占位界面，点击提示”功能开发中”，后续将逐步增加快捷功能)
+  - `/orzmc reload [config-name]` 管理员热重载配置
+  - `/orzmc config <子命令>` 管理员运行时配置查看/修改/重置/导出
 - TNT服务器防护：可通过配置文件设置，开启服务器爆炸监听、报警和防护。支持在不同世界配置TNT可用区域白名单，在设置的白名单区域内，TNT相关功能可正常生效
 - 服务区域限制：为了防止一些国家玩家对服务器的扫描和破坏，可通过配置文件设置服务器允许玩家登录的国家区域
 
@@ -59,7 +62,7 @@
 2. 下次服务端重启时，插件会被自动移到`plugins/`目录下面，完成插件升级
 
 ## 问题反馈
-- 如果你在使用过程中发现问题，欢迎给项目提建议：[issues](https://github.com/OrzGeeker/OrzMCPlugin/issues)
+- 如果你在使用过程中发现问题，欢迎给项目提建议：[issues](https://github.com/OrzMC/OrzMCPlugin/issues)
 - 问题反馈可进入QQ频道：<br/> ![lark_issue_feedback_group](./images/lark_issue_feedback.png)
 
 ## 架构概览
