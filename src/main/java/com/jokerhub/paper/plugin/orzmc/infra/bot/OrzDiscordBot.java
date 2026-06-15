@@ -146,8 +146,10 @@ public class OrzDiscordBot extends OrzBaseBot {
                                     MessageChannel channel = event.getChannel();
                                     MessageEnvelope.Format format =
                                             env.format() == null ? MessageEnvelope.Format.DEFAULT : env.format();
-                                    formatter.format(env.message(), format).forEach(part -> channel.sendMessage(part)
-                                            .queue());
+                                    formatter
+                                            .format(env.message(), format)
+                                            .forEach(part ->
+                                                    channel.sendMessage(part).queue());
                                 });
                             } catch (Exception e) {
                                 healthRegistry.setLastError("discord", e.toString());
@@ -214,8 +216,9 @@ public class OrzDiscordBot extends OrzBaseBot {
                 logger.logger().warning("your discord bot not in this text channel: " + playerTextChannelId);
                 return;
             }
-            formatter.format(message, MessageEnvelope.Format.DEFAULT).forEach(part -> channel.sendMessage(part)
-                    .queue());
+            formatter
+                    .format(message, MessageEnvelope.Format.DEFAULT)
+                    .forEach(part -> channel.sendMessage(part).queue());
         } catch (Exception e) {
             healthRegistry.setLastError("discord", e.toString());
             throttledLogger.error("discord-send", "Discord消息发送异常: " + e);

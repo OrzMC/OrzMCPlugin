@@ -32,7 +32,7 @@ public final class TeleportBowService {
     public void giveAndEquip(Player player) {
         ItemStack teleport_bow = new ItemStack(Material.BOW);
         ItemMeta meta = teleport_bow.getItemMeta();
-        meta.addEnchant(Enchantment.ARROW_INFINITE, 1, true);
+        meta.addEnchant(Enchantment.INFINITY, 1, true);
         meta.displayName(Component.text(name));
         java.util.ArrayList<Component> loreList = new java.util.ArrayList<>();
         loreList.add(Component.text("可以把你传送到箭落地的位置"));

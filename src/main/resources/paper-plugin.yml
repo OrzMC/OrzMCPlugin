@@ -1,4 +1,4 @@
-# plugin.yml: https://docs.papermc.io/paper/dev/plugin-yml
+# paper-plugin.yml: https://docs.papermc.io/paper/dev/paper-plugin-yml
 name: OrzMC
 version: 1.0.0
 main: com.jokerhub.paper.plugin.orzmc.OrzMC
@@ -7,7 +7,10 @@ authors: [ wangzhizhou ]
 contributors: [ wangzhizhou ]
 website: https://orzmc.jokerhub.cn
 api-version: '26.1.2'
-load: STARTUP
+folia-supported: false
+
+# Commands declared here for MockBukkit compatibility.
+# The same commands are also in plugin.yml.
 commands:
   tpbow:
     description: 传送弓，射出的箭落地时会把自己传送到箭落地的位置

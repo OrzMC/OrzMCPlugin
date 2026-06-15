@@ -82,7 +82,8 @@ class TeleportBowServiceTest extends ServiceTestBase {
     void giveAndEquip_setsBowInMainHand() {
         Player player = mock(Player.class);
         PlayerInventory inventory = mock(PlayerInventory.class);
-        ItemStack prevItem = new ItemStack(Material.AIR);
+        ItemStack prevItem = mock(ItemStack.class);
+        when(prevItem.getType()).thenReturn(Material.AIR);
 
         when(player.getInventory()).thenReturn(inventory);
         when(inventory.getItemInMainHand()).thenReturn(prevItem);

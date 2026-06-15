@@ -3,7 +3,6 @@ import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import org.gradle.api.attributes.java.TargetJvmVersion
 
 buildscript {
     repositories {
@@ -47,7 +46,7 @@ dependencies {
     // orc-mc-api 子模块（纯 Java 端口与模型）
     implementation(project(":orzmc-api"))
 
-    compileOnly("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:${property("plugin_debug_server_version") as String}.build.+")
     // WebSocket Client For NapCat QQBot
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
     // Java Discord API
@@ -60,7 +59,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
-    testImplementation("io.papermc.paper:paper-api:${pluginYaml["api-version"]}-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:${property("plugin_debug_server_version") as String}.build.+")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
@@ -73,12 +72,6 @@ val integrationTestSourceSet = sourceSets.create("integrationTest") {
 integrationTestSourceSet.compileClasspath += sourceSets.main.get().output
 integrationTestSourceSet.runtimeClasspath += integrationTestSourceSet.output + integrationTestSourceSet.compileClasspath
 
-configurations.getByName("integrationTestCompileClasspath")
-    .attributes
-    .attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
-configurations.getByName("integrationTestRuntimeClasspath")
-    .attributes
-    .attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
 
 configurations.getByName("integrationTestImplementation").extendsFrom(
     configurations.implementation.get(),
@@ -92,8 +85,8 @@ configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
 dependencies {
     val integrationPaperVersion = property("plugin_debug_server_version") as String
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.0")
-    add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion-R0.1-SNAPSHOT")
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.110.0")
+    add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion.build.+")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.113.2")
     add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:4.12.0")
     add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
     add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
@@ -116,7 +109,8 @@ plugins {
 // 代码格式化
 spotless {
     java {
-        palantirJavaFormat()
+        // 使用 Palantir 格式，指定新版本以兼容 JDK 25
+        palantirJavaFormat("2.93.0")
     }
 }
 
@@ -190,12 +184,6 @@ tasks {
         // 同时启用未检查的类型转换警告
         options.compilerArgs.add("-Xlint:unchecked")
     }
-    named<JavaCompile>("compileIntegrationTestJava") {
-        val java21 = serviceOf<JavaToolchainService>().compilerFor {
-            languageVersion.set(JavaLanguageVersion.of(21))
-        }
-        javaCompiler.set(java21)
-    }
     // 配置工程内直接调试服务端插件
     // gradle-plugin: https://github.com/jpenilla/run-task#basic-usage
     val agreeEula = register("agreeEula") {
@@ -215,10 +203,6 @@ tasks {
         minecraftVersion(debugServerVesion)
         // 以离线模式启动服务端
         args("--nojline", "--nogui", "--online-mode=false")
-        val java21 = serviceOf<JavaToolchainService>().launcherFor {
-            languageVersion.set(JavaLanguageVersion.of(21))
-        }
-        javaLauncher.set(java21)
         dependsOn(agreeEula)
     }
     jar {
@@ -253,9 +237,5 @@ tasks {
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
         shouldRunAfter(test)
-        val java21 = serviceOf<JavaToolchainService>().launcherFor {
-            languageVersion.set(JavaLanguageVersion.of(21))
-        }
-        javaLauncher.set(java21)
     }
 }

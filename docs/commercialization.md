@@ -26,8 +26,8 @@
 
 | 维度 | 现状 |
 |------|------|
-| **目标平台** | PaperMC 1.20 ~ 1.21.11（Minecraft Java 版） |
-| **语言** | Java 17+，Gradle（Kotlin DSL）构建 |
+| **目标平台** | Paper 26.1+（Minecraft Java 版） |
+| **语言** | Java 25+，Gradle（Kotlin DSL）构建 |
 | **当前发布渠道** | [Hangar](https://hangar.papermc.io/wangzhizhou666/OrzMC)（免费） |
 | **许可证** | ❌ 无许可证文件 → 默认 "All Rights Reserved" |
 | **集成平台** | QQ（NapCatQQ/OneBot）、Discord（JDA）、飞书（Webhook） |

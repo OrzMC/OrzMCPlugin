@@ -69,7 +69,8 @@ class MenuServiceTest extends ServiceTestBase {
 
     @Test
     void onClick_airItem_doesNothing() {
-        ItemStack air = new ItemStack(Material.AIR);
+        ItemStack air = mock(ItemStack.class);
+        when(air.getType()).thenReturn(Material.AIR);
 
         service.onClick(player, air);
 
