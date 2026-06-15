@@ -11,7 +11,7 @@
 
 ## 环境要求
 
-- Java 25（CI 与 integrationTest 固定使用 Java 25）
+- **Java 25**（CI 与 integrationTest 固定使用 Java 25；如果默认 JDK 版本较高，通过 `JAVA_HOME=/path/to/jdk25 ./gradlew ...` 指定）
 
 ## 使用 Gradle 构建
 
@@ -44,13 +44,19 @@ $ ./gradlew test
 
 配置与模板的冒烟测试会直接读取 resources 下的默认配置，确保类型化映射与模板解析可用。
 
-代码格式检查：
+代码格式检查（Palantir 风格，使用 spotless 8.6.0 + Palantir 2.93.0）：
 
 ```bash
 $ ./gradlew spotlessCheck
 ```
 
-对齐 CI 的一键检查：
+自动修复格式问题：
+
+```bash
+$ ./gradlew spotlessApply
+```
+
+对齐 CI 的一键检查（spotless + test + integrationTest + shadowJar）：
 
 ```bash
 $ ./gradlew check
