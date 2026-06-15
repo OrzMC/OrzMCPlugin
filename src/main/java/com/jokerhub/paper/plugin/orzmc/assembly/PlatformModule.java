@@ -7,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.DefaultTypedConfigProvider;
+import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.ThrottledLogger;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
@@ -26,6 +27,7 @@ public final class PlatformModule implements ServiceModule {
     private final OrzTextStyles textStyles;
     private final ThrottledLogger throttledLogger;
     private final ThrottledNotifier throttledNotifier;
+    private final HealthRegistry healthRegistry;
 
     public PlatformModule(OrzMC plugin) {
         this.serverFacade = new ServerFacade(plugin);
@@ -34,6 +36,7 @@ public final class PlatformModule implements ServiceModule {
         this.textStyles = new OrzTextStyles(configService);
         this.throttledLogger = new ThrottledLogger(configService, plugin.getLogger());
         this.throttledNotifier = new ThrottledNotifier(configService);
+        this.healthRegistry = new HealthRegistry();
     }
 
     @Override
@@ -82,5 +85,9 @@ public final class PlatformModule implements ServiceModule {
 
     public ThrottledNotifier throttledNotifier() {
         return throttledNotifier;
+    }
+
+    public HealthRegistry healthRegistry() {
+        return healthRegistry;
     }
 }

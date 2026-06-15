@@ -2,7 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.styles;
 
 import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Styles;
 import com.jokerhub.paper.plugin.orzmc.infra.core.OrzConstants;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -27,7 +27,7 @@ public final class OrzTextStyles {
                 FileConfiguration legacy = configService.loadFile("styles.yml");
                 stylesSection = legacy != null ? legacy.getConfigurationSection("styles") : null;
             }
-            TypedConfigs.Styles styles = TypedConfigs.Styles.from(stylesSection);
+            Styles styles = Styles.from(stylesSection);
             String hex = styles.colors().getOrDefault(key, defaultHex);
             if (hex == null || hex.isEmpty()) return TextColor.fromCSSHexString(defaultHex);
             return TextColor.fromCSSHexString(hex);

@@ -11,7 +11,7 @@
 
 ## 环境要求
 
-- Java 21（CI 与 integrationTest 固定使用 Java 21）
+- Java 25（CI 与 integrationTest 固定使用 Java 25）
 
 ## 使用 Gradle 构建
 

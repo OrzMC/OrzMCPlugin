@@ -8,15 +8,15 @@
 ./gradlew spotlessApply            # 自动格式化 Java 代码（Palantir 风格）
 ./gradlew spotlessCheck            # 格式检查（CI 门禁）
 ./gradlew test                     # 运行单元测试（JUnit 5 + Mockito）
-./gradlew integrationTest          # 运行集成测试（MockBukkit，需要 Java 21）
+./gradlew integrationTest          # 运行集成测试（MockBukkit，需要 Java 25）
 ./gradlew check                    # 完整 CI 门禁：spotless + test + integrationTest + shadowJar
 ./gradlew clean build              # 全量构建 + shadowJar
-./gradlew runServer                # 启动本地 Paper 调试服务器（Java 21）
+./gradlew runServer                # 启动本地 Paper 调试服务器（Java 25）
 ./gradlew :orzmc-api:build         # 仅构建 orzmc-api 子模块（纯 Java，无 Bukkit 依赖）
 ./gradlew :orzmc-api:publishToMavenLocal  # 本地发布 orzmc-api SDK
 ```
 
-注意：CI 强制使用 Java 21。如果默认 JDK 版本较高，请通过 `JAVA_HOME=/path/to/jdk21 ./gradlew ...` 指定。
+注意：CI 强制使用 Java 25。如果默认 JDK 版本较高，请通过 `JAVA_HOME=/path/to/jdk25 ./gradlew ...` 指定。
 
 ## 架构概览
 
@@ -77,8 +77,8 @@ OrzMC/
 
 | 事件 | 版本号格式 | 目标 |
 |------|-----------|------|
-| PR → main | `{version}-dev_{timestamp}` | PR 构建产物 |
-| Push → main | `{version}.{GITHUB_RUN_NUMBER}` | Hangar Snapshot |
+| PR → main | `{version}-dev-{timestamp}` | PR 构建产物 |
+| Push → main | `{version}-snapshot-{GITHUB_RUN_NUMBER}` | Hangar Snapshot |
 | Push tag `1.0.0` | `{version}`（纯 SemVer） | Hangar Release + GitHub Release |
 
 Tag 使用严格 SemVer，**不加 `v` 前缀**。

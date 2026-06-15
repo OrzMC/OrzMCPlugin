@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.features.botcommands.BotCommandService;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageServiceProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthAccessor;
+import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 
 /**
@@ -21,8 +22,10 @@ public final class BotModule implements ServiceModule, Initializable {
     private final BotMessageService botMessageService;
     private final Notifier notifier;
     private final BotStatusService botStatusService;
+    private final HealthRegistry healthRegistry;
 
     public BotModule(PlatformModule platform) {
+        this.healthRegistry = new HealthRegistry();
         // Phase A: 先创建 BotCommandService（核心依赖来自 PlatformModule）
         this.botCommandService = new BotCommandService(platform.serverFacade(), platform.configs());
 
@@ -33,13 +36,14 @@ public final class BotModule implements ServiceModule, Initializable {
                 platform.serverFacade(),
                 platform.configService(),
                 platform.throttledLogger(),
-                botCommandService);
+                botCommandService,
+                healthRegistry);
 
         // Phase D: 创建 Notifier（依赖 BotMessageService）
         this.notifier = new Notifier(platform.serverAccess(), platform.configService(), botMessageService);
 
         // BotStatusService
-        this.botStatusService = new BotStatusService(platform.textStyles(), new HealthAccessor());
+        this.botStatusService = new BotStatusService(platform.textStyles(), new HealthAccessor(healthRegistry));
     }
 
     // 跨模块回引用（通过 afterPropertiesSet 注入）

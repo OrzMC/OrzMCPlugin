@@ -2,6 +2,14 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateService;
 import java.util.Map;
@@ -16,54 +24,54 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
     }
 
     @Override
-    public TypedConfigs.BotConfig bot() {
-        return TypedConfigs.BotConfig.from(configService.getConfig("bot"));
+    public BotConfig bot() {
+        return BotConfig.from(configService.getConfig("bot"));
     }
 
     @Override
-    public TypedConfigs.MaintenanceConfig maintenance() {
+    public MaintenanceConfig maintenance() {
         ConfigurationSection section = sectionOrLegacy("config", "maintenance", "maintenance.yml");
-        return TypedConfigs.MaintenanceConfig.from(section);
+        return MaintenanceConfig.from(section);
     }
 
     @Override
-    public TypedConfigs.WhitelistConfig whitelist() {
+    public WhitelistConfig whitelist() {
         ConfigurationSection section = sectionOrLegacy("config", "whitelist", "whitelist.yml");
-        return TypedConfigs.WhitelistConfig.from(section);
+        return WhitelistConfig.from(section);
     }
 
     @Override
-    public TypedConfigs.WhitelistKickMessage whitelistKickMessage() {
+    public WhitelistKickMessage whitelistKickMessage() {
         ConfigurationSection section = sectionOrLegacy("config", "whitelist", "whitelist.yml");
-        return TypedConfigs.WhitelistKickMessage.from(section);
+        return WhitelistKickMessage.from(section);
     }
 
     @Override
-    public TypedConfigs.TemplateOptions templateOptions() {
-        return TypedConfigs.TemplateOptions.from(configService.getConfig("templates"));
+    public TemplateOptions templateOptions() {
+        return TemplateOptions.from(configService.getConfig("templates"));
     }
 
     @Override
-    public TypedConfigs.Templates templates() {
-        return TypedConfigs.Templates.from(configService.getConfig("templates"));
+    public Templates templates() {
+        return Templates.from(configService.getConfig("templates"));
     }
 
     @Override
-    public TypedConfigs.TntConfig tnt() {
+    public TntConfig tnt() {
         ConfigurationSection section = sectionOrLegacy("config", "tnt", "tnt.yml");
-        return TypedConfigs.TntConfig.from(section);
+        return TntConfig.from(section);
     }
 
     @Override
-    public TypedConfigs.IpWhitelist ipWhitelist() {
+    public IpWhitelist ipWhitelist() {
         ConfigurationSection section = sectionOrLegacy("config", "geoip", "ip_whitelist.yml");
-        return TypedConfigs.IpWhitelist.from(section);
+        return IpWhitelist.from(section);
     }
 
     @Override
     public MessageEnvelope renderEvent(String eventKey, Map<String, String> vars) {
         FileConfiguration templatesCfg = configService.getConfig("templates");
-        TypedConfigs.Templates tpls = TypedConfigs.Templates.from(templatesCfg);
+        Templates tpls = Templates.from(templatesCfg);
         return TemplateService.renderEvent(eventKey, templatesCfg, tpls, vars);
     }
 

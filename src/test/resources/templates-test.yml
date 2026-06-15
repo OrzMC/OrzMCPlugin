@@ -1,0 +1,43 @@
+# 测试用 templates.yml 样例
+templates:
+  locale: zh-CN
+  player_join: "{name} 上线\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n角色:{role_alias}\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  player_quit: "{name} 下线\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n角色:{role_alias}\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  player_kick: "{name} 被踢\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n角色:{role_alias}\n------当前在线({online_count}/{max_count})------\n{online_list}"
+  exception_alert: "异常: {message}\n摘要: {stack_summary}"
+  geoip_block: "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}"
+  tnt_alert: "{msg}\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n触发:{actor} 方块:{block_type}"
+  server_stop: "{message}"
+  whitelist_block: "{message}"
+  whitelist_toggle_alert: "{message}"
+  world_alias:
+    world: "主世界"
+    world_nether: "下界"
+    world_the_end: "末地"
+  coord:
+    scale: 1.0
+    precision: 2
+    unit_label: "block"
+  role_alias:
+    admin: "管理员"
+    member: "玩家"
+notifications:
+  player_join:
+    public:
+      enabled: true
+    private:
+      enabled: false
+      admin_only: true
+  player_quit:
+    public:
+      enabled: true
+    private:
+      enabled: false
+      admin_only: true
+  tnt_alert:
+    public:
+      enabled: true
+    private:
+      enabled: true
+      admin_only: true
+config-version: 2.0

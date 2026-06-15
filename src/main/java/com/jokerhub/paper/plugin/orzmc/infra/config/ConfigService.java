@@ -31,7 +31,6 @@ public final class ConfigService {
         configManager.checkAndUpdateConfigVersion("config", 2.0);
         configManager.checkAndUpdateConfigVersion("templates", 2.0);
 
-        validateCriticalConfigs();
         List<String> issues = ConfigHealthCheck.validateAll(configManager);
         if (!issues.isEmpty()) {
             plugin.getLogger().warning("配置健康检查发现问题:");
@@ -79,23 +78,5 @@ public final class ConfigService {
      */
     public ConfigurationSection sectionOrLegacy(String mergedConfigName, String section, String legacyFileName) {
         return configManager.sectionOrLegacy(mergedConfigName, section, legacyFileName);
-    }
-
-    private void warnMissingKey(String configName, String path) {
-        try {
-            FileConfiguration cfg = configManager.getConfig(configName);
-            if (cfg == null || !cfg.contains(path)) {
-                plugin.getLogger().warning("缺失关键配置: " + configName + "." + path);
-                plugin.getLogger().warning("请检查 config.yml 或 templates.yml 中是否存在该键");
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("读取配置失败: " + configName + "." + path + " - " + e.getMessage());
-        }
-    }
-
-    private void validateCriticalConfigs() {
-        warnMissingKey("templates", "templates.player_join");
-        warnMissingKey("templates", "templates.world_alias.world");
-        warnMissingKey("templates", "templates.coord.unit_label");
     }
 }

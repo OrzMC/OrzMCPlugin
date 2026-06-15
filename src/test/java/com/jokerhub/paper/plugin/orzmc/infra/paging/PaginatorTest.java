@@ -1,12 +1,13 @@
 package com.jokerhub.paper.plugin.orzmc.infra.paging;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
+import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class PaginatorTest {
+public class PaginatorTest extends ServiceTestBase {
     private static final class ImmediateScheduler implements ServerScheduler {
         @Override
         public void runSync(Runnable task) {

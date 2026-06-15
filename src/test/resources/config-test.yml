@@ -1,0 +1,24 @@
+# 测试用 config.yml 样例
+force_whitelist: true
+whitelist_cleanup_inactive_days: 90
+whitelist_pagination_delay_ticks: 5
+cmd_prompt_char: "$"
+optimize_enabled: false
+optimize_tick_time_threshold: 300
+backup_retention_count: 5
+backup_maintenance_motd: "服务器维护中，稍后再试"
+allow_country_code:
+  - CN
+  - HK
+  - TW
+commands:
+  tpbow:
+    cooldown_secs: 3
+    admin_only: false
+  bot:
+    cooldown_secs: 0
+    admin_only: false
+  portal:
+    cooldown_secs: 5
+    admin_only: true
+config-version: 2.0

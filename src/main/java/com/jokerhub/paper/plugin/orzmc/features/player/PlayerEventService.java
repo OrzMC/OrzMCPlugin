@@ -3,12 +3,13 @@ package com.jokerhub.paper.plugin.orzmc.features.player;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.TypedConfigs;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.jokerhub.paper.plugin.orzmc.infra.templates.CoordFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.ExceptionFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
 import java.util.ArrayList;
@@ -95,15 +96,7 @@ public final class PlayerEventService {
         }
         org.bukkit.Location loc = player.getLocation();
         String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
-        TypedConfigs.TemplateOptions opt = configs.templateOptions();
-        String worldAlias = TemplateResolvers.worldAlias(
-                world, loc.getWorld() != null ? loc.getWorld().getEnvironment().name() : "", opt);
-        double scale = opt.coordScale() <= 0 ? 1.0 : opt.coordScale();
-        int precision = Math.max(0, opt.coordPrecision());
-        String fmt = "%." + precision + "f";
-        String xUnit = String.format(fmt, loc.getBlockX() * scale);
-        String yUnit = String.format(fmt, loc.getBlockY() * scale);
-        String zUnit = String.format(fmt, loc.getBlockZ() * scale);
+        TemplateOptions opt = configs.templateOptions();
         boolean isAdmin = (player.isOp() || player.hasPermission("orzmc.admin"));
         String role = isAdmin ? "admin" : "member";
         java.util.Set<String> permKeys = new java.util.HashSet<>();
@@ -117,17 +110,9 @@ public final class PlayerEventService {
         }
         String groupAlias = TemplateResolvers.roleGroupAliasFromPermissions(permKeys, opt);
         String roleAlias = groupAlias != null ? groupAlias : TemplateResolvers.roleAlias(isAdmin, opt);
-        java.util.Map<String, String> vars = new java.util.HashMap<>();
+        java.util.Map<String, String> vars = CoordFormatter.format(loc, opt);
+        vars.put("world", world); // 覆盖 CoordFormatter 的别名，保留原始世界名
         vars.put("name", playerName);
-        vars.put("world", world);
-        vars.put("world_alias", worldAlias);
-        vars.put("x", String.valueOf(loc.getBlockX()));
-        vars.put("y", String.valueOf(loc.getBlockY()));
-        vars.put("z", String.valueOf(loc.getBlockZ()));
-        vars.put("x_unit", xUnit);
-        vars.put("y_unit", yUnit);
-        vars.put("z_unit", zUnit);
-        vars.put("coord_unit", opt.coordUnitLabel());
         vars.put("role", role);
         vars.put("role_alias", roleAlias);
         vars.put("online_count", String.valueOf(displayOnlineCount));

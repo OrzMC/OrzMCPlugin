@@ -90,4 +90,12 @@ public final class OrzServices {
         portalModule.tearDown();
         platformModule.tearDown();
     }
+
+    // ---- Testing support ----
+
+    /** 测试用：暴露组合根内部模块，避免集成测试使用反射。 */
+    @org.jetbrains.annotations.VisibleForTesting
+    public com.jokerhub.paper.plugin.orzmc.assembly.BotModule botModule() {
+        return botModule;
+    }
 }
