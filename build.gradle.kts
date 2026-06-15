@@ -47,7 +47,7 @@ dependencies {
     // WebSocket Client For NapCat QQBot
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
     // Java Discord API
-    implementation("net.dv8tion:JDA:6.2.1") {
+    implementation("net.dv8tion:JDA:6.4.2") {
         exclude(module = "opus-java")
         exclude(module = "tink")
     }
@@ -57,7 +57,7 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
     testImplementation("io.papermc.paper:paper-api:${property("plugin_debug_server_version") as String}.build.+")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
 }
@@ -84,7 +84,7 @@ dependencies {
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.0")
     add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion.build.+")
     add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.113.2")
-    add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:4.12.0")
+    add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:5.4.0")
     add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
     add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
     add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:6.1.0")
@@ -99,7 +99,7 @@ plugins {
     id("xyz.jpenilla.run-paper") version "3.0.2"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
-    id("com.diffplug.spotless") version "6.25.0"
+    id("com.diffplug.spotless") version "8.6.0"
     id("jacoco")
 }
 
