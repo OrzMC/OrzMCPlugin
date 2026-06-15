@@ -30,30 +30,32 @@ public final class BotCommandFeedbackService {
 
     public String usageTip(OrzUserCmd cmd, String promptChar) {
         return switch (cmd) {
-            case ADD_PLAYER_TO_WHITELIST, REMOVE_PLAYER_FROM_WHITELIST -> "用法：\n"
-                    + promptChar
-                    + cmd.cmdName()
-                    + " "
-                    + "[玩家]\n"
-                    + promptChar
-                    + cmd.cmdName()
-                    + " "
-                    + "[玩家1] [玩家2] [玩家3]\n"
-                    + promptChar
-                    + cmd.cmdName()
-                    + " "
-                    + "[玩家1],[玩家2],[玩家3]\n";
-            case EXECUTE_CONSOLE_COMMAND -> "用法：\n"
-                    + promptChar
-                    + cmd.cmdName()
-                    + " "
-                    + "[控制台命令]\n"
-                    + promptChar
-                    + cmd.cmdName()
-                    + " plugins\n"
-                    + promptChar
-                    + cmd.cmdName()
-                    + " say hello";
+            case ADD_PLAYER_TO_WHITELIST, REMOVE_PLAYER_FROM_WHITELIST ->
+                "用法：\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " "
+                        + "[玩家]\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " "
+                        + "[玩家1] [玩家2] [玩家3]\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " "
+                        + "[玩家1],[玩家2],[玩家3]\n";
+            case EXECUTE_CONSOLE_COMMAND ->
+                "用法：\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " "
+                        + "[控制台命令]\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " plugins\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " say hello";
             default -> "";
         };
     }
