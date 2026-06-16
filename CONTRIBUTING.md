@@ -56,5 +56,5 @@ docs/*      文档
 
 ## 问题反馈
 
-- Bug 报告和建议请通过 [GitHub Issues](https://github.com/OrzGeeker/OrzMCPlugin/issues/new/choose) 提交
+- Bug 报告和建议请通过 [GitHub Issues](https://github.com/OrzMC/OrzMCPlugin/issues/new/choose) 提交
 - 其他问题可通过项目主页的 QQ 频道联系

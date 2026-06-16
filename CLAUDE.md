@@ -42,7 +42,7 @@ OrzMC/
 │   │   ├── PortalModule.java       跨服传送门
 │   │   ├── MaintenanceModule.java  世界备份与地图优化
 │   │   └── FeatureModule.java      所有 Feature 服务 + 命令/事件注册
-│   ├── core/ports/            含 Bukkit 依赖的端口（PortalPort, ServerAccess 等）
+│   ├── core/ports/            含 Bukkit 依赖的端口（PortalPort, ServerAccess, TypedConfigProvider 等）
 │   ├── features/              业务逻辑层（36 个文件）
 │   │   ├── botcommands/       Bot 命令解析（$a, $r, $b, $o 等）
 │   │   ├── maintenance/       世界备份/优化编排
@@ -53,7 +53,7 @@ OrzMC/
 │   │   ├── server/            服务端生命周期事件
 │   │   └── ...                guide, menu, teleport, player
 │   ├── infra/                 基础设施实现
-│   │   ├── config/            ConfigService, TypedConfigs, ConfigHealthCheck
+│   │   ├── config/            ConfigService + 类型化配置记录类、ConfigHealthCheck
 │   │   ├── bot/               OrzBotManager, OrzQQBot, OrzDiscordBot, OrzLarkBot
 │   │   ├── notify/            Notifier + ThrottledNotifier
 │   │   ├── ws/                RobustWebSocketClient（自动重连 + 心跳检测）
@@ -87,6 +87,6 @@ Tag 使用严格 SemVer，**不加 `v` 前缀**。
 
 - **无数据库**：所有状态存储在 YAML 配置文件中（portals.yml 在运行时修改）
 - **无 DI 框架**：通过显式组合根进行构造器注入
-- **类型化配置**：所有 YAML 访问通过 `TypedConfigs` 记录类型，附带健康检查
+- **类型化配置**：所有 YAML 访问通过 `configs/` 子包中的记录类（如 `WhitelistConfig`, `TntConfig`），附带健康检查
 - **异步安全**：`SafeScheduler` 包装 Bukkit 调度器，统一异常日志
 - **健康注册表**：`HealthStatus` 接口在 orzmc-api 中，`HealthAccessor` 适配器桥接静态 `HealthRegistry`
