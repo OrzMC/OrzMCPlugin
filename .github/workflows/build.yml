@@ -58,7 +58,7 @@ jobs:
           path: build/libs/*.jar
           if-no-files-found: error
       - name: post PR comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         if: success()
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
