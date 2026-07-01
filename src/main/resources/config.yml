@@ -12,13 +12,13 @@ whitelist:
   pagination_delay_ticks: 5
   # 白名单踢出消息（当 force_whitelist=true 且玩家不在名单中时显示）
   kick_message:
-    title: "§c您暂未通过白名单验证"
-    player_group_id: "1082305302"
+    player_group_id: ''
+    title: "可以在这里提示用户关注UP主帐号，进行私域建设"
     ups:
-      - name: "主页"
-        platform: "https://orzmc.jokerhub.cn"
-      - name: "玩家手册"
-        platform: "https://orzmc.jokerhub.cn/user/"
+      - platform: 'YouTube'
+        name: 'OrzMC'
+      - platform: 'BiliBili'
+        name: 'OrzMC'
 
 # ==================================================
 #             地图优化/备份
