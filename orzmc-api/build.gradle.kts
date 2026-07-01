@@ -27,7 +27,7 @@ publishing {
         create<MavenPublication>("orzmcApi") {
             groupId = project.property("orzmc_group") as String
             artifactId = "orzmc-api"
-            version = project.property("orzmc_version") as String
+            version = rootProject.version.toString()
             from(components["java"])
             pom {
                 name.set("OrzMC API")
