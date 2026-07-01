@@ -5,6 +5,8 @@ import java.util.Map;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandMap;
+import org.bukkit.help.GenericCommandHelpTopic;
+import org.bukkit.help.HelpMap;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class CommandBinder {
@@ -35,10 +37,11 @@ public final class CommandBinder {
                     return executor.onCommand(sender, this, label, args);
                 }
             };
-            if ("orzmc".equals(key)) {
-                cmd.setPermission("orzmc.admin");
-            }
             commandMap.register(key, cmd);
+
+            // Register help topic so /help shows this command
+            HelpMap helpMap = plugin.getServer().getHelpMap();
+            helpMap.addTopic(new GenericCommandHelpTopic(cmd));
         });
     }
 
