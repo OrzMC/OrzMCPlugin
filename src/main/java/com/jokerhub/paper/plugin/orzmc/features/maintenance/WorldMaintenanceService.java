@@ -142,57 +142,21 @@ public class WorldMaintenanceService {
     private void runOptimizerJob(
             boolean backupMode, Path input, Path outputOrNull, long tickTimeThreshold, Consumer<String> callback) {
         callback.accept("正在" + (backupMode ? "备份" : "优化") + "地图，请稍等......");
-        OptimizerConfig cfg;
+        String label = backupMode ? "备份" : "优化";
         DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
         RealFileSystem fs = RealFileSystem.INSTANCE;
-        if (backupMode) {
-            cfg = new OptimizerConfig(
-                    input,
-                    outputOrNull,
-                    tickTimeThreshold,
-                    false,
-                    ProgressMode.Region,
-                    true,
-                    false,
-                    true,
-                    true,
-                    100L,
-                    1000L,
-                    errorHandler("备份", callback),
-                    progressHandler("备份", callback),
-                    0,
-                    true,
-                    null,
-                    null,
-                    fs,
-                    null,
-                    null,
-                    mcaIOFactory);
-        } else {
-            cfg = new OptimizerConfig(
-                    input,
-                    null,
-                    tickTimeThreshold,
-                    false,
-                    ProgressMode.Region,
-                    false,
-                    true,
-                    true,
-                    true,
-                    100L,
-                    1000L,
-                    errorHandler("优化", callback),
-                    progressHandler("优化", callback),
-                    0,
-                    true,
-                    null,
-                    null,
-                    fs,
-                    null,
-                    null,
-                    mcaIOFactory);
-        }
-        Optimizer.run(cfg);
+        DefaultOptimizer.INSTANCE.run(input, outputOrNull, builder -> {
+            builder.setFilter(new FilterOptions(tickTimeThreshold, false, true));
+            builder.setOutputOptions(
+                    new OutputOptions(!backupMode, backupMode, true, true, true));
+            builder.setProgress(new ProgressOptions(100L, 1000L, event -> {
+                progressHandler(label, callback).invoke(event);
+            }));
+            builder.setRuntime(new RuntimeOptions(0));
+            builder.setHooks(new Hooks(errorHandler(label, callback), null, null));
+            builder.setIo(new IOOptions(fs, mcaIOFactory));
+            return Unit.INSTANCE;
+        });
     }
 
     public void runExclusive(String kickText, Runnable asyncWork, Runnable finallyWork) {
