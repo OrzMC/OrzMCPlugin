@@ -52,7 +52,7 @@ dependencies {
         exclude(module = "tink")
     }
     // Minecraft World Backup Lib
-    implementation("io.github.wangzhizhou:backup-core:0.1.2")
+    implementation("io.github.wangzhizhou:backup-core:0.1.4")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.1")
