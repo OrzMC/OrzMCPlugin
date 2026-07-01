@@ -55,7 +55,7 @@ dependencies {
     implementation("io.github.wangzhizhou:backup-core:0.1.4")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.1")
     testImplementation("io.papermc.paper:paper-api:${property("plugin_debug_server_version") as String}.build.+")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
@@ -88,7 +88,7 @@ dependencies {
     add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
     add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
     add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:6.1.1")
-    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:6.1.0")
+    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:6.1.1")
 }
 
 // 项目编译时插件添加
