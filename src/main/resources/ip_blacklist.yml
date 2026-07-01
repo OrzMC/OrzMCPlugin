@@ -1,0 +1,3 @@
+# IP 黑名单
+# 运行时通过命令 /blacklist 或 $d 管理，不建议手动编辑
+ip_blacklist: []

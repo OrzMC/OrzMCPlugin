@@ -27,6 +27,7 @@ import com.jokerhub.paper.plugin.orzmc.features.menu.MenuEventService;
 import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalEventService;
+import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerFeedbackService;
@@ -59,6 +60,7 @@ import org.bukkit.event.Listener;
 public final class FeatureModule implements ServiceModule {
 
     private final GeoIpAccessService geoIpAccessService;
+    private final BlacklistService blacklistService;
     private final GuideService guideService;
     private final PlayerEventService playerEventService;
     private final TntEventService tntEventService;
@@ -86,6 +88,7 @@ public final class FeatureModule implements ServiceModule {
             MaintenanceModule maintenanceModule) {
         // Feature services
         this.geoIpAccessService = new GeoIpAccessService(platform.configs());
+        this.blacklistService = new BlacklistService(platform.configService());
         this.guideService = new GuideService(platform.serverFacade(), platform.configService(), platform.textStyles());
         this.playerEventService = new PlayerEventService(
                 platform.serverFacade(),
@@ -133,6 +136,7 @@ public final class FeatureModule implements ServiceModule {
             new OrzPlayerEvent(
                     plugin,
                     geoIpAccessService,
+                    blacklistService,
                     playerEventService,
                     guideService,
                     platform.textStyles(),
@@ -181,48 +185,45 @@ public final class FeatureModule implements ServiceModule {
             interceptors.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
             enhanced.put(name, new InterceptorExecutor(name, exec, interceptors));
         });
-        // orzmc administration command
-        List<CommandInterceptor> orzmcInterceptors = new ArrayList<>();
-        orzmcInterceptors.add(new AdminOnlyInterceptor(true));
+        // admin commands
+        List<CommandInterceptor> adminOnly = new ArrayList<>();
+        adminOnly.add(new AdminOnlyInterceptor(true));
         enhanced.put(
-                "orzmc",
+                "blacklist",
                 new InterceptorExecutor(
-                        "orzmc",
+                        "blacklist",
                         (sender, command, label, args) -> {
-                            if (args.length < 1) {
-                                sender.sendMessage(platform.textStyles()
-                                        .error("用法: /orzmc reload [config-name] | /orzmc config <子命令>"));
-                                sender.sendMessage(platform.textStyles()
-                                        .info("config 子命令: list / get <路径> / set <路径> <值> / reset <路径> / dump"));
-                                return true;
-                            }
-                            switch (args[0].toLowerCase()) {
-                                case "reload" -> {
-                                    if (args.length >= 2) {
-                                        if (platform.configService().reloadConfig(args[1])) {
-                                            sender.sendMessage(
-                                                    platform.textStyles().success("配置 " + args[1] + " 已重新加载"));
-                                        } else {
-                                            sender.sendMessage(
-                                                    platform.textStyles().error("配置 " + args[1] + " 不存在"));
-                                        }
-                                    } else {
-                                        platform.configService().reloadAll();
-                                        sender.sendMessage(platform.textStyles().success("所有配置已重新加载"));
+                            if (args.length == 0 || "list".equalsIgnoreCase(args[0])) {
+                                List<String> patterns = blacklistService.getPatterns();
+                                if (patterns.isEmpty()) {
+                                    sender.sendMessage(platform.textStyles().info("黑名单为空"));
+                                } else {
+                                    sender.sendMessage(platform.textStyles().info("当前黑名单:"));
+                                    for (String p : patterns) {
+                                        sender.sendMessage(platform.textStyles().info("  " + p));
                                     }
                                 }
-                                case "config" -> {
-                                    String[] subArgs = Arrays.copyOfRange(args, 1, args.length);
-                                    orzConfigCommand.onCommand(sender, command, label, subArgs);
-                                }
-                                default -> {
-                                    sender.sendMessage(platform.textStyles().error("未知子命令: " + args[0]));
-                                    sender.sendMessage(platform.textStyles().info("可用命令: reload, config"));
-                                }
+                                return true;
+                            }
+                            String input = args[0];
+                            if (input.startsWith("-")) {
+                                String pattern = input.substring(1);
+                                blacklistService.remove(pattern);
+                                sender.sendMessage(platform.textStyles().success("已从黑名单移除: " + pattern));
+                            } else if ("add".equalsIgnoreCase(input) && args.length >= 2) {
+                                blacklistService.add(args[1]);
+                                sender.sendMessage(platform.textStyles().success("已添加黑名单: " + args[1]));
+                            } else if ("remove".equalsIgnoreCase(input) && args.length >= 2) {
+                                blacklistService.remove(args[1]);
+                                sender.sendMessage(platform.textStyles().success("已从黑名单移除: " + args[1]));
+                            } else {
+                                blacklistService.add(input);
+                                sender.sendMessage(platform.textStyles().success("已添加黑名单: " + input));
                             }
                             return true;
                         },
-                        orzmcInterceptors));
+                        adminOnly));
+        enhanced.put("config", new InterceptorExecutor("config", orzConfigCommand, adminOnly));
         CommandBinder.bind(plugin, enhanced);
     }
 
@@ -242,6 +243,12 @@ public final class FeatureModule implements ServiceModule {
         if (forceWhitelist) {
             plugin.getLogger().info("服务端使用强制白名单机制");
         }
+    }
+
+    // --- Getters for cross-module references ---
+
+    public BlacklistService blacklistService() {
+        return blacklistService;
     }
 
     // --- Lifecycle ---

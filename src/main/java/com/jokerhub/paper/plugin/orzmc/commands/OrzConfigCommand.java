@@ -47,6 +47,7 @@ public class OrzConfigCommand implements CommandExecutor {
             case "set" -> handleSet(sender, args);
             case "reset" -> handleReset(sender, args);
             case "dump" -> handleDump(sender);
+            case "reload" -> handleReload(sender, args);
             default -> sendUsage(sender);
         }
         return true;
@@ -57,13 +58,14 @@ public class OrzConfigCommand implements CommandExecutor {
     // ---------------------------------------------------------------
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage(textStyles.error("用法: /orzmc config <子命令> [参数]"));
+        sender.sendMessage(textStyles.error("用法: /config <子命令> [参数]"));
         sender.sendMessage(textStyles.info("  list                     列出所有可调配置项"));
         sender.sendMessage(textStyles.info("  get <路径>                查看配置值"));
         sender.sendMessage(textStyles.info("  set <路径> <值>           修改配置并持久化"));
         sender.sendMessage(textStyles.info("  reset <路径>              恢复默认值"));
         sender.sendMessage(textStyles.info("  dump                     打印完整配置树"));
-        sender.sendMessage(textStyles.info("示例: /orzmc config get tnt.enable"));
+        sender.sendMessage(textStyles.info("  reload [name]            重新加载配置文件"));
+        sender.sendMessage(textStyles.info("示例: /config get tnt.enable"));
     }
 
     private void handleList(CommandSender sender) {
@@ -165,6 +167,19 @@ public class OrzConfigCommand implements CommandExecutor {
         configService.saveConfig(cp.configName());
         configService.reloadConfig(cp.configName());
         sender.sendMessage(textStyles.success("已恢复默认: " + key + " = " + formatValue(cp.defaultValue())));
+    }
+
+    private void handleReload(CommandSender sender, String[] args) {
+        if (args.length >= 2) {
+            if (configService.reloadConfig(args[1])) {
+                sender.sendMessage(textStyles.success("配置文件 " + args[1] + " 已重新加载"));
+            } else {
+                sender.sendMessage(textStyles.error("配置文件 " + args[1] + " 不存在"));
+            }
+        } else {
+            configService.reloadAll();
+            sender.sendMessage(textStyles.success("所有配置文件已重新加载"));
+        }
     }
 
     private void handleDump(CommandSender sender) {

@@ -16,11 +16,8 @@ public final class CommandBinder {
             "menu", new CommandMeta("菜单展示", "/menu", List.of()),
             "bot", new CommandMeta("查看机器人健康状态", "/bot", List.of()),
             "portal", new CommandMeta("创建或移除传送门", "/portal <host> [port] 或 /portal remove <host> [port]", List.of()),
-            "orzmc",
-                    new CommandMeta(
-                            "OrzMC 管理命令",
-                            "/orzmc reload [config-name] | /orzmc config <list|get|set|reset|dump>",
-                            List.of()));
+            "config", new CommandMeta("配置管理", "/config <list|get|set|reset|dump|reload>", List.of("cfg")),
+            "blacklist", new CommandMeta("IP黑名单管理", "/blacklist [<pattern> | -<pattern>]", List.of("bl")));
 
     /**
      * 注册所有命令到服务端命令映射表。

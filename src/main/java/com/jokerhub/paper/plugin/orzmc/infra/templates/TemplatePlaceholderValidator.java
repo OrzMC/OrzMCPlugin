@@ -88,7 +88,11 @@ public final class TemplatePlaceholderValidator {
                 "command_usage",
                 "command_backup",
                 "command_optimize",
-                "command_optimize_disabled");
+                "command_optimize_disabled",
+                "command_blacklist_list",
+                "command_blacklist_add",
+                "command_blacklist_remove",
+                "command_blacklist_error");
     }
 
     private static Map<String, Set<String>> allowedVarsByTemplateKey() {
@@ -148,6 +152,10 @@ public final class TemplatePlaceholderValidator {
         m.put("command_whitelist_cleanup", Set.of("removed_list"));
         m.put("command_whitelist_add_result", Set.of("message"));
         m.put("command_whitelist_remove_result", Set.of("message"));
+        m.put("command_blacklist_list", Set.of("patterns"));
+        m.put("command_blacklist_add", Set.of("message"));
+        m.put("command_blacklist_remove", Set.of("message"));
+        m.put("command_blacklist_error", Set.of("message"));
         m.put("command_admin_required", Set.of("message"));
         m.put("command_usage", Set.of("message"));
         m.put("command_backup", Set.of("message"));

@@ -295,7 +295,11 @@ public final class ConfigHealthCheck {
             "command_usage",
             "command_backup",
             "command_optimize",
-            "command_optimize_disabled"
+            "command_optimize_disabled",
+            "command_blacklist_list",
+            "command_blacklist_add",
+            "command_blacklist_remove",
+            "command_blacklist_error"
         };
         String[] requiredTemplates = {
             "command_output",
@@ -306,6 +310,10 @@ public final class ConfigHealthCheck {
             "command_whitelist_cleanup",
             "command_whitelist_add_result",
             "command_whitelist_remove_result",
+            "command_blacklist_list",
+            "command_blacklist_add",
+            "command_blacklist_remove",
+            "command_blacklist_error",
             "command_admin_required",
             "command_usage",
             "command_backup",

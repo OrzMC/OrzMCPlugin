@@ -22,6 +22,8 @@ public final class ConfigService {
         configManager.registerConfig("templates", "templates.yml");
         configManager.registerConfig("portals", "portals.yml");
         configManager.markAlwaysSave("portals");
+        configManager.registerConfig("ip_blacklist", "ip_blacklist.yml");
+        configManager.markAlwaysSave("ip_blacklist");
 
         // Set defaults for bot (used programmatically)
         configManager.setDefaults("bot", config -> {});

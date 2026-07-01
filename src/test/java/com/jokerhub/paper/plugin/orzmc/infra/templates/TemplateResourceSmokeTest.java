@@ -31,6 +31,10 @@ public class TemplateResourceSmokeTest extends ServiceTestBase {
                 "command_backup",
                 "command_optimize",
                 "command_optimize_disabled",
+                "command_blacklist_list",
+                "command_blacklist_add",
+                "command_blacklist_remove",
+                "command_blacklist_error",
                 "command_admin_required",
                 "command_usage");
         for (String key : keys) {

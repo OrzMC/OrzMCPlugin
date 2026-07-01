@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
+import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
 import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
@@ -13,6 +14,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -26,6 +28,7 @@ public final class BotCommandService implements BotInboundHandler {
     private final TypedConfigProvider configs;
     private final Map<OrzUserCmd, CmdHandler> handlers;
     private WorldMaintenanceService maintenanceService;
+    private BlacklistService blacklistService;
 
     @FunctionalInterface
     private interface CmdHandler {
@@ -50,6 +53,10 @@ public final class BotCommandService implements BotInboundHandler {
         this.maintenanceService = maintenanceService;
     }
 
+    public void setBlacklistService(BlacklistService blacklistService) {
+        this.blacklistService = blacklistService;
+    }
+
     @Override
     public void handleMessage(String message, boolean isAdmin, Consumer<MessageEnvelope> callback) {
         parse(message, isAdmin, callback);
@@ -64,6 +71,13 @@ public final class BotCommandService implements BotInboundHandler {
         String execPrefix = promptChar + OrzUserCmd.EXECUTE_CONSOLE_COMMAND.cmdName();
         if (matchesCommandPrefix(message, execPrefix)) {
             executeConsoleCommand(message, execPrefix, isAdmin, callback);
+            return;
+        }
+
+        // $d 黑名单：需要解析子命令（add/remove/list + 参数）
+        String blPrefix = promptChar + OrzUserCmd.BLACKLIST.cmdName();
+        if (matchesCommandPrefix(message, blPrefix)) {
+            handleBlacklist(message, blPrefix, isAdmin, callback);
             return;
         }
 
@@ -226,6 +240,42 @@ public final class BotCommandService implements BotInboundHandler {
     private String extractArgs(String rawMessage, String prefix) {
         if (rawMessage.length() <= prefix.length()) return "";
         return rawMessage.substring(prefix.length()).trim();
+    }
+
+    // ---- Blacklist command ----
+
+    private void handleBlacklist(
+            String rawMessage, String prefix, boolean isAdmin, Consumer<MessageEnvelope> callback) {
+        if (!guardAdminCommand(OrzUserCmd.BLACKLIST, isAdmin, callback)) return;
+        if (blacklistService == null) {
+            emit(callback, "command_blacklist_error", Map.of("message", "黑名单服务不可用"), "黑名单服务不可用");
+            return;
+        }
+        String args = extractArgs(rawMessage, prefix);
+        if (args.isEmpty()) {
+            List<String> patterns = blacklistService.getPatterns();
+            if (patterns.isEmpty()) {
+                emit(callback, "command_blacklist_list", Map.of("patterns", "黑名单为空"), "黑名单为空");
+            } else {
+                emit(
+                        callback,
+                        "command_blacklist_list",
+                        Map.of("patterns", String.join("\n", patterns)),
+                        String.join("\n", patterns));
+            }
+            return;
+        }
+        if (args.startsWith("-")) {
+            blacklistService.remove(args.substring(1));
+            emit(
+                    callback,
+                    "command_blacklist_remove",
+                    Map.of("message", "已移除: " + args.substring(1)),
+                    "已移除: " + args.substring(1));
+        } else {
+            blacklistService.add(args);
+            emit(callback, "command_blacklist_add", Map.of("message", "已添加: " + args), "已添加: " + args);
+        }
     }
 
     // ---- Whitelist rendering ----

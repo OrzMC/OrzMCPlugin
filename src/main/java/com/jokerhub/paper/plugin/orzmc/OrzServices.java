@@ -65,6 +65,9 @@ public final class OrzServices {
         // Phase 6: 功能模块（依赖所有其他模块）
         FeatureModule feature = new FeatureModule(platform, bot, portal, maintenance);
 
+        // Phase 7: 设置跨模块回引用（BlacklistService → BotCommandService）
+        bot.botCommandService().setBlacklistService(feature.blacklistService());
+
         return new OrzServices(platform, bot, portal, maintenance, feature);
     }
 
