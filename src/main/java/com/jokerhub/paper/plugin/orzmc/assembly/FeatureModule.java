@@ -17,10 +17,11 @@ import com.jokerhub.paper.plugin.orzmc.events.OrzTNTEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzTPEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzWhiteListEvent;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterceptor;
+import com.jokerhub.paper.plugin.orzmc.features.command.binding.BasicCommandAdapter;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CooldownInterceptor;
-import com.jokerhub.paper.plugin.orzmc.features.command.binding.InterceptorExecutor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.PlayerOnlyInterceptor;
+import com.jokerhub.paper.plugin.orzmc.features.command.binding.TabCompleterDelegate;
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuEventService;
@@ -36,17 +37,15 @@ import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowEventService
 import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowService;
 import com.jokerhub.paper.plugin.orzmc.features.tnt.TntEventService;
 import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistEventService;
-import com.jokerhub.paper.plugin.orzmc.infra.binding.CommandBinder;
 import com.jokerhub.paper.plugin.orzmc.infra.binding.EventBinder;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigPath;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import org.bukkit.GameMode;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.event.Listener;
@@ -155,42 +154,51 @@ public final class FeatureModule implements ServiceModule {
     // --- Command Registration ---
 
     public void setupCommandHandlers(OrzMC plugin) {
-        Map<String, CommandExecutor> commandHandlers = Map.of(
-                "tpbow",
-                new OrzTPBow(platform.serverFacade(), teleportBowService),
-                "guide",
-                new OrzGuideBook(guideService),
-                "menu",
-                new OrzMenuCommand(menuCommandService),
-                "bot",
-                new OrzBotStatus(botModule.botStatusService(), botModule.botMessageService()),
-                "portal",
-                new OrzPortalCommand(portalCommandService));
-
         ConfigurationSection cmdSection =
                 platform.configService().getConfig("config").getConfigurationSection("command_policies");
         if (cmdSection == null) {
             FileConfiguration legacy = platform.configService().loadFile("commands.yml");
             cmdSection = legacy != null ? legacy.getConfigurationSection("commands") : null;
         }
-        Map<String, CommandExecutor> enhanced = new HashMap<>();
         CommandPolicies cp = CommandPolicies.from(cmdSection);
-        commandHandlers.forEach((name, exec) -> {
-            CommandPolicy p = cp.policies().getOrDefault(name, new CommandPolicy(0, false));
-            List<CommandInterceptor> interceptors = new ArrayList<>();
-            if (!"bot".equals(name)) {
-                interceptors.add(new PlayerOnlyInterceptor());
-            }
-            interceptors.add(new AdminOnlyInterceptor(p.adminOnly()));
-            interceptors.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
-            enhanced.put(name, new InterceptorExecutor(name, exec, interceptors));
-        });
-        // admin commands
-        List<CommandInterceptor> adminOnly = new ArrayList<>();
-        adminOnly.add(new AdminOnlyInterceptor(true));
-        enhanced.put(
+
+        // ---- Regular commands (tpbow, guide, menu, bot, portal) ----
+
+        registerCommand(
+                plugin,
+                "tpbow",
+                "传送弓，射出的箭落地时会把自己传送到箭落地的位置",
+                List.of("tpb"),
+                new OrzTPBow(platform.serverFacade(), teleportBowService),
+                cp);
+        registerCommand(plugin, "guide", "获取新手教程，更快的熟悉服务器", List.of(), new OrzGuideBook(guideService), cp);
+        registerCommand(plugin, "menu", "菜单展示", List.of(), new OrzMenuCommand(menuCommandService), cp);
+        registerCommand(
+                plugin,
+                "bot",
+                "查看机器人健康状态",
+                List.of(),
+                new OrzBotStatus(botModule.botStatusService(), botModule.botMessageService()),
+                cp);
+        registerCommand(
+                plugin,
+                "portal",
+                "创建或移除传送门",
+                List.of(),
+                new OrzPortalCommand(portalCommandService),
+                cp,
+                TabCompleterDelegate.of(List.of("remove")));
+
+        // ---- Admin commands (blacklist, config) ----
+
+        List<CommandInterceptor> adminOnly = List.of(new AdminOnlyInterceptor(true));
+
+        // blacklist
+        plugin.registerCommand(
                 "blacklist",
-                new InterceptorExecutor(
+                "IP黑名单管理",
+                List.of("bl"),
+                new BasicCommandAdapter(
                         "blacklist",
                         (sender, command, label, args) -> {
                             if (args.length == 0 || "list".equalsIgnoreCase(args[0])) {
@@ -222,9 +230,68 @@ public final class FeatureModule implements ServiceModule {
                             }
                             return true;
                         },
-                        adminOnly));
-        enhanced.put("config", new InterceptorExecutor("config", orzConfigCommand, adminOnly));
-        CommandBinder.bind(plugin, enhanced);
+                        adminOnly,
+                        TabCompleterDelegate.of(List.of("list", "add", "remove"))));
+
+        // config
+        List<String> configPaths = new ArrayList<>(ConfigPath.all().keySet());
+        plugin.registerCommand(
+                "config",
+                "配置管理",
+                List.of("cfg"),
+                new BasicCommandAdapter("config", orzConfigCommand, adminOnly, TabCompleterDelegate.of(args -> {
+                    if (args.length == 1) {
+                        return List.of("list", "get", "set", "reset", "dump", "reload");
+                    }
+                    if (args.length == 2
+                            && ("get".equals(args[0]) || "set".equals(args[0]) || "reset".equals(args[0]))) {
+                        return filterPrefix(configPaths, args[1]);
+                    }
+                    return List.of();
+                })));
+    }
+
+    private static List<String> filterPrefix(Collection<String> items, String prefix) {
+        if (prefix == null || prefix.isEmpty()) {
+            return new ArrayList<>(items);
+        }
+        String lower = prefix.toLowerCase();
+        List<String> result = new ArrayList<>();
+        for (String s : items) {
+            if (s.startsWith(lower)) {
+                result.add(s);
+            }
+        }
+        return result;
+    }
+
+    private void registerCommand(
+            OrzMC plugin,
+            String name,
+            String description,
+            List<String> aliases,
+            org.bukkit.command.CommandExecutor executor,
+            CommandPolicies cp) {
+        registerCommand(plugin, name, description, aliases, executor, cp, null);
+    }
+
+    private void registerCommand(
+            OrzMC plugin,
+            String name,
+            String description,
+            List<String> aliases,
+            org.bukkit.command.CommandExecutor executor,
+            CommandPolicies cp,
+            org.bukkit.command.TabCompleter tabCompleter) {
+        CommandPolicy p = cp.policies().getOrDefault(name, new CommandPolicy(0, false));
+        List<CommandInterceptor> interceptors = new ArrayList<>();
+        if (!"bot".equals(name)) {
+            interceptors.add(new PlayerOnlyInterceptor());
+        }
+        interceptors.add(new AdminOnlyInterceptor(p.adminOnly()));
+        interceptors.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
+        plugin.registerCommand(
+                name, description, aliases, new BasicCommandAdapter(name, executor, interceptors, tabCompleter));
     }
 
     // --- Whitelist ---
