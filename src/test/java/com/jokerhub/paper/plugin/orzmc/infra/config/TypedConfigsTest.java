@@ -64,13 +64,11 @@ public class TypedConfigsTest {
         cfg.set("cmd_prompt_char", "!");
         cfg.set("discord_server_link", "https://discord.gg/example");
         cfg.set("qq_group_id", "123");
-        cfg.set("qq_player_group_id", "456");
 
         BotConfig bot = BotConfig.from(cfg);
         Assertions.assertEquals("!", bot.cmdPromptChar());
         Assertions.assertEquals("https://discord.gg/example", bot.discordServerLink());
         Assertions.assertEquals("123", bot.qqGroupId());
-        Assertions.assertEquals("456", bot.qqPlayerGroupId());
     }
 
     @Test

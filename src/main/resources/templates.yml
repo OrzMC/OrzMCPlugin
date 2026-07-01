@@ -76,6 +76,10 @@ templates:
   role_alias:
     admin: 管理员
     member: 玩家
+  # 权限组名称别称：用于通知中通过 {role_alias} 展示
+  role_groups:
+    orzmc.admin: 管理员
+    default: 玩家
   locale: zh-CN
   i18n:
     role_alias:

@@ -10,6 +10,15 @@ whitelist:
   force_whitelist: true
   cleanup_inactive_days: 90
   pagination_delay_ticks: 5
+  # 白名单踢出消息（当 force_whitelist=true 且玩家不在名单中时显示）
+  kick_message:
+    title: "§c您暂未通过白名单验证"
+    player_group_id: "1082305302"
+    ups:
+      - name: "主页"
+        platform: "https://orzmc.jokerhub.cn"
+      - name: "玩家手册"
+        platform: "https://orzmc.jokerhub.cn/user/"
 
 # ==================================================
 #             地图优化/备份
@@ -49,10 +58,10 @@ tnt:
 #                IP 地区白名单
 # ==================================================
 geoip:
+  # 允许访问的地区国家码（空列表 = 不限制）
+  # 填写大写两位 ISO 国家码，例如：
+  #   allow_country_code: [CN, JP, TW]
   allow_country_code: []
-  #  - CN
-  #  - JP
-  #  - TW
 
 # ==================================================
 #              命令策略

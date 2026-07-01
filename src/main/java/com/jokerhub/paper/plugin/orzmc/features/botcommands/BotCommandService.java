@@ -100,7 +100,7 @@ public final class BotCommandService implements BotInboundHandler {
             return configs.bot();
         } catch (Exception e) {
             server.logger().warning("读取 botConfig 失败，使用默认值: " + e.getMessage());
-            return new BotConfig("$", null, null, null);
+            return new BotConfig("$", null, null);
         }
     }
 

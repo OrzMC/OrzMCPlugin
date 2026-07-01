@@ -44,7 +44,7 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
         when(server.server()).thenReturn(bukkitServer);
         when(bukkitServer.getOnlineMode()).thenReturn(true);
         when(bukkitServer.getMinecraftVersion()).thenReturn("1.21.4");
-        when(configs.bot()).thenReturn(new BotConfig("$", null, null, null));
+        when(configs.bot()).thenReturn(new BotConfig("$", null, null));
         when(event.getType()).thenReturn(ServerLoadEvent.LoadType.STARTUP);
 
         String msg = service.buildServerLoadMessage(event);
@@ -60,7 +60,7 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
         when(server.server()).thenReturn(bukkitServer);
         when(bukkitServer.getOnlineMode()).thenReturn(false);
         when(bukkitServer.getMinecraftVersion()).thenReturn("1.21");
-        when(configs.bot()).thenReturn(new BotConfig("!", null, null, null));
+        when(configs.bot()).thenReturn(new BotConfig("!", null, null));
         when(event.getType()).thenReturn(ServerLoadEvent.LoadType.RELOAD);
 
         String msg = service.buildServerLoadMessage(event);
@@ -72,7 +72,7 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
     @Test
     void buildMaintenanceMotd_containsMaintenanceWarn() {
         MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护中请稍后");
-        BotConfig bot = new BotConfig("$", null, null, null);
+        BotConfig bot = new BotConfig("$", null, null);
         when(configs.maintenance()).thenReturn(maint);
         when(configs.bot()).thenReturn(bot);
         when(styles.warn(anyString())).thenReturn(Component.text("⚠ 维护中"));
@@ -87,7 +87,7 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
     @Test
     void buildMaintenanceMotd_withDiscord() {
         MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护公告");
-        BotConfig bot = new BotConfig("$", "https://discord.gg/test", null, null);
+        BotConfig bot = new BotConfig("$", "https://discord.gg/test", null);
         when(configs.maintenance()).thenReturn(maint);
         when(configs.bot()).thenReturn(bot);
         when(styles.warn(anyString())).thenReturn(Component.text("⚠ 维护中"));
