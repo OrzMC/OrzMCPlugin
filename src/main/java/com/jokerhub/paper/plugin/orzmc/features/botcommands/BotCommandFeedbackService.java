@@ -62,13 +62,13 @@ public final class BotCommandFeedbackService {
                 "用法：\n"
                         + promptChar
                         + cmd.cmdName()
-                        + "         \t查看黑名单\n"
+                        + "          查看黑名单\n"
                         + promptChar
                         + cmd.cmdName()
-                        + " [IP]    \t添加黑名单\n"
+                        + " [IP]    添加黑名单\n"
                         + promptChar
                         + cmd.cmdName()
-                        + " -[IP]   \t移除黑名单";
+                        + " -[IP]   移除黑名单";
             default -> "";
         };
     }

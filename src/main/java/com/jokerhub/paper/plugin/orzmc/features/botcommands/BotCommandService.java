@@ -67,6 +67,22 @@ public final class BotCommandService implements BotInboundHandler {
         String promptChar = botConfig.cmdPromptChar();
         if (!message.startsWith(promptChar)) return;
 
+        // 统一处理 $cmd ? 查询指令用法（在所有路径之前）
+        for (OrzUserCmd cmd : OrzUserCmd.values()) {
+            String cmdPrefix = promptChar + cmd.cmdName();
+            if (matchesCommandPrefix(message, cmdPrefix)) {
+                String args = extractArgs(message, cmdPrefix);
+                if (args.equals("?") || args.equals("？")) {
+                    String tip = feedbackService.usageTip(cmd, promptChar);
+                    if (!tip.isBlank()) {
+                        emitUsage(callback, tip);
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+
         // $e 使用前缀匹配，需要完整原始消息解析参数
         String execPrefix = promptChar + OrzUserCmd.EXECUTE_CONSOLE_COMMAND.cmdName();
         if (matchesCommandPrefix(message, execPrefix)) {
