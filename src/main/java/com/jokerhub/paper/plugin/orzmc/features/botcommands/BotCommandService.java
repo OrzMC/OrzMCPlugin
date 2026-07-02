@@ -32,7 +32,7 @@ public final class BotCommandService implements BotInboundHandler {
 
     @FunctionalInterface
     private interface CmdHandler {
-        void handle(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args);
+        void handle(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs);
     }
 
     public BotCommandService(ServerFacade server, TypedConfigProvider configs) {
@@ -46,7 +46,9 @@ public final class BotCommandService implements BotInboundHandler {
                 OrzUserCmd.ADD_PLAYER_TO_WHITELIST, this::handleAddWhitelist,
                 OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST, this::handleRemoveWhitelist,
                 OrzUserCmd.BACKUP, this::handleBackup,
-                OrzUserCmd.OPTIMIZE_WORLD, this::handleOptimize);
+                OrzUserCmd.OPTIMIZE_WORLD, this::handleOptimize,
+                OrzUserCmd.BLACKLIST, this::handleBlacklist,
+                OrzUserCmd.EXECUTE_CONSOLE_COMMAND, this::handleExecuteConsoleCommand);
     }
 
     public void setMaintenanceService(WorldMaintenanceService maintenanceService) {
@@ -67,62 +69,38 @@ public final class BotCommandService implements BotInboundHandler {
         String promptChar = botConfig.cmdPromptChar();
         if (!message.startsWith(promptChar)) return;
 
-        // 统一处理 $cmd ? 查询指令用法（在所有路径之前）
-        for (OrzUserCmd cmd : OrzUserCmd.values()) {
-            String cmdPrefix = promptChar + cmd.cmdName();
+        for (OrzUserCmd userCmd : OrzUserCmd.values()) {
+            String cmdPrefix = promptChar + userCmd.cmdName();
             if (matchesCommandPrefix(message, cmdPrefix)) {
-                String args = extractArgs(message, cmdPrefix);
-                if (args.equals("?") || args.equals("？")) {
-                    String tip = feedbackService.usageTip(cmd, promptChar);
+                String rawArgs = extractArgs(message, cmdPrefix);
+
+                // $cmd ?：在此指令分发前统一拦截
+                if (rawArgs.equals("?") || rawArgs.equals("？")) {
+                    String tip = feedbackService.usageTip(userCmd, promptChar);
                     if (!tip.isBlank()) {
                         emitUsage(callback, tip);
                         return;
                     }
-                    break;
+                    // 无 usageTip 定义，降级为此指令的正常执行
                 }
+
+                CmdHandler handler = handlers.get(userCmd);
+                if (handler != null) {
+                    handler.handle(userCmd, isAdmin, callback, rawArgs);
+                } else {
+                    emitHelp(callback);
+                }
+                return;
             }
         }
 
-        // $e 使用前缀匹配，需要完整原始消息解析参数
-        String execPrefix = promptChar + OrzUserCmd.EXECUTE_CONSOLE_COMMAND.cmdName();
-        if (matchesCommandPrefix(message, execPrefix)) {
-            executeConsoleCommand(message, execPrefix, isAdmin, callback);
-            return;
-        }
-
-        // $d 黑名单：需要解析子命令（add/remove/list + 参数）
-        String blPrefix = promptChar + OrzUserCmd.BLACKLIST.cmdName();
-        if (matchesCommandPrefix(message, blPrefix)) {
-            handleBlacklist(message, blPrefix, isAdmin, callback);
-            return;
-        }
-
-        // 其他命令：拆分为 tokens
-        ArrayList<String> cmd = new ArrayList<>(Arrays.asList(message.split("[, ]+")));
-        String cmdString = cmd.remove(0);
-        Set<String> userNameSet = new HashSet<>(cmd);
-
-        OrzUserCmd userCmd = lookupEnum(cmdString, promptChar);
-        if (userCmd == null) {
-            String help = feedbackService.helpInfo(promptChar);
-            emit(callback, "command_help", Map.of("help", help), help);
-            return;
-        }
-
-        CmdHandler handler = handlers.get(userCmd);
-        if (handler != null) {
-            handler.handle(userCmd, isAdmin, callback, userNameSet);
-        }
+        // 无匹配指令
+        emitHelp(callback);
     }
 
-    private OrzUserCmd lookupEnum(String cmdString, String promptChar) {
-        for (OrzUserCmd c : OrzUserCmd.values()) {
-            if (c == OrzUserCmd.EXECUTE_CONSOLE_COMMAND) continue;
-            if (cmdString.equals(promptChar + c.cmdName())) {
-                return c;
-            }
-        }
-        return null;
+    private void emitHelp(Consumer<MessageEnvelope> callback) {
+        String help = feedbackService.helpInfo(botConfig().cmdPromptChar());
+        emit(callback, "command_help", Map.of("help", help), help);
     }
 
     private BotConfig botConfig() {
@@ -141,10 +119,15 @@ public final class BotCommandService implements BotInboundHandler {
                         && Character.isWhitespace(message.charAt(fullCmd.length())));
     }
 
+    private String extractArgs(String rawMessage, String prefix) {
+        if (rawMessage.length() <= prefix.length()) return "";
+        return rawMessage.substring(prefix.length()).trim();
+    }
+
     // ---- Command handlers (all follow CmdHandler interface) ----
 
     private void handleShowPlayers(
-            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
         server.runAsync(() -> {
             try {
                 ArrayList<Player> onlinePlayers = listFeedbackService.currentOnlinePlayers();
@@ -158,13 +141,13 @@ public final class BotCommandService implements BotInboundHandler {
     }
 
     private void handleShowWhitelist(
-            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
         server.runAsync(() -> {
             try {
                 WhitelistConfig whitelistConfig = configs.whitelist();
                 WhitelistService svc = WhitelistService.defaultImpl();
                 int delayTicks = Math.max(0, whitelistConfig.paginationDelayTicks());
-                Integer page = parsePageArg(args);
+                Integer page = parsePageArg(rawArgs);
                 if (isAdmin) {
                     renderWhitelistWithCleanup(callback, page, delayTicks, svc, whitelistConfig);
                 } else {
@@ -176,9 +159,9 @@ public final class BotCommandService implements BotInboundHandler {
         });
     }
 
-    private Integer parsePageArg(Set<String> args) {
-        if (args.isEmpty()) return null;
-        String token = args.iterator().next();
+    private Integer parsePageArg(String rawArgs) {
+        if (rawArgs.isBlank()) return null;
+        String token = rawArgs.split("[, ]+")[0];
         try {
             return Integer.parseInt(token);
         } catch (Exception e) {
@@ -187,32 +170,34 @@ public final class BotCommandService implements BotInboundHandler {
         }
     }
 
-    private void handleShowHelp(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleShowHelp(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
         String help = feedbackService.helpInfo(botConfig().cmdPromptChar());
         emit(callback, "command_help", Map.of("help", help), help);
     }
 
     private void handleAddWhitelist(
-            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
-        if (!guardWhitelistCommand(cmd, isAdmin, args, callback)) return;
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
+        Set<String> userNames = parseArgs(rawArgs);
+        if (!guardWhitelistCommand(cmd, isAdmin, userNames, callback)) return;
         server.runSync(() -> {
             WhitelistService svc = WhitelistService.defaultImpl();
-            String message = svc.addPlayers(server.server(), args);
+            String message = svc.addPlayers(server.server(), userNames);
             emit(callback, "command_whitelist_add_result", Map.of("message", message), message);
         });
     }
 
     private void handleRemoveWhitelist(
-            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
-        if (!guardWhitelistCommand(cmd, isAdmin, args, callback)) return;
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
+        Set<String> userNames = parseArgs(rawArgs);
+        if (!guardWhitelistCommand(cmd, isAdmin, userNames, callback)) return;
         server.runSync(() -> {
             WhitelistService svc = WhitelistService.defaultImpl();
-            String message = svc.removePlayers(server.server(), args);
+            String message = svc.removePlayers(server.server(), userNames);
             emit(callback, "command_whitelist_remove_result", Map.of("message", message), message);
         });
     }
 
-    private void handleBackup(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleBackup(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
         if (!guardAdminCommand(cmd, isAdmin, callback)) return;
         MaintenanceConfig maintenance = configs.maintenance();
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
@@ -223,7 +208,7 @@ public final class BotCommandService implements BotInboundHandler {
         }
     }
 
-    private void handleOptimize(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, Set<String> args) {
+    private void handleOptimize(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
         if (!guardAdminCommand(cmd, isAdmin, callback)) return;
         if (!guardOptimizeEnabled(callback)) return;
         MaintenanceConfig maintenance = configs.maintenance();
@@ -234,13 +219,12 @@ public final class BotCommandService implements BotInboundHandler {
         }
     }
 
-    // ---- Console command (special: needs raw message) ----
+    // ---- Console command ----
 
-    private void executeConsoleCommand(
-            String rawMessage, String execPrefix, boolean isAdmin, Consumer<MessageEnvelope> callback) {
-        if (!guardAdminCommand(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, isAdmin, callback)) return;
-        String consoleCmd = extractArgs(rawMessage, execPrefix);
-        if (consoleCmd.isBlank()) {
+    private void handleExecuteConsoleCommand(
+            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
+        if (!guardAdminCommand(cmd, isAdmin, callback)) return;
+        if (rawArgs.isBlank()) {
             emitUsage(
                     callback,
                     feedbackService.usageTip(
@@ -248,27 +232,20 @@ public final class BotCommandService implements BotInboundHandler {
             return;
         }
         server.runSync(() -> {
-            ServerFacade.ConsoleCommandResult result = server.executeConsoleCommand(consoleCmd);
+            ServerFacade.ConsoleCommandResult result = server.executeConsoleCommand(rawArgs);
             emit(callback, "command_output", Map.of("message", result.message()), result.message());
         });
     }
 
-    private String extractArgs(String rawMessage, String prefix) {
-        if (rawMessage.length() <= prefix.length()) return "";
-        return rawMessage.substring(prefix.length()).trim();
-    }
-
     // ---- Blacklist command ----
 
-    private void handleBlacklist(
-            String rawMessage, String prefix, boolean isAdmin, Consumer<MessageEnvelope> callback) {
-        if (!guardAdminCommand(OrzUserCmd.BLACKLIST, isAdmin, callback)) return;
+    private void handleBlacklist(OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
+        if (!guardAdminCommand(cmd, isAdmin, callback)) return;
         if (blacklistService == null) {
             emit(callback, "command_blacklist_error", Map.of("message", "黑名单服务不可用"), "黑名单服务不可用");
             return;
         }
-        String args = extractArgs(rawMessage, prefix);
-        if (args.isEmpty()) {
+        if (rawArgs.isEmpty()) {
             List<String> patterns = blacklistService.getPatterns();
             if (patterns.isEmpty()) {
                 emit(callback, "command_blacklist_list", Map.of("patterns", "黑名单为空"), "黑名单为空");
@@ -281,17 +258,24 @@ public final class BotCommandService implements BotInboundHandler {
             }
             return;
         }
-        if (args.startsWith("-")) {
-            blacklistService.remove(args.substring(1));
+        if (rawArgs.startsWith("-")) {
+            blacklistService.remove(rawArgs.substring(1));
             emit(
                     callback,
                     "command_blacklist_remove",
-                    Map.of("message", "已移除: " + args.substring(1)),
-                    "已移除: " + args.substring(1));
+                    Map.of("message", "已移除: " + rawArgs.substring(1)),
+                    "已移除: " + rawArgs.substring(1));
         } else {
-            blacklistService.add(args);
-            emit(callback, "command_blacklist_add", Map.of("message", "已添加: " + args), "已添加: " + args);
+            blacklistService.add(rawArgs);
+            emit(callback, "command_blacklist_add", Map.of("message", "已添加: " + rawArgs), "已添加: " + rawArgs);
         }
+    }
+
+    // ---- Helper ----
+
+    private Set<String> parseArgs(String rawArgs) {
+        if (rawArgs.isBlank()) return new HashSet<>();
+        return new HashSet<>(Arrays.asList(rawArgs.split("[, ]+")));
     }
 
     // ---- Whitelist rendering ----
