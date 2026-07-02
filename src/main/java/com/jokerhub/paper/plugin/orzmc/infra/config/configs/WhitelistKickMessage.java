@@ -5,24 +5,24 @@ import java.util.List;
 import java.util.Map;
 import org.bukkit.configuration.ConfigurationSection;
 
-public record WhitelistKickMessage(String title, String playerGroupId, List<WhitelistKickMessageItem> ups) {
+public record WhitelistKickMessage(String title, String qqGroupId, List<WhitelistKickMessageItem> ups) {
 
     public record WhitelistKickMessageItem(String name, String platform) {}
 
     @SuppressWarnings("unchecked")
     public static WhitelistKickMessage from(ConfigurationSection cfg) {
         String title = "";
-        String playerGroupId = "";
+        String qqGroupId = "";
         List<WhitelistKickMessageItem> items = new ArrayList<>();
         if (cfg == null) {
-            return new WhitelistKickMessage(title, playerGroupId, items);
+            return new WhitelistKickMessage(title, qqGroupId, items);
         }
         ConfigurationSection section = cfg.getConfigurationSection("kick_message");
         if (section == null) {
-            return new WhitelistKickMessage(title, playerGroupId, items);
+            return new WhitelistKickMessage(title, qqGroupId, items);
         }
         title = section.getString("title", "");
-        playerGroupId = section.getString("player_group_id", "");
+        qqGroupId = section.getString("qq_group_id", "");
         List<Map<?, ?>> ups = section.getMapList("ups");
         if (ups != null) {
             for (Map<?, ?> raw : ups) {
@@ -33,6 +33,6 @@ public record WhitelistKickMessage(String title, String playerGroupId, List<Whit
                 items.add(new WhitelistKickMessageItem(name, platform));
             }
         }
-        return new WhitelistKickMessage(title, playerGroupId, items);
+        return new WhitelistKickMessage(title, qqGroupId, items);
     }
 }

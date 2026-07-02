@@ -96,7 +96,7 @@ public class ConfigBackwardCompatTest {
         cfg.set("whitelist.cleanup_inactive_days", 90);
         cfg.set("whitelist.pagination_delay_ticks", 5);
         cfg.set("whitelist.kick_message.title", "测试踢出消息");
-        cfg.set("whitelist.kick_message.player_group_id", "123456");
+        cfg.set("whitelist.kick_message.qq_group_id", "123456");
         List<Map<String, String>> kickUps = new ArrayList<>();
         Map<String, String> kickItem = new HashMap<>();
         kickItem.put("name", "测试链接");

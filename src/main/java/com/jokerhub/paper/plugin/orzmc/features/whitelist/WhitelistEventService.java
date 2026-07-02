@@ -38,11 +38,11 @@ public final class WhitelistEventService {
         }
         TextComponent.Builder kickMsgBuilder = Component.text();
         WhitelistKickMessage kickMsg = configs.whitelistKickMessage();
-        String playerGroupId = kickMsg.playerGroupId();
-        if (playerGroupId == null || playerGroupId.isEmpty()) {
-            playerGroupId = configs.bot().qqGroupId();
+        String qqGroupId = kickMsg.qqGroupId();
+        if (qqGroupId == null || qqGroupId.isEmpty()) {
+            qqGroupId = configs.bot().qqGroupId();
         }
-        if (playerGroupId != null && !playerGroupId.isEmpty()) {
+        if (qqGroupId != null && !qqGroupId.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
             }
@@ -51,7 +51,7 @@ public final class WhitelistEventService {
                     .append(Component.space())
                     .append(styles.warn("不在服务器白名单中，请先加入QQ群:"))
                     .append(Component.space())
-                    .append(styles.success(playerGroupId).decorate(TextDecoration.BOLD))
+                    .append(styles.success(qqGroupId).decorate(TextDecoration.BOLD))
                     .append(Component.space())
                     .append(styles.warn("，联系管理员添加白名单"));
         }
