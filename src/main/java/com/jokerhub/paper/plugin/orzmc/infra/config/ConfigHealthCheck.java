@@ -54,8 +54,7 @@ public final class ConfigHealthCheck {
             String title = kickSection.getString("title", "");
             if (title.isEmpty()) issues.add("缺失: whitelist.kick_message.title 不可为空");
             String qqGroupId = kickSection.getString("qq_group_id", "");
-            if (qqGroupId.isEmpty())
-                issues.add("建议: whitelist.kick_message.qq_group_id 未配置，将使用 bot.qq_group_id 作为默认值");
+            if (qqGroupId.isEmpty()) issues.add("建议: whitelist.kick_message.qq_group_id 未配置，将使用 bot.qq_group_id 作为默认值");
             List<?> ups = kickSection.getList("ups");
             if (ups == null || ups.isEmpty()) issues.add("缺失: whitelist.kick_message.ups 至少需要一项");
         }

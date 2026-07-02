@@ -1,12 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.assembly;
 
+import static io.papermc.paper.command.brigadier.Commands.argument;
+import static io.papermc.paper.command.brigadier.Commands.literal;
+
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzBotStatus;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzConfigCommand;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzGuideBook;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzMenuCommand;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzPortalCommand;
-import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
 import com.jokerhub.paper.plugin.orzmc.events.OrzBowShootEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzDebugEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzMenuEvent;
@@ -17,11 +15,9 @@ import com.jokerhub.paper.plugin.orzmc.events.OrzTNTEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzTPEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzWhiteListEvent;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterceptor;
-import com.jokerhub.paper.plugin.orzmc.features.command.binding.BasicCommandAdapter;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CooldownInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.PlayerOnlyInterceptor;
-import com.jokerhub.paper.plugin.orzmc.features.command.binding.TabCompleterDelegate;
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuEventService;
@@ -41,13 +37,25 @@ import com.jokerhub.paper.plugin.orzmc.infra.binding.EventBinder;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigPath;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
+import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import net.kyori.adventure.text.Component;
 import org.bukkit.GameMode;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 
 /**
@@ -154,144 +162,359 @@ public final class FeatureModule implements ServiceModule {
     // --- Command Registration ---
 
     public void setupCommandHandlers(OrzMC plugin) {
-        ConfigurationSection cmdSection =
-                platform.configService().getConfig("config").getConfigurationSection("command_policies");
-        if (cmdSection == null) {
-            FileConfiguration legacy = platform.configService().loadFile("commands.yml");
-            cmdSection = legacy != null ? legacy.getConfigurationSection("commands") : null;
-        }
-        CommandPolicies cp = CommandPolicies.from(cmdSection);
+        // ---- Register commands via Paper lifecycle COMMANDS event ----
+        // Using direct Brigadier LiteralCommandNode (not BasicCommand wrapper)
+        // so that:
+        // 1. No-arg commands show as /<name> (no auto-generated [args] in help)
+        // 2. Subcommand commands show proper argument structure in help
+        // 3. Tab completion suggests subcommand names naturally
+        plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+            Commands commands = event.registrar();
 
-        // ---- Regular commands (tpbow, guide, menu, bot, portal) ----
+            // Re-read command policies on each fire (supports reload)
+            ConfigurationSection cmdSection =
+                    platform.configService().getConfig("config").getConfigurationSection("command_policies");
+            if (cmdSection == null) {
+                FileConfiguration legacy = platform.configService().loadFile("commands.yml");
+                cmdSection = legacy != null ? legacy.getConfigurationSection("commands") : null;
+            }
+            CommandPolicies cp = CommandPolicies.from(cmdSection);
 
-        registerCommand(
-                plugin,
-                "tpbow",
-                "传送弓，射出的箭落地时会把自己传送到箭落地的位置",
-                List.of("tpb"),
-                new OrzTPBow(platform.serverFacade(), teleportBowService),
-                cp);
-        registerCommand(plugin, "guide", "获取新手教程，更快的熟悉服务器", List.of(), new OrzGuideBook(guideService), cp);
-        registerCommand(plugin, "menu", "菜单展示", List.of(), new OrzMenuCommand(menuCommandService), cp);
-        registerCommand(
-                plugin,
-                "bot",
-                "查看机器人健康状态",
-                List.of(),
-                new OrzBotStatus(botModule.botStatusService(), botModule.botMessageService()),
-                cp);
-        registerCommand(
-                plugin,
-                "portal",
-                "创建或移除传送门",
-                List.of(),
-                new OrzPortalCommand(portalCommandService),
-                cp,
-                TabCompleterDelegate.of(List.of("remove")));
+            // ---- No-argument commands (clean literals, no [args] in help) ----
+            registerSimple(
+                    commands,
+                    "guide",
+                    "获取新手教程，更快的熟悉服务器",
+                    List.of(),
+                    cp,
+                    false,
+                    sender -> guideService.openGuide((Player) sender));
+            registerSimple(
+                    commands,
+                    "menu",
+                    "菜单展示",
+                    List.of(),
+                    cp,
+                    false,
+                    sender -> menuCommandService.handle((Player) sender));
+            registerSimple(
+                    commands,
+                    "tpbow",
+                    "传送弓，射出的箭落地时会把自己传送到箭落地的位置",
+                    List.of("tpb"),
+                    cp,
+                    false,
+                    sender -> teleportBowService.giveAndEquip((Player) sender));
+            registerSimple(commands, "bot", "查看机器人健康状态", List.of(), cp, true, sender -> {
+                botModule.botMessageService().tryReconnectQqWsIfDisconnected();
+                sender.sendMessage(botModule.botStatusService().buildStatusMessage());
+            });
 
-        // ---- Admin commands (blacklist, config) ----
+            // ---- Portal: /portal [remove] <host> [port] ----
+            registerPortal(commands, cp);
 
-        List<CommandInterceptor> adminOnly = List.of(new AdminOnlyInterceptor(true));
+            // ---- Blacklist: /blacklist list|add|remove <pattern> ----
+            registerBlacklist(commands, cp);
 
-        // blacklist
-        plugin.registerCommand(
-                "blacklist",
-                "IP黑名单管理",
-                List.of("bl"),
-                new BasicCommandAdapter(
-                        "blacklist",
-                        (sender, command, label, args) -> {
-                            if (args.length == 0 || "list".equalsIgnoreCase(args[0])) {
-                                List<String> patterns = blacklistService.getPatterns();
-                                if (patterns.isEmpty()) {
-                                    sender.sendMessage(platform.textStyles().info("黑名单为空"));
-                                } else {
-                                    sender.sendMessage(platform.textStyles().info("当前黑名单:"));
-                                    for (String p : patterns) {
-                                        sender.sendMessage(platform.textStyles().info("  " + p));
-                                    }
-                                }
-                                return true;
-                            }
-                            String input = args[0];
-                            if (input.startsWith("-")) {
-                                String pattern = input.substring(1);
-                                blacklistService.remove(pattern);
-                                sender.sendMessage(platform.textStyles().success("已从黑名单移除: " + pattern));
-                            } else if ("add".equalsIgnoreCase(input) && args.length >= 2) {
-                                blacklistService.add(args[1]);
-                                sender.sendMessage(platform.textStyles().success("已添加黑名单: " + args[1]));
-                            } else if ("remove".equalsIgnoreCase(input) && args.length >= 2) {
-                                blacklistService.remove(args[1]);
-                                sender.sendMessage(platform.textStyles().success("已从黑名单移除: " + args[1]));
-                            } else {
-                                blacklistService.add(input);
-                                sender.sendMessage(platform.textStyles().success("已添加黑名单: " + input));
-                            }
-                            return true;
-                        },
-                        adminOnly,
-                        TabCompleterDelegate.of(List.of("list", "add", "remove"))));
-
-        // config
-        List<String> configPaths = new ArrayList<>(ConfigPath.all().keySet());
-        plugin.registerCommand(
-                "config",
-                "配置管理",
-                List.of("cfg"),
-                new BasicCommandAdapter("config", orzConfigCommand, adminOnly, TabCompleterDelegate.of(args -> {
-                    if (args.length == 1) {
-                        return List.of("list", "get", "set", "reset", "dump", "reload");
-                    }
-                    if (args.length == 2
-                            && ("get".equals(args[0]) || "set".equals(args[0]) || "reset".equals(args[0]))) {
-                        return filterPrefix(configPaths, args[1]);
-                    }
-                    return List.of();
-                })));
+            // ---- Config: /config list|get|set|reset|dump|reload ----
+            registerConfig(commands, cp);
+        });
     }
 
-    private static List<String> filterPrefix(Collection<String> items, String prefix) {
-        if (prefix == null || prefix.isEmpty()) {
-            return new ArrayList<>(items);
+    // ================================================================
+    // Brigadier command builders
+    // ================================================================
+
+    /**
+     * Register a simple no-argument command as a clean literal (no Brigadier args).
+     * The interceptor chain (PlayerOnly, AdminOnly, Cooldown) is applied via
+     * {@link #requirement(List)} and {@link #guardedExec(String, List, Command)}.
+     */
+    private void registerSimple(
+            Commands commands,
+            String name,
+            String description,
+            List<String> aliases,
+            CommandPolicies cp,
+            boolean skipPlayerOnly,
+            Consumer<CommandSender> action) {
+        List<CommandInterceptor> interceptors = commandInterceptors(name, cp, skipPlayerOnly);
+        commands.register(
+                literal(name)
+                        .requires(requirement(interceptors))
+                        .executes(guardedExec(name, interceptors, ctx -> {
+                            action.accept(ctx.getSource().getSender());
+                            return 1;
+                        }))
+                        .build(),
+                description,
+                aliases);
+    }
+
+    /** Portal: /portal [remove] <host> [port] */
+    private void registerPortal(Commands commands, CommandPolicies cp) {
+        List<CommandInterceptor> interceptors = commandInterceptors("portal", cp, false);
+        Predicate<CommandSourceStack> req = requirement(interceptors);
+        OrzTextStyles styles = platform.textStyles();
+        PortalCommandService svc = portalCommandService;
+
+        // /portal remove <host> [port]
+        Command<CommandSourceStack> removeExec = guardedExec("portal", interceptors, ctx -> {
+            String target = ctx.getArgument("target", String.class);
+            return handlePortal(svc, ctx.getSource(), "remove " + target, styles);
+        });
+
+        // /portal <host> [port]
+        Command<CommandSourceStack> createExec = guardedExec("portal", interceptors, ctx -> {
+            String target = ctx.getArgument("target", String.class);
+            return handlePortal(svc, ctx.getSource(), target, styles);
+        });
+
+        // /portal (no args → show usage)
+        Command<CommandSourceStack> usageExec = guardedExec("portal", interceptors, ctx -> {
+            ctx.getSource()
+                    .getSender()
+                    .sendMessage(styles.info("用法: /portal <host> [port] 或 /portal remove <host> [port]"));
+            return 1;
+        });
+
+        commands.register(
+                literal("portal")
+                        .requires(req)
+                        .then(literal("remove")
+                                .then(argument("target", StringArgumentType.greedyString())
+                                        .executes(removeExec)))
+                        .then(argument("target", StringArgumentType.greedyString())
+                                .executes(createExec))
+                        .executes(usageExec)
+                        .build(),
+                "创建或移除传送门",
+                List.of());
+    }
+
+    private static int handlePortal(
+            PortalCommandService svc, CommandSourceStack source, String argsStr, OrzTextStyles styles) {
+        CommandSender sender = source.getSender();
+        if (!(sender instanceof Player p)) {
+            sender.sendMessage(svc.requirePlayerTip());
+            return 1;
         }
-        String lower = prefix.toLowerCase();
-        List<String> result = new ArrayList<>();
-        for (String s : items) {
-            if (s.startsWith(lower)) {
-                result.add(s);
+        String[] args = argsStr.split(" ");
+        PortalCommandService.Result result = svc.handle(p, args);
+        if (result instanceof PortalCommandService.Result.Success s) {
+            p.sendMessage(s.message());
+        } else if (result instanceof PortalCommandService.Result.Failure f) {
+            p.sendMessage(f.message());
+        }
+        return 1;
+    }
+
+    /** Blacklist: /blacklist list|add|remove <pattern> */
+    private void registerBlacklist(Commands commands, CommandPolicies cp) {
+        List<CommandInterceptor> interceptors = adminInterceptors("blacklist");
+        Predicate<CommandSourceStack> req = requirement(interceptors);
+        BlacklistService svc = blacklistService;
+        OrzTextStyles styles = platform.textStyles();
+
+        commands.register(
+                literal("blacklist")
+                        .requires(req)
+                        .then(literal("list").executes(guardedExec("blacklist", interceptors, ctx -> {
+                            listBlacklist(ctx.getSource().getSender(), svc, styles);
+                            return 1;
+                        })))
+                        .then(literal("add")
+                                .then(argument("pattern", StringArgumentType.greedyString())
+                                        .executes(guardedExec("blacklist", interceptors, ctx -> {
+                                            String pattern = ctx.getArgument("pattern", String.class);
+                                            svc.add(pattern);
+                                            ctx.getSource()
+                                                    .getSender()
+                                                    .sendMessage(styles.success("已添加黑名单: " + pattern));
+                                            return 1;
+                                        }))))
+                        .then(literal("remove")
+                                .then(argument("pattern", StringArgumentType.greedyString())
+                                        .executes(guardedExec("blacklist", interceptors, ctx -> {
+                                            String pattern = ctx.getArgument("pattern", String.class);
+                                            svc.remove(pattern);
+                                            ctx.getSource()
+                                                    .getSender()
+                                                    .sendMessage(styles.success("已从黑名单移除: " + pattern));
+                                            return 1;
+                                        }))))
+                        // Shorthand: /blacklist <pattern> → add
+                        .then(argument("input", StringArgumentType.greedyString())
+                                .executes(guardedExec("blacklist", interceptors, ctx -> {
+                                    String input = ctx.getArgument("input", String.class);
+                                    if (input.startsWith("-")) {
+                                        svc.remove(input.substring(1));
+                                        ctx.getSource()
+                                                .getSender()
+                                                .sendMessage(styles.success("已从黑名单移除: " + input.substring(1)));
+                                    } else {
+                                        svc.add(input);
+                                        ctx.getSource().getSender().sendMessage(styles.success("已添加黑名单: " + input));
+                                    }
+                                    return 1;
+                                })))
+                        .executes(guardedExec("blacklist", interceptors, ctx -> {
+                            listBlacklist(ctx.getSource().getSender(), svc, styles);
+                            return 1;
+                        }))
+                        .build(),
+                "IP黑名单管理",
+                List.of("bl"));
+    }
+
+    private static void listBlacklist(CommandSender sender, BlacklistService svc, OrzTextStyles styles) {
+        List<String> patterns = svc.getPatterns();
+        if (patterns.isEmpty()) {
+            sender.sendMessage(styles.info("黑名单为空"));
+        } else {
+            sender.sendMessage(styles.info("当前黑名单:"));
+            for (String p : patterns) {
+                sender.sendMessage(styles.info("  " + p));
             }
         }
-        return result;
     }
 
-    private void registerCommand(
-            OrzMC plugin,
-            String name,
-            String description,
-            List<String> aliases,
-            org.bukkit.command.CommandExecutor executor,
-            CommandPolicies cp) {
-        registerCommand(plugin, name, description, aliases, executor, cp, null);
+    /** Config: /config list|get|set|reset|dump|reload */
+    private void registerConfig(Commands commands, CommandPolicies cp) {
+        List<CommandInterceptor> interceptors = adminInterceptors("config");
+        Predicate<CommandSourceStack> req = requirement(interceptors);
+        OrzConfigCommand cfgCmd = orzConfigCommand;
+        OrzTextStyles styles = platform.textStyles();
+        List<String> configPaths = new ArrayList<>(ConfigPath.all().keySet());
+
+        // Tab suggestion provider for config paths
+        SuggestionProvider<CommandSourceStack> pathSuggestions = (ctx, builder) -> {
+            String prefix = builder.getRemainingLowerCase();
+            for (String path : configPaths) {
+                if (path.toLowerCase().startsWith(prefix)) {
+                    builder.suggest(path);
+                }
+            }
+            return builder.buildFuture();
+        };
+
+        LiteralCommandNode<CommandSourceStack> node = literal("config")
+                .requires(req)
+                .then(literal("list").executes(guardedExec("config", interceptors, ctx -> {
+                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"list"});
+                    return 1;
+                })))
+                .then(literal("get")
+                        .then(argument("path", StringArgumentType.greedyString())
+                                .suggests(pathSuggestions)
+                                .executes(guardedExec("config", interceptors, ctx -> {
+                                    String path = ctx.getArgument("path", String.class);
+                                    cfgCmd.onCommand(
+                                            ctx.getSource().getSender(), null, "config", new String[] {"get", path});
+                                    return 1;
+                                }))))
+                .then(literal("set")
+                        .then(argument("args", StringArgumentType.greedyString())
+                                .suggests(pathSuggestions)
+                                .executes(guardedExec("config", interceptors, ctx -> {
+                                    String rest = ctx.getArgument("args", String.class);
+                                    String[] cmdArgs = ("set " + rest).split(" ");
+                                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", cmdArgs);
+                                    return 1;
+                                }))))
+                .then(literal("reset")
+                        .then(argument("path", StringArgumentType.greedyString())
+                                .suggests(pathSuggestions)
+                                .executes(guardedExec("config", interceptors, ctx -> {
+                                    String path = ctx.getArgument("path", String.class);
+                                    cfgCmd.onCommand(
+                                            ctx.getSource().getSender(), null, "config", new String[] {"reset", path});
+                                    return 1;
+                                }))))
+                .then(literal("dump").executes(guardedExec("config", interceptors, ctx -> {
+                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"dump"});
+                    return 1;
+                })))
+                .then(literal("reload")
+                        .then(argument("name", StringArgumentType.word())
+                                .executes(guardedExec("config", interceptors, ctx -> {
+                                    String name = ctx.getArgument("name", String.class);
+                                    cfgCmd.onCommand(
+                                            ctx.getSource().getSender(), null, "config", new String[] {"reload", name});
+                                    return 1;
+                                })))
+                        .executes(guardedExec("config", interceptors, ctx -> {
+                            cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"reload"});
+                            return 1;
+                        })))
+                .executes(guardedExec("config", interceptors, ctx -> {
+                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[0]);
+                    return 1;
+                }))
+                .build();
+
+        commands.register(node, "配置管理", List.of("cfg"));
     }
 
-    private void registerCommand(
-            OrzMC plugin,
-            String name,
-            String description,
-            List<String> aliases,
-            org.bukkit.command.CommandExecutor executor,
-            CommandPolicies cp,
-            org.bukkit.command.TabCompleter tabCompleter) {
+    // ================================================================
+    // Interceptor helpers
+    // ================================================================
+
+    /**
+     * Build a {@link Predicate} for {@code .requires()} on the command node.
+     * Only checks {@link AdminOnlyInterceptor} — non-admin users won't see the command.
+     */
+    private static Predicate<CommandSourceStack> requirement(List<CommandInterceptor> interceptors) {
+        return stack -> {
+            for (CommandInterceptor ci : interceptors) {
+                if (ci instanceof AdminOnlyInterceptor aoi) {
+                    return aoi.canUse(stack.getSender());
+                }
+            }
+            return true;
+        };
+    }
+
+    /**
+     * Wrap a {@link Command} with runtime interceptor checks
+     * (PlayerOnly and Cooldown).  AdminOnly is handled by {@link #requirement(List)}.
+     */
+    private static Command<CommandSourceStack> guardedExec(
+            String name, List<CommandInterceptor> interceptors, Command<CommandSourceStack> delegate) {
+        return ctx -> {
+            CommandSender sender = ctx.getSource().getSender();
+            for (CommandInterceptor ci : interceptors) {
+                if (ci instanceof AdminOnlyInterceptor) continue;
+                Component res = ci.preHandle(sender, name);
+                if (res != null) {
+                    sender.sendMessage(res);
+                    return 1;
+                }
+            }
+            return delegate.run(ctx);
+        };
+    }
+
+    /**
+     * Build interceptors for regular commands from config policies.
+     */
+    private static List<CommandInterceptor> commandInterceptors(
+            String name, CommandPolicies cp, boolean skipPlayerOnly) {
         CommandPolicy p = cp.policies().getOrDefault(name, new CommandPolicy(0, false));
-        List<CommandInterceptor> interceptors = new ArrayList<>();
-        if (!"bot".equals(name)) {
-            interceptors.add(new PlayerOnlyInterceptor());
+        List<CommandInterceptor> list = new ArrayList<>();
+        if (!skipPlayerOnly) {
+            list.add(new PlayerOnlyInterceptor());
         }
-        interceptors.add(new AdminOnlyInterceptor(p.adminOnly()));
-        interceptors.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
-        plugin.registerCommand(
-                name, description, aliases, new BasicCommandAdapter(name, executor, interceptors, tabCompleter));
+        list.add(new AdminOnlyInterceptor(p.adminOnly()));
+        list.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
+        return list;
+    }
+
+    /**
+     * Build interceptors for hardcoded admin-only commands (blacklist, config).
+     */
+    private static List<CommandInterceptor> adminInterceptors(String name) {
+        return List.of(new PlayerOnlyInterceptor(), new AdminOnlyInterceptor(true), new CooldownInterceptor(name, 0));
     }
 
     // --- Whitelist ---
