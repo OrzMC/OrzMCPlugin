@@ -13,6 +13,8 @@ import com.jokerhub.paper.plugin.orzmc.infra.templates.CoordFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.ExceptionFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
@@ -24,6 +26,8 @@ public final class PlayerEventService {
     private final OrzTextStyles styles;
     private final Notifier notifier;
     private final ThrottledNotifier throttledNotifier;
+    // 会话级去重：防止 PlayerJoinEvent 重复触发导致消息重复
+    private final Set<String> processedJoinKeys = ConcurrentHashMap.newKeySet();
 
     public PlayerEventService(
             ServerFacade server,
@@ -74,7 +78,21 @@ public final class PlayerEventService {
 
     public void notifyPlayerState(Player player, PlayerState state) {
         String key = "player_event|" + player.getUniqueId() + "|" + state.name();
+        // 限流 + 双层去重：
+        // 1. ThrottledNotifier 基于时间的限流（默认 1s 窗口，从 tnt.notify_throttle_ms 读取）
+        // 2. 会话级去重集防止 ThrottledNotifier 窗口期内重复触发
+        if (!processedJoinKeys.add(key)) {
+            return;
+        }
+        if (state == PlayerState.QUIT || state == PlayerState.KICK) {
+            processedJoinKeys.remove("player_event|" + player.getUniqueId() + "|" + PlayerState.JOIN);
+        }
+        // ThrottledNotifier 已有进程内 map 做时间窗口限流，
+        // 但 PlayerJoinEvent 可能因 Paper 内部逻辑在极短间隔内重复触发，
+        // 会话级去重集提供额外保护。
         if (!throttledNotifier.shouldRunDefault(key)) {
+            // 如果被限流，清理当前标记以便下次能正常处理
+            processedJoinKeys.remove(key);
             return;
         }
         ArrayList<Player> onlinePlayers = new ArrayList<>();
