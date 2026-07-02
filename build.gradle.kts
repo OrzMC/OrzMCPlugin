@@ -1,8 +1,6 @@
 import org.gradle.kotlin.dsl.support.serviceOf
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 buildscript {
     repositories {
@@ -129,7 +127,6 @@ val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
 val githubRefType: String? = System.getenv("GITHUB_REF_TYPE")
 val githubEventName: String? = System.getenv("GITHUB_EVENT_NAME")
 val githubRef: String? = System.getenv("GITHUB_REF")
-val timestampString: String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmSS"))
 val versionString: String = version as String
 val isRelease: Boolean = (githubRefType == "tag")
 val isPrBuild: Boolean = (githubEventName == "pull_request")
@@ -146,8 +143,8 @@ val shadowJarVersion: String = when {
     isRelease -> versionString
     // CI branch push → Snapshot: {version}-snapshot-{run_number}
     githubRunNumber != null -> "${versionString}-snapshot-${githubRunNumber}"
-    // Local development → {version}-dev-{timestamp}
-    else -> "${versionString}-dev-${timestampString}"
+    // Local development → {version}-dev
+    else -> "${versionString}-dev"
 }
 
 // Use the commit description for the changelog
