@@ -82,8 +82,12 @@ PlatformModule
 BotModule
 ├── BotCommandService     ← 机器人消息解析与路由（实现 BotInboundHandler）
 │   ├── 命令分发映射（OrzUserCmd 枚举 → CmdHandler）
-│   ├── $a / $r / $b / $o / $e / $l / $w / $h
-│   └── setMaintenanceService() 跨模块注入
+│   ├── $a / $r / $b / $o / $e / $d / $l / $w / $h
+│   ├── 统一分派：所有指令经 parse() 方法分派（消除三条代码路径分叉）
+│   ├── $cmd ? 支持：在指令后加 ? 或 ？ 查询详细用法
+│   ├── BotCommandFeedbackService     ← 指令反馈信息构建（帮助、用法提示）
+│   ├── BotCommandListFeedbackService ← 在线列表/白名单列表构建
+│   └── setMaintenanceService() / setBlacklistService() 跨模块注入
 ├── BotMessageService     ← QQ/Discord/飞书适配器
 ├── Notifier              ← 通知派发（依赖 BotMessageService）
 ├── BotStatusService      ← 机器人状态查询
@@ -131,22 +135,26 @@ MaintenanceModule
 - OrzDebugEvent — 调试事件
 - OrzPortalEvent — 传送门交互
 
-**注册的命令**（通过 CommandMap API，替代 plugin.yml 声明）：
-- `/tpbow` — 获取传送弓
+**注册的命令**（通过 Paper LifecycleEvents.COMMANDS + Brigadier `LiteralCommandNode`，替代旧的 CommandMap API）：
 - `/guide` — 获取玩家指南
 - `/menu` — 打开菜单
-- `/bot` — 查看机器人状态
-- `/portal` — 管理传送门
-- `/orzmc` — 管理员命令（reload config 子命令）
+- `/tpbow`（别名 `/tpb`） — 获取传送弓
+- `/bot` — 查看机器人状态（自动重连 WebSocket）
+- `/portal` — 管理传送门（`<host> [port]` 创建，`remove <host> [port]` 移除）
+- `/blacklist`（别名 `/bl`） — IP 黑名单管理（list/add/remove）
+- `/config`（别名 `/cfg`） — 管理员配置管理（list/get/set/reset/dump/reload）
 
 **命令拦截器**（`features/command/binding/`）：
-- `PlayerOnlyInterceptor` — 玩家限定（bot 命令例外）
-- `AdminOnlyInterceptor` — OP 或 `orzmc.admin` 权限检查
+- `PlayerOnlyInterceptor` — 玩家限定
+- `AdminOnlyInterceptor` — OP 或 `orzmc.admin` 权限检查（通过 `.requires()` 隐藏命令）
 - `CooldownInterceptor` — 秒级冷却（按 commandName|senderName 维度）
-- `InterceptorExecutor` — 拦截器链执行壳
+- `CooldownRegistry` — 冷却注册与管理
+- 执行方式：通过 `guardedExec()` 包装 Brigadier `Command` 执行体，运行时按序检查拦截器链
 
-**白名单管理**：
-- `enableForceWhitelist()` 在启动时根据配置设置强制白名单
+**IP 黑名单**：
+- `BlacklistService` 管理 IP 黑名单规则（支持通配符模式如 `192.168.*`）
+- 玩家连接时 `OrzPlayerEvent` 调用 `BlacklistService.isBlacklisted()` 检查
+- 黑名单存储于 `config.yml` → `ip_blacklist` 段
 
 ## 模块生命周期
 
@@ -164,16 +172,16 @@ OrzServices.assemble(OrzMC)
   ├── 4. new MaintenanceModule(platform, bot)  ← 依赖 Platform + Bot
   │
   ├── 5. bot.setWorldMaintenanceService(...)   ← 跨模块回引用注入
-  ├── 6. ((Initializable) bot).afterPropertiesSet()  ← 二阶段初始化
+  ├── 6. bot.setBlacklistService(...)          ← IP 黑名单回引用注入
+  ├── 7. ((Initializable) bot).afterPropertiesSet()  ← 二阶段初始化
   │
-  ├── 7. new FeatureModule(platform, bot, portal, maintenance)  ← 依赖所有模块
+  ├── 8. new FeatureModule(platform, bot, portal, maintenance)  ← 依赖所有模块
   │
   └── OrzServices.setupAll(plugin)
         ├── botModule.setup()             ← 启动 Bot 连接
         ├── portalModule.setup()          ← 初始化传送门
         ├── featureModule.setupEventListeners(plugin)   ← 注册事件
-        ├── featureModule.setupCommandHandlers(plugin)  ← 注册命令
-        └── featureModule.enableForceWhitelist(plugin)   ← 设置白名单
+        └── featureModule.setupCommandHandlers(plugin)  ← 通过 Paper LifecycleEvents.COMMANDS 注册 Brigadier 命令
 ```
 
 `OrzServices.shutdownAll()` 逆序销毁：
@@ -260,10 +268,10 @@ command_policies:
 加载与注入：
 - 类型化解析：`infra/config/configs/CommandPolicies`, `CommandPolicy`
 - 注册拦截器：`FeatureModule.setupCommandHandlers()`
-  - `PlayerOnlyInterceptor`：玩家限定（bot 命令例外）
-  - `AdminOnlyInterceptor`：基于 OP 或权限节点 `orzmc.admin`
+  - `PlayerOnlyInterceptor`：玩家限定
+  - `AdminOnlyInterceptor`：基于 OP 或权限节点 `orzmc.admin`（通过 `.requires()` 对用户隐藏命令）
   - `CooldownInterceptor`：按 commandName|senderName 维度进行秒级冷却
-- 执行器：`features/command/binding/InterceptorExecutor`
+- 执行方式：通过 `guardedExec()` 包装 Brigadier `Command` 执行体，运行时按序检查拦截器链
 
 ## Bot 命令
 
@@ -276,9 +284,12 @@ command_policies:
 | `$b` | 管理员 | 地图备份 |
 | `$o` | 管理员 | 地图优化 |
 | `$e <命令>` | 管理员 | 执行控制台命令 |
+| `$d [list|add|remove] <pattern>` | 管理员 | 添加/移除/查看 IP 黑名单 |
 | `$l` | 通用 | 查看在线玩家 |
 | `$w [页码]` | 通用 | 查看白名单玩家 |
 | `$h` | 通用 | 查看帮助信息 |
+
+> 💡 在任意指令后加 `?`（或 `？`）可查询该指令的详细用法（如 `$a ?`）。
 
 参考：`features/botcommands/OrzUserCmd` 枚举、`BotCommandService`。
 
@@ -289,7 +300,7 @@ command_policies:
     - 对配置接口使用内存配置对象，验证默认值与路径解析
     - 对 WS 工厂注入（OrzQQBot）验证健康状态与异常路径，心跳逻辑验证缺失应答与恢复路径
     - 对 AsyncHttp 进行重试与请求头/请求体行为验证
-    - 对命令拦截器（InterceptorExecutor, PlayerOnlyInterceptor, AdminOnlyInterceptor, CooldownInterceptor）分别验证
+    - 对命令拦截器（PlayerOnlyInterceptor, AdminOnlyInterceptor, CooldownInterceptor, CooldownRegistry）分别验证
 - **集成测试**
     - 使用 MockBukkit 模拟 Paper 环境，验证命令与事件完整链路（运行：`./gradlew integrationTest`）
     - 对高频事件（TNT/爆炸）启用 ThrottledLogger/Notifier 限流，验证日志与通知频率
@@ -306,10 +317,10 @@ command_policies:
 | 模块 | `assembly/MaintenanceModule.java` | 维护模块 |
 | 模块 | `assembly/FeatureModule.java` | 功能模块（注册命令/事件） |
 | 事件 | `events/` | 事件适配层（9 个监听器） |
-| 命令 | `commands/` | 命令适配层（6 个执行器） |
-| 配置 | `infra/config/configs/` | 类型化配置记录类（14 个） |
-| 拦截器 | `features/command/binding/` | 命令拦截器（4 个 + InterceptorExecutor） |
-| 绑定 | `infra/binding/CommandBinder.java` | CommandMap API 注册 |
+| 命令 | `commands/` | 命令适配层（仅保留 OrzConfigCommand，其余命令已内联至 FeatureModule Brigadier 注册） |
+| 配置 | `infra/config/configs/` | 类型化配置记录类（15 个） |
+| 拦截器 | `features/command/binding/` | 命令拦截器（5 个文件：4 拦截器 + CooldownRegistry） |
+| 命令注册 | `assembly/FeatureModule.java` | 通过 Paper LifecycleEvents.COMMANDS + Brigadier 注册（替代 CommandMap API） |
 | 绑定 | `infra/binding/EventBinder.java` | 事件监听器注册 |
 | 端口 | `orzmc-api/src/main/java/.../orzmc/core/ports/` | 纯 Java 接口 |
 | 消息 | `orzmc-api/src/main/java/.../orzmc/core/bot/` | 消息模型 |
