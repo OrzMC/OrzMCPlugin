@@ -10,6 +10,15 @@ whitelist:
   force_whitelist: true
   cleanup_inactive_days: 90
   pagination_delay_ticks: 5
+  # 白名单踢出消息（当 force_whitelist=true 且玩家不在名单中时显示）
+  kick_message:
+    qq_group_id: ''
+    title: "可以在这里提示用户关注UP主帐号，进行私域建设"
+    ups:
+      - platform: 'YouTube'
+        name: 'OrzMC'
+      - platform: 'BiliBili'
+        name: 'OrzMC'
 
 # ==================================================
 #             地图优化/备份
@@ -49,10 +58,10 @@ tnt:
 #                IP 地区白名单
 # ==================================================
 geoip:
+  # 允许访问的地区国家码（空列表 = 不限制）
+  # 填写大写两位 ISO 国家码，例如：
+  #   allow_country_code: [CN, JP, TW]
   allow_country_code: []
-  #  - CN
-  #  - JP
-  #  - TW
 
 # ==================================================
 #              命令策略

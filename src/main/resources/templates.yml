@@ -15,6 +15,10 @@ templates:
     command_whitelist_cleanup: CODE_BLOCK
     command_whitelist_add_result: PLAIN
     command_whitelist_remove_result: PLAIN
+    command_blacklist_list: CODE_BLOCK
+    command_blacklist_add: PLAIN
+    command_blacklist_remove: PLAIN
+    command_blacklist_error: PLAIN
     command_admin_required: PLAIN
     command_usage: PLAIN
     command_backup: PLAIN
@@ -39,6 +43,10 @@ templates:
   command_whitelist_cleanup: "------白名单清理------\n{removed_list}"
   command_whitelist_add_result: "{message}"
   command_whitelist_remove_result: "{message}"
+  command_blacklist_list: "{patterns}"
+  command_blacklist_add: "{message}"
+  command_blacklist_remove: "{message}"
+  command_blacklist_error: "{message}"
   command_admin_required: "{message}"
   command_usage: "{message}"
   command_backup: "{message}"
@@ -76,6 +84,10 @@ templates:
   role_alias:
     admin: 管理员
     member: 玩家
+  # 权限组名称别称：用于通知中通过 {role_alias} 展示
+  role_groups:
+    orzmc.admin: 管理员
+    default: 玩家
   locale: zh-CN
   i18n:
     role_alias:
@@ -95,6 +107,10 @@ templates:
         command_whitelist_cleanup: "------Whitelist Cleanup------\n{removed_list}"
         command_whitelist_add_result: "{message}"
         command_whitelist_remove_result: "{message}"
+        command_blacklist_list: "{patterns}"
+        command_blacklist_add: "{message}"
+        command_blacklist_remove: "{message}"
+        command_blacklist_error: "{message}"
         command_admin_required: "{message}"
         command_usage: "{message}"
         command_backup: "{message}"

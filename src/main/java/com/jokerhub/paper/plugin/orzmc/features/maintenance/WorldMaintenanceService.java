@@ -147,7 +147,7 @@ public class WorldMaintenanceService {
         RealFileSystem fs = RealFileSystem.INSTANCE;
         DefaultOptimizer.INSTANCE.run(input, outputOrNull, builder -> {
             builder.setFilter(new FilterOptions(tickTimeThreshold, false, true));
-            builder.setOutputOptions(new OutputOptions(!backupMode, backupMode, true, true, true));
+            builder.setOutputOptions(new OutputOptions(!backupMode, backupMode, true, true, false));
             builder.setProgress(new ProgressOptions(100L, 1000L, event -> {
                 progressHandler(label, callback).invoke(event);
             }));

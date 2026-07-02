@@ -44,7 +44,7 @@ $ ./gradlew test
 
 配置与模板的冒烟测试会直接读取 resources 下的默认配置，确保类型化映射与模板解析可用。
 
-代码格式检查（Palantir 风格，使用 spotless 8.6.0 + Palantir 2.93.0）：
+代码格式检查（Palantir 风格，使用 spotless 8.7.0）：
 
 ```bash
 $ ./gradlew spotlessCheck

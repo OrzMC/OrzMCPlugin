@@ -1,8 +1,6 @@
 import org.gradle.kotlin.dsl.support.serviceOf
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 buildscript {
     repositories {
@@ -52,7 +50,7 @@ dependencies {
         exclude(module = "tink")
     }
     // Minecraft World Backup Lib
-    implementation("io.github.wangzhizhou:backup-core:0.1.4")
+    implementation("io.github.wangzhizhou:backup-core:0.1.5")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.1")
@@ -128,19 +126,25 @@ fun latestCommitMessage(): String {
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
 val githubRefType: String? = System.getenv("GITHUB_REF_TYPE")
 val githubEventName: String? = System.getenv("GITHUB_EVENT_NAME")
-val timestampString: String? = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmSS"))
+val githubRef: String? = System.getenv("GITHUB_REF")
 val versionString: String = version as String
 val isRelease: Boolean = (githubRefType == "tag")
 val isPrBuild: Boolean = (githubEventName == "pull_request")
 
-val shadowJarVersion: String = if (isPrBuild) {
-    "${versionString}-dev-${timestampString}"
-} else if (isRelease) {
+// Extract PR number from GITHUB_REF (format: refs/pull/42/merge)
+val prNumber: String? = if (isPrBuild && githubRef != null) {
+    Regex("refs/pull/(\\d+)/merge").find(githubRef)?.groupValues?.get(1)
+} else null
+
+val shadowJarVersion: String = when {
+    // PR build → {version}-pr-#{PR_NUMBER}-{run_number}
+    isPrBuild && prNumber != null -> "${versionString}-pr-#${prNumber}-${githubRunNumber}"
     // Tag push → Release: {version}
-    versionString
-} else {
-    // Branch push (main) → Snapshot: {version}-snapshot-{run_number}
-    "${versionString}-snapshot-${githubRunNumber}"
+    isRelease -> versionString
+    // CI branch push → Snapshot: {version}-snapshot-{run_number}
+    githubRunNumber != null -> "${versionString}-snapshot-${githubRunNumber}"
+    // Local development → {version}-dev
+    else -> "${versionString}-dev"
 }
 
 // Use the commit description for the changelog

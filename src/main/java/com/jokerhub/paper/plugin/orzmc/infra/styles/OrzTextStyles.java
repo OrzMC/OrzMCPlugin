@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.infra.styles;
 
-import com.jokerhub.paper.plugin.orzmc.commands.OrzTPBow;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Styles;
 import com.jokerhub.paper.plugin.orzmc.infra.core.OrzConstants;
@@ -85,7 +84,7 @@ public final class OrzTextStyles {
     }
 
     public TextComponent tpbowPrefix() {
-        return Component.text("[" + OrzTPBow.name + "]").color(colorWarn());
+        return Component.text("[传送弓]").color(colorWarn());
     }
 
     public TextComponent coordComponent(String locString) {

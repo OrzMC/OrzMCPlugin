@@ -41,26 +41,26 @@ OrzMC/
 │   │   ├── BotModule.java          QQ/Discord/Lark 机器人、通知派发
 │   │   ├── PortalModule.java       跨服传送门
 │   │   ├── MaintenanceModule.java  世界备份与地图优化
-│   │   └── FeatureModule.java      所有 Feature 服务 + 命令/事件注册
+│   │   └── FeatureModule.java      所有 Feature 服务 + 命令/事件注册（Brigadier 命令注册 + 拦截器链）
 │   ├── core/ports/            含 Bukkit 依赖的端口（PortalPort, ServerAccess, TypedConfigProvider 等）
 │   ├── features/              业务逻辑层（36 个文件）
-│   │   ├── botcommands/       Bot 命令解析（$a, $r, $b, $o 等）
+│   │   ├── botcommands/       Bot 命令解析（$a, $r, $b, $o, $d 等，统一分派 + $cmd ? 查询）
 │   │   ├── maintenance/       世界备份/优化编排
 │   │   ├── whitelist/         服务器白名单管理
 │   │   ├── tnt/               TNT 保护 + 区域白名单
 │   │   ├── portal/            传送门业务逻辑
-│   │   ├── security/          GeoIP 访问控制、命令权限
+│   │   ├── security/          GeoIP 访问控制 + IP 黑名单管理
 │   │   ├── server/            服务端生命周期事件
 │   │   └── ...                guide, menu, teleport, player
 │   ├── infra/                 基础设施实现
-│   │   ├── config/            ConfigService + 类型化配置记录类、ConfigHealthCheck
+│   │   ├── config/            ConfigService + 类型化配置记录类（15个）、ConfigHealthCheck
 │   │   ├── bot/               OrzBotManager, OrzQQBot, OrzDiscordBot, OrzLarkBot
 │   │   ├── notify/            Notifier + ThrottledNotifier
 │   │   ├── ws/                RobustWebSocketClient（自动重连 + 心跳检测）
 │   │   ├── net/               AsyncHttp（指数退避重试）
 │   │   ├── scheduler/         SafeScheduler（异步异常日志包装器）
 │   │   └── ...                templates, paging, styles, health, binding
-│   ├── commands/              Bukkit CommandExecutor 适配器（/bot, /portal, /tpbow 等）
+│   ├── commands/              Bukkit CommandExecutor 适配器（仅 OrzConfigCommand，其余已内联至 Brigadier 注册）
 │   └── events/                Bukkit EventListener 适配器（玩家加入、TNT、传送门等）
 ```
 
@@ -70,7 +70,7 @@ OrzMC/
 - **手工依赖注入**：`OrzServices.assemble()` 是显式组合根，不使用 DI 框架
 - **模块生命周期**：每个领域模块实现 `ServiceModule { setup(); tearDown(); }` 接口
 - **循环依赖处理**：`BotModule` 实现 `Initializable.afterPropertiesSet()` 处理跨模块回引用
-- **命令拦截器**：责任链模式（`InterceptorExecutor` + `CommandInterceptor`）
+- **命令拦截器**：责任链模式（`guardedExec()` 包装 Brigadier `Command` 执行体，运行时按序检查 `CommandInterceptor` 链）
 - **通知策略**：策略模式（`NotifierSink` 接口，测试中可用 `CapturingSink`）
 
 ### 版本号与发布规则

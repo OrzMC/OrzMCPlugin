@@ -5,7 +5,6 @@ import com.destroystokyo.paper.event.server.WhitelistToggleEvent;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage.WhitelistKickMessageItem;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
@@ -38,9 +37,12 @@ public final class WhitelistEventService {
             return;
         }
         TextComponent.Builder kickMsgBuilder = Component.text();
-        BotConfig botConfig = configs.bot();
-        String qqPlayerGroupId = botConfig.qqPlayerGroupId();
-        if (qqPlayerGroupId != null && !qqPlayerGroupId.isEmpty()) {
+        WhitelistKickMessage kickMsg = configs.whitelistKickMessage();
+        String qqGroupId = kickMsg.qqGroupId();
+        if (qqGroupId == null || qqGroupId.isEmpty()) {
+            qqGroupId = configs.bot().qqGroupId();
+        }
+        if (qqGroupId != null && !qqGroupId.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());
             }
@@ -49,11 +51,11 @@ public final class WhitelistEventService {
                     .append(Component.space())
                     .append(styles.warn("不在服务器白名单中，请先加入QQ群:"))
                     .append(Component.space())
-                    .append(styles.success(qqPlayerGroupId).decorate(TextDecoration.BOLD))
+                    .append(styles.success(qqGroupId).decorate(TextDecoration.BOLD))
                     .append(Component.space())
                     .append(styles.warn("，联系管理员添加白名单"));
         }
-        String discordServerLink = botConfig.discordServerLink();
+        String discordServerLink = configs.bot().discordServerLink();
         if (discordServerLink != null && !discordServerLink.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());

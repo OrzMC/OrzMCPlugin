@@ -7,6 +7,8 @@ public final class BotCommandFeedbackService {
                 + "\n"
                 + OrzUserCmd.REMOVE_PLAYER_FROM_WHITELIST.display(promptChar)
                 + "\n"
+                + OrzUserCmd.BLACKLIST.display(promptChar)
+                + "\n"
                 + OrzUserCmd.BACKUP.display(promptChar)
                 + "\n"
                 + OrzUserCmd.OPTIMIZE_WORLD.display(promptChar)
@@ -56,6 +58,17 @@ public final class BotCommandFeedbackService {
                         + promptChar
                         + cmd.cmdName()
                         + " say hello";
+            case BLACKLIST ->
+                "用法：\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + "          查看黑名单\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " [IP]    添加黑名单\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " -[IP]   移除黑名单";
             default -> "";
         };
     }

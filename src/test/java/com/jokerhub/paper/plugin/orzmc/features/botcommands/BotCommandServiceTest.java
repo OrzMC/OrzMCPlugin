@@ -32,7 +32,7 @@ class BotCommandServiceTest {
         callback = mock(Consumer.class);
         logger = mock(Logger.class);
 
-        BotConfig botConfig = new BotConfig("$", null, null, null);
+        BotConfig botConfig = new BotConfig("$", null, null);
         WhitelistConfig whitelistConfig = mock(WhitelistConfig.class);
         when(configs.bot()).thenReturn(botConfig);
         when(configs.whitelist()).thenReturn(whitelistConfig);

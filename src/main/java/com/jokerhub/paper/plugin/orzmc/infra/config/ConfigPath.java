@@ -75,7 +75,6 @@ public final class ConfigPath {
         reg(map, "bot", "cmd_prompt_char", String.class, "$", "Bot命令前缀符");
         reg(map, "bot", "discord_server_link", String.class, null, "Discord邀请链接");
         reg(map, "bot", "qq_group_id", String.class, null, "QQ群号");
-        reg(map, "bot", "qq_player_group_id", String.class, null, "QQ玩家群号");
         // templates (templates.yml)
         reg(map, "templates", "templates.locale", String.class, "zh-CN", "本地化语言");
         reg(map, "templates", "templates.coord.scale", Double.class, 1.0, "坐标缩放比例");
