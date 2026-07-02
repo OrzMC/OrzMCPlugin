@@ -1,6 +1,6 @@
 # paper-plugin.yml: https://docs.papermc.io/paper/dev/paper-plugin-yml
 name: OrzMC
-version: 1.0.1
+version: 1.0.2
 main: com.jokerhub.paper.plugin.orzmc.OrzMC
 description: OrzMC for Paper Server Plugin
 authors: [ wangzhizhou ]
