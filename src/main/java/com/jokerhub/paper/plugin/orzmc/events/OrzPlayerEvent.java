@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
+import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import org.bukkit.event.EventHandler;
@@ -14,6 +15,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 public class OrzPlayerEvent extends OrzBaseListener {
     private final GeoIpAccessService geoIpAccessService;
+    private final BlacklistService blacklistService;
     private final PlayerEventService service;
     private final GuideService guideService;
     private final OrzTextStyles styles;
@@ -22,12 +24,14 @@ public class OrzPlayerEvent extends OrzBaseListener {
     public OrzPlayerEvent(
             OrzMC plugin,
             GeoIpAccessService geoIpAccessService,
+            BlacklistService blacklistService,
             PlayerEventService service,
             GuideService guideService,
             OrzTextStyles styles,
             WorldMaintenanceService maintenanceService) {
         super(plugin);
         this.geoIpAccessService = geoIpAccessService;
+        this.blacklistService = blacklistService;
         this.service = service;
         this.guideService = guideService;
         this.styles = styles;
@@ -44,6 +48,10 @@ public class OrzPlayerEvent extends OrzBaseListener {
             return;
         }
         String ipAddress = event.getAddress().getHostAddress();
+        if (blacklistService.isBlocked(ipAddress)) {
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, styles.error("你的IP已被禁止访问"));
+            return;
+        }
         String playerName = event.getPlayerProfile().getName();
         if (ipAddress.isEmpty()) {
             return;

@@ -47,6 +47,17 @@ public final class ConfigHealthCheck {
         if (days <= 0) issues.add("非法: whitelist.cleanup_inactive_days 必须为正数");
         int ticks = section.getInt("pagination_delay_ticks", 5);
         if (ticks < 0) issues.add("非法: whitelist.pagination_delay_ticks 不得为负数");
+        ConfigurationSection kickSection = section.getConfigurationSection("kick_message");
+        if (kickSection == null) {
+            issues.add("缺失: whitelist.kick_message 未配置");
+        } else {
+            String title = kickSection.getString("title", "");
+            if (title.isEmpty()) issues.add("缺失: whitelist.kick_message.title 不可为空");
+            String qqGroupId = kickSection.getString("qq_group_id", "");
+            if (qqGroupId.isEmpty()) issues.add("建议: whitelist.kick_message.qq_group_id 未配置，将使用 bot.qq_group_id 作为默认值");
+            List<?> ups = kickSection.getList("ups");
+            if (ups == null || ups.isEmpty()) issues.add("缺失: whitelist.kick_message.ups 至少需要一项");
+        }
     }
 
     private static void validateMaintenanceSection(ConfigurationSection section, List<String> issues) {
@@ -269,6 +280,7 @@ public final class ConfigHealthCheck {
             issues.add("建议: templates.world_alias.world_the_end 缺失");
         if (!cfg.contains("templates.role_alias.admin")) issues.add("建议: templates.role_alias.admin 缺失");
         if (!cfg.contains("templates.role_alias.member")) issues.add("建议: templates.role_alias.member 缺失");
+        if (!cfg.contains("templates.role_groups")) issues.add("建议: templates.role_groups 未配置，将使用默认别名");
         String[] commandKeys = {
             "command_output",
             "command_help",
@@ -282,7 +294,11 @@ public final class ConfigHealthCheck {
             "command_usage",
             "command_backup",
             "command_optimize",
-            "command_optimize_disabled"
+            "command_optimize_disabled",
+            "command_blacklist_list",
+            "command_blacklist_add",
+            "command_blacklist_remove",
+            "command_blacklist_error"
         };
         String[] requiredTemplates = {
             "command_output",
@@ -293,6 +309,10 @@ public final class ConfigHealthCheck {
             "command_whitelist_cleanup",
             "command_whitelist_add_result",
             "command_whitelist_remove_result",
+            "command_blacklist_list",
+            "command_blacklist_add",
+            "command_blacklist_remove",
+            "command_blacklist_error",
             "command_admin_required",
             "command_usage",
             "command_backup",

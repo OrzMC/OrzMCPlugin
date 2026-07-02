@@ -22,4 +22,15 @@ public class AdminOnlyInterceptor implements CommandInterceptor {
         }
         return null;
     }
+
+    /**
+     * 检查发送者是否有权限使用此命令（用于 {@link io.papermc.paper.command.brigadier.BasicCommand#canUse} 的 Tab 补全过滤）。
+     */
+    public boolean canUse(CommandSender sender) {
+        if (!adminOnly) return true;
+        if (sender instanceof Player p) {
+            return permissionService.requireAdmin(p).allowed();
+        }
+        return true; // console
+    }
 }

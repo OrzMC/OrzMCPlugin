@@ -43,9 +43,9 @@ class WhitelistEventServiceTest extends ServiceTestBase {
         when(configs.whitelist()).thenReturn(whitelistCfg);
         when(whitelistCfg.forceWhitelist()).thenReturn(true);
         when(configs.bot()).thenReturn(botConfig);
-        when(botConfig.qqPlayerGroupId()).thenReturn("123456");
         when(botConfig.discordServerLink()).thenReturn("https://discord.gg/test");
         when(configs.whitelistKickMessage()).thenReturn(kickMsg);
+        when(kickMsg.qqGroupId()).thenReturn("123456");
         when(kickMsg.title()).thenReturn("联系管理员");
         when(kickMsg.ups()).thenReturn(List.of(item));
         when(item.name()).thenReturn("服主");
@@ -104,8 +104,8 @@ class WhitelistEventServiceTest extends ServiceTestBase {
 
     @Test
     void handleVerify_noQqGroup_onlyDiscord() {
-        BotConfig botConfig = configs.bot();
-        when(botConfig.qqPlayerGroupId()).thenReturn(null);
+        WhitelistKickMessage kickMsg = configs.whitelistKickMessage();
+        when(kickMsg.qqGroupId()).thenReturn(null);
 
         ProfileWhitelistVerifyEvent event = mock(ProfileWhitelistVerifyEvent.class);
         PlayerProfile profile = mock(PlayerProfile.class);

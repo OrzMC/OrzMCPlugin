@@ -95,6 +95,14 @@ public class ConfigBackwardCompatTest {
         cfg.set("whitelist.force_whitelist", true);
         cfg.set("whitelist.cleanup_inactive_days", 90);
         cfg.set("whitelist.pagination_delay_ticks", 5);
+        cfg.set("whitelist.kick_message.title", "测试踢出消息");
+        cfg.set("whitelist.kick_message.qq_group_id", "123456");
+        List<Map<String, String>> kickUps = new ArrayList<>();
+        Map<String, String> kickItem = new HashMap<>();
+        kickItem.put("name", "测试链接");
+        kickItem.put("platform", "https://example.com");
+        kickUps.add(kickItem);
+        cfg.set("whitelist.kick_message.ups", kickUps);
         cfg.set("maintenance.optimize_enabled", false);
         cfg.set("maintenance.optimize_tick_time_threshold", 300);
         cfg.set("maintenance.backup_retention_count", 5);
