@@ -67,10 +67,12 @@ jobs:
           git commit -m "chore: bump version to $NEW"
           git push origin "$BRANCH"
 
-          # 创建 Bump PR 并设置为自动合并
+          # 创建 Bump PR
           gh pr create \
             --base main \
             --head "$BRANCH" \
             --title "chore: bump version to $NEW" \
-            --body "Automated version bump after release ${{ github.ref_name }}" \
-            --auto --merge
+            --body "Automated version bump after release ${{ github.ref_name }}"
+
+          # 启用自动合并（PR 可能已存在，忽略错误）
+          gh pr merge "$BRANCH" --auto --merge
