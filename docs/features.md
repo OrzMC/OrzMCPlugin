@@ -334,4 +334,4 @@
 
 ---
 
-> 完整信息请参阅：[README](../README.md) | [架构文档](./architecture.md) | [开发文档](./development.md)
+> 完整信息请参阅：[README](../README.md) | [架构文档](./architecture.md) | [贡献指南](../CONTRIBUTING.md)
