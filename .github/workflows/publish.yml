@@ -60,17 +60,21 @@ jobs:
           # 写入新版本
           sed -i 's/^version:.*/version: '"$NEW"'/' src/main/resources/paper-plugin.yml
 
-          # 提交并推送
+          # 提交并推送（先清理可能残留的远端分支）
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add src/main/resources/paper-plugin.yml
           git commit -m "chore: bump version to $NEW"
+          git push origin --delete "$BRANCH" 2>/dev/null || true
           git push origin "$BRANCH"
 
-          # 创建 Bump PR 并设置为自动合并
+          # 创建 Bump PR
           gh pr create \
             --base main \
             --head "$BRANCH" \
             --title "chore: bump version to $NEW" \
             --body "Automated version bump after release ${{ github.ref_name }}" \
-            --auto --merge
+            2>/dev/null || true
+
+          # 启用自动合并（PR 可能已存在，忽略错误）
+          gh pr merge "$BRANCH" --auto --merge 2>/dev/null || true
