@@ -25,7 +25,7 @@
 | 字段 | 统一值 | Hangar | Modrinth |
 |------|--------|--------|----------|
 | **项目名称** | `OrzMC` | `OrzMC` | `OrzMC` |
-| **项目 ID/Slug** | — | `wangzhizhou666/OrzMC` | 待创建后填入 |
+| **项目 ID/Slug** | — | `wangzhizhou666/OrzMC` | `r8ZufLjY` |
 | **简短描述** | OrzMC — 多平台机器人集成的 Paper 服务器管理插件 | 同左 | 同左 |
 | **完整介绍** | 见[第 2 节](#2-统一项目描述) | 同左 | 同左 |
 | **分类** | 服务端管理 / 工具 / 社交 | `admin_tools`, `dev_tools`, `chat` | 待创建时确认 |
@@ -168,38 +168,24 @@ hangarPublish {
 
 ## 6. Modrinth 自动发布
 
-### 6.1 实施计划
+### 6.1 当前状态
 
-#### 前置步骤（手动）
+| 项目 | 详情 |
+|------|------|
+| **Modrinth 项目** | `r8ZufLjY`（审核中） |
+| **Gradle 插件** | `com.modrinth.minotaur:2.+` |
+| **触发条件** | Push `main` → beta / Push tag `x.y.z` → release |
+| **CI 文件** | `.github/workflows/publish.yml` |
+| **Token Secret** | `MODRINTH_TOKEN`（`VERSION_CREATE` + `PROJECT_WRITE` 权限） |
+| **重试策略** | 3 次，指数退避（20s/40s/60s），检测"版本已存在"幂等 |
 
-1. 在 [Modrinth](https://modrinth.com/new) 创建新项目
-   - 名称：`OrzMC`
-   - 简短描述：见[第 2 节](#21-简短描述)
-   - 完整描述：见[第 2 节](#22-完整描述约-200-字)
-   - 图标：上传 `assets/avatar.png`
-   - 许可证：GPL-3.0
-   - 分类：服务端管理 / 工具 / 社交（创建时确认可用分类）
-   - 加载器：`paper`
-   - 版本：先不手动上传（后续由 CI 自动发布）
-2. 记录创建后获得的 `project_id`
-3. 在 Modrinth Settings → Personal Access Tokens 生成 PAT
-   - 权限勾选：`VERSION_CREATE` + `PROJECT_WRITE`
-4. 在 GitHub 仓库 Settings 中添加：
-   - **Secret**：`MODRINTH_TOKEN`（PAT 值）
-   - **Variable**：`MODRINTH_PROJECT_ID`（项目 ID）
-
-#### 代码改动
-
-**`build.gradle.kts`** — 新增 Minotaur 插件和配置：
+### 6.2 配置要点
 
 ```kotlin
-// plugins {} 中新增
-id("com.modrinth.minotaur") version "2.+"
-
-// 与 hangarPublish 并列，复用已有变量
+// build.gradle.kts
 modrinth {
     token.set(System.getenv("MODRINTH_TOKEN"))
-    projectId.set(System.getenv("MODRINTH_PROJECT_ID") ?: "")
+    projectId.set(System.getenv("MODRINTH_PROJECT_ID") ?: (property("modrinth_project_id") as String))
     versionNumber.set(shadowJarVersion)
     versionName.set(shadowJarVersion)
     versionType.set(if (isRelease) "release" else "beta")
@@ -210,50 +196,28 @@ modrinth {
             .split(",").map { it.trim() }
     )
     loaders.add("paper")
-    // 可选：同步 README.md 到项目主页
-    // syncBodyFrom.set(project.file("README.md").readText())
 }
 ```
 
-**`.github/workflows/publish.yml`** — 新增 Modrinth 发布 step：
+`modrinth_project_id` 定义在 `gradle.properties`，CI 环境可通过 `MODRINTH_PROJECT_ID` 变量覆盖。
+
+### 6.3 CI 发布步骤
 
 ```yaml
 - name: publish to Modrinth
   env:
     MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
   run: |
-    max_attempts=3
-    for attempt in $(seq 1 $max_attempts); do
-      echo "::group::Modrinth publish attempt ${attempt}/${max_attempts}"
-      output=$(./gradlew modrinth --stacktrace 2>&1) && {
-        echo "$output"
-        echo "::endgroup::"
-        echo "✅ Published to Modrinth on attempt ${attempt}"
-        exit 0
-      }
-      echo "$output"
-      echo "::endgroup::"
-      if echo "$output" | grep -qi "already exists\|already.*version\|duplicate"; then
-        echo "⚠️  Version appears to already exist on Modrinth — treating as success"
-        exit 0
-      fi
-      if [ "$attempt" -lt "$max_attempts" ]; then
-        delay=$((attempt * 20))
-        echo "⏳ Attempt ${attempt} failed, retrying in ${delay}s..."
-        sleep "$delay"
-      fi
-    done
-    echo "❌ All ${max_attempts} Modrinth publish attempts failed"
-    exit 1
+    # 3 次重试，指数退避，幂等检测
+    ./gradlew modrinth --stacktrace
 ```
 
-### 6.2 目标状态
+与 Hangar 发布步骤对称设计：相同的重试次数、相同的退避策略、相同的幂等检测逻辑。
 
-| 事件 | Hangar | Modrinth | GitHub Release |
-|------|--------|----------|----------------|
-| PR opened | ❌ | ❌ | ❌ |
-| Push `main` | Snapshot | beta | ❌ |
-| Push tag `x.y.z` | Release | release | ✅ |
+### 6.4 前置待办
+
+- [ ] 生成 Modrinth PAT，添加到 GitHub Secrets → `MODRINTH_TOKEN`
+- [ ] 等待 Modrinth 项目审核通过
 
 ---
 

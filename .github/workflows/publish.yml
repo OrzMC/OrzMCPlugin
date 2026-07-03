@@ -74,6 +74,37 @@ jobs:
           echo "❌ All ${max_attempts} Hangar publish attempts failed"
           exit 1
 
+      - name: publish to Modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+        run: |
+          max_attempts=3
+          for attempt in $(seq 1 $max_attempts); do
+            echo "::group::Modrinth publish attempt ${attempt}/${max_attempts}"
+            output=$(./gradlew modrinth --stacktrace 2>&1) && {
+              echo "$output"
+              echo "::endgroup::"
+              echo "✅ Published to Modrinth on attempt ${attempt}"
+              exit 0
+            }
+            echo "$output"
+            echo "::endgroup::"
+
+            if echo "$output" | grep -qi "already exists\|already.*version\|duplicate"; then
+              echo "⚠️  Version appears to already exist on Modrinth — treating as success"
+              exit 0
+            fi
+
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              delay=$((attempt * 20))
+              echo "⏳ Attempt ${attempt} failed, retrying in ${delay}s..."
+              sleep "$delay"
+            fi
+          done
+
+          echo "❌ All ${max_attempts} Modrinth publish attempts failed"
+          exit 1
+
       - name: create GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v3
