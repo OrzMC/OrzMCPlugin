@@ -72,8 +72,7 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --title "chore: bump version to $NEW" \
-            --body "Automated version bump after release ${{ github.ref_name }}" \
-            2>/dev/null || true
+            --body "Automated version bump after release ${{ github.ref_name }}"
 
           # 启用自动合并（PR 可能已存在，忽略错误）
-          gh pr merge "$BRANCH" --auto --merge 2>/dev/null || true
+          gh pr merge "$BRANCH" --auto --merge
