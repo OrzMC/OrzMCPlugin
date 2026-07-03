@@ -48,7 +48,7 @@ jobs:
 
           # 从 tag 创建 Bump 分支
           BRANCH="bump-version-${{ github.ref_name }}"
-          git checkout -b "$BRANCH" main
+          git checkout -b "$BRANCH" origin/main
 
           # 读取当前版本，递增 patch
           CURRENT=$(yq '.version' src/main/resources/paper-plugin.yml)
