@@ -5,7 +5,6 @@ import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import java.util.List;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,17 +15,15 @@ class BlacklistServiceTest {
 
     private ConfigService configService;
     private FileConfiguration fileConfig;
-    private ConfigurationSection section;
     private BlacklistService service;
 
     @BeforeEach
     void setUp() {
         configService = mock(ConfigService.class);
         fileConfig = mock(FileConfiguration.class);
-        section = mock(ConfigurationSection.class);
 
         when(configService.getConfig("ip_blacklist")).thenReturn(fileConfig);
-        when(fileConfig.getConfigurationSection("ip_blacklist")).thenReturn(section);
+        when(fileConfig.getStringList("ip_blacklist")).thenReturn(List.of());
 
         service = new BlacklistService(configService);
     }
@@ -173,7 +170,7 @@ class BlacklistServiceTest {
     // ---- helper ----
 
     private void setupPatterns(String... patterns) {
-        when(section.get("ip_blacklist")).thenReturn(java.util.List.of(patterns));
+        when(fileConfig.getStringList("ip_blacklist")).thenReturn(java.util.List.of(patterns));
         service.reload();
     }
 }
