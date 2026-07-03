@@ -7,7 +7,16 @@ package com.jokerhub.paper.plugin.orzmc.core.ports.health;
  */
 public interface HealthStatus {
 
-    /** 单一服务的健康快照。 */
+    /**
+     * 单一服务的健康快照。
+     *
+     * @param enabled     服务是否启用
+     * @param httpOk      HTTP 连接是否正常
+     * @param wsConnected WebSocket 是否已连接
+     * @param apiReady    API 是否就绪
+     * @param lastError   最近一次错误信息（无错误时为空字符串）
+     * @param lastUpdated 最近更新时间戳（毫秒）
+     */
     record Entry(
             boolean enabled,
             boolean httpOk,
