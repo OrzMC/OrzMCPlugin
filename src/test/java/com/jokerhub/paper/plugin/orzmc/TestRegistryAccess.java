@@ -57,6 +57,7 @@ public class TestRegistryAccess implements RegistryAccess {
 
     @Override
     @Deprecated
+    @SuppressWarnings("removal")
     public <T extends Keyed> Registry<T> getRegistry(final Class<T> type) {
         return emptyRegistry();
     }
@@ -254,6 +255,7 @@ public class TestRegistryAccess implements RegistryAccess {
     // stub menu type
     // ---------------------------------------------------------------
 
+    @SuppressWarnings({"deprecation", "removal"})
     private static final class StubMenuType
             implements MenuType.Typed<InventoryView, InventoryViewBuilder<InventoryView>> {
         private final NamespacedKey key;
@@ -310,6 +312,7 @@ public class TestRegistryAccess implements RegistryAccess {
     // stub item type
     // ---------------------------------------------------------------
 
+    @SuppressWarnings({"deprecation", "removal"})
     private static final class StubItemType implements ItemType {
         private final NamespacedKey key;
         private final @Nullable Material material;
@@ -543,6 +546,7 @@ public class TestRegistryAccess implements RegistryAccess {
     // stub block type
     // ---------------------------------------------------------------
 
+    @SuppressWarnings({"deprecation", "removal"})
     private static final class StubBlockType implements BlockType {
         private final NamespacedKey key;
 
@@ -688,6 +692,7 @@ public class TestRegistryAccess implements RegistryAccess {
     // stub enchantment
     // ---------------------------------------------------------------
 
+    @SuppressWarnings({"deprecation", "removal"})
     private static final class StubEnchantment extends Enchantment {
         private final NamespacedKey key;
 
@@ -839,6 +844,7 @@ public class TestRegistryAccess implements RegistryAccess {
     // map-backed registry
     // ---------------------------------------------------------------
 
+    @SuppressWarnings({"deprecation", "removal"})
     private static final class MapBackedRegistry<T extends Keyed> implements Registry<T> {
         private final Map<NamespacedKey, T> entries;
 
@@ -935,7 +941,7 @@ public class TestRegistryAccess implements RegistryAccess {
     // empty fallback registry
     // ---------------------------------------------------------------
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "deprecation", "removal"})
     private static final Registry EMPTY = new Registry<Keyed>() {
         @Override
         public Iterator<Keyed> iterator() {
