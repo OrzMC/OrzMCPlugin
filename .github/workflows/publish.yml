@@ -142,12 +142,17 @@ jobs:
           git commit -m "chore: bump version to $NEW"
           git push origin "$BRANCH" --force
 
-          # 创建 Bump PR（PR 可能已存在，忽略错误）
-          gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "chore: bump version to $NEW" \
-            --body "Automated version bump after release ${{ github.ref_name }}" || true
+          # 创建 Bump PR
+          # 先检查是否已存在同分支的 PR，避免重复创建
+          if gh pr list --head "$BRANCH" --json number --jq 'length > 0' | grep -q true; then
+            echo "⚠️  PR for branch $BRANCH already exists, skipping creation"
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore: bump version to $NEW" \
+              --body "Automated version bump after release ${{ github.ref_name }}"
+          fi
 
-          # 启用自动合并
+          # 启用自动合并（如果 PR 存在）
           gh pr merge "$BRANCH" --auto --merge || true
