@@ -5,7 +5,6 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public final class BlacklistService {
@@ -67,9 +66,8 @@ public final class BlacklistService {
     private List<String> loadPatterns() {
         FileConfiguration cfg = configService.getConfig(CONFIG_NAME);
         if (cfg == null) return List.of();
-        ConfigurationSection section = cfg.getConfigurationSection(CONFIG_NAME);
-        return com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpBlacklist.from(section)
-                .patterns();
+        List<String> list = cfg.getStringList(CONFIG_NAME);
+        return Collections.unmodifiableList(list);
     }
 
     private void persist(List<String> list) {
