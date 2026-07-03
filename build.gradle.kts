@@ -31,11 +31,7 @@ repositories {
         name = "sonatype"
         url = uri("https://oss.sonatype.org/content/groups/public/")
     }
-    // 官方Maven中心仓（放在阿里云镜像之前，避免 CI 被阿里云 502 阻断）
     mavenCentral()
-    // 中国大陆备用镜像站：阿里云（仅作 fallback）
-    maven("https://maven.aliyun.com/repository/central")
-    maven("https://maven.aliyun.com/repository/public")
 }
 dependencies {
     // orc-mc-api 子模块（纯 Java 端口与模型）
