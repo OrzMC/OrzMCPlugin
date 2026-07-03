@@ -38,7 +38,40 @@ jobs:
       - name: publish to Hangar
         env:
           HANGAR_API_TOKEN: ${{ secrets.HANGAR_API_TOKEN }}
-        run: ./gradlew shadowJar publishPluginPublicationToHangar --stacktrace
+        run: |
+          # 先构建 shadowJar（快速失败，不消耗 Hangar API 调用）
+          ./gradlew shadowJar --stacktrace
+
+          # 发布到 Hangar，含重试逻辑。
+          # Hangar 在 Release 通道处理较慢，可能返回 504 Gateway Timeout，
+          # 但此时上传往往已成功完成，因此需要重试并处理“版本已存在”的情况。
+          max_attempts=3
+          for attempt in $(seq 1 $max_attempts); do
+            echo "::group::Hangar publish attempt ${attempt}/${max_attempts}"
+            output=$(./gradlew publishPluginPublicationToHangar --stacktrace 2>&1) && {
+              echo "$output"
+              echo "::endgroup::"
+              echo "✅ Published to Hangar on attempt ${attempt}"
+              exit 0
+            }
+            echo "$output"
+            echo "::endgroup::"
+
+            # 如果 Hangar 返回“版本已存在”，说明之前的尝试已成功上传
+            if echo "$output" | grep -qi "already exists\|already created\|version.*already\|duplicate"; then
+              echo "⚠️  Version appears to already exist on Hangar — treating as success"
+              exit 0
+            fi
+
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              delay=$((attempt * 20))
+              echo "⏳ Attempt ${attempt} failed, retrying in ${delay}s..."
+              sleep "$delay"
+            fi
+          done
+
+          echo "❌ All ${max_attempts} Hangar publish attempts failed"
+          exit 1
 
       - name: create GitHub Release
         if: github.ref_type == 'tag'
