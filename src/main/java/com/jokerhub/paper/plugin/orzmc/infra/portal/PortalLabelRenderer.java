@@ -88,8 +88,8 @@ public final class PortalLabelRenderer {
         }
         if (signBlock.getState() instanceof Sign sign) {
             SignSide front = sign.getSide(Side.FRONT);
-            front.setLine(0, "传送门");
-            front.setLine(1, host + ":" + port);
+            front.line(0, Component.text("传送门"));
+            front.line(1, Component.text(host + ":" + port));
             sign.update(true, false);
         }
     }
