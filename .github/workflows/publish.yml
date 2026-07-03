@@ -51,14 +51,14 @@ jobs:
           git checkout -b "$BRANCH" origin/main
 
           # 读取当前版本，递增 patch
-          CURRENT=$(yq '.version' src/main/resources/paper-plugin.yml)
+          CURRENT=$(sed -n 's/^version: *//p' src/main/resources/paper-plugin.yml)
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
           PATCH=$(echo "$CURRENT" | cut -d. -f3)
           NEW="$MAJOR.$MINOR.$((PATCH + 1))"
 
           # 写入新版本
-          yq -i ".version = \"$NEW\"" src/main/resources/paper-plugin.yml
+          sed -i 's/^version:.*/version: '"$NEW"'/' src/main/resources/paper-plugin.yml
 
           # 提交并推送
           git config user.name "github-actions[bot]"
