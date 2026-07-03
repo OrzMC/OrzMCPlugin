@@ -93,6 +93,8 @@ plugins {
     id("xyz.jpenilla.run-paper") version "3.0.2"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
+    // Modrinth 自动发布：https://github.com/modrinth/minotaur
+    id("com.modrinth.minotaur") version "2.+"
     id("com.diffplug.spotless") version "8.7.0"
     id("jacoco")
 }
@@ -160,6 +162,21 @@ hangarPublish {
             }
         }
     }
+}
+
+modrinth {
+    token.set(System.getenv("MODRINTH_TOKEN"))
+    projectId.set(System.getenv("MODRINTH_PROJECT_ID") ?: (property("modrinth_project_id") as String))
+    versionNumber.set(shadowJarVersion)
+    versionName.set(shadowJarVersion)
+    versionType.set(if (isRelease) "release" else "beta")
+    changelog.set(changelogContent)
+    uploadFile.set(tasks.shadowJar)
+    gameVersions.addAll(
+        (property("plugin_support_paper_versions") as String)
+            .split(",").map { it.trim() }
+    )
+    loaders.add("paper")
 }
 
 val debugServerVesion = property("plugin_debug_server_version") as String
