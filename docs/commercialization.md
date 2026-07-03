@@ -28,7 +28,7 @@
 |------|------|
 | **目标平台** | Paper 26.1+（Minecraft Java 版） |
 | **语言** | Java 25+，Gradle（Kotlin DSL）构建 |
-| **当前发布渠道** | [Hangar](https://hangar.papermc.io/wangzhizhou666/OrzMC)（免费） |
+| **当前发布渠道** | [Hangar](https://hangar.papermc.io/OrzMC/OrzMC)（免费） |
 | **许可证** | ❌ 无许可证文件 → 默认 "All Rights Reserved" |
 | **集成平台** | QQ（NapCatQQ/OneBot）、Discord（JDA）、飞书（Webhook） |
 | **代码质量** | 分层架构、单元测试、集成测试、CI/CD、文档完整 |

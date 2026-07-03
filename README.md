@@ -1,23 +1,17 @@
 # OrzMCPlugin
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
-[![Publish to Hangar](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
+[![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
+[![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
-[![OrzMC](https://img.shields.io/hangar/dt/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
-[![OrzMC](https://img.shields.io/hangar/stars/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
-[![OrzMC](https://img.shields.io/hangar/views/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
+多平台机器人集成的 Paper 服务器管理插件
 
-[![OrzMC](https://api.mcbanners.com/banner/resource/hangar/OrzMC/banner.png?background__template=DARK_GUNMETAL)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
+> 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，由于
+> `PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
+> 所以插件开发对有 Bukkit 和 Spigot 插件开发经验的开发者也比较友好
+> 
+> 目前主要安装在我的 [私服](https://orzmc.jokerhub.cn) 用来辅助管理员运维，并发布在：[Hangar](https://hangar.papermc.io/OrzMC/OrzMC) 和 [modrinth](https://modrinth.com/plugin/orzmc) 两个平台
 
-## 参与贡献
-
-欢迎通过 [Issue](https://github.com/OrzMC/OrzMCPlugin/issues/new/choose) 报告 Bug 或提出建议。
-提交代码前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-[私服](https://orzmc.jokerhub.cn)开服自研插件，用来辅助管理员运维。
-
-本插件针对[PaperMC](https://papermc.io/)服务器进行开发，由于`PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
-所以插件开发对有 Bukkit 和 Spigot 插件开发经验的开发者也比较友好。
 
 ## 插件能力
 - 📋服务器开启强制白名单: 未添加到白名单的玩家无法进入服务器
@@ -56,26 +50,22 @@
 
 ## 插件使用
 
-首次使用插件:
-1. 下载插件后，放到PaperMC服务端插件目录`plugins/`下，启动服务端后，插件会创建同名数据目录
-2. 需要在停服后，才能修改插件数据目录下配置文件(本插件在运行期间，配置被加载到内存中，服务端停止时会写回配置文件)
+安装插件:
+1. 下载插件后，放到PaperMC服务端插件目录`plugins/`下，启动服务端后，插件会创建相同名称的数据目录
+2. 本插件在运行期间，配置被加载到内存中，服务端停止时会写回配置文件
 
-更新插件版本：
-1. PaperMC服务端在插件目录下提供一个名称为`update/`的目录，把要更新的插件jar文件放到这个目录下面
+更新插件：
+1. PaperMC服务端在插件目录下提供一个名称为`update/`的目录，把需要更新的插件jar文件放到这个目录下面
 2. 下次服务端重启时，插件会被自动移到`plugins/`目录下面，完成插件升级
 
 ## 问题反馈
-- 如果你在使用过程中发现问题，欢迎给项目提建议：[issues](https://github.com/OrzMC/OrzMCPlugin/issues)
-- 问题反馈可进入QQ频道：<br/> ![lark_issue_feedback_group](./images/lark_issue_feedback.png)
+- 如果你在使用过程中发现问题，欢迎给项目提建议：[issue](https://github.com/OrzMC/OrzMCPlugin/issues/new/choose)
+- 也可以进入QQ频道反馈问题：<br/> ![lark_issue_feedback_group](./images/lark_issue_feedback.png)
 
-## 架构概览
-- 组合根：OrzMC 负责装配依赖与绑定事件/命令
-- 适配层：Events/Commands 只做参数采集与转发（命令主体已迁移至 FeatureModule Brigadier 注册）
-- 服务层：Features 负责业务编排与规则
-- 核心层：core/ports 与 core/bot 提供端口与消息模型
-- 基础设施：infra 提供配置、通知、Bot、网络等实现
+## 参与贡献
 
-## 文档索引
+提交代码前请阅读以下内容:
+- [贡献指南](CONTRIBUTING.md)
 - [更新日志](./CHANGELOG.md)
 - [开发说明](./docs/development.md)
 - [架构设计](./docs/architecture.md)

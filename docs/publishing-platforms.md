@@ -23,20 +23,20 @@
 | 字段 | 统一值 | Hangar | Modrinth |
 |------|--------|--------|----------|
 | **项目名称** | `OrzMC` | `OrzMC` | `OrzMC` |
-| **项目页面** | — | [hangar.papermc.io/wangzhizhou666/OrzMC](https://hangar.papermc.io/wangzhizhou666/OrzMC) | [modrinth.com/plugin/r8ZufLjY](https://modrinth.com/plugin/r8ZufLjY) |
-| **项目 ID** | — | slug: `wangzhizhou666/OrzMC`（插件内部 id 取自 `paper-plugin.yml: name`） | `r8ZufLjY`（定义在 `gradle.properties: modrinth_project_id`） |
-| **简短描述** | OrzMC — 多平台机器人集成的 Paper 服务器管理插件 | 创建项目时填入 | 创建项目时填入 |
+| **项目页面** | — | [hangar.papermc.io/OrzMC/OrzMC](https://hangar.papermc.io/OrzMC/OrzMC) | [modrinth.com/plugin/orzmc](https://modrinth.com/plugin/orzmc) |
+| **项目 ID** | — | slug: `OrzMC/OrzMC` | `r8ZufLjY` |
+| **简短描述** | OrzMC — 多平台机器人集成的 Paper 服务器管理插件 | 同左 | 同左 |
 | **完整介绍** | 见[第 2 节](#2-统一项目描述) | `README.md` 同步（见[第 4 节](#4-readme-页面同步)） | `README.md` 同步 |
-| **分类** | 服务端管理 / 工具 / 社交 | `admin_tools`, `dev_tools`, `chat` | `management`, `utility`, `social`（以平台实际可选项为准） |
+| **分类** | 管理 / 工具 / 社交 | `admin_tools`, `dev_tools`, `chat` | `management`, `utility`, `social`（以平台实际可选项为准） |
 | **许可证** | GPL-3.0 | GPL-3.0 | GPL-3.0 |
 | **图标** | `assets/avatar.png`（89 KB） | 上传此文件 | 上传此文件 |
-| **网站** | `https://orzmc.jokerhub.cn` | 填入项目设置 | 填入项目设置 |
+| **网站** | `https://orzmc.jokerhub.cn` | 同左 | 同左 |
 | **支持平台** | Paper | `PAPER` | loader: `paper` |
-| **Minecraft 版本** | `26.1.x` | `plugin_support_paper_versions`（`gradle.properties`） | 同左 |
+| **Minecraft 版本** | `26.1.x` | 同左 | 同左 |
 | **JDK 版本** | 25 | — | — |
-| **源码仓库** | `https://github.com/OrzMC/OrzMCPlugin` | 填入项目设置 | 填入项目设置 |
-| **Issues** | `https://github.com/OrzMC/OrzMCPlugin/issues` | 填入项目设置 | 填入项目设置 |
-| **讨论区** | QQ频道 `https://pd.qq.com/s/9zuis6m4v` | 填入项目设置 | 填入项目设置 |
+| **源码仓库** | `https://github.com/OrzMC/OrzMCPlugin` | 同左 | 同左 |
+| **Issues** | `https://github.com/OrzMC/OrzMCPlugin/issues` | 同左 | 同左 |
+| **讨论区** | QQ频道 `https://pd.qq.com/s/9zuis6m4v` | 同左 | 同左 |
 
 > **注意**：平台特有的字段（如图标、分类、外链等）需在项目首次创建时手动填入。后续版本发布由 CI 全自动完成，无需人工干预。
 
@@ -135,7 +135,7 @@ modrinth {
 
 | 项目 | 详情 |
 |------|------|
-| **项目页面** | [hangar.papermc.io/wangzhizhou666/OrzMC](https://hangar.papermc.io/wangzhizhou666/OrzMC) |
+| **项目页面** | [hangar.papermc.io/OrzMC/OrzMC](https://hangar.papermc.io/OrzMC/OrzMC) |
 | **Gradle 插件** | `io.papermc.hangar-publish-plugin:0.1.4` |
 | **发布 task** | `publishPluginPublicationToHangar` |
 | **触发条件** | Push `main` → Snapshot channel / Push tag `x.y.z` → Release channel |
