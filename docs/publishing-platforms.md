@@ -93,14 +93,9 @@ hangarPublish {
 }
 ```
 
-**同步命令**：
+**同步命令**：`syncPluginPublicationMainResourcePagePageToHangar`
 
-| Task | 说明 |
-|------|------|
-| `syncAllPluginPublicationPagesToHangar` | 同步 "plugin" publication 的所有注册页面 |
-| `syncAllPagesToHangar` | 同步所有 publication 的所有注册页面 |
-
-> **当前状态**：未启用。启用后如需 CI 自动同步，可在 `publish.yml` 中追加 `./gradlew syncAllPluginPublicationPagesToHangar`。
+> **当前状态**：✅ 已启用。`publish.yml` 中每次版本发布成功后会运行 `./gradlew syncPluginPublicationMainResourcePagePageToHangar`。
 
 ### 4.2 Modrinth
 
@@ -113,9 +108,9 @@ modrinth {
 }
 ```
 
-**同步命令**：`./gradlew modrinthSyncBody`
+**同步命令**：`modrinthSyncBody`
 
-> **当前状态**：未启用。
+> **当前状态**：✅ 已启用。`publish.yml` 中每次版本发布成功后会运行 `./gradlew modrinthSyncBody`。
 
 ### 4.3 内容约定
 
@@ -138,18 +133,18 @@ modrinth {
 | **项目页面** | [hangar.papermc.io/OrzMC/OrzMC](https://hangar.papermc.io/OrzMC/OrzMC) |
 | **Gradle 插件** | `io.papermc.hangar-publish-plugin:0.1.4` |
 | **发布 task** | `publishPluginPublicationToHangar` |
-| **触发条件** | Push `main` → Snapshot channel / Push tag `x.y.z` → Release channel |
+| **触发条件** | Push `main` → beta channel / Push tag `x.y.z` → release channel |
 | **Token Secret** | `HANGAR_API_TOKEN`（权限：`create_version`） |
 | **重试策略** | 3 次，指数退避（20s / 40s / 60s），检测"版本已存在"幂等退出 |
 
 ### 5.2 Gradle 配置
 
 ```kotlin
-// build.gradle.kts (lines 151-165)
+// build.gradle.kts - Hangar publish
 hangarPublish {
     publications.register("plugin") {
-        version = shadowJarVersion          // 自动拼接 snapshot/release/pr/dev 后缀
-        channel = if (isRelease) "Release" else "Snapshot"
+        version = shadowJarVersion          // SemVer 格式（dev.{run} 或纯版本号）
+        channel = platformChannel           // "beta" 或 "release"（小写，与 Modrinth 统一）
         changelog = changelogContent        // 最新 commit message
         id = pluginYaml["name"] as String   // "OrzMC"
         apiKey = System.getenv("HANGAR_API_TOKEN")
@@ -175,14 +170,14 @@ hangarPublish {
 
 ### 5.4 版本号规则
 
-| 触发场景 | `shadowJarVersion` | Hangar Channel | GitHub Release |
-|----------|--------------------|----------------|----------------|
-| PR 打开 | `{version}-pr-#{PR}-{run}` | 不发布 | 不发布 |
-| Push `main` | `{version}-snapshot-{run}` | Snapshot | 不发布 |
-| Push tag `x.y.z` | `{version}`（纯 SemVer） | Release | ✅ 创建 |
-| 本地构建 | `{version}-dev` | 不发布 | 不发布 |
+| 触发场景 | `shadowJarVersion` | Hangar Channel | Modrinth Type | GitHub Release |
+|----------|--------------------|----------------|---------------|----------------|
+| PR 打开 | `{version}-pr.{PR}.{run}` | 不发布 | 不发布 | 不发布 |
+| Push `main` | `{version}-dev.{run}` | beta | beta | 不发布 |
+| Push tag `x.y.z` | `{version}`（纯 SemVer） | release | release | ✅ 创建 |
+| 本地构建 | `{version}-dev` | 不发布 | 不发布 | 不发布 |
 
-版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.7`）。
+版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.8`）。
 
 ---
 
@@ -204,7 +199,7 @@ hangarPublish {
 ### 6.2 Gradle 配置
 
 ```kotlin
-// build.gradle.kts (lines 167-180)
+// build.gradle.kts - Modrinth publish
 modrinth {
     token.set(System.getenv("MODRINTH_TOKEN"))
     projectId.set(
@@ -213,7 +208,7 @@ modrinth {
     )
     versionNumber.set(shadowJarVersion)
     versionName.set(shadowJarVersion)
-    versionType.set(if (isRelease) "release" else "beta")
+    versionType.set(platformChannel)       // "beta" 或 "release"（与 Hangar 统一）
     changelog.set(changelogContent)
     uploadFile.set(tasks.shadowJar)
     gameVersions.addAll(

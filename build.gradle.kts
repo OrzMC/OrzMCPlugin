@@ -126,8 +126,14 @@ val githubRefType: String? = System.getenv("GITHUB_REF_TYPE")
 val githubEventName: String? = System.getenv("GITHUB_EVENT_NAME")
 val githubRef: String? = System.getenv("GITHUB_REF")
 val versionString: String = version as String
-val isRelease: Boolean = (githubRefType == "tag")
 val isPrBuild: Boolean = (githubEventName == "pull_request")
+
+val tagName: String? = if (githubRefType == "tag") {
+    githubRef?.removePrefix("refs/tags/")
+} else null
+
+// 纯 SemVer tag（不含 -）→ Release，其余 → Dev（未来可扩展 alpha/beta）
+val isReleaseTag: Boolean = tagName != null && !tagName.contains("-")
 
 // Extract PR number from GITHUB_REF (format: refs/pull/42/merge)
 val prNumber: String? = if (isPrBuild && githubRef != null) {
@@ -135,23 +141,26 @@ val prNumber: String? = if (isPrBuild && githubRef != null) {
 } else null
 
 val shadowJarVersion: String = when {
-    // PR build → {version}-pr-#{PR_NUMBER}-{run_number}
-    isPrBuild && prNumber != null -> "${versionString}-pr-#${prNumber}-${githubRunNumber}"
-    // Tag push → Release: {version}
-    isRelease -> versionString
-    // CI branch push → Snapshot: {version}-snapshot-{run_number}
-    githubRunNumber != null -> "${versionString}-snapshot-${githubRunNumber}"
-    // Local development → {version}-dev
+    // Tag → Release: 直接使用 tag 名称（已经是纯 SemVer）
+    isReleaseTag && tagName != null -> tagName
+    // PR 构建 → {version}-pr.{PR}.{run}（去掉 #，改用 . 分隔，符合 SemVer）
+    isPrBuild && prNumber != null -> "${versionString}-pr.${prNumber}.${githubRunNumber}"
+    // CI 分支 push → {version}-dev.{run}
+    githubRunNumber != null -> "${versionString}-dev.${githubRunNumber}"
+    // 本地开发 → {version}-dev
     else -> "${versionString}-dev"
 }
 
 // Use the commit description for the changelog
 val changelogContent: String = latestCommitMessage()
 
+// 统一通道名（小写），Hangar 和 Modrinth 共用
+val platformChannel: String = if (isReleaseTag) "release" else "beta"
+
 hangarPublish {
     publications.register("plugin") {
         version = shadowJarVersion
-        channel = if (isRelease) "Release" else "Snapshot"
+        channel = platformChannel
         changelog = changelogContent
         id = pluginYaml["name"] as String
         apiKey = System.getenv("HANGAR_API_TOKEN")
@@ -161,6 +170,9 @@ hangarPublish {
                 platformVersions = (property("plugin_support_paper_versions") as String).split(",").map { it.trim() }
             }
         }
+
+        // 同步 README.md 到 Hangar 项目主页
+        pages.resourcePage(project.file("README.md").readText())
     }
 }
 
@@ -169,7 +181,7 @@ modrinth {
     projectId.set(System.getenv("MODRINTH_PROJECT_ID") ?: (property("modrinth_project_id") as String))
     versionNumber.set(shadowJarVersion)
     versionName.set(shadowJarVersion)
-    versionType.set(if (isRelease) "release" else "beta")
+    versionType.set(platformChannel)
     changelog.set(changelogContent)
     uploadFile.set(tasks.shadowJar)
     gameVersions.addAll(
@@ -177,6 +189,9 @@ modrinth {
             .split(",").map { it.trim() }
     )
     loaders.add("paper")
+
+    // 同步 README.md 到 Modrinth 项目主页
+    syncBodyFrom.set(project.file("README.md").readText())
 }
 
 val debugServerVesion = property("plugin_debug_server_version") as String

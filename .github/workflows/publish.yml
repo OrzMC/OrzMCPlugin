@@ -2,9 +2,9 @@ name: Publish
 on:
   push:
     branches:
-      - main                # → Snapshot 发布
+      - main                # → Dev 发布 (beta channel)
     tags:
-      - '*.*.*'             # → Release 发布（SemVer，无 v 前缀）
+      - '*.*.*'             # → Release 发布 (release channel, 纯 SemVer)
 
 permissions:
   contents: write
@@ -53,6 +53,10 @@ jobs:
               echo "$output"
               echo "::endgroup::"
               echo "✅ Published to Hangar on attempt ${attempt}"
+              echo "::group::Sync Hangar page"
+              ./gradlew syncPluginPublicationMainResourcePagePageToHangar --stacktrace
+              echo "::endgroup::"
+              echo "✅ Hangar page synced"
               exit 0
             }
             echo "$output"
@@ -85,6 +89,10 @@ jobs:
               echo "$output"
               echo "::endgroup::"
               echo "✅ Published to Modrinth on attempt ${attempt}"
+              echo "::group::Sync Modrinth body"
+              ./gradlew modrinthSyncBody --stacktrace
+              echo "::endgroup::"
+              echo "✅ Modrinth body synced"
               exit 0
             }
             echo "$output"
@@ -106,7 +114,7 @@ jobs:
           exit 1
 
       - name: create GitHub Release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
@@ -115,7 +123,7 @@ jobs:
           generate_release_notes: true
 
       - name: bump version
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

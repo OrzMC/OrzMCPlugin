@@ -75,13 +75,12 @@ OrzMC/
 
 ### 版本号与发布规则
 
-| 事件 | 版本号格式 | 目标 |
-|------|-----------|------|
-| PR → main | `{version}-dev-{timestamp}` | PR 构建产物 |
-| Push → main | `{version}-snapshot-{GITHUB_RUN_NUMBER}` | Hangar Snapshot |
-| Push tag `1.0.0` | `{version}`（纯 SemVer） | Hangar Release + GitHub Release |
+| 事件 | 版本号格式 | Hangar Channel | Modrinth Type | 目标 |
+|------|-----------|---------------|---------------|------|
+| Push → main | `{version}-dev.{GITHUB_RUN_NUMBER}` | beta | beta | Dev 快照 |
+| Push tag `1.0.0` | `{version}`（纯 SemVer） | release | release | 正式发布 + GitHub Release |
 
-Tag 使用严格 SemVer，**不加 `v` 前缀**。
+Tag 使用严格 SemVer，**不加 `v` 前缀**。本地构建产物为 `{version}-dev`，PR 构建产物为 `{version}-pr.{PR}.{RUN}`。
 
 ### 关键设计决策
 

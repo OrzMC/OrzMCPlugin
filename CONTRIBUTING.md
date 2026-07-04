@@ -61,11 +61,10 @@
 - 推送 Strict SemVer 标签（如 `1.0.0`，**无 `v` 前缀**）到 GitHub 自动触发 CI 构建并创建 GitHub Release
 - 版本命名规则见下表：
 
-| 事件 | 版本号格式 | 目标 |
-|------|-----------|------|
-| PR → main | `{version}-dev-{timestamp}` | PR 构建产物 |
-| Push → main | `{version}-snapshot-{GITHUB_RUN_NUMBER}` | 平台 Snapshot |
-| Push tag `1.0.0` | `{version}`（纯 SemVer） | 平台 Release + GitHub Release |
+| 事件 | 版本号格式 | Hangar Channel | Modrinth Type | 目标 |
+|------|-----------|---------------|---------------|------|
+| Push → main | `{version}-dev.{GITHUB_RUN_NUMBER}` | beta | beta | Dev 快照 |
+| Push tag `1.0.0` | `{version}`（纯 SemVer） | release | release | 平台 Release + GitHub Release |
 
 ## PR 流程
 
