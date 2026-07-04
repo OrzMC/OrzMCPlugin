@@ -53,6 +53,10 @@ jobs:
               echo "$output"
               echo "::endgroup::"
               echo "✅ Published to Hangar on attempt ${attempt}"
+              echo "::group::Sync Hangar page"
+              ./gradlew syncPluginPublicationMainResourcePagePageToHangar --stacktrace
+              echo "::endgroup::"
+              echo "✅ Hangar page synced"
               exit 0
             }
             echo "$output"
@@ -85,6 +89,10 @@ jobs:
               echo "$output"
               echo "::endgroup::"
               echo "✅ Published to Modrinth on attempt ${attempt}"
+              echo "::group::Sync Modrinth body"
+              ./gradlew modrinthSyncBody --stacktrace
+              echo "::endgroup::"
+              echo "✅ Modrinth body synced"
               exit 0
             }
             echo "$output"

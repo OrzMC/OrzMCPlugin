@@ -93,14 +93,9 @@ hangarPublish {
 }
 ```
 
-**同步命令**：
+**同步命令**：`syncPluginPublicationMainResourcePagePageToHangar`
 
-| Task | 说明 |
-|------|------|
-| `syncAllPluginPublicationPagesToHangar` | 同步 "plugin" publication 的所有注册页面 |
-| `syncAllPagesToHangar` | 同步所有 publication 的所有注册页面 |
-
-> **当前状态**：未启用。启用后如需 CI 自动同步，可在 `publish.yml` 中追加 `./gradlew syncAllPluginPublicationPagesToHangar`。
+> **当前状态**：✅ 已启用。`publish.yml` 中每次版本发布成功后会运行 `./gradlew syncPluginPublicationMainResourcePagePageToHangar`。
 
 ### 4.2 Modrinth
 
@@ -113,9 +108,9 @@ modrinth {
 }
 ```
 
-**同步命令**：`./gradlew modrinthSyncBody`
+**同步命令**：`modrinthSyncBody`
 
-> **当前状态**：未启用。
+> **当前状态**：✅ 已启用。`publish.yml` 中每次版本发布成功后会运行 `./gradlew modrinthSyncBody`。
 
 ### 4.3 内容约定
 

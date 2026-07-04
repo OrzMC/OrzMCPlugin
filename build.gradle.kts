@@ -161,6 +161,9 @@ hangarPublish {
                 platformVersions = (property("plugin_support_paper_versions") as String).split(",").map { it.trim() }
             }
         }
+
+        // 同步 README.md 到 Hangar 项目主页
+        pages.resourcePage(project.file("README.md").readText())
     }
 }
 
@@ -177,6 +180,9 @@ modrinth {
             .split(",").map { it.trim() }
     )
     loaders.add("paper")
+
+    // 同步 README.md 到 Modrinth 项目主页
+    syncBodyFrom.set(project.file("README.md").readText())
 }
 
 val debugServerVesion = property("plugin_debug_server_version") as String
