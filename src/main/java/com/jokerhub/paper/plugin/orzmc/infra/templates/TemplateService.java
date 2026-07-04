@@ -31,7 +31,7 @@ public final class TemplateService {
         if ("maintenance_optimize_done".equals(eventKey)) return templates.maintenanceOptimizeDone();
         if ("maintenance_optimize_error".equals(eventKey)) return templates.maintenanceOptimizeError();
         if ("server_maintenance_hint".equals(eventKey))
-            return templates.serverMaintenanceHint() + "\n--------------------\n{motd}";
+            return "{motd}\n--------------------\n" + templates.serverMaintenanceHint();
         if ("server_load".equals(eventKey)) return templates.serverLoad();
         if ("server_stop".equals(eventKey)) return templates.serverStop();
         if ("whitelist_block".equals(eventKey)) return templates.whitelistBlock();
