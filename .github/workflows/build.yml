@@ -56,6 +56,14 @@ jobs:
           path: build/reports/jacoco/
           if-no-files-found: warn
 
+      - name: upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          flags: unittests
+          fail_ci_if_error: false
+
       - name: generate build summary
         run: |
           echo "### Build Summary" >> $GITHUB_STEP_SUMMARY
