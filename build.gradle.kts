@@ -1,4 +1,6 @@
 import org.gradle.kotlin.dsl.support.serviceOf
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+import org.gradle.testing.jacoco.tasks.JacocoReport
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
 
@@ -248,17 +250,17 @@ tasks {
     withType<Test> {
         useJUnitPlatform()
         jvmArgs("-Xshare:off")
+        testLogging {
+            events("passed", "skipped", "failed")
+            showExceptions = true
+            showCauses = true
+            showStackTraces = true
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        }
         finalizedBy("jacocoTestReport")
     }
-    jacocoTestReport {
-        dependsOn(test)
-        reports {
-            xml.required.set(true)
-            html.required.set(true)
-        }
-    }
-    named("check") {
-        dependsOn("integrationTest")
+    named<Copy>("processIntegrationTestResources") {
+        duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
     }
     register<Test>("integrationTest") {
         description = "Runs integration tests on a mocked Paper server."
@@ -266,5 +268,44 @@ tasks {
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
         shouldRunAfter(test)
+        finalizedBy("jacocoTestReport")
     }
+}
+
+// JaCoCo 报告输出（在 tasks {} 块外用 withType 避免 Kotlin DSL 接收者歧义）
+tasks.withType<JacocoReport>().configureEach {
+    dependsOn("test")
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+// JaCoCo 覆盖率验证门禁
+tasks.withType<JacocoCoverageVerification>().configureEach {
+    dependsOn("test")
+    violationRules {
+        rule {
+            limit {
+                counter = "INSTRUCTION"
+                minimum = BigDecimal.valueOf(0.50)
+            }
+        }
+        rule {
+            limit {
+                counter = "BRANCH"
+                minimum = BigDecimal.valueOf(0.35)
+            }
+        }
+        rule {
+            limit {
+                counter = "LINE"
+                minimum = BigDecimal.valueOf(0.45)
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("integrationTest", "jacocoTestCoverageVerification")
 }
