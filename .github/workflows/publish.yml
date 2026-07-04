@@ -2,9 +2,9 @@ name: Publish
 on:
   push:
     branches:
-      - main                # → Snapshot 发布
+      - main                # → Dev 发布 (beta channel)
     tags:
-      - '*.*.*'             # → Release 发布（SemVer，无 v 前缀）
+      - '*.*.*'             # → Release 发布 (release channel, 纯 SemVer)
 
 permissions:
   contents: write
@@ -114,7 +114,7 @@ jobs:
           exit 1
 
       - name: create GitHub Release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
@@ -123,7 +123,7 @@ jobs:
           generate_release_notes: true
 
       - name: bump version
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
