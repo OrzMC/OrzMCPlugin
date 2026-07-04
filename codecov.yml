@@ -1,0 +1,39 @@
+# Codecov 覆盖率配置
+# 文档: https://docs.codecov.com/docs/codecovyml-reference
+coverage:
+  range: 50..80
+  round: down
+  precision: 1
+  status:
+    project:
+      default:
+        target: 50%
+        threshold: 5%
+        flags:
+          - unittests
+          - integrationtests
+    patch:
+      default:
+        target: 50%
+        threshold: 10%
+
+flags:
+  unittests:
+    paths:
+      - src/main/java/
+    carryforward: true
+  integrationtests:
+    paths:
+      - src/integrationTest/java/
+    carryforward: true
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+  hide_project_coverage: false
+
+github_checks:
+  annotations: true
