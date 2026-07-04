@@ -1,82 +1,47 @@
-# OrzMCPlugin
+# <img src="assets/avatar.png" alt="" width="32" style="vertical-align: middle;"> OrzMCPlugin
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
-[![Publish to Hangar](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
+[![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
+[![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
-[![OrzMC](https://img.shields.io/hangar/dt/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
-[![OrzMC](https://img.shields.io/hangar/stars/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
-[![OrzMC](https://img.shields.io/hangar/views/OrzMC?link=https%3A%2F%2Fhangar.papermc.io%2Fwangzhizhou666%2FOrzMC&style=flat)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
+多平台机器人集成的 Paper 服务器管理插件
 
-[![OrzMC](https://api.mcbanners.com/banner/resource/hangar/OrzMC/banner.png?background__template=DARK_GUNMETAL)](https://hangar.papermc.io/wangzhizhou666/OrzMC)
-
-## 参与贡献
-
-欢迎通过 [Issue](https://github.com/OrzMC/OrzMCPlugin/issues/new/choose) 报告 Bug 或提出建议。
-提交代码前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-[私服](https://orzmc.jokerhub.cn)开服自研插件，用来辅助管理员运维。
-
-本插件针对[PaperMC](https://papermc.io/)服务器进行开发，由于`PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
-所以插件开发对有 Bukkit 和 Spigot 插件开发经验的开发者也比较友好。
+> 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，由于
+> `PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
+> 所以插件开发对有 Bukkit 和 Spigot 插件开发经验的开发者也比较友好
+> 
+> 目前主要安装在我的 [私服](https://orzmc.jokerhub.cn) 用来辅助管理员运维，并发布在：[Hangar](https://hangar.papermc.io/OrzMC/OrzMC) 和 [modrinth](https://modrinth.com/plugin/orzmc) 两个平台
 
 ## 插件能力
-- 📋服务器开启强制白名单: 未添加到白名单的玩家无法进入服务器
-- 💬社交软件群内管理服务器（命令前缀来自 `config.yml` → `bot.cmd_prompt_char`，默认 `$`）
-  ```
-  👨‍💼 管理员命令：
-  $a	添加玩家到白名单
-  $r	从白名单移除玩家
-  $b	地图备份
-  $o	地图优化（优化地图文件大小）
-  $e	执行控制台命令
-  $d	添加/移除/查看 IP 黑名单
-  👨🏻‍💻 通用命令:
-  $l	查看在线玩家
-  $w	查看白名单玩家
-  $h	查看帮助信息
-  ```
-  > 💡 在任意指令后加 `?` 可查询该指令的详细用法（如 `$a ?`）
-  - 🐧支持QQ群：需要配合使用QQ机器人服务([NapCatQQ](https://github.com/NapNeko/NapCatQQ))，可实现在QQ群内通过命令添加/移除白名单玩家
-  - 🤖Discord频道：配置Discord机器人，可以在Discord文字频道把机器人拉入后管理服务器玩家，命令与QQ机器人一致
-  - 🕊️飞书群：飞书群自定义机器人，由于只能通过调用webhook向群里发消息，飞书群只能接收消息，无法发命令到MC服务器，所以目前只能用来同步服务器状态，不能主动管理玩家进出白名单。
-  > 2025年9月5日，NapCatQQ服务的新手用户因未正确使用token鉴权功能，被黑客利用，遭QQ群被官方大规模封号
-  > 后续本插件添加了token配置能力，建议配置NapCatQQ服务器的鉴权token
-- 提供玩家指令
-  - `/tpbow`（别名 `/tpb`） 玩家进入服务器后，可通过此命令随时获取一把传送弓。
-  - `/guide` 玩家首次进入服务器后，会获得一本玩家指南，如果后面丢掉了，可以通过此命令重新获取
-  - `/bot` 查看当前机器人状态，用来随时进行机器人通知服务的状态查询（执行时自动尝试重连 WebSocket）
-  - `/portal <host> [port]` 创建跨服跳转传送门
-  - `/portal remove <host> [port]` 移除跨服跳转传送门（需 OP 或 orzmc.admin）
-  - `/menu` 打开内置菜单(当前为占位界面，点击提示”功能开发中”，后续将逐步增加快捷功能)
-  - `/blacklist list|add|remove <pattern>`（别名 `/bl`） 管理 IP 黑名单，需 OP 或 orzmc.admin 权限
-  - `/config list|get|set|reset|dump|reload [name]`（别名 `/cfg`） 管理员运行时配置查看/修改/重置/导出/热重载
-- IP 黑名单防护：支持按 IP 地址或通配符模式（如 `192.168.*`）添加黑名单，匹配的玩家连接时将被拒绝进入服务器
-- TNT服务器防护：可通过配置文件设置，开启服务器爆炸监听、报警和防护。支持在不同世界配置TNT可用区域白名单，在设置的白名单区域内，TNT相关功能可正常生效
-- 服务区域限制：为了防止一些国家玩家对服务器的扫描和破坏，可通过配置文件设置服务器允许玩家登录的国家区域
 
-## 插件使用
+| 功能模块 | 能力说明 |
+|---------|---------|
+| 白名单管理 | 控制服务器准入，管理员可通过 Bot 命令（$a/$r/$w）添加/移除白名单，自动清理不活跃玩家，非白名单玩家踢出时附带提示 |
+| 多平台 Bot 系统 | 接入 QQ、Discord、Lark 三端，9 个 Bot 命令实现玩家管理/查询/互动，16 个可定制通知模板将服务器事件推送到对应群聊或频道 |
+| 跨服传送门 | 管理员可创建或删除传送门，玩家踩踏传送门时跨服 transfer 跳转，可选集成 LoginSecurity 验证身份后再传送 |
+| TNT 保护 | 限制 TNT 放置范围，允许区域白名单豁免，TNT 爆炸时群聊通知，并可控制重生锚的爆炸行为 |
+| 安全控制 | 按 GeoIP 判断玩家所在国家限制加入，精确 IP/CIDR 段/通配符三种黑名单模式，可选集成 LoginSecurity 二次验证 |
+| 传送弓 | 射箭即可传送至落点，自动检测落点安全性（固体方块/不危险），落点不安全时就近搜索安全位置，可配置生物传送策略 |
+| 世界维护 | 一键备份或优化世界地图文件，实时进度报告，维护期间 MOTD 自动切换提示玩家 |
+| 玩家通知 | 玩家加入/退出/被踢出时向群聊推送详情（含角色名、原因），玩家消息前显示角色标识/头衔 |
+| 新手指南书 | 首次进服自动发放一本指南书，内容通过 YAML 配置，服主可自定义引导信息 |
+| 运行时配置 | 使用 /config 命令在游戏内管理 24 项配置，修改后热重载生效，无需重启服务器 |
+| OrzMC 菜单 | 游戏内呼出功能菜单，集成各项操作的便捷入口（开发中） |
 
-首次使用插件:
-1. 下载插件后，放到PaperMC服务端插件目录`plugins/`下，启动服务端后，插件会创建同名数据目录
-2. 需要在停服后，才能修改插件数据目录下配置文件(本插件在运行期间，配置被加载到内存中，服务端停止时会写回配置文件)
+详情可阅读：[插件全部功能](./docs/features.md)
 
-更新插件版本：
-1. PaperMC服务端在插件目录下提供一个名称为`update/`的目录，把要更新的插件jar文件放到这个目录下面
-2. 下次服务端重启时，插件会被自动移到`plugins/`目录下面，完成插件升级
+## 安装插件
+下载插件后，放到PaperMC服务端插件目录`plugins/`下，启动服务端后，插件会创建相同名称的数据目录。本插件在运行期间，配置被加载到内存中，服务端停止时会写回配置文件。
+
+## 更新插件
+PaperMC服务端在插件目录下提供一个名称为`update/`的目录，把需要更新的插件jar文件放到这个目录下面。下次服务端重启时，插件会被自动移到`plugins/`目录下面，完成插件升级。
 
 ## 问题反馈
-- 如果你在使用过程中发现问题，欢迎给项目提建议：[issues](https://github.com/OrzMC/OrzMCPlugin/issues)
-- 问题反馈可进入QQ频道：<br/> ![lark_issue_feedback_group](./images/lark_issue_feedback.png)
+如果你在使用过程中发现问题，欢迎给项目提建议：[issue](https://github.com/OrzMC/OrzMCPlugin/issues/new/choose)
 
-## 架构概览
-- 组合根：OrzMC 负责装配依赖与绑定事件/命令
-- 适配层：Events/Commands 只做参数采集与转发（命令主体已迁移至 FeatureModule Brigadier 注册）
-- 服务层：Features 负责业务编排与规则
-- 核心层：core/ports 与 core/bot 提供端口与消息模型
-- 基础设施：infra 提供配置、通知、Bot、网络等实现
+也可以进入QQ频道反馈问题：<br/> ![lark_issue_feedback_group](./images/lark_issue_feedback.png)
 
-## 文档索引
+## 参与贡献
+- [贡献指南](CONTRIBUTING.md)（含开发说明、迭代规范）
+- [插件架构](./docs/architecture.md)
 - [更新日志](./CHANGELOG.md)
-- [开发说明](./docs/development.md)
-- [架构设计](./docs/architecture.md)
-- [迭代规范](./docs/governance.md)

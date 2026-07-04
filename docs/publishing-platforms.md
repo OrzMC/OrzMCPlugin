@@ -1,7 +1,7 @@
 # 发布平台运维手册
 
 > OrzMC 插件发布平台统一信息源与运维指南
-> 最后更新：2026-07-03
+> 最后更新：2026-07-04
 
 ---
 
@@ -23,20 +23,20 @@
 | 字段 | 统一值 | Hangar | Modrinth |
 |------|--------|--------|----------|
 | **项目名称** | `OrzMC` | `OrzMC` | `OrzMC` |
-| **项目页面** | — | [hangar.papermc.io/wangzhizhou666/OrzMC](https://hangar.papermc.io/wangzhizhou666/OrzMC) | [modrinth.com/plugin/r8ZufLjY](https://modrinth.com/plugin/r8ZufLjY) |
-| **项目 ID** | — | slug: `wangzhizhou666/OrzMC`（插件内部 id 取自 `paper-plugin.yml: name`） | `r8ZufLjY`（定义在 `gradle.properties: modrinth_project_id`） |
-| **简短描述** | OrzMC — 多平台机器人集成的 Paper 服务器管理插件 | 创建项目时填入 | 创建项目时填入 |
+| **项目页面** | — | [hangar.papermc.io/OrzMC/OrzMC](https://hangar.papermc.io/OrzMC/OrzMC) | [modrinth.com/plugin/orzmc](https://modrinth.com/plugin/orzmc) |
+| **项目 ID** | — | slug: `OrzMC/OrzMC` | `r8ZufLjY` |
+| **简短描述** | OrzMC — 多平台机器人集成的 Paper 服务器管理插件 | 同左 | 同左 |
 | **完整介绍** | 见[第 2 节](#2-统一项目描述) | `README.md` 同步（见[第 4 节](#4-readme-页面同步)） | `README.md` 同步 |
-| **分类** | 服务端管理 / 工具 / 社交 | `admin_tools`, `dev_tools`, `chat` | `management`, `utility`, `social`（以平台实际可选项为准） |
+| **分类** | 管理 / 工具 / 社交 | `admin_tools`, `dev_tools`, `chat` | `management`, `utility`, `social`（以平台实际可选项为准） |
 | **许可证** | GPL-3.0 | GPL-3.0 | GPL-3.0 |
 | **图标** | `assets/avatar.png`（89 KB） | 上传此文件 | 上传此文件 |
-| **网站** | `https://orzmc.jokerhub.cn` | 填入项目设置 | 填入项目设置 |
+| **网站** | `https://orzmc.jokerhub.cn` | 同左 | 同左 |
 | **支持平台** | Paper | `PAPER` | loader: `paper` |
-| **Minecraft 版本** | `26.1.x` | `plugin_support_paper_versions`（`gradle.properties`） | 同左 |
+| **Minecraft 版本** | `26.1.x` | 同左 | 同左 |
 | **JDK 版本** | 25 | — | — |
-| **源码仓库** | `https://github.com/OrzMC/OrzMCPlugin` | 填入项目设置 | 填入项目设置 |
-| **Issues** | `https://github.com/OrzMC/OrzMCPlugin/issues` | 填入项目设置 | 填入项目设置 |
-| **讨论区** | QQ频道 `https://pd.qq.com/s/9zuis6m4v` | 填入项目设置 | 填入项目设置 |
+| **源码仓库** | `https://github.com/OrzMC/OrzMCPlugin` | 同左 | 同左 |
+| **Issues** | `https://github.com/OrzMC/OrzMCPlugin/issues` | 同左 | 同左 |
+| **讨论区** | QQ频道 `https://pd.qq.com/s/9zuis6m4v` | 同左 | 同左 |
 
 > **注意**：平台特有的字段（如图标、分类、外链等）需在项目首次创建时手动填入。后续版本发布由 CI 全自动完成，无需人工干预。
 
@@ -135,7 +135,7 @@ modrinth {
 
 | 项目 | 详情 |
 |------|------|
-| **项目页面** | [hangar.papermc.io/wangzhizhou666/OrzMC](https://hangar.papermc.io/wangzhizhou666/OrzMC) |
+| **项目页面** | [hangar.papermc.io/OrzMC/OrzMC](https://hangar.papermc.io/OrzMC/OrzMC) |
 | **Gradle 插件** | `io.papermc.hangar-publish-plugin:0.1.4` |
 | **发布 task** | `publishPluginPublicationToHangar` |
 | **触发条件** | Push `main` → Snapshot channel / Push tag `x.y.z` → Release channel |
@@ -199,7 +199,7 @@ hangarPublish {
 | **触发条件** | Push `main` → `beta` / Push tag `x.y.z` → `release` |
 | **Token Secret** | `MODRINTH_TOKEN`（权限：`VERSION_CREATE` + `PROJECT_WRITE`） |
 | **重试策略** | 3 次，指数退避（20s / 40s / 60s），检测"版本已存在"幂等退出 |
-| **审核状态** | 审核中（审核通过前 API 可能无法创建版本） |
+| **审核状态** | ⏳ 审核中（详见 [第 6.5 节](#65-审核时间说明)） |
 
 ### 6.2 Gradle 配置
 
@@ -237,8 +237,43 @@ modrinth {
 
 ### 6.4 待办
 
-- [ ] 生成 Modrinth PAT，添加到 GitHub Secrets → `MODRINTH_TOKEN`
-- [ ] 等待 Modrinth 项目审核通过
+- [x] 生成 Modrinth PAT，添加到 GitHub Secrets → `MODRINTH_TOKEN`
+- [ ] 等待 Modrinth 项目审核通过（见 [第 6.5 节](#65-审核时间说明)）
+
+### 6.5 审核时间说明
+
+两个平台的审核机制完全不同，下表汇总了截至 2026 年 7 月的最新情况：
+
+| 平台 | 审核方式 | 标准时间 | 2025-2026 实际情况 |
+|------|---------|---------|-------------------|
+| **Modrinth** | 人工审核 | 24-48 小时（官方目标） | ⚠️ **1-4 周**（高峰期可能更长） |
+| **Hangar** | 自动化发布，**无需人工审核** | 即时上线 | ✅ 发布即可用 |
+
+#### Modrinth 审核详情
+
+- **官方目标**：标准项目 24-48 小时，整合包 72-96 小时
+- **实际现状**：2025 年起因流量激增和审核团队规模有限（全公司仅 17 人，审核团队 7 人），实际等待时间通常为 **1-4 周**
+- **2025 年 7 月改进**：Modrinth 官方承认"创作者等待数周才能通过审核是不可接受的"，并采取了以下措施：
+  - 新招聘 **3 名审核员**，审核团队扩至 **7 人**
+  - 改造了审核工具以提高效率
+- **可能延长审核的因素**：
+  - 周末提交（积压增加）
+  - 触发恶意软件扫描器标记（需人工代码审查）
+  - 审核员休假 / 高峰期提交量激增
+- **注意事项**：
+  - 提交后修改内容 **不会** 重置排队位置（除非被拒绝后重新提交）
+  - 催审 **不会** 加快进度，反而可能拖慢
+  - 项目不会在队列中丢失——状态显示 "Under review" 即表示正在处理中
+
+#### Hangar 审核详情
+
+- **无需人工审核**：Hangar 采用完全自动化的 CI/CD 发布流程
+- 使用官方 Gradle 插件 `io.papermc.hangar-publish-plugin`（当前最新 0.1.4）配合 GitHub Actions
+- 通过 API Token 配置后，**push 代码即自动发布**，版本立即上线
+- **Snapshot / Alpha / Beta 频道**：即时上线，无审核门禁
+- Release 频道同样自动化处理，无额外审核步骤
+
+**建议**：提交 Modrinth 审核后可同时发布到 Hangar 让用户先能用上，Modrinth 审核通过后两个平台同步更新即可。
 
 ---
 
