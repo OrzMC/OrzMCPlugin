@@ -84,7 +84,7 @@ jobs:
 
       - name: post PR comment
         uses: actions/github-script@v9
-        if: success()
+        if: success() && github.event_name == 'pull_request'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
