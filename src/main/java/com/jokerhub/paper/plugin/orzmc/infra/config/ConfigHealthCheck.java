@@ -281,61 +281,8 @@ public final class ConfigHealthCheck {
         if (!cfg.contains("templates.role_alias.admin")) issues.add("建议: templates.role_alias.admin 缺失");
         if (!cfg.contains("templates.role_alias.member")) issues.add("建议: templates.role_alias.member 缺失");
         if (!cfg.contains("templates.role_groups")) issues.add("建议: templates.role_groups 未配置，将使用默认别名");
-        String[] commandKeys = {
-            "command_output",
-            "command_help",
-            "command_players",
-            "command_whitelist_header",
-            "command_whitelist_page",
-            "command_whitelist_cleanup",
-            "command_whitelist_add_result",
-            "command_whitelist_remove_result",
-            "command_admin_required",
-            "command_usage",
-            "command_backup",
-            "command_optimize",
-            "command_optimize_disabled",
-            "command_blacklist_list",
-            "command_blacklist_add",
-            "command_blacklist_remove",
-            "command_blacklist_error"
-        };
-        String[] requiredTemplates = {
-            "command_output",
-            "command_help",
-            "command_players",
-            "command_whitelist_header",
-            "command_whitelist_page",
-            "command_whitelist_cleanup",
-            "command_whitelist_add_result",
-            "command_whitelist_remove_result",
-            "command_blacklist_list",
-            "command_blacklist_add",
-            "command_blacklist_remove",
-            "command_blacklist_error",
-            "command_admin_required",
-            "command_usage",
-            "command_backup",
-            "command_optimize",
-            "command_optimize_disabled",
-            "server_load",
-            "server_stop",
-            "whitelist_block",
-            "whitelist_toggle_alert",
-            "player_join",
-            "player_quit",
-            "player_kick",
-            "exception_alert",
-            "geoip_block",
-            "tnt_alert",
-            "maintenance_backup_stage",
-            "maintenance_backup_done",
-            "maintenance_backup_error",
-            "maintenance_optimize_stage",
-            "maintenance_optimize_done",
-            "maintenance_optimize_error",
-            "server_maintenance_hint"
-        };
+        String[] commandKeys = TemplateKeys.COMMAND_KEYS;
+        String[] requiredTemplates = TemplateKeys.ALL;
         for (String key : requiredTemplates) {
             if (!cfg.contains("templates." + key)) {
                 issues.add("缺失: templates." + key);

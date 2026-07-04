@@ -1,3 +1,4 @@
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
 import org.gradle.testing.jacoco.tasks.JacocoReport
 
 plugins {
@@ -65,4 +66,27 @@ tasks.withType<JacocoReport>().configureEach {
         xml.required.set(true)
         html.required.set(true)
     }
+}
+
+// orzmc-api 覆盖率验证门禁（纯接口模块，100% 覆盖）
+tasks.withType<JacocoCoverageVerification>().configureEach {
+    dependsOn("test")
+    violationRules {
+        rule {
+            limit {
+                counter = "INSTRUCTION"
+                minimum = BigDecimal.valueOf(1.00)
+            }
+        }
+        rule {
+            limit {
+                counter = "LINE"
+                minimum = BigDecimal.valueOf(1.00)
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("jacocoTestCoverageVerification")
 }

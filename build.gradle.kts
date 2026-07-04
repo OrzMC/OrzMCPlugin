@@ -288,19 +288,19 @@ tasks.withType<JacocoCoverageVerification>().configureEach {
         rule {
             limit {
                 counter = "INSTRUCTION"
-                minimum = BigDecimal.valueOf(0.50)
+                minimum = BigDecimal.valueOf(0.60)
             }
         }
         rule {
             limit {
                 counter = "BRANCH"
-                minimum = BigDecimal.valueOf(0.35)
+                minimum = BigDecimal.valueOf(0.50)
             }
         }
         rule {
             limit {
                 counter = "LINE"
-                minimum = BigDecimal.valueOf(0.45)
+                minimum = BigDecimal.valueOf(0.55)
             }
         }
     }
