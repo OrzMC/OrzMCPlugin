@@ -25,6 +25,9 @@ public final class ConfigService {
         configManager.registerConfig("ip_blacklist", "ip_blacklist.yml");
         configManager.markAlwaysSave("ip_blacklist");
 
+        // Register EasyBot config (independent from bot.yml)
+        configManager.registerConfig("easybot", "easybot.yml");
+
         // Set defaults for bot (used programmatically)
         configManager.setDefaults("bot", config -> {});
         configManager.setDefaults("guide_book", config -> {});

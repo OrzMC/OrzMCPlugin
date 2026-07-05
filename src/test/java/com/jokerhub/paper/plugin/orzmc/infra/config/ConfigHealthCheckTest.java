@@ -17,6 +17,7 @@ class ConfigHealthCheckTest {
     private YamlConfiguration bot;
     private YamlConfiguration templates;
     private YamlConfiguration portals;
+    private YamlConfiguration easybot;
     private Function<String, FileConfiguration> provider;
 
     @BeforeEach
@@ -25,11 +26,13 @@ class ConfigHealthCheckTest {
         bot = new YamlConfiguration();
         templates = new YamlConfiguration();
         portals = new YamlConfiguration();
+        easybot = new YamlConfiguration();
         provider = name -> switch (name) {
             case "config" -> config;
             case "bot" -> bot;
             case "templates" -> templates;
             case "portals" -> portals;
+            case "easybot" -> easybot;
             default -> null;
         };
     }
@@ -226,6 +229,7 @@ class ConfigHealthCheckTest {
         assertTrue(issues.contains("bot.yml 未加载"));
         assertTrue(issues.contains("templates.yml 未加载"));
         assertTrue(issues.contains("portals.yml 未加载"));
+        assertTrue(issues.contains("easybot.yml 未加载"));
     }
 
     // ================================================================

@@ -18,6 +18,7 @@ public final class ConfigHealthCheck {
         List<String> issues = new ArrayList<>();
         validateConfig(provider.apply("config"), provider, issues);
         validateBot(provider.apply("bot"), issues);
+        validateEasyBot(provider.apply("easybot"), issues);
         validateTemplates(provider.apply("templates"), provider, issues);
         validatePortals(provider.apply("portals"), issues);
         return issues;
@@ -163,6 +164,61 @@ public final class ConfigHealthCheck {
         if (httpConn <= 0) issues.add("非法: bot.http_connect_timeout_seconds 必须为正数");
         if (httpReq <= 0) issues.add("非法: bot.http_request_timeout_seconds 必须为正数");
         if (httpRetries < 0) issues.add("非法: bot.http_max_retries 不得为负数");
+    }
+
+    private static void validateEasyBot(FileConfiguration cfg, List<String> issues) {
+        if (cfg == null) {
+            issues.add("easybot.yml 未加载");
+            return;
+        }
+
+        // 检测是否有至少一个平台启用了 enabled: true
+        boolean anyPlatformEnabled = false;
+        ConfigurationSection platformsSec = cfg.getConfigurationSection("platforms");
+        if (platformsSec != null) {
+            for (String key : platformsSec.getKeys(false)) {
+                ConfigurationSection sec = platformsSec.getConfigurationSection(key);
+                if (sec == null) {
+                    issues.add("非法: easybot.platforms." + key + " 需为对象");
+                    continue;
+                }
+                Object enabledField = sec.get("enabled");
+                if (enabledField != null && !(enabledField instanceof Boolean)) {
+                    issues.add("类型错误: easybot.platforms." + key + ".enabled 需为布尔值");
+                }
+                if (enabledField instanceof Boolean && (Boolean) enabledField) {
+                    anyPlatformEnabled = true;
+                    String adminGroup = sec.getString("admin_group", "");
+                    if (adminGroup.isEmpty()) {
+                        issues.add("建议: easybot.platforms." + key + ".admin_group 未配置");
+                    } else if (!adminGroup.contains(":")) {
+                        issues.add("格式: easybot.platforms." + key + ".admin_group 需为 'platform:chatId' 格式");
+                    }
+                }
+            }
+        }
+
+        if (anyPlatformEnabled) {
+            String apiServer = cfg.getString("api_server", "");
+            if (apiServer.isEmpty()) {
+                issues.add("缺失: easybot.api_server 有平台启用时必须配置");
+            }
+            String wsServer = cfg.getString("ws_server", "");
+            if (wsServer.isEmpty()) {
+                issues.add("缺失: easybot.ws_server 有平台启用时必须配置");
+            }
+            String apiKey = cfg.getString("api_key", "");
+            if (apiKey.isEmpty()) {
+                issues.add("缺失: easybot.api_key 有平台启用时必须配置");
+            }
+        }
+        // Validate HTTP timeouts
+        int httpConn = cfg.getInt("http_connect_timeout_seconds", 3);
+        int httpReq = cfg.getInt("http_request_timeout_seconds", 3);
+        int httpRetries = cfg.getInt("http_max_retries", 3);
+        if (httpConn <= 0) issues.add("非法: easybot.http_connect_timeout_seconds 必须为正数");
+        if (httpReq <= 0) issues.add("非法: easybot.http_request_timeout_seconds 必须为正数");
+        if (httpRetries < 0) issues.add("非法: easybot.http_max_retries 不得为负数");
     }
 
     private static void validatePortals(FileConfiguration cfg, List<String> issues) {
