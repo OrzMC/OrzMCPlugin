@@ -30,17 +30,6 @@ parse_mode: 'none'
 #  扩展平台只需在此加配置段，零代码改动
 # ===========================================================================
 platforms:
-  # ===== QQ =====
-  qq:
-    # 启用此平台（false 则不收不发）
-    enabled: false
-    # 管理群 — 管理员专属频道
-    admin_group: 'qq:1082305302'
-    # 玩家群 — PUBLIC 默认目标（留空则降级 admin_group）
-    player_group: ''
-    # 管理员私聊
-    admin_dm: 'qq:1092760538'
-
   # ===== Discord =====
   discord:
     enabled: false
@@ -60,6 +49,17 @@ platforms:
     player_group: ''
     # 管理员私聊
     admin_dm: 'telegram:123456789'
+
+  # ===== QQ =====
+  qq:
+    # 启用此平台（false 则不收不发）
+    enabled: false
+    # 管理群 — 管理员专属频道
+    admin_group: 'qq:1082305302'
+    # 玩家群 — PUBLIC 默认目标（留空则降级 admin_group）
+    player_group: ''
+    # 管理员私聊
+    admin_dm: 'qq:1092760538'
 
   # ===== 飞书 =====
   feishu:
