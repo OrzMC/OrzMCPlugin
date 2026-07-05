@@ -11,10 +11,10 @@
 # ===========================================================================
 
 # EasyBot API 服务端地址（REST API）
-api_server: 'http://127.0.0.1:8020'
+api_server: 'http://127.0.0.1:8080'
 
 # EasyBot WebSocket 服务端地址（用于接收实时事件推送）
-ws_server: 'ws://127.0.0.1:8020'
+ws_server: 'ws://127.0.0.1:8080'
 
 # API 密钥（REST 和 WebSocket 共用）
 api_key: ''
