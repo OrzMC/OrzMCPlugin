@@ -424,7 +424,7 @@ public class OrzEasyBot implements BotAdapter {
                 return;
             }
 
-            // sender.role: 发送者角色（EasyBot 已标准化）
+            // sender.role: 发送者角色（EasyBot 已各平台标准化）
             boolean isAdmin = false;
             if (data.has("sender") && data.get("sender").isJsonObject()) {
                 JsonObject sender = data.getAsJsonObject("sender");
