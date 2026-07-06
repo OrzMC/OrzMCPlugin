@@ -17,6 +17,10 @@
 ### 📄 许可
 - 添加 GPL-3.0 开源许可证
 
+### 🐛 修复
+- **BotReconnectionManager 异常处理** — `tryReconnectIfDisconnected` 中 `onReconnect.run()` 抛出的异常不再阻断后续重连逻辑，正确记录重连状态。
+- **BotReconnectionManager 测试修复** — `tryReconnect_qqDisabled_doesNothing` 测试修正为验证 `enable_qq_bot=false` 时方法提前返回行为。
+
 ### ⚙️ CI/CD
 - bump-version 步骤在 PR 创建失败时正确退出而非继续执行
 
