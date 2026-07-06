@@ -43,7 +43,7 @@ dependencies {
     // WebSocket Client For NapCat QQBot
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
     // Java Discord API
-    implementation("net.dv8tion:JDA:6.4.2") {
+    implementation("net.dv8tion:JDA:6.5.0") {
         exclude(module = "opus-java")
         exclude(module = "tink")
     }
@@ -79,7 +79,7 @@ dependencies {
     val integrationPaperVersion = property("plugin_debug_server_version") as String
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.1")
     add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion.build.+")
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.113.4")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.114.0")
     add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:5.4.0")
     add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
     add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
@@ -97,7 +97,7 @@ plugins {
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
     id("com.modrinth.minotaur") version "2.+"
-    id("com.diffplug.spotless") version "8.7.0"
+    id("com.diffplug.spotless") version "8.8.0"
     id("jacoco")
 }
 
