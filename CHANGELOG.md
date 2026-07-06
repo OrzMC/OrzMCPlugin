@@ -1,10 +1,62 @@
 # Changelog
 
-## [Unreleased] — 1.0.8-dev
+## [Unreleased]
+
+### 🚀 新功能
+- **EasyBot IM 网关适配器** — 新增 `OrzEasyBot` 适配器，支持通过 EasyBot IM Gateway WebSocket 协议接入 IM 平台（QQ / Discord / Lark 等），配置于 `easybot.yml`。
+- **`/bot` 命令 EasyBot 重连支持** — `/bot` 命令触发重连时，除 QQ Bot 外同时检查并重建 EasyBot 适配器的 WebSocket 连接。
+
+### 🐛 修复
+- **BotReconnectionManager 异常处理** — `tryReconnectIfDisconnected` 中 `onReconnect.run()` 抛出的异常不再阻断后续重连逻辑，正确记录重连状态。
+- **BotReconnectionManager 测试修复** — `tryReconnect_qqDisabled_doesNothing` 测试修正为验证 `enable_qq_bot=false` 时方法提前返回行为。
+
+### 📝 文档
+- 新增 飞书 WebSocket 多实例限制说明及 EasyBot 网关平台信息
+
+### ⬆️ 依赖升级
+- `net.dv8tion:JDA: 6.4.2` → `6.5.0`
+- `org.mockbukkit.mockbukkit:mockbukkit-v26.1.2` → `4.114.0`
+- `com.diffplug.spotless: 8.7.0` → `8.8.0`
+- `codecov/codecov-action: 5` → `7`
+
+---
+
+## [1.0.10] - 2026-07-05
+
+### 🐛 修复
+- **bump 版本回退 PR 方式** — 由于 main 分支有 branch protection 规则，bump 版本改为通过 PR 方式提交，直接推送到 main 会因保护规则被拒绝。
+
+### ⚙️ CI/CD
+- 版本号递增至 1.0.10
+
+---
+
+## [1.0.9] - 2026-07-05
+
+### 🐛 修复
+- **Modrinth 版本号唯一性检查** — 修复 Modrinth 发布因版本号重复失败的问题，bump 版本改为直接推送到 main（绕过 PR 限制）。
+
+### ⚙️ CI/CD
+- 版本号递增至 1.0.9
+
+---
+
+## [1.0.8] - 2026-07-05
 
 ### 🚀 新功能
 - **Modrinth 自动发布** — 集成 Minotaur Gradle 插件，CI 支持自动发布到 Modrinth 平台，与 Hangar 对称的重试/幂等策略。
 - **项目图标** — 添加 `assets/avatar.png` 项目图标，并嵌入 README 标题。
+- **orzmc-api 模块独立测试** — 为 orzmc-api 纯 Java 模块补充独立测试套件。
+- **README 自动同步** — 发布时自动将 README.md 同步至 Modrinth 和 Hangar 项目页面。
+
+### 🔧 重构
+- **统一 SemVer 版本号** — Hangar 与 Modrinth 统一使用标准 SemVer 版本号格式，消除两套不兼容的版本字符串。
+- **代码质量提升** — JaCoCo 覆盖率阈值提升，新增 Codecov 集成，修复 6 项代码质量问题。
+
+### 🐛 修复
+- **server_maintenance_hint 模板顺序** — 交换 MOTD 与提示信息顺序，MOTD 显示在上方。
+- **bump-version 失败处理** — 当 PR 创建失败时正确退出而非静默继续。
+- **CI 触发修复** — push 事件跳过 PR comment 步骤，避免空操作报错。
 
 ### 📝 文档
 - 新增 `docs/features.md`（完整的插件功能清单文档，14 个模块详细说明）
@@ -17,12 +69,12 @@
 ### 📄 许可
 - 添加 GPL-3.0 开源许可证
 
-### 🐛 修复
-- **BotReconnectionManager 异常处理** — `tryReconnectIfDisconnected` 中 `onReconnect.run()` 抛出的异常不再阻断后续重连逻辑，正确记录重连状态。
-- **BotReconnectionManager 测试修复** — `tryReconnect_qqDisabled_doesNothing` 测试修正为验证 `enable_qq_bot=false` 时方法提前返回行为。
-
 ### ⚙️ CI/CD
 - bump-version 步骤在 PR 创建失败时正确退出而非继续执行
+- 为 main 分支添加 push 触发构建
+
+### ⬆️ 依赖升级
+- `backup-core: 0.1.5` → `0.1.6`
 
 ---
 
