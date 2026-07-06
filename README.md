@@ -2,12 +2,12 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-700+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-64%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
-多平台机器人集成的 Paper 服务器管理插件
+多平台机器人集成的 Paper 服务器管理插件（QQ / Discord / Lark / EasyBot 网关）
 
 > 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，由于
 > `PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
@@ -20,7 +20,7 @@
 | 功能模块 | 能力说明 |
 |---------|---------|
 | 白名单管理 | 控制服务器准入，管理员可通过 Bot 命令（$a/$r/$w）添加/移除白名单，自动清理不活跃玩家，非白名单玩家踢出时附带提示 |
-| 多平台 Bot 系统 | 接入 QQ、Discord、Lark 三端，9 个 Bot 命令实现玩家管理/查询/互动，16 个可定制通知模板将服务器事件推送到对应群聊或频道 |
+| 多平台 Bot 系统 | 接入 QQ、Discord、Lark、EasyBot 网关四端，9 个 Bot 命令实现玩家管理/查询/互动，16 个可定制通知模板将服务器事件推送到对应群聊或频道 |
 | 跨服传送门 | 管理员可创建或删除传送门，玩家踩踏传送门时跨服 transfer 跳转，可选集成 LoginSecurity 验证身份后再传送 |
 | TNT 保护 | 限制 TNT 放置范围，允许区域白名单豁免，TNT 爆炸时群聊通知，并可控制重生锚的爆炸行为 |
 | 安全控制 | 按 GeoIP 判断玩家所在国家限制加入，精确 IP/CIDR 段/通配符三种黑名单模式，可选集成 LoginSecurity 二次验证 |
