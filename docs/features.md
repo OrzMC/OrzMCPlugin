@@ -37,8 +37,13 @@
 | **QQ Bot** | WebSocket 长连接（NapCatQQ） | 双向：接收命令 + 推送通知 |
 | **Discord Bot** | Discord Bot API | 双向：接收命令 + 推送通知 |
 | **Lark（飞书）** | Webhook | 单向：仅推送通知 |
+| **EasyBot 网关** | WebSocket 长连接 + HTTP API | 双向：接收命令 + 推送通知（支持 QQ / Telegram / Discord / 飞书 / 微信） |
 
 > QQ Bot 支持配置 NapCatQQ 鉴权 token，增强安全性。
+
+> **⚠️ 飞书 WebSocket 多实例限制：** 飞书开放平台 WebSocket 事件订阅使用**集群模式**——同一飞书应用**只随机推送到一个 WebSocket 客户端**。部署多个 EasyBot 实例时，需确保：
+> - **方案一：单实例独占**——只启动一个 EasyBot 实例接收飞书事件，其他实例通过配置 `enabled: false` 停用飞书平台；
+> - **方案二：多应用隔离**——每个 EasyBot 实例注册不同的飞书应用（不同的 `app_id` / `app_secret`），各自独立接收事件。
 
 ### 2.2 Bot 命令一览
 
