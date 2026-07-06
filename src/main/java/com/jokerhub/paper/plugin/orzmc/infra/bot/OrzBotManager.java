@@ -87,7 +87,15 @@ class OrzBotManager implements BotMessageService {
                         throttledLogger,
                         healthRegistry),
                 new OrzLarkBot(
-                        server, logger, configService, new PlainMessageFormatter(), throttledLogger, healthRegistry));
+                        server, logger, configService, new PlainMessageFormatter(), throttledLogger, healthRegistry),
+                new OrzEasyBot(
+                        server,
+                        logger,
+                        configService,
+                        inboundHandler,
+                        new PlainMessageFormatter(),
+                        throttledLogger,
+                        healthRegistry));
         router.setAdapters(adapters);
         router.setup();
     }

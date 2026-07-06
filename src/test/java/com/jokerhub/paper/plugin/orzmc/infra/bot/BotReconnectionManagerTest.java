@@ -35,9 +35,8 @@ class BotReconnectionManagerTest {
 
         manager.tryReconnectIfDisconnected(List.of(), () -> {});
 
-        // getString is called unconditionally during variable assignment,
-        // but the method returns early because qqEnabled=false
-        verify(botConfig).getString("qq_bot_ws_server");
+        // Method returns early at enable_qq_bot=false check, so getString is never called
+        verify(botConfig, never()).getString("qq_bot_ws_server");
         // No reconnect logic should execute: no health changes
         assertFalse(healthRegistry.getRaw("qq").wsConnected);
     }

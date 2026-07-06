@@ -20,7 +20,7 @@
 
 ## 架构概览
 
-**PaperMC 服务端插件** — 集成 QQ/Discord/Lark 机器人，具备白名单管理、跨服传送门、TNT 防护、GeoIP 区域限制等功能。
+**PaperMC 服务端插件** — 集成 QQ/Discord/Lark/EasyBot 网关机器人，具备白名单管理、跨服传送门、TNT 防护、GeoIP 区域限制等功能。
 
 ### 模块结构（Gradle 多模块）
 
@@ -38,7 +38,7 @@ OrzMC/
 │   ├── OrzServices.java        组合根（装配 5 个领域模块）
 │   ├── assembly/               领域模块：
 │   │   ├── PlatformModule.java     配置、服务端门面、样式、限流
-│   │   ├── BotModule.java          QQ/Discord/Lark 机器人、通知派发
+│   │   ├── BotModule.java          QQ/Discord/Lark/EasyBot 机器人、通知派发、消息路由
 │   │   ├── PortalModule.java       跨服传送门
 │   │   ├── MaintenanceModule.java  世界备份与地图优化
 │   │   └── FeatureModule.java      所有 Feature 服务 + 命令/事件注册（Brigadier 命令注册 + 拦截器链）
@@ -53,9 +53,9 @@ OrzMC/
 │   │   ├── server/            服务端生命周期事件
 │   │   └── ...                guide, menu, teleport, player
 │   ├── infra/                 基础设施实现
-│   │   ├── config/            ConfigService + 类型化配置记录类（15个）、ConfigHealthCheck
-│   │   ├── bot/               OrzBotManager, OrzQQBot, OrzDiscordBot, OrzLarkBot
-│   │   ├── notify/            Notifier + ThrottledNotifier
+│   │   ├── config/            ConfigService + 类型化配置记录类（16个，含 EasyBotConfig）、ConfigHealthCheck
+│   │   ├── bot/               OrzBotManager, BotRouter, BotAdapter, BotReconnectionManager,
+│   │   │                      OrzQQBot, OrzDiscordBot, OrzLarkBot, OrzEasyBot
 │   │   ├── ws/                RobustWebSocketClient（自动重连 + 心跳检测）
 │   │   ├── net/               AsyncHttp（指数退避重试）
 │   │   ├── scheduler/         SafeScheduler（异步异常日志包装器）

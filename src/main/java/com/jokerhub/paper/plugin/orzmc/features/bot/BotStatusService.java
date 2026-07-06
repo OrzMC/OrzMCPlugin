@@ -17,6 +17,7 @@ public final class BotStatusService {
         HealthStatus.Entry qq = health.get("qq");
         HealthStatus.Entry discord = health.get("discord");
         HealthStatus.Entry lark = health.get("lark");
+        HealthStatus.Entry easybot = health.get("easybot");
         return styles.warn("QQBot:")
                 .append(Component.space())
                 .append(qq.enabled() ? styles.success("enabled") : styles.error("disabled"))
@@ -44,6 +45,19 @@ public final class BotStatusService {
                 .append(Component.space())
                 .append(lark.httpOk() ? styles.success("httpOk") : styles.error("httpNotOk"))
                 .append(Component.space())
-                .append(lark.lastError() == null ? styles.success("") : styles.error("larkError: " + lark.lastError()));
+                .append(lark.lastError() == null ? styles.success("") : styles.error("larkError: " + lark.lastError()))
+                .append(Component.newline())
+                .append(styles.warn("EasyBot:"))
+                .append(Component.space())
+                .append(easybot.enabled() ? styles.success("enabled") : styles.error("disabled"))
+                .append(Component.space())
+                .append(easybot.httpOk() ? styles.success("httpOk") : styles.error("httpNotOk"))
+                .append(Component.space())
+                .append(easybot.wsConnected() ? styles.success("wsOk") : styles.error("wsNotOk"))
+                .append(Component.space())
+                .append(
+                        easybot.lastError() == null || easybot.lastError().isEmpty()
+                                ? styles.success("")
+                                : styles.error("lastError: " + easybot.lastError()));
     }
 }

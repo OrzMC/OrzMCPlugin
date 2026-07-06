@@ -1,7 +1,7 @@
 # 发布平台运维手册
 
 > OrzMC 插件发布平台统一信息源与运维指南
-> 最后更新：2026-07-04
+> 最后更新：2026-07-06
 
 ---
 
@@ -56,7 +56,7 @@
 
 | 功能模块 | 说明 |
 |----------|------|
-| 🤖 **多平台机器人** | QQ（NapCatQQ/OneBot）、Discord（JDA）、飞书（Webhook） |
+| 🤖 **多平台机器人** | QQ（NapCatQQ/OneBot）、Discord（JDA）、飞书（Webhook）、EasyBot IM 网关 |
 | 📋 **白名单管理** | 强制白名单，Bot 命令 `$a` / `$r` 远程增删 |
 | 💾 **世界备份与优化** | `$b` 备份、`$o` 优化、定时维护编排 |
 | 🚪 **跨服传送门** | 可配置传送门，`/portal` 命令创建/移除 |
@@ -177,7 +177,7 @@ hangarPublish {
 | Push tag `x.y.z` | `{version}`（纯 SemVer） | release | release | ✅ 创建 |
 | 本地构建 | `{version}-dev` | 不发布 | 不发布 | 不发布 |
 
-版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.8`）。
+版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.11`）。
 
 ---
 
@@ -289,7 +289,7 @@ modrinth {
 | `plugin_support_paper_versions` | `gradle.properties` | `26.1` | 两个平台共用，逗号分隔 |
 | `modrinth_project_id` | `gradle.properties` | `r8ZufLjY` | 本地默认值，CI 可通过变量覆盖 |
 | `plugin_debug_server_version` | `gradle.properties` | `26.1.2` | 仅本地调试用 |
-| `version` | `paper-plugin.yml` | `1.0.7` | 版本号源，tag 发布后自动递增 |
+| `version` | `paper-plugin.yml` | `1.0.11` | 版本号源，tag 发布后自动递增 |
 
 ### 7.3 Token 轮换
 

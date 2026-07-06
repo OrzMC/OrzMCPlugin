@@ -23,6 +23,7 @@ class BotStatusServiceTest extends ServiceTestBase {
         when(health.get("qq")).thenReturn(new HealthStatus.Entry(true, true, true, false, null, 0));
         when(health.get("discord")).thenReturn(new HealthStatus.Entry(false, false, false, false, "err", 0));
         when(health.get("lark")).thenReturn(new HealthStatus.Entry(true, true, false, false, null, 0));
+        when(health.get("easybot")).thenReturn(new HealthStatus.Entry(false, false, false, false, null, 0));
 
         BotStatusService service = new BotStatusService(styles, health);
         Component msg = service.buildStatusMessage();

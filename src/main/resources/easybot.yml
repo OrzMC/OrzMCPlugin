@@ -1,0 +1,123 @@
+# ===========================================================================
+#          EasyBot IM Gateway Configuration
+#          独立于 bot.yml，与现有 QQ/Discord/Lark 配置零耦合
+# ===========================================================================
+# EasyBot 是一个统一的 IM 网关，支持 QQ / Telegram / Discord / 飞书 / 微信，
+# 对外暴露统一的 REST API + WebSocket 事件推送。
+#
+# 全局开关已取消，插件自动检测是否有任一平台 enabled=true 来决定连接。
+# 本配置由 OrzEasyBot 适配器使用，与 OrzQQBot (NapCatQQ/OneBot 11) 完全独立。
+# 两个系统可以同时启用，互不干扰。
+# ===========================================================================
+
+# EasyBot API 服务端地址（REST API）
+api_server: 'http://127.0.0.1:8080'
+
+# EasyBot WebSocket 服务端地址（用于接收实时事件推送）
+ws_server: 'ws://127.0.0.1:8080'
+
+# API 密钥（REST 和 WebSocket 共用）
+api_key: ''
+
+# 文本解析模式：markdown / html / none
+parse_mode: 'none'
+
+# ===========================================================================
+#  多平台设置
+#  每个平台独立配置消息目标，默认全部关闭
+#  需要启用哪个平台，就把对应 enabled 改为 true 并填入正确的 target
+#  player_group 留空时 → PUBLIC 消息自动降级到 admin_group
+#  扩展平台只需在此加配置段，零代码改动
+# ===========================================================================
+platforms:
+  # ===== Discord =====
+  discord:
+    enabled: false
+    # 管理频道 ID
+    admin_group: 'discord:123456789012345678'
+    # 玩家频道 ID（留空则降级 admin_group）
+    player_group: ''
+    # 管理员私聊（Discord 私信）
+    admin_dm: 'discord:987654321098765432'
+
+  # ===== Telegram =====
+  telegram:
+    enabled: false
+    # 管理群 ID（如 "-1001234567890"）
+    admin_group: 'telegram:-1001234567890'
+    # 玩家群 ID（留空则降级 admin_group）
+    player_group: ''
+    # 管理员私聊
+    admin_dm: 'telegram:123456789'
+
+  # ===== QQ =====
+  qq:
+    # 启用此平台（false 则不收不发）
+    enabled: false
+    # 管理群 — 管理员专属频道
+    admin_group: 'qq:1082305302'
+    # 玩家群 — PUBLIC 默认目标（留空则降级 admin_group）
+    player_group: ''
+    # 管理员私聊
+    admin_dm: 'qq:1092760538'
+
+  # ===== 飞书 =====
+  feishu:
+    enabled: false
+    # 管理群 chat_id
+    admin_group: 'feishu:oc_xxxxxxxxxxxxx'
+    # 玩家群（留空则降级 admin_group）
+    player_group: ''
+    # 管理员私聊 open_id
+    admin_dm: 'feishu:ou_xxxxxxxxxxxxx'
+
+  # ===== 微信（仅支持私聊 DM） =====
+  wechat:
+    enabled: false
+    # 微信不支持群聊，admin_group 仅作为 PUBLIC 降级目标
+    admin_group: 'wechat:wxid_xxxxxxxxxxxxxx'
+    # 微信无群聊概念，player_group 通常不填
+    player_group: ''
+    # 管理员私聊
+    admin_dm: 'wechat:wxid_xxxxxxxxxxxxxx'
+
+# ===========================================================================
+#  渠道映射
+#  按用途定义消息渠道，可跨平台混搭
+#  CHANNEL 消息优先查这里，查不到则按 targetType 走默认路由
+#  启用新平台时，在对应渠道下添加该平台的 target 即可
+# ===========================================================================
+channels:
+  # 管理告警（仅管理员可见）
+  ops-alert:
+    qq: 'qq:1082305302'
+    #discord: 'discord:987654321098765432'
+    #telegram: 'telegram:-1001234567890'
+  # 玩家通知（所有玩家可见）
+  player-announce:
+    qq: ''
+  # 备份通知
+  backup-notify:
+    qq: 'qq:1082305302'
+  # 安全告警（IP 黑名单、异常登录等）
+  security-alert:
+    qq: ''
+
+# ===========================================================================
+#  HTTP 超时与重试
+# ===========================================================================
+http_connect_timeout_seconds: 3
+http_request_timeout_seconds: 3
+http_max_retries: 3
+
+# ===========================================================================
+#  WebSocket 连接设置
+#  EasyBot 使用 WebSocket PING/PONG 帧检测存活，无需应用层心跳
+# ===========================================================================
+ws_max_retries: 10
+ws_base_retry_ms: 5000
+ws_max_delay_ms: 60000
+ws_jitter_percent: 10
+ws_stable_reset_ms: 20000
+ws_message_log_enabled: false
+ws_message_log_throttle_ms: 60000

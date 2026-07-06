@@ -37,8 +37,13 @@
 | **QQ Bot** | WebSocket 长连接（NapCatQQ） | 双向：接收命令 + 推送通知 |
 | **Discord Bot** | Discord Bot API | 双向：接收命令 + 推送通知 |
 | **Lark（飞书）** | Webhook | 单向：仅推送通知 |
+| **EasyBot 网关** | WebSocket 长连接 + HTTP API | 双向：接收命令 + 推送通知（支持 QQ / Telegram / Discord / 飞书 / 微信） |
 
 > QQ Bot 支持配置 NapCatQQ 鉴权 token，增强安全性。
+
+> **⚠️ 飞书 WebSocket 多实例限制：** 飞书开放平台 WebSocket 事件订阅使用**集群模式**——同一飞书应用**只随机推送到一个 WebSocket 客户端**。部署多个 EasyBot 实例时，需确保：
+> - **方案一：单实例独占**——只启动一个 EasyBot 实例接收飞书事件，其他实例通过配置 `enabled: false` 停用飞书平台；
+> - **方案二：多应用隔离**——每个 EasyBot 实例注册不同的飞书应用（不同的 `app_id` / `app_secret`），各自独立接收事件。
 
 ### 2.2 Bot 命令一览
 
@@ -307,7 +312,8 @@
 
 | 组件 | 说明 |
 |------|------|
-| **多文件配置** | config.yml、bot.yml、templates.yml、portals.yml、ip_blacklist.yml、notifications.yml，支持热重载 |
+| **Bot 消息路由** | BotRouter 统一注册/缓存/路由，支持 setup → flush → route 三阶段 |
+| **多文件配置** | config.yml、bot.yml、easybot.yml、templates.yml、portals.yml、ip_blacklist.yml、notifications.yml，支持热重载 |
 | **样式系统** | 可配置颜色调色板（成功/信息/警告/错误/坐标/玩家等），CSS 十六进制色值 |
 | **模板系统** | 变量替换、坐标格式化（缩放/精度/单位）、世界别名/角色别名/i18n |
 | **健康注册表** | 线程安全的服务健康状态追踪 |
@@ -324,6 +330,7 @@
 
 - **config.yml** — 核心配置（白名单、TNT、维护、GeoIP、命令策略）
 - **bot.yml** — QQ/Discord/Lark Bot 连接配置
+- **easybot.yml** — EasyBot IM Gateway 连接配置（多平台消息路由、WebSocket + HTTP）
 - **templates.yml** — 通知模板、坐标格式、世界别名、角色别名、i18n 覆盖
 - **portals.yml** — 传送门数据（运行时修改）
 - **ip_blacklist.yml** — IP 黑名单数据（运行时修改）
