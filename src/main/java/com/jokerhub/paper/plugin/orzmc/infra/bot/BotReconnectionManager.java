@@ -35,7 +35,11 @@ public final class BotReconnectionManager {
             return;
         }
         try {
-            onReconnect.run();
+            try {
+                onReconnect.run();
+            } catch (Exception e) {
+                // onReconnect 异常不影响后续重连逻辑
+            }
             tryReconnectQq(adapters);
             tryReconnectEasyBot(adapters);
         } finally {
