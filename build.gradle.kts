@@ -79,7 +79,7 @@ dependencies {
     val integrationPaperVersion = property("plugin_debug_server_version") as String
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.1")
     add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion.build.+")
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.113.4")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.114.0")
     add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:5.4.0")
     add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
     add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
