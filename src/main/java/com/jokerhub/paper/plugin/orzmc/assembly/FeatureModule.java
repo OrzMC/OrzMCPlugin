@@ -514,7 +514,7 @@ public final class FeatureModule implements ServiceModule {
      * Build interceptors for hardcoded admin-only commands (blacklist, config).
      */
     private static List<CommandInterceptor> adminInterceptors(String name) {
-        return List.of(new PlayerOnlyInterceptor(), new AdminOnlyInterceptor(true), new CooldownInterceptor(name, 0));
+        return List.of(new AdminOnlyInterceptor(true), new CooldownInterceptor(name, 0));
     }
 
     // --- Whitelist ---

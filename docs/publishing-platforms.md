@@ -177,7 +177,7 @@ hangarPublish {
 | Push tag `x.y.z` | `{version}`（纯 SemVer） | release | release | ✅ 创建 |
 | 本地构建 | `{version}-dev` | 不发布 | 不发布 | 不发布 |
 
-版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.11`）。
+版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.12`）。
 
 ---
 
@@ -289,7 +289,7 @@ modrinth {
 | `plugin_support_paper_versions` | `gradle.properties` | `26.1` | 两个平台共用，逗号分隔 |
 | `modrinth_project_id` | `gradle.properties` | `r8ZufLjY` | 本地默认值，CI 可通过变量覆盖 |
 | `plugin_debug_server_version` | `gradle.properties` | `26.1.2` | 仅本地调试用 |
-| `version` | `paper-plugin.yml` | `1.0.11` | 版本号源，tag 发布后自动递增 |
+| `version` | `paper-plugin.yml` | `1.0.12` | 版本号源，tag 发布后自动递增 |
 
 ### 7.3 Token 轮换
 
@@ -307,7 +307,7 @@ modrinth {
 - [ ] **Hangar**：对应 channel 出现新版本，JAR 可下载
 - [ ] **Modrinth**：对应 version_type 出现新版本，JAR 可下载
 - [ ] **GitHub Release**：tag 推送后自动创建（仅 `x.y.z` tag）
-- [ ] **版本号 Bump PR**：自动创建并启用 auto-merge（仅 `x.y.z` tag）
+- [ ] **版本号更新**：自动递增 `paper-plugin.yml` 中的 version 并直接推送到 main（仅 `x.y.z` tag）
 - [ ] **平台页面一致**：版本号、Minecraft 兼容版本、描述信息三个平台一致
 
 ### 故障排查

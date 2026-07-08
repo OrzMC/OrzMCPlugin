@@ -52,7 +52,7 @@
 
 ## 配置兼容
 
-- 新配置先写入 `resources/` 默认配置文件，并在 `TypedConfigs` 中建立类型映射，透出到 `TypedConfigProvider`
+- 新配置先写入 `resources/` 默认配置文件，并在 `DefaultTypedConfigProvider` 中建立类型映射，透出到 `TypedConfigProvider`
 - 旧配置废弃需给出迁移说明与默认兼容策略
 - 变更需同步更新 README 文档中的功能与配置说明
 

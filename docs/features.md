@@ -71,7 +71,7 @@
 - **系统事件**：服务器启动/停止、异常告警、白名单开关告警
 - **空闲提示**：最后一名玩家离开时提醒可进行维护
 
-所有通知消息通过 **可配置模板** 渲染（16 个事件模板），支持变量替换。
+所有通知消息通过 **可配置模板** 渲染（30 余个消息模板，涵盖事件通知、Bot 命令反馈与维护进度），支持变量替换。
 
 ### 2.4 Bot 健康状态
 
@@ -268,14 +268,14 @@
 | `command_policies.portal.cooldown_secs` | Integer | 5 | 传送门冷却（秒） |
 | `command_policies.portal.admin_only` | Boolean | true | 传送门仅管理员 |
 
-**Bot**
+**Bot（来源：bot.yml）**
 | 配置路径 | 类型 | 默认值 | 描述 |
 |---------|------|--------|------|
 | `cmd_prompt_char` | String | $ | Bot 命令前缀符 |
 | `discord_server_link` | String | null | Discord 邀请链接 |
 | `qq_group_id` | String | null | QQ 群号 |
 
-**模板**
+**模板（来源：templates.yml）**
 | 配置路径 | 类型 | 默认值 | 描述 |
 |---------|------|--------|------|
 | `templates.locale` | String | zh-CN | 本地化语言 |
@@ -331,11 +331,9 @@
 - **config.yml** — 核心配置（白名单、TNT、维护、GeoIP、命令策略）
 - **bot.yml** — QQ/Discord/Lark Bot 连接配置
 - **easybot.yml** — EasyBot IM Gateway 连接配置（多平台消息路由、WebSocket + HTTP）
-- **templates.yml** — 通知模板、坐标格式、世界别名、角色别名、i18n 覆盖
+- **templates.yml** — 通知模板、样式配色、通知策略、坐标格式、世界别名、角色别名、i18n 覆盖（含旧 `notifications.yml` 的 fallback 兼容）
 - **portals.yml** — 传送门数据（运行时修改）
 - **ip_blacklist.yml** — IP 黑名单数据（运行时修改）
-- **notifications.yml** — 各事件的通知策略（是否推送、推送到哪些频道）
-- **commands.yml** — 命令策略配置
 
 > 大部分配置可通过 `/config` 命令在运行时修改并立即生效，无需重启服务器。
 
