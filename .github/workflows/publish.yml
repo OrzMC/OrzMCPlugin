@@ -164,6 +164,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add src/main/resources/paper-plugin.yml
           git commit -m "chore: bump version to $NEW"
-
-          REPO="https://wangzhizhou:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push "${REPO}" HEAD:main
+          git config --global credential.https://github.com.helper "!f() { echo username=wangzhizhou; echo password=${GH_TOKEN}; }; f"
+          git push origin HEAD:main
