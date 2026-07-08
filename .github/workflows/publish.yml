@@ -95,7 +95,7 @@ jobs:
           # Modrinth 不保证 version_number 唯一，不主动检查会导致重复上传产生多条记录。
           PROJECT_ID="${MODRINTH_PROJECT_ID:-r8ZufLjY}"
           echo "::group::Check if version ${VERSION} already exists on Modrinth"
-          EXISTING=$(curl -s "https://api.modrinth.com/v2/project/${PROJECT_ID}/version" | jq --arg v "$VERSION" '[.[] | select(.version_number == $v)] | length')
+          EXISTING=$(curl -s "https://api.modrinth.com/v2/project/${PROJECT_ID}/version?limit=10000" | jq --arg v "$VERSION" '[.[] | select(.version_number == $v)] | length')
           echo "Existing versions with number '${VERSION}': ${EXISTING}"
           echo "::endgroup::"
 
