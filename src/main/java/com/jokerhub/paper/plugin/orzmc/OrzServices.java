@@ -19,7 +19,8 @@ import com.jokerhub.paper.plugin.orzmc.assembly.PortalModule;
  *   <li><b>BotModule</b> — 依赖 PlatformModule，内部处理 Bot ↔ Notifier 循环</li>
  *   <li><b>PortalModule</b> — 依赖 PlatformModule（ConfigService）</li>
  *   <li><b>MaintenanceModule</b> — 依赖 PlatformModule + BotModule (Notifier)</li>
- *   <li><b>跨模块链接</b> — BotModule.linkWorldMaintenanceService()</li>
+ *   <li><b>跨模块链接</b> — bot.setWorldMaintenanceService() → afterPropertiesSet() →</li>
+ *   <li><b>Blacklist 回引用</b> — bot.botCommandService().setBlacklistService()（Feature 创建后注入）</li>
  *   <li><b>FeatureModule</b> — 依赖所有其他模块，创建 Feature 服务并注册命令/事件</li>
  * </ol>
  */

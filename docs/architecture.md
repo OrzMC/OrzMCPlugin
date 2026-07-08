@@ -45,7 +45,7 @@ PlatformModule
 - **config/** — 配置加载、类型化包装与健康检查
     - ConfigService, ConfigManager, ConfigHealthCheck
     - `configs/` 子包中每个配置对应一个记录类（`BotConfig`, `Styles`, `TntConfig`, `WhitelistConfig`, `Portals`, `MainConfig`, `MaintenanceConfig`, `CommandPolicies`, `TemplateOptions`, `Templates`, `NotifyPolicy`, `IpWhitelist`, `WhitelistKickMessage`）
-    - `SafeKeys` 端口 YAML 键名编码（解决 '.' 被识别为层级分隔的问题）
+    - `SafeKeys` YAML 键名安全编码（解决 '.' 被识别为层级分隔的问题）
     - `PortalsWriter` 持久化传送门配置
 - **notify/** — 通知派发与限流
     - Notifier（支持自定义 NotifierSink）
@@ -71,7 +71,6 @@ PlatformModule
     - BotMessageServiceProvider 工厂创建 BotMessageService
     - OrzQQBot / OrzDiscordBot / OrzLarkBot / OrzEasyBot 各适配器实现
 - **binding/** — 命令/事件注册
-    - CommandBinder（使用 CommandMap API 注册命令）
     - EventBinder（注册事件监听器）
 - **templates/** — 消息模板与解析
     - TemplateService, TemplateResolvers
@@ -158,7 +157,7 @@ MaintenanceModule
 **IP 黑名单**：
 - `BlacklistService` 管理 IP 黑名单规则（支持通配符模式如 `192.168.*`）
 - 玩家连接时 `OrzPlayerEvent` 调用 `BlacklistService.isBlacklisted()` 检查
-- 黑名单存储于 `config.yml` → `ip_blacklist` 段
+- 黑名单存储于 `ip_blacklist.yml`
 
 ## 模块生命周期
 
@@ -176,16 +175,18 @@ OrzServices.assemble(OrzMC)
   ├── 4. new MaintenanceModule(platform, bot)  ← 依赖 Platform + Bot
   │
   ├── 5. bot.setWorldMaintenanceService(...)   ← 跨模块回引用注入
-  ├── 6. bot.setBlacklistService(...)          ← IP 黑名单回引用注入
-  ├── 7. ((Initializable) bot).afterPropertiesSet()  ← 二阶段初始化
+  ├── 6. ((Initializable) bot).afterPropertiesSet()  ← 二阶段初始化
   │
-  ├── 8. new FeatureModule(platform, bot, portal, maintenance)  ← 依赖所有模块
+  ├── 7. new FeatureModule(platform, bot, portal, maintenance)  ← 依赖所有模块
+  │
+  ├── 8. bot.botCommandService().setBlacklistService(...)   ← IP 黑名单回引用注入（Feature → Bot）
   │
   └── OrzServices.setupAll(plugin)
         ├── botModule.setup()             ← 启动 Bot 连接
         ├── portalModule.setup()          ← 初始化传送门
         ├── featureModule.setupEventListeners(plugin)   ← 注册事件
-        └── featureModule.setupCommandHandlers(plugin)  ← 通过 Paper LifecycleEvents.COMMANDS 注册 Brigadier 命令
+        ├── featureModule.setupCommandHandlers(plugin)  ← 通过 Paper LifecycleEvents.COMMANDS 注册 Brigadier 命令
+        └── featureModule.enableForceWhitelist(plugin)  ← 应用白名单配置
 ```
 
 `OrzServices.shutdownAll()` 逆序销毁：
