@@ -165,5 +165,5 @@ jobs:
           git add src/main/resources/paper-plugin.yml
           git commit -m "chore: bump version to $NEW"
 
-          REPO="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          REPO="https://wangzhizhou:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push "${REPO}" HEAD:main

@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+---
+
+## [1.0.12] - 2026-07-09
+
+### 🐛 修复
+- **管理命令控制台执行支持** — 移除 `blacklist` / `config` 命令的 `PlayerOnlyInterceptor`，允许控制台直接执行黑名单管理和配置热重载命令。
+
+### ⚙️ CI/CD
+- **BOT_PAT 直接推送** — CI 创建的个人访问令牌（PAT）直接推送到 `main` 分支，绕过仓库规则集限制，无需通过 PR 提交 bump commit。
+- **Modrinth 重复版本检测** — 分页查询参数 `?limit=10000` 确保检查所有历史版本，避免因默认 10 条限制导致漏检重复版本号。
+- **Pull Request 权限补全** — bump 版本工作流添加 `pull-requests: write` 权限，支持通过 `gh` CLI 创建和处理 PR。
+- **移除 force-push** — bump 版本步骤先清理已存在的远程分支再正常推送，避免 `--force` 的安全风险。
+
+---
+
+## [1.0.11] - 2026-07-06
+
 ### 🚀 新功能
 - **EasyBot IM 网关适配器** — 新增 `OrzEasyBot` 适配器，支持通过 EasyBot IM Gateway WebSocket 协议接入 IM 平台（QQ / Discord / Lark 等），配置于 `easybot.yml`。
 - **`/bot` 命令 EasyBot 重连支持** — `/bot` 命令触发重连时，除 QQ Bot 外同时检查并重建 EasyBot 适配器的 WebSocket 连接。
