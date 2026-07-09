@@ -38,41 +38,39 @@
 
 ## 机器人服务配置
 
-OrzMC 的机器人功能需要配合外部 IM 网关服务使用，以下是各平台的配置方式：
+OrzMC 的机器人功能需配合外部 IM 网关使用，支持两种接入方案，可按需选择或同时启用：
+
+| 方案 | 配置文件 | 适用场景 |
+|------|---------|---------|
+| **NapCatQQ** | `bot.yml` | 仅需 QQ Bot（OneBot 11 协议） |
+| **EasyBot 网关** | `easybot.yml` | 多平台统一管理（QQ / Telegram / Discord / 飞书 / 微信） |
 
 ### QQ Bot（NapCatQQ）
 
-QQ Bot 功能基于 [NapCatQQ](https://github.com/NapNeko/NapCatQQ)（OneBot 11 协议实现）运行：
+QQ Bot 基于 [NapCatQQ](https://github.com/NapNeko/NapCatQQ)（OneBot 11）运行：
 
-1. 根据你的操作系统部署 NapCatQQ（支持 Windows GUI / Docker / Linux 脚本）
-2. 启动 NapCatQQ 后，它会暴露 HTTP API（默认 `:3000`）和 WebSocket（默认 `:3001`）
-3. 在插件 `bot.yml` 中填入 NapCatQQ 的连接地址和群号，设置 `enable_qq_bot: true`
-4. 重启服务端或执行 `/config reload` 使配置生效
+1. 部署 NapCatQQ（支持 Windows GUI / Docker / Linux 脚本）
+2. 启动后 NapCatQQ 暴露 HTTP API（`:3000`）和 WebSocket（`:3001`）
+3. 在插件 `bot.yml` 中填入连接地址和群号，设置 `enable_qq_bot: true`
+4. 重启服务端或执行 `/config reload` 生效
 
-> 详细配置参数请查阅 [插件功能文档 - QQ Bot 配置指南](./docs/features.md#25-qq-bot-配置指南napcatqq)
+> 详细参数：[QQ Bot 配置指南](./docs/features.md#25-qq-bot-配置指南napcatqq)
 
 ### 多平台 Bot（EasyBot 网关）
 
-如果需要同时管理 QQ、Telegram、Discord、飞书、微信等多个平台，可以使用 [EasyBot](https://github.com/easyIndie/EasyBot) 统一 IM 网关：
+[EasyBot](https://github.com/easyIndie/EasyBot) 统一管理 QQ / Telegram / Discord / 飞书 / 微信：
 
-1. 根据 [EasyBot 文档](https://github.com/easyIndie/EasyBot) 部署网关服务
-2. 在插件 `easybot.yml` 中填入 EasyBot 的连接地址
-3. `api_key` 需在 EasyBot 管理后台创建**客服类 API Key** 后获取
-4. 各平台的 `admin_group` / `player_group` / `admin_dm` 并非平台原生 ID，需从 EasyBot 管理后台的**会话管理**中获取对应的**会话 key**（格式如 `qq:conv_xxxxxxxx`）
-5. 两个系统可同时启用，互不干扰
+1. 部署 EasyBot 网关服务
+2. 在插件 `easybot.yml` 中填入 EasyBot 连接地址
+3. `api_key` 从 EasyBot 后台创建**客服类 API Key** 获取
+4. `admin_group` 等目标值非平台原生 ID，需从 EasyBot 后台的**会话管理**获取**会话 key**（如 `qq:conv_xxxxxxxx`）
 
-| 方案 | 适用场景 | 配置文件 |
-|------|---------|---------|
-| **NapCatQQ** | 仅需要 QQ Bot | `bot.yml` |
-| **EasyBot 网关** | 需要多平台统一管理（QQ + Telegram + Discord + 飞书 + 微信） | `easybot.yml` |
-| **同时启用** | 兼容场景，两个配置文件各管各的平台 | `bot.yml` + `easybot.yml` |
-
-> 详细路由规则和平台配置请查阅 [插件功能文档 - EasyBot 配置指南](./docs/features.md#26-easybot-网关配置指南)
+> 详细路由规则：[EasyBot 配置指南](./docs/features.md#26-easybot-网关配置指南)
 
 ### Discord & Lark
 
-- **Discord Bot**：创建 Discord Application 获取 Bot Token，Base64 编码后填入 `bot.yml` 的 `discord_bot_token_base64_encoded` 字段
-- **Lark（飞书）**：在飞书开放平台创建机器人，获取 Webhook 地址填入 `bot.yml` 的 `lark_bot_webhook` 字段（仅支持单向推送通知）
+- **Discord Bot**：创建 Discord Application 获取 Bot Token，Base64 编码后填入 `bot.yml` 的 `discord_bot_token_base64_encoded`
+- **Lark（飞书）**：在飞书开放平台创建机器人，获取 Webhook 地址填入 `bot.yml` 的 `lark_bot_webhook`（仅单向推送通知）
 
 ## 更新插件
 PaperMC服务端在插件目录下提供一个名称为`update/`的目录，把需要更新的插件jar文件放到这个目录下面。下次服务端重启时，插件会被自动移到`plugins/`目录下面，完成插件升级。

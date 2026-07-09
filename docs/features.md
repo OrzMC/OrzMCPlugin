@@ -41,10 +41,6 @@
 
 > QQ Bot 支持配置 NapCatQQ 鉴权 token，增强安全性。
 
-> **⚠️ 飞书 WebSocket 多实例限制：** 飞书开放平台 WebSocket 事件订阅使用**集群模式**——同一飞书应用**只随机推送到一个 WebSocket 客户端**。部署多个 EasyBot 实例时，需确保：
-> - **方案一：单实例独占**——只启动一个 EasyBot 实例接收飞书事件，其他实例通过配置 `enabled: false` 停用飞书平台；
-> - **方案二：多应用隔离**——每个 EasyBot 实例注册不同的飞书应用（不同的 `app_id` / `app_secret`），各自独立接收事件。
-
 ### 2.2 Bot 命令一览
 
 所有命令使用可配置前缀（`bot.cmd_prompt_char`，默认 `$`），在命令后加 `?` 可查看详细用法。
@@ -103,49 +99,31 @@ NapCatQQ 支持多种部署方式，请根据你的操作系统选择：
 修改 `bot.yml` 中的 QQ 相关配置：
 
 ```yaml
-# ==================================================
-#               QQ Bot 配置（NapCatQQ / OneBot 11）
-# ==================================================
-
-# 启用 QQ Bot 功能
+# 启用 QQ Bot
 enable_qq_bot: true
-
-# 机器人所管理的 QQ 群号
+# 机器人管理的 QQ 群号
 qq_group_id: '123456789'
-
-# 管理员 QQ 号（接收管理员私聊消息）
+# 管理员 QQ 号（接收私聊消息）
 qq_admin_id: '987654321'
-
-# NapCatQQ HTTP API 地址（发送消息用）
+# NapCatQQ HTTP API（发送消息）
 qq_bot_api_server: 'http://127.0.0.1:3000'
-
-# HTTP API 鉴权 token（NapCatQQ 中配置的 token，如无则留空）
+# HTTP 鉴权 token（NapCatQQ 中配置，如无则留空）
 qq_bot_api_server_token: ''
-
-# NapCatQQ WebSocket 地址（接收事件用）
+# NapCatQQ WebSocket（接收事件）
 qq_bot_ws_server: 'ws://127.0.0.1:3001'
-
-# WebSocket 鉴权 token（NapCatQQ 中配置的 token，如无则留空）
+# WebSocket 鉴权 token
 qq_bot_ws_server_token: ''
 ```
 
-> **注意：** NapCatQQ 与插件部署在同一台机器时，地址填写 `127.0.0.1`。如部署在不同机器，需填写 NapCatQQ 所在服务器的公网或内网 IP，并确保对应端口可访问。
+> **注意：** NapCatQQ 与插件同机部署时地址填 `127.0.0.1`；跨机部署时填写 NapCatQQ 所在机器的 IP，并确保端口可访问。
 
 #### 工作流程
 
 ```
 NapCatQQ（QQ 协议层）
-    │
-    ├─ WebSocket 事件推送 ──→ OrzMC（接收群聊消息/Bot 命令）
-    │
-    └─ HTTP API 请求 ←── OrzMC（发送群聊通知/Bot 回复）
-          POST /send_group_msg
-          POST /send_msg
+  WebSocket 事件推送 ──→ OrzMC（接收群消息/Bot 命令）
+  OrzMC ── HTTP API ──→ NapCatQQ（发送群通知/Bot 回复）
 ```
-
-- QQ 群内的消息通过 NapCatQQ 的 WebSocket 推送到插件
-- 插件处理后，通过 NapCatQQ 的 HTTP API 发送回复或通知到群聊
-- 支持 Bearer Token 鉴权，增强安全性
 
 ### 2.6 EasyBot 网关配置指南
 
@@ -190,20 +168,12 @@ EasyBot 的配置值并非平台原生 ID，均需从 EasyBot 管理后台获取
 修改 `easybot.yml`：
 
 ```yaml
-# ==================================================
-#               EasyBot 连接配置
-# ==================================================
-
-# EasyBot REST API 地址（替换为你的 EasyBot 部署地址）
+# EasyBot 连接地址（替换为你的部署地址）
 api_server: 'http://127.0.0.1:8080'
-
-# EasyBot WebSocket 地址（替换为你的 EasyBot 部署地址）
 ws_server: 'ws://127.0.0.1:8080'
-
-# 客服类 API Key，从 EasyBot 管理后台获取
+# 客服类 API Key（从 EasyBot 管理后台获取）
 api_key: 'sk-your-customer-service-api-key'
-
-# 文本解析模式（markdown / html / none，默认 markdown）
+# 文本解析模式：markdown / html / none
 parse_mode: 'markdown'
 ```
 
@@ -211,14 +181,11 @@ parse_mode: 'markdown'
 
 ```yaml
 platforms:
-  # ===== QQ =====
   qq:
     enabled: true
-    admin_group: 'qq:conv_xxxxxxxx'   # 管理群会话 key（EasyBot 后台获取）
-    player_group: ''                  # 玩家群会话 key（留空则降级到 admin_group）
-    admin_dm: 'qq:conv_yyyyyyyy'      # 管理员私聊会话 key
-
-  # ===== Telegram =====
+    admin_group: 'qq:conv_xxxxxxxx'    # 管理群会话 key（EasyBot 后台获取）
+    player_group: ''                   # 玩家群（留空降级 admin_group）
+    admin_dm: 'qq:conv_yyyyyyyy'       # 管理员私聊会话 key
   telegram:
     enabled: true
     admin_group: 'telegram:conv_zzzzzzzz'
@@ -242,18 +209,18 @@ EasyBot 适配器的消息路由分层如下：
                        ↓ 找不到则按 PUBLIC 规则降级
 ```
 
-渠道映射（channels）用于按用途进行精细化消息分发，目标值同样使用 EasyBot 管理后台的**会话 key**：
+渠道映射（channels）按用途进行精细化分发，目标值同样使用 EasyBot 的**会话 key**：
 
 ```yaml
 channels:
-  ops-alert:               # 管理告警 → 发送到 QQ 和 Telegram 的管理群
+  ops-alert:           # 管理告警
     qq: 'qq:conv_xxxxxxxx'
     telegram: 'telegram:conv_zzzzzzzz'
-  player-announce:         # 玩家通知 → 发送到 QQ 玩家群
+  player-announce:     # 玩家通知
     qq: 'qq:conv_yyyyyyyy'
-  backup-notify:           # 备份通知 → 发送到 QQ 管理群
+  backup-notify:       # 备份通知
     qq: 'qq:conv_xxxxxxxx'
-  security-alert:          # 安全告警 → 发送到 QQ 管理群
+  security-alert:      # 安全告警
     qq: 'qq:conv_xxxxxxxx'
 ```
 
@@ -264,8 +231,6 @@ channels:
 > - **方案二：多应用隔离**——每个 EasyBot 实例注册不同的飞书应用（不同的 `app_id` / `app_secret`），各自独立接收事件。
 
 ---
-
-
 
 ## 三、跨服传送门
 
