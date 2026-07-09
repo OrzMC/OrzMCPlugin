@@ -79,7 +79,193 @@
 - 字段：enabled、httpOk、wsConnected、apiReady、lastError
 - 执行命令时自动尝试重连 WebSocket
 
+### 2.5 QQ Bot 配置指南（NapCatQQ）
+
+> NapCatQQ 是一个开源的 QQ 机器人框架，基于 OneBot 11 协议实现，支持通过 WebSocket + HTTP API 与外部程序通信。
+> 项目地址：[https://github.com/NapNeko/NapCatQQ](https://github.com/NapNeko/NapCatQQ)
+
+#### 安装 NapCatQQ
+
+NapCatQQ 支持多种部署方式，请根据你的操作系统选择：
+
+| 部署方式 | 适用场景 | 说明 |
+|---------|---------|------|
+| **Windows GUI** | 个人电脑 | 下载安装器，QQ 扫码登录，自动启动服务 |
+| **Docker** | 服务器 | `docker run -d --name napcat ...`，适合与 Paper 服务端同机部署 |
+| **Linux 脚本** | 服务器 | 一键安装脚本，常用于云服务器 |
+
+部署完成后，NapCatQQ 会暴露两个端口：
+- **HTTP API 端口**（默认 `3000`）— 用于插件向 QQ 群发送消息
+- **WebSocket 端口**（默认 `3001`）— 用于插件接收来自 QQ 群的消息和命令
+
+#### 配置 OrzMC 对接 NapCatQQ
+
+修改 `bot.yml` 中的 QQ 相关配置：
+
+```yaml
+# ==================================================
+#               QQ Bot 配置（NapCatQQ / OneBot 11）
+# ==================================================
+
+# 启用 QQ Bot 功能
+enable_qq_bot: true
+
+# 机器人所管理的 QQ 群号
+qq_group_id: '123456789'
+
+# 管理员 QQ 号（接收管理员私聊消息）
+qq_admin_id: '987654321'
+
+# NapCatQQ HTTP API 地址（发送消息用）
+qq_bot_api_server: 'http://127.0.0.1:3000'
+
+# HTTP API 鉴权 token（NapCatQQ 中配置的 token，如无则留空）
+qq_bot_api_server_token: ''
+
+# NapCatQQ WebSocket 地址（接收事件用）
+qq_bot_ws_server: 'ws://127.0.0.1:3001'
+
+# WebSocket 鉴权 token（NapCatQQ 中配置的 token，如无则留空）
+qq_bot_ws_server_token: ''
+```
+
+> **注意：** NapCatQQ 与插件部署在同一台机器时，地址填写 `127.0.0.1`。如部署在不同机器，需填写 NapCatQQ 所在服务器的公网或内网 IP，并确保对应端口可访问。
+
+#### 工作流程
+
+```
+NapCatQQ（QQ 协议层）
+    │
+    ├─ WebSocket 事件推送 ──→ OrzMC（接收群聊消息/Bot 命令）
+    │
+    └─ HTTP API 请求 ←── OrzMC（发送群聊通知/Bot 回复）
+          POST /send_group_msg
+          POST /send_msg
+```
+
+- QQ 群内的消息通过 NapCatQQ 的 WebSocket 推送到插件
+- 插件处理后，通过 NapCatQQ 的 HTTP API 发送回复或通知到群聊
+- 支持 Bearer Token 鉴权，增强安全性
+
+### 2.6 EasyBot 网关配置指南
+
+> EasyBot 是一个统一的 IM 网关服务，对外暴露一套 REST API + WebSocket 事件推送接口，
+> 屏蔽了各 IM 平台（QQ / Telegram / Discord / 飞书 / 微信）的协议差异。
+> 项目地址：[https://github.com/easyIndie/EasyBot](https://github.com/easyIndie/EasyBot)
+
+#### 与 NapCatQQ 的关系
+
+| 对比维度 | NapCatQQ（bot.yml） | EasyBot（easybot.yml） |
+|---------|-------------------|----------------------|
+| **协议层** | OneBot 11，仅 QQ | 统一网关，支持 QQ / Telegram / Discord / 飞书 / 微信 |
+| **配置方式** | 每平台独立参数 | 统一 API 地址 + 多平台目标路由 |
+| **适用范围** | 仅 QQ | 多平台统一管理 |
+| **兼容性** | 可独立工作 | 可独立工作，两者可同时启用互不干扰 |
+| **稳定性** | ⚠️ **一般** — NapCatQQ 为第三方协议实现，依赖 QQ 客户端模拟登录。QQ 官方会不定期检测并踢下线非官方客户端，导致 Bot 离线，需重新扫码登录 | ✅ **高** — EasyBot 接入 QQ 官方机器人 API，使用官方 Bot 帐号运行，不存在被踢下线风险。其他平台（Telegram / Discord / 飞书 / 微信）同样通过官方 API 实现 |
+
+> **建议：** 如果追求稳定性、或者需要多平台统一管理，推荐使用 EasyBot。仅需要基础 QQ Bot 功能且不介意偶发掉线时可以选用 NapCatQQ。两个系统也可同时启用互不干扰，按需决定各平台的接入方式。
+
+#### 安装 EasyBot
+
+1. 参考 [EasyBot 官方文档](https://github.com/easyIndie/EasyBot) 完成网关服务部署
+2. 启动后通过浏览器访问 EasyBot 管理后台（默认 `http://<部署地址>`）
+3. 在管理后台创建 **客服类 API Key**，用于插件与 EasyBot 之间的接口鉴权
+4. 在管理后台为各平台添加会话并获取对应的 **会话 key**，填入插件配置
+
+#### 获取配置值
+
+EasyBot 的配置值并非平台原生 ID，均需从 EasyBot 管理后台获取：
+
+| 配置项 | 获取方式 | 示例值 |
+|--------|---------|--------|
+| `api_key` | EasyBot 后台 → API 密钥 → 创建「客服类」密钥 | `sk-xxxxxxxxxxxx` |
+| `admin_group` | EasyBot 后台 → 会话管理 → 创建/查看会话 → 复制**会话 key** | `qq:conv_xxxxxxxx` |
+| `player_group` | 同上 | `qq:conv_yyyyyyyy` |
+| `admin_dm` | 同上（管理员私聊会话） | `qq:conv_zzzzzzzz` |
+
+> ⚠️ **注意：** `admin_group` / `player_group` / `admin_dm` 的值不是 QQ 群号、Discord 频道 ID 等平台原生标识，而是 EasyBot 管理后台为每个会话分配的 **会话 key**。易混淆时请以 EasyBot 后台显示的值为准。
+
+#### 配置 OrzMC 对接 EasyBot
+
+修改 `easybot.yml`：
+
+```yaml
+# ==================================================
+#               EasyBot 连接配置
+# ==================================================
+
+# EasyBot REST API 地址（替换为你的 EasyBot 部署地址）
+api_server: 'http://127.0.0.1:8080'
+
+# EasyBot WebSocket 地址（替换为你的 EasyBot 部署地址）
+ws_server: 'ws://127.0.0.1:8080'
+
+# 客服类 API Key，从 EasyBot 管理后台获取
+api_key: 'sk-your-customer-service-api-key'
+
+# 文本解析模式（markdown / html / none，默认 markdown）
+parse_mode: 'markdown'
+```
+
+启用需要接入的平台（例如同时启用 QQ 和 Telegram）：
+
+```yaml
+platforms:
+  # ===== QQ =====
+  qq:
+    enabled: true
+    admin_group: 'qq:conv_xxxxxxxx'   # 管理群会话 key（EasyBot 后台获取）
+    player_group: ''                  # 玩家群会话 key（留空则降级到 admin_group）
+    admin_dm: 'qq:conv_yyyyyyyy'      # 管理员私聊会话 key
+
+  # ===== Telegram =====
+  telegram:
+    enabled: true
+    admin_group: 'telegram:conv_zzzzzzzz'
+    player_group: ''
+    admin_dm: 'telegram:conv_wwwwwwww'
+```
+
+#### 消息路由规则
+
+EasyBot 适配器的消息路由分层如下：
+
+```
+消息发送请求（MessageEnvelope）
+    │
+    ├─ PUBLIC 类型 → 遍历所有已启用平台的 player_group
+    │                  ↓ 为空则降级为 admin_group
+    │
+    ├─ PRIVATE 类型 → 遍历所有已启用平台的 admin_dm
+    │
+    └─ CHANNEL 类型 → 查 channels.{channelKey}.{platform} 映射
+                       ↓ 找不到则按 PUBLIC 规则降级
+```
+
+渠道映射（channels）用于按用途进行精细化消息分发，目标值同样使用 EasyBot 管理后台的**会话 key**：
+
+```yaml
+channels:
+  ops-alert:               # 管理告警 → 发送到 QQ 和 Telegram 的管理群
+    qq: 'qq:conv_xxxxxxxx'
+    telegram: 'telegram:conv_zzzzzzzz'
+  player-announce:         # 玩家通知 → 发送到 QQ 玩家群
+    qq: 'qq:conv_yyyyyyyy'
+  backup-notify:           # 备份通知 → 发送到 QQ 管理群
+    qq: 'qq:conv_xxxxxxxx'
+  security-alert:          # 安全告警 → 发送到 QQ 管理群
+    qq: 'qq:conv_xxxxxxxx'
+```
+
+#### 飞书多实例注意事项
+
+> **⚠️ 飞书 WebSocket 多实例限制：** 飞书开放平台 WebSocket 事件订阅使用**集群模式**——同一飞书应用**只随机推送到一个 WebSocket 客户端**。部署多个 EasyBot 实例时，需确保：
+> - **方案一：单实例独占**——只启动一个 EasyBot 实例接收飞书事件，其他实例通过配置 `enabled: false` 停用飞书平台；
+> - **方案二：多应用隔离**——每个 EasyBot 实例注册不同的飞书应用（不同的 `app_id` / `app_secret`），各自独立接收事件。
+
 ---
+
+
 
 ## 三、跨服传送门
 
