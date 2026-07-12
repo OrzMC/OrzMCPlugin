@@ -49,9 +49,9 @@ dependencies {
     }
     // Minecraft World Backup Lib
     implementation("io.github.wangzhizhou:backup-core:0.1.6")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.1.1")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.1")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.2")
     testImplementation("io.papermc.paper:paper-api:${property("plugin_debug_server_version") as String}.build.+")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
@@ -77,20 +77,20 @@ configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
 
 dependencies {
     val integrationPaperVersion = property("plugin_debug_server_version") as String
-    add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.1")
+    add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.2")
     add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion.build.+")
     add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.114.0")
     add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:5.4.0")
     add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
     add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
-    add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:6.1.1")
-    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:6.1.1")
+    add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:6.1.2")
+    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:6.1.2")
 }
 
 // 项目编译时插件添加
 plugins {
     kotlin("jvm") version "2.4.0"
-    id("com.gradleup.shadow") version "9.4.3"
+    id("com.gradleup.shadow") version "9.5.1"
     // 工程内直接调试服务端插件：https://docs.papermc.io/paper/dev/debugging#using-direct-debugging
     id("xyz.jpenilla.run-paper") version "3.0.2"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
