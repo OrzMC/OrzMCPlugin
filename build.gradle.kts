@@ -241,6 +241,7 @@ tasks {
     }
     shadowJar {
         minimize()
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
         archiveClassifier.set(null as String?)
         archiveVersion.set(shadowJarVersion)
     }
