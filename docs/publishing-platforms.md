@@ -32,7 +32,7 @@
 | **图标** | `assets/avatar.png`（89 KB） | 上传此文件 | 上传此文件 |
 | **网站** | `https://orzmc.jokerhub.cn` | 同左 | 同左 |
 | **支持平台** | Paper | `PAPER` | loader: `paper` |
-| **Minecraft 版本** | `26.1.x` | 同左 | 同左 |
+| **Minecraft 版本** | `26.1+` | 同左 | 同左 |
 | **JDK 版本** | 25 | — | — |
 | **源码仓库** | `https://github.com/OrzMC/OrzMCPlugin` | 同左 | 同左 |
 | **Issues** | `https://github.com/OrzMC/OrzMCPlugin/issues` | 同左 | 同左 |
@@ -46,17 +46,21 @@
 
 ### 2.1 简短描述（一行）
 
-> OrzMC — 多平台机器人集成的 Paper 服务器管理插件
+> **英文**（Modrinth / Hangar 页面使用）：A Paper server management plugin with multi-platform bot control via EasyBot.
+>
+> **中文**：OrzMC — 多平台机器人集成的 Paper 服务器管理插件
 
 ### 2.2 完整描述（~200 字）
 
-> OrzMC 是一款面向 PaperMC 服务器的综合管理插件，深度集成 QQ、Discord、飞书三大社交平台，让管理员在群聊中即可完成白名单管理、世界备份与优化、IP 黑名单、跨服传送门等运维操作。支持 TNT 爆炸防护与 GeoIP 区域访问控制，保障服务器安全。插件采用六边形架构设计，模块化分离核心逻辑与平台适配层，配置驱动、零数据库依赖，适合个人服主与小型社区快速部署。无论你运营的是私服还是公开服务器，OrzMC 都能让你的日常管理更加高效便捷。
+> ⚠️ 平台正文（body）现为**英文版 README.md**（见[第 4 节](#4-readme-页面同步)），此处中文完整描述仅存档，已收录进 `README.zh-CN.md`。
+>
+> OrzMC 是一款面向 PaperMC 服务器的综合管理插件，通过 EasyBot 统一接入 QQ、Telegram、Discord、飞书和微信，让管理员在群聊中即可完成白名单管理、世界备份与优化、IP 黑名单、跨服传送门等运维操作。支持 TNT 爆炸防护与 GeoIP 区域访问控制，保障服务器安全。插件采用分层架构设计，配置驱动、零数据库依赖，适合个人服主与小型社区快速部署。
 
 ### 2.3 功能列表
 
 | 功能模块 | 说明 |
 |----------|------|
-| 🤖 **多平台机器人** | QQ（NapCatQQ/OneBot）、Discord（JDA）、飞书（Webhook）、EasyBot IM 网关 |
+| 🤖 **多平台机器人** | 通过 EasyBot IM 网关统一接入 QQ、Telegram、Discord、飞书和微信 |
 | 📋 **白名单管理** | 强制白名单，Bot 命令 `$a` / `$r` 远程增删 |
 | 💾 **世界备份与优化** | `$b` 备份、`$o` 优化、定时维护编排 |
 | 🚪 **跨服传送门** | 可配置传送门，`/portal` 命令创建/移除 |
@@ -114,13 +118,12 @@ modrinth {
 
 ### 4.3 内容约定
 
-- `README.md` 为唯一内容源，修改后手动或 CI 触发同步
-- 平台专属内容用 HTML 注释标记排除：
-  ```markdown
-  <!-- modrinth_exclude.start -->
-  这部分不会同步到 Modrinth
-  <!-- modrinth_exclude.end -->
-  ```
+- `README.md` 为唯一内容源（**现为纯英文**），修改后手动或 CI 触发同步
+- 中文内容独立维护在 `README.zh-CN.md`（仅 GitHub 展示，不参与同步），两版通过顶部语言切换链接互相跳转
+- ⚠️ 注意：`modrinth_exclude` / `hangar_exclude` 注释排除约定**尚未在 build.gradle.kts 中实现**，同步发送的是 `README.md` 原文。因此 README 必须整体「全平台安全」：
+  - 图片一律使用绝对 URL（推荐 `raw.githubusercontent.com`），并填写非空 alt 文本
+  - 避免依赖 GitHub 相对路径的资源（相对图片在 Modrinth / Hangar 无法渲染）
+  - 相对文档链接（如 `./docs/features.md`）在平台页面为死链，属可接受现状
 
 ---
 
@@ -189,12 +192,12 @@ hangarPublish {
 |------|------|
 | **项目页面** | [modrinth.com/plugin/r8ZufLjY](https://modrinth.com/plugin/r8ZufLjY) |
 | **项目 ID** | `r8ZufLjY`（`gradle.properties: modrinth_project_id`） |
-| **Gradle 插件** | `com.modrinth.minotaur:2.+` |
+| **Gradle 插件** | `com.modrinth.minotaur:2.9.0` |
 | **发布 task** | `modrinth` |
 | **触发条件** | Push `main` → `beta` / Push tag `x.y.z` → `release` |
 | **Token Secret** | `MODRINTH_TOKEN`（权限：`VERSION_CREATE` + `PROJECT_WRITE`） |
 | **重试策略** | 3 次，指数退避（20s / 40s / 60s），检测"版本已存在"幂等退出 |
-| **审核状态** | ⏳ 审核中（详见 [第 6.5 节](#65-审核时间说明)） |
+| **审核状态** | ❌ 已拒绝，整改后重新提交（详见 [第 6.5 节](#65-审核时间说明)） |
 
 ### 6.2 Gradle 配置
 
@@ -233,7 +236,7 @@ modrinth {
 ### 6.4 待办
 
 - [x] 生成 Modrinth PAT，添加到 GitHub Secrets → `MODRINTH_TOKEN`
-- [ ] 等待 Modrinth 项目审核通过（见 [第 6.5 节](#65-审核时间说明)）
+- [ ] ~~等待 Modrinth 项目审核通过~~ → 2026-07 首次审核**被拒**，已按审核意见整改（英文描述、移除 `Optimization` 标签、图集 alt 文本 / Featured），等待重新提交审核（见 [第 6.5 节](#65-审核时间说明)）
 
 ### 6.5 审核时间说明
 
@@ -286,10 +289,10 @@ modrinth {
 
 | 配置项 | 文件 | 当前值 | 说明 |
 |--------|------|--------|------|
-| `plugin_support_paper_versions` | `gradle.properties` | `26.1` | 两个平台共用，逗号分隔 |
+| `plugin_support_paper_versions` | `gradle.properties` | `26.1,26.2` | 两个平台共用，逗号分隔 |
 | `modrinth_project_id` | `gradle.properties` | `r8ZufLjY` | 本地默认值，CI 可通过变量覆盖 |
-| `plugin_debug_server_version` | `gradle.properties` | `26.1.2` | 仅本地调试用 |
-| `version` | `paper-plugin.yml` | `1.0.12` | 版本号源，tag 发布后自动递增 |
+| `plugin_debug_server_version` | `gradle.properties` | `26.2` | 仅本地调试用 |
+| `version` | `paper-plugin.yml` | `1.0.14` | 版本号源，tag 发布后自动递增 |
 
 ### 7.3 Token 轮换
 
@@ -301,6 +304,14 @@ modrinth {
 ---
 
 ## 8. 发布检查清单
+
+### Modrinth 审核整改清单（2026-07 首次审核被拒后补充）
+
+- [ ] 一句话简介（Summary）已改为英文
+- [ ] 已移除不准确的 `Optimization` 标签，保留 management / utility / social（以平台实际可选项为准）
+- [ ] `README.md` 为英文、header 简短、图片均带非空 alt 且为绝对 URL
+- [ ] 图集图片已上传、逐张填写 alt 文本，并指定 1 张为 Featured
+- [ ] 修改完成点击 **Resubmit for review**
 
 ### 每次版本发布后
 

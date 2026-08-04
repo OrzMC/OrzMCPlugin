@@ -7,7 +7,10 @@ public interface BotMessageService {
 
     void send(MessageEnvelope envelope);
 
-    default void tryReconnectQqWsIfDisconnected() {}
+    default void tryReconnectIfDisconnected() {}
+
+    /** Reconcile the active connection with the current easybot.yml configuration. */
+    default void reloadConfig() {}
 
     void tearDown();
 }

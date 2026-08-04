@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.assembly.Initializable;
 import com.jokerhub.paper.plugin.orzmc.assembly.MaintenanceModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.PlatformModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.PortalModule;
+import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 
 /**
  * 组合根 (Composition Root)。
@@ -101,5 +102,11 @@ public final class OrzServices {
     @org.jetbrains.annotations.VisibleForTesting
     public com.jokerhub.paper.plugin.orzmc.assembly.BotModule botModule() {
         return botModule;
+    }
+
+    /** 测试用：暴露 ConfigService，集成测试可直接驱动配置持久化与重载。 */
+    @org.jetbrains.annotations.VisibleForTesting
+    public ConfigService configService() {
+        return platformModule.configService();
     }
 }

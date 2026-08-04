@@ -21,23 +21,4 @@ templates:
   role_alias:
     admin: "管理员"
     member: "玩家"
-notifications:
-  player_join:
-    public:
-      enabled: true
-    private:
-      enabled: false
-      admin_only: true
-  player_quit:
-    public:
-      enabled: true
-    private:
-      enabled: false
-      admin_only: true
-  tnt_alert:
-    public:
-      enabled: true
-    private:
-      enabled: true
-      admin_only: true
 config-version: 2.0

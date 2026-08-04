@@ -25,7 +25,18 @@
 
 ## 架构设计图
 
-![architecture](../images/architecture.svg)
+```mermaid
+flowchart TD
+    Plugin["OrzMC / OrzServices"] --> Adapters["Events / Commands"]
+    Adapters --> Features["Feature Services"]
+    Features --> Ports["Core Ports / MessageEnvelope"]
+    Features --> Infra["Infrastructure"]
+    Infra --> EasyBot["OrzEasyBot"]
+    EasyBot <--> Gateway["EasyBot Unified Gateway"]
+    Gateway <--> Platforms["QQ / Telegram / Discord / Feishu / WeChat"]
+    Infra --> Config["Config / Health / Logging"]
+    Infra --> Network["AsyncHttp / RobustWebSocketClient"]
+```
 
 ## 模块构成
 
@@ -44,7 +55,7 @@ PlatformModule
 
 - **config/** — 配置加载、类型化包装与健康检查
     - ConfigService, ConfigManager, ConfigHealthCheck
-    - `configs/` 子包中每个配置对应一个记录类（`BotConfig`, `Styles`, `TntConfig`, `WhitelistConfig`, `Portals`, `MainConfig`, `MaintenanceConfig`, `CommandPolicies`, `TemplateOptions`, `Templates`, `NotifyPolicy`, `IpWhitelist`, `WhitelistKickMessage`）
+    - `configs/` 子包中每个配置对应一个记录类（`BotConfig`, `Styles`, `TntConfig`, `WhitelistConfig`, `Portals`, `MainConfig`, `MaintenanceConfig`, `CommandPolicies`, `TemplateOptions`, `Templates`, `IpWhitelist`, `WhitelistKickMessage`）
     - `SafeKeys` YAML 键名安全编码（解决 '.' 被识别为层级分隔的问题）
     - `PortalsWriter` 持久化传送门配置
 - **notify/** — 通知派发与限流
@@ -53,8 +64,8 @@ PlatformModule
 - **logging/** — 日志限流
     - ThrottledLogger
 - **health/** — 健康状态注册与查询
-    - HealthRegistry（Status: enabled/httpOk/wsConnected/apiReady/lastError/lastUpdated）
-    - HealthAccessor（桥接静态 HealthRegistry 与 HealthStatus 接口）
+    - HealthRegistry（Status: enabled/httpOk/httpChecked/wsConnected/apiReady/lastError/lastUpdated）
+    - HealthAccessor（桥接实例化 HealthRegistry 与 HealthStatus 接口）
 - **styles/** — 统一文本样式与颜色
     - OrzTextStyles（读取 templates.yml → styles 段，兼容旧 styles.yml）
 - **server/** — 服务端交互
@@ -64,12 +75,9 @@ PlatformModule
 - **ws/** — WebSocket 客户端封装
     - RobustWebSocketClient（指数退避与抖动、稳定期重置）
 - **bot/** — 机器人适配与路由
-    - BotAdapter 接口：所有机器人适配器统一契约（isEnable / setup / teardown / send）
-    - BotRouter 消息路由器：setup → flush → route 三阶段，初始化前消息自动缓存
-    - OrzBotManager 创建 OrzQQBot / OrzDiscordBot / OrzLarkBot / OrzEasyBot 适配器并注入路由
-    - BotReconnectionManager WebSocket 重连管理器（支持 QQ 和 EasyBot）
-    - BotMessageServiceProvider 工厂创建 BotMessageService
-    - OrzQQBot / OrzDiscordBot / OrzLarkBot / OrzEasyBot 各适配器实现
+    - BotMessageService：业务层使用的统一消息服务契约
+    - BotMessageServiceProvider：创建 EasyBot 消息服务
+    - OrzEasyBot：统一处理多平台入站事件、出站路由、健康状态和重连
 - **binding/** — 命令/事件注册
     - EventBinder（注册事件监听器）
 - **templates/** — 消息模板与解析
@@ -79,7 +87,7 @@ PlatformModule
 
 ### 2. BotModule — 机器人消息模块
 
-创建 BotCommandService → BotMessageService（QQ/Discord/Lark/EasyBot）→ Notifier 的依赖链。
+创建 BotCommandService → BotMessageService（EasyBot）→ Notifier 的依赖链。
 
 ```
 BotModule
@@ -91,7 +99,7 @@ BotModule
 │   ├── BotCommandFeedbackService     ← 指令反馈信息构建（帮助、用法提示）
 │   ├── BotCommandListFeedbackService ← 在线列表/白名单列表构建
 │   └── setMaintenanceService() / setBlacklistService() 跨模块注入
-├── BotMessageService     ← QQ/Discord/Lark/EasyBot 适配器
+├── BotMessageService     ← EasyBot 统一网关消息服务
 ├── Notifier              ← 通知派发（依赖 BotMessageService）
 ├── BotStatusService      ← 机器人状态查询
 └── HealthRegistry        ← 机器人相关健康检查
@@ -255,22 +263,23 @@ styles:
 
 ### easybot.yml（EasyBot IM 网关配置）
 
-独立于 `bot.yml`，使用专属配置记录类 `EasyBotConfig`：
+机器人连接、路由及通用 Bot 设置统一存放在 `easybot.yml`：
 
 ```yaml
 api_server: 'http://127.0.0.1:8080'
 ws_server: 'ws://127.0.0.1:8080'
 api_key: ''
 parse_mode: 'none'
+cmd_prompt_char: '$'
+discord_server_link: ''
+qq_group_id: ''
+log_throttle_ms: 5000
 platforms:
   qq:
     enabled: false
-    admin_group: 'qq:1082305302'
+    admin_group: 'qq:conv_xxxxxxxx'
     player_group: ''
-    admin_dm: 'qq:1092760538'
-channels:
-  ops-alert:
-    qq: 'qq:1082305302'
+    admin_dm: 'qq:conv_yyyyyyyy'
 ```
 
 - 支持多平台：QQ / Discord / Telegram / 飞书 / 微信
@@ -307,7 +316,7 @@ command_policies:
 
 ## Bot 命令
 
-机器人命令前缀来自 `config.yml` → `bot.cmd_prompt_char`（默认 `$`）：
+机器人命令前缀来自 `easybot.yml` → `cmd_prompt_char`（默认 `$`）：
 
 | 命令 | 权限 | 说明 |
 |------|------|------|
@@ -330,7 +339,7 @@ command_policies:
 - **单元测试**
     - 对服务类注入替身 Notifier/NotifierSink/OrzTextStyles，验证逻辑与路由
     - 对配置接口使用内存配置对象，验证默认值与路径解析
-    - 对 WS 工厂注入（OrzQQBot, OrzEasyBot）验证健康状态与异常路径，心跳逻辑验证缺失应答与恢复路径
+    - 对 EasyBot WS 工厂注入验证健康状态、会话白名单与异常路径
     - 对 AsyncHttp 进行重试与请求头/请求体行为验证
     - 对命令拦截器（PlayerOnlyInterceptor, AdminOnlyInterceptor, CooldownInterceptor, CooldownRegistry）分别验证
 - **集成测试**
@@ -353,11 +362,6 @@ command_policies:
 | 配置 | `infra/config/configs/` | 类型化配置记录类（16 个，含 EasyBotConfig） |
 | 配置 | `src/main/resources/easybot.yml` | EasyBot IM Gateway 默认配置 |
 | 适配器 | `infra/bot/OrzEasyBot.java` | EasyBot 网关适配器（WS + HTTP） |
-| 适配器 | `infra/bot/OrzQQBot.java` | QQ Bot 适配器（NapCatQQ/OneBot 11） |
-| 适配器 | `infra/bot/OrzDiscordBot.java` | Discord Bot 适配器（JDA） |
-| 适配器 | `infra/bot/OrzLarkBot.java` | 飞书 Bot 适配器（Webhook） |
-| 路由 | `infra/bot/BotRouter.java` | 消息路由器（setup/flush/route） |
-| 重连 | `infra/bot/BotReconnectionManager.java` | WebSocket 重连管理器 |
 | 拦截器 | `features/command/binding/` | 命令拦截器（5 个文件：4 拦截器 + CooldownRegistry） |
 | 命令注册 | `assembly/FeatureModule.java` | 通过 Paper LifecycleEvents.COMMANDS + Brigadier 注册（替代 CommandMap API） |
 | 绑定 | `infra/binding/EventBinder.java` | 事件监听器注册 |

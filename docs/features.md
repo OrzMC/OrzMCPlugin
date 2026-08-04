@@ -32,18 +32,12 @@
 
 ### 2.1 支持的平台
 
-| 平台 | 通信方式 | 能力 |
-|------|---------|------|
-| **QQ Bot** | WebSocket 长连接（NapCatQQ） | 双向：接收命令 + 推送通知 |
-| **Discord Bot** | Discord Bot API | 双向：接收命令 + 推送通知 |
-| **Lark（飞书）** | Webhook | 单向：仅推送通知 |
-| **EasyBot 网关** | WebSocket 长连接 + HTTP API | 双向：接收命令 + 推送通知（支持 QQ / Telegram / Discord / 飞书 / 微信） |
-
-> QQ Bot 支持配置 NapCatQQ 鉴权 token，增强安全性。
+插件统一通过 **EasyBot 网关** 接入 QQ、Telegram、Discord、飞书和微信。EasyBot 使用
+WebSocket 向插件推送入站消息，插件通过 HTTP API 发送回复和服务器通知。
 
 ### 2.2 Bot 命令一览
 
-所有命令使用可配置前缀（`bot.cmd_prompt_char`，默认 `$`），在命令后加 `?` 可查看详细用法。
+所有命令使用可配置前缀（`easybot.cmd_prompt_char`，默认 `$`），在命令后加 `?` 可查看详细用法。
 
 | 命令 | 功能 | 权限 |
 |------|------|------|
@@ -71,77 +65,15 @@
 
 ### 2.4 Bot 健康状态
 
-- 游戏内 `/bot` 命令查看各 Bot 连接状态
-- 字段：enabled、httpOk、wsConnected、apiReady、lastError
+- 游戏内 `/bot` 命令查看 EasyBot 连接状态
+- 字段：enabled、httpOk/httpChecked、wsConnected、apiReady、lastError
 - 执行命令时自动尝试重连 WebSocket
 
-### 2.5 QQ Bot 配置指南（NapCatQQ）
-
-> NapCatQQ 是一个开源的 QQ 机器人框架，基于 OneBot 11 协议实现，支持通过 WebSocket + HTTP API 与外部程序通信。
-> 项目地址：[https://github.com/NapNeko/NapCatQQ](https://github.com/NapNeko/NapCatQQ)
-
-#### 安装 NapCatQQ
-
-NapCatQQ 支持多种部署方式，请根据你的操作系统选择：
-
-| 部署方式 | 适用场景 | 说明 |
-|---------|---------|------|
-| **Windows GUI** | 个人电脑 | 下载安装器，QQ 扫码登录，自动启动服务 |
-| **Docker** | 服务器 | `docker run -d --name napcat ...`，适合与 Paper 服务端同机部署 |
-| **Linux 脚本** | 服务器 | 一键安装脚本，常用于云服务器 |
-
-部署完成后，NapCatQQ 会暴露两个端口：
-- **HTTP API 端口**（默认 `3000`）— 用于插件向 QQ 群发送消息
-- **WebSocket 端口**（默认 `3001`）— 用于插件接收来自 QQ 群的消息和命令
-
-#### 配置 OrzMC 对接 NapCatQQ
-
-修改 `bot.yml` 中的 QQ 相关配置：
-
-```yaml
-# 启用 QQ Bot
-enable_qq_bot: true
-# 机器人管理的 QQ 群号
-qq_group_id: '123456789'
-# 管理员 QQ 号（接收私聊消息）
-qq_admin_id: '987654321'
-# NapCatQQ HTTP API（发送消息）
-qq_bot_api_server: 'http://127.0.0.1:3000'
-# HTTP 鉴权 token（NapCatQQ 中配置，如无则留空）
-qq_bot_api_server_token: ''
-# NapCatQQ WebSocket（接收事件）
-qq_bot_ws_server: 'ws://127.0.0.1:3001'
-# WebSocket 鉴权 token
-qq_bot_ws_server_token: ''
-```
-
-> **注意：** NapCatQQ 与插件同机部署时地址填 `127.0.0.1`；跨机部署时填写 NapCatQQ 所在机器的 IP，并确保端口可访问。
-
-#### 工作流程
-
-```
-NapCatQQ（QQ 协议层）
-  WebSocket 事件推送 ──→ OrzMC（接收群消息/Bot 命令）
-  OrzMC ── HTTP API ──→ NapCatQQ（发送群通知/Bot 回复）
-```
-
-### 2.6 EasyBot 网关配置指南
+### 2.5 EasyBot 网关配置指南
 
 > EasyBot 是一个统一的 IM 网关服务，对外暴露一套 REST API + WebSocket 事件推送接口，
 > 屏蔽了各 IM 平台（QQ / Telegram / Discord / 飞书 / 微信）的协议差异。
 > 项目地址：[https://github.com/easyIndie/EasyBot](https://github.com/easyIndie/EasyBot)
-
-#### 与 NapCatQQ 的关系
-
-| 对比维度 | NapCatQQ（bot.yml） | EasyBot（easybot.yml） |
-|---------|-------------------|----------------------|
-| **协议层** | OneBot 11，仅 QQ | 统一网关，支持 QQ / Telegram / Discord / 飞书 / 微信 |
-| **配置方式** | 每平台独立参数 | 统一 API 地址 + 多平台目标路由 |
-| **适用范围** | 仅 QQ | 多平台统一管理 |
-| **兼容性** | 可独立工作 | 可独立工作，两者可同时启用互不干扰 |
-| **稳定性** | ⚠️ **一般** — NapCatQQ 为第三方协议实现，依赖 QQ 客户端模拟登录。QQ 官方会不定期检测并踢下线非官方客户端，导致 Bot 离线，需重新扫码登录 | ✅ **高** — EasyBot 接入 QQ 官方机器人 API，使用官方 Bot 帐号运行，不存在被踢下线风险。其他平台（Telegram / Discord / 飞书 / 微信）同样通过官方 API 实现 |
-
-> **建议：** 如果追求稳定性、或者需要多平台统一管理，推荐使用 EasyBot。仅需要基础 QQ Bot 功能且不介意偶发掉线时可以选用 NapCatQQ。两个系统也可同时启用互不干扰，按需决定各平台的接入方式。
 
 #### 安装 EasyBot
 
@@ -195,7 +127,7 @@ platforms:
 
 #### 消息路由规则
 
-EasyBot 适配器的消息路由分层如下：
+EasyBot 适配器只保留公开与管理员私聊两类路由：
 
 ```
 消息发送请求（MessageEnvelope）
@@ -203,26 +135,11 @@ EasyBot 适配器的消息路由分层如下：
     ├─ PUBLIC 类型 → 遍历所有已启用平台的 player_group
     │                  ↓ 为空则降级为 admin_group
     │
-    ├─ PRIVATE 类型 → 遍历所有已启用平台的 admin_dm
-    │
-    └─ CHANNEL 类型 → 查 channels.{channelKey}.{platform} 映射
-                       ↓ 找不到则按 PUBLIC 规则降级
+    └─ PRIVATE 类型 → 遍历所有已启用平台的 admin_dm
 ```
 
-渠道映射（channels）按用途进行精细化分发，目标值同样使用 EasyBot 的**会话 key**：
-
-```yaml
-channels:
-  ops-alert:           # 管理告警
-    qq: 'qq:conv_xxxxxxxx'
-    telegram: 'telegram:conv_zzzzzzzz'
-  player-announce:     # 玩家通知
-    qq: 'qq:conv_yyyyyyyy'
-  backup-notify:       # 备份通知
-    qq: 'qq:conv_xxxxxxxx'
-  security-alert:      # 安全告警
-    qq: 'qq:conv_xxxxxxxx'
-```
+事件投递目标由代码固定：玩家状态、服务器状态、TNT、GeoIP 和白名单事件走
+PUBLIC；异常、维护失败及无玩家维护提示走 PRIVATE。
 
 #### 飞书多实例注意事项
 
@@ -419,7 +336,7 @@ channels:
 | `command_policies.portal.cooldown_secs` | Integer | 5 | 传送门冷却（秒） |
 | `command_policies.portal.admin_only` | Boolean | true | 传送门仅管理员 |
 
-**Bot（来源：bot.yml）**
+**Bot（来源：easybot.yml）**
 | 配置路径 | 类型 | 默认值 | 描述 |
 |---------|------|--------|------|
 | `cmd_prompt_char` | String | $ | Bot 命令前缀符 |
@@ -463,8 +380,8 @@ channels:
 
 | 组件 | 说明 |
 |------|------|
-| **Bot 消息路由** | BotRouter 统一注册/缓存/路由，支持 setup → flush → route 三阶段 |
-| **多文件配置** | config.yml、bot.yml、easybot.yml、templates.yml、portals.yml、ip_blacklist.yml、notifications.yml，支持热重载 |
+| **Bot 消息路由** | OrzEasyBot 根据 PUBLIC / PRIVATE 统一路由至玩家群或管理员私聊 |
+| **多文件配置** | config.yml、easybot.yml、templates.yml、portals.yml、ip_blacklist.yml，支持热重载 |
 | **样式系统** | 可配置颜色调色板（成功/信息/警告/错误/坐标/玩家等），CSS 十六进制色值 |
 | **模板系统** | 变量替换、坐标格式化（缩放/精度/单位）、世界别名/角色别名/i18n |
 | **健康注册表** | 线程安全的服务健康状态追踪 |
@@ -480,9 +397,8 @@ channels:
 插件配置文件位于 `plugins/OrzMC/` 目录：
 
 - **config.yml** — 核心配置（白名单、TNT、维护、GeoIP、命令策略）
-- **bot.yml** — QQ/Discord/Lark Bot 连接配置
-- **easybot.yml** — EasyBot IM Gateway 连接配置（多平台消息路由、WebSocket + HTTP）
-- **templates.yml** — 通知模板、样式配色、通知策略、坐标格式、世界别名、角色别名、i18n 覆盖（含旧 `notifications.yml` 的 fallback 兼容）
+- **easybot.yml** — Bot 通用设置与 EasyBot IM Gateway 连接配置（多平台消息路由、WebSocket + HTTP）
+- **templates.yml** — 通知模板、样式配色、坐标格式、世界别名、角色别名、i18n 覆盖
 - **portals.yml** — 传送门数据（运行时修改）
 - **ip_blacklist.yml** — IP 黑名单数据（运行时修改）
 

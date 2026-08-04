@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import org.bukkit.command.ConsoleCommandSender;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,7 @@ class OrzUtilTest {
     @Test
     void successText_delegatesToStyles() {
         OrzTextStyles styles = mock(OrzTextStyles.class);
-        TextComponent expected = mock(TextComponent.class);
+        TextComponent expected = Component.text("ok");
         when(styles.success("ok")).thenReturn(expected);
 
         TextComponent result = OrzUtil.successText(styles, "ok");
@@ -28,7 +29,7 @@ class OrzUtilTest {
     @Test
     void failureText_delegatesToStyles() {
         OrzTextStyles styles = mock(OrzTextStyles.class);
-        TextComponent expected = mock(TextComponent.class);
+        TextComponent expected = Component.text("ok");
         when(styles.error("fail")).thenReturn(expected);
 
         TextComponent result = OrzUtil.failureText(styles, "fail");
@@ -39,7 +40,7 @@ class OrzUtilTest {
     @Test
     void warningText_delegatesToStyles() {
         OrzTextStyles styles = mock(OrzTextStyles.class);
-        TextComponent expected = mock(TextComponent.class);
+        TextComponent expected = Component.text("ok");
         when(styles.warn("caution")).thenReturn(expected);
 
         TextComponent result = OrzUtil.warningText(styles, "caution");

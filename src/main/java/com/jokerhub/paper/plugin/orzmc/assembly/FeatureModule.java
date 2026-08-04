@@ -122,7 +122,8 @@ public final class FeatureModule implements ServiceModule {
                 new ServerLifecycleService(platform.serverFacade(), platform.configs(), botModule.notifier());
         this.menuCommandService = new MenuCommandService(platform.textStyles());
         this.portalCommandService = new PortalCommandService(portalModule.portalService(), platform.textStyles());
-        this.orzConfigCommand = new OrzConfigCommand(platform.configService(), platform.textStyles());
+        this.orzConfigCommand = new OrzConfigCommand(
+                platform.configService(), platform.textStyles(), botModule.botMessageService()::reloadConfig);
 
         // 保留模块引用（供事件/命令注册使用）
         this.platform = platform;
@@ -205,10 +206,8 @@ public final class FeatureModule implements ServiceModule {
                     cp,
                     false,
                     sender -> teleportBowService.giveAndEquip((Player) sender));
-            registerSimple(commands, "bot", "查看机器人健康状态", List.of(), cp, true, sender -> {
-                botModule.botMessageService().tryReconnectQqWsIfDisconnected();
-                sender.sendMessage(botModule.botStatusService().buildStatusMessage());
-            });
+            // ---- Bot 健康状态：/bot 显示最简状态，/bot http、/bot ws 查看详情 ----
+            registerBotStatus(commands, cp);
 
             // ---- Portal: /portal [remove] <host> [port] ----
             registerPortal(commands, cp);
@@ -249,6 +248,40 @@ public final class FeatureModule implements ServiceModule {
                         .build(),
                 description,
                 aliases);
+    }
+
+    /** Bot 健康状态：/bot 显示 enabled/http/websocket 三个彩色状态词，/bot http、/bot ws 查看对应详情。 */
+    private void registerBotStatus(Commands commands, CommandPolicies cp) {
+        List<CommandInterceptor> rootInterceptors = commandInterceptors("bot", cp, true);
+        // 详情子命令由点击触发，不套用冷却，避免紧跟 /bot 后点击被冷却拦截
+        CommandPolicy botPolicy = cp.policies().getOrDefault("bot", new CommandPolicy(0, false));
+        List<CommandInterceptor> detailInterceptors = List.of(new AdminOnlyInterceptor(botPolicy.adminOnly()));
+        Predicate<CommandSourceStack> req = requirement(rootInterceptors);
+        commands.register(
+                literal("bot")
+                        .requires(req)
+                        .executes(guardedExec("bot", rootInterceptors, ctx -> {
+                            botModule.botMessageService().tryReconnectIfDisconnected();
+                            ctx.getSource()
+                                    .getSender()
+                                    .sendMessage(botModule.botStatusService().buildMinimalMessage());
+                            return 1;
+                        }))
+                        .then(literal("http").executes(guardedExec("bot", detailInterceptors, ctx -> {
+                            ctx.getSource()
+                                    .getSender()
+                                    .sendMessage(botModule.botStatusService().buildHttpDetail());
+                            return 1;
+                        })))
+                        .then(literal("ws").executes(guardedExec("bot", detailInterceptors, ctx -> {
+                            ctx.getSource()
+                                    .getSender()
+                                    .sendMessage(botModule.botStatusService().buildWsDetail());
+                            return 1;
+                        })))
+                        .build(),
+                "查看机器人健康状态",
+                List.of());
     }
 
     /** Portal: /portal [remove] <host> [port] */

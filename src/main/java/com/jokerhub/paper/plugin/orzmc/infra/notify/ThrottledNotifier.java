@@ -73,18 +73,6 @@ public final class ThrottledNotifier {
         return false;
     }
 
-    private void run(String key, long periodMs, Runnable action) {
-        if (shouldRun(key, periodMs)) {
-            action.run();
-        }
-    }
-
-    private void run(String key, long periodMs, long ttlMs, Runnable action) {
-        if (shouldRun(key, periodMs, ttlMs)) {
-            action.run();
-        }
-    }
-
     private void maybeCleanup(long now, long ttlMs) {
         long lc = lastCleanup;
         if (now - lc >= ttlMs) {

@@ -9,8 +9,11 @@ import org.junit.jupiter.api.Test;
 class BotConfigTest {
 
     @Test
-    void fromNull_throwsNpe() {
-        assertThrows(NullPointerException.class, () -> BotConfig.from(null));
+    void fromNull_returnsDefaults() {
+        BotConfig config = BotConfig.from(null);
+        assertEquals("$", config.cmdPromptChar());
+        assertNull(config.discordServerLink());
+        assertNull(config.qqGroupId());
     }
 
     @Test

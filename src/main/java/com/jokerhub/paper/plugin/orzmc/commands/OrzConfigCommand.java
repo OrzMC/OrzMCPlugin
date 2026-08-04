@@ -27,11 +27,17 @@ public class OrzConfigCommand implements CommandExecutor {
     private final ConfigService configService;
     private final OrzTextStyles textStyles;
     private final Map<String, ConfigPath> registry;
+    private final Runnable easyBotConfigReload;
 
     public OrzConfigCommand(ConfigService configService, OrzTextStyles textStyles) {
+        this(configService, textStyles, () -> {});
+    }
+
+    public OrzConfigCommand(ConfigService configService, OrzTextStyles textStyles, Runnable easyBotConfigReload) {
         this.configService = configService;
         this.textStyles = textStyles;
         this.registry = ConfigPath.all();
+        this.easyBotConfigReload = easyBotConfigReload == null ? () -> {} : easyBotConfigReload;
     }
 
     @Override
@@ -139,6 +145,7 @@ public class OrzConfigCommand implements CommandExecutor {
             cfg.set(cp.path(), parsed);
             configService.saveConfig(cp.configName());
             configService.reloadConfig(cp.configName());
+            notifyEasyBotReload(cp.configName());
             sender.sendMessage(textStyles.success("已设置: " + key + " = " + formatValue(parsed)));
         } catch (NumberFormatException e) {
             sender.sendMessage(textStyles.error("类型错误: " + key + " 需为 " + typeDisplay(cp.type()) + "，输入值无法解析"));
@@ -166,19 +173,28 @@ public class OrzConfigCommand implements CommandExecutor {
         cfg.set(cp.path(), cp.defaultValue());
         configService.saveConfig(cp.configName());
         configService.reloadConfig(cp.configName());
+        notifyEasyBotReload(cp.configName());
         sender.sendMessage(textStyles.success("已恢复默认: " + key + " = " + formatValue(cp.defaultValue())));
     }
 
     private void handleReload(CommandSender sender, String[] args) {
         if (args.length >= 2) {
             if (configService.reloadConfig(args[1])) {
+                notifyEasyBotReload(args[1]);
                 sender.sendMessage(textStyles.success("配置文件 " + args[1] + " 已重新加载"));
             } else {
                 sender.sendMessage(textStyles.error("配置文件 " + args[1] + " 不存在"));
             }
         } else {
             configService.reloadAll();
+            easyBotConfigReload.run();
             sender.sendMessage(textStyles.success("所有配置文件已重新加载"));
+        }
+    }
+
+    private void notifyEasyBotReload(String configName) {
+        if ("easybot".equalsIgnoreCase(configName)) {
+            easyBotConfigReload.run();
         }
     }
 

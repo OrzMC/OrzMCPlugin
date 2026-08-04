@@ -21,7 +21,7 @@ class ThrottledLoggerTest {
         configService = mock(ConfigService.class);
         botConfig = mock(FileConfiguration.class);
         logger = mock(Logger.class);
-        when(configService.getConfig("bot")).thenReturn(botConfig);
+        when(configService.getConfig("easybot")).thenReturn(botConfig);
         when(botConfig.getLong("log_throttle_ms")).thenReturn(50000L);
         throttledLogger = new ThrottledLogger(configService, logger);
     }
@@ -82,7 +82,7 @@ class ThrottledLoggerTest {
 
     @Test
     void defaultPeriodMs_exception_fallsBack() {
-        when(configService.getConfig("bot")).thenThrow(new RuntimeException("config error"));
+        when(configService.getConfig("easybot")).thenThrow(new RuntimeException("config error"));
         ThrottledLogger fallbackLogger = new ThrottledLogger(configService, logger);
         fallbackLogger.info("key", "fallback works");
         verify(logger).info("fallback works");

@@ -58,8 +58,9 @@ public class EventIntegrationTest {
         sink.keys.clear();
         sink.envelopes.clear();
 
-        Assertions.assertDoesNotThrow(
-                () -> server.getPluginManager().callEvent(new PlayerQuitEvent(player, Component.text("bye"))));
+        Assertions.assertDoesNotThrow(() -> server.getPluginManager()
+                .callEvent(
+                        new PlayerQuitEvent(player, Component.text("bye"), PlayerQuitEvent.QuitReason.DISCONNECTED)));
 
         Assertions.assertTrue(
                 sink.keys.stream().anyMatch(k -> k.equals("player_quit")), "player_quit event should be captured");

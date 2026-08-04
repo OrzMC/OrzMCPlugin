@@ -1,8 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplatePlaceholderValidator;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -17,9 +19,8 @@ public final class ConfigHealthCheck {
     public static List<String> validateAll(Function<String, FileConfiguration> provider) {
         List<String> issues = new ArrayList<>();
         validateConfig(provider.apply("config"), provider, issues);
-        validateBot(provider.apply("bot"), issues);
         validateEasyBot(provider.apply("easybot"), issues);
-        validateTemplates(provider.apply("templates"), provider, issues);
+        validateTemplates(provider.apply("templates"), issues);
         validatePortals(provider.apply("portals"), issues);
         return issues;
     }
@@ -55,7 +56,8 @@ public final class ConfigHealthCheck {
             String title = kickSection.getString("title", "");
             if (title.isEmpty()) issues.add("缺失: whitelist.kick_message.title 不可为空");
             String qqGroupId = kickSection.getString("qq_group_id", "");
-            if (qqGroupId.isEmpty()) issues.add("建议: whitelist.kick_message.qq_group_id 未配置，将使用 bot.qq_group_id 作为默认值");
+            if (qqGroupId.isEmpty())
+                issues.add("建议: whitelist.kick_message.qq_group_id 未配置，将使用 easybot.qq_group_id 作为默认值");
             List<?> ups = kickSection.getList("ups");
             if (ups == null || ups.isEmpty()) issues.add("缺失: whitelist.kick_message.ups 至少需要一项");
         }
@@ -146,30 +148,16 @@ public final class ConfigHealthCheck {
         }
     }
 
-    private static void validateBot(FileConfiguration cfg, List<String> issues) {
-        if (cfg == null) {
-            issues.add("bot.yml 未加载");
-            return;
-        }
-        String[] boolKeys = {"enable_qq_bot", "enable_discord_bot", "enable_lark_bot", "ws_message_log_enabled"};
-        for (String k : boolKeys) {
-            Object v = cfg.get(k);
-            if (v != null && !(v instanceof Boolean)) issues.add("类型错误: bot." + k + " 需为布尔值");
-        }
-        Object prompt = cfg.get("cmd_prompt_char");
-        if (prompt != null && String.valueOf(prompt).isEmpty()) issues.add("非法: bot.cmd_prompt_char 不可为空");
-        int httpConn = cfg.getInt("http_connect_timeout_seconds", 3);
-        int httpReq = cfg.getInt("http_request_timeout_seconds", 3);
-        int httpRetries = cfg.getInt("http_max_retries", 3);
-        if (httpConn <= 0) issues.add("非法: bot.http_connect_timeout_seconds 必须为正数");
-        if (httpReq <= 0) issues.add("非法: bot.http_request_timeout_seconds 必须为正数");
-        if (httpRetries < 0) issues.add("非法: bot.http_max_retries 不得为负数");
-    }
-
     private static void validateEasyBot(FileConfiguration cfg, List<String> issues) {
         if (cfg == null) {
             issues.add("easybot.yml 未加载");
             return;
+        }
+        Object prompt = cfg.get("cmd_prompt_char");
+        if (prompt != null && !(prompt instanceof String)) {
+            issues.add("类型错误: easybot.cmd_prompt_char 需为字符串");
+        } else if (prompt != null && String.valueOf(prompt).isBlank()) {
+            issues.add("非法: easybot.cmd_prompt_char 不可为空");
         }
 
         // 检测是否有至少一个平台启用了 enabled: true
@@ -188,30 +176,40 @@ public final class ConfigHealthCheck {
                 }
                 if (enabledField instanceof Boolean && (Boolean) enabledField) {
                     anyPlatformEnabled = true;
-                    String adminGroup = sec.getString("admin_group", "");
-                    if (adminGroup.isEmpty()) {
-                        issues.add("建议: easybot.platforms." + key + ".admin_group 未配置");
-                    } else if (!adminGroup.contains(":")) {
-                        issues.add("格式: easybot.platforms." + key + ".admin_group 需为 'platform:chatId' 格式");
+                    String platform = key.trim().toLowerCase(Locale.ROOT);
+                    String adminGroup = sec.getString("admin_group", "").trim();
+                    String playerGroup = sec.getString("player_group", "").trim();
+                    String adminDm = sec.getString("admin_dm", "").trim();
+                    if (adminGroup.isEmpty() && playerGroup.isEmpty()) {
+                        issues.add("建议: easybot.platforms." + key + " 至少配置 admin_group 或 player_group");
                     }
+                    if (adminDm.isEmpty()) {
+                        issues.add("建议: easybot.platforms." + key + ".admin_dm 未配置，PRIVATE 告警将无法发送");
+                    }
+                    validateAdminGroup(adminGroup, platform, "easybot.platforms." + key, issues);
                 }
+                String platform = key.trim().toLowerCase(Locale.ROOT);
+                validateTarget(sec, "player_group", platform, "easybot.platforms." + key, issues);
+                validateTarget(sec, "admin_dm", platform, "easybot.platforms." + key, issues);
             }
         }
 
+        String apiServer = cfg.getString("api_server", "");
+        String wsServer = cfg.getString("ws_server", "");
         if (anyPlatformEnabled) {
-            String apiServer = cfg.getString("api_server", "");
             if (apiServer.isEmpty()) {
                 issues.add("缺失: easybot.api_server 有平台启用时必须配置");
             }
-            String wsServer = cfg.getString("ws_server", "");
             if (wsServer.isEmpty()) {
                 issues.add("缺失: easybot.ws_server 有平台启用时必须配置");
             }
-            String apiKey = cfg.getString("api_key", "");
-            if (apiKey.isEmpty()) {
+            String apiKey = cfg.getString("api_key", "").trim();
+            if (apiKey.isBlank()) {
                 issues.add("缺失: easybot.api_key 有平台启用时必须配置");
             }
         }
+        validateUri(apiServer, "http", "https", "easybot.api_server", issues);
+        validateUri(wsServer, "ws", "wss", "easybot.ws_server", issues);
         // Validate HTTP timeouts
         int httpConn = cfg.getInt("http_connect_timeout_seconds", 3);
         int httpReq = cfg.getInt("http_request_timeout_seconds", 3);
@@ -219,6 +217,58 @@ public final class ConfigHealthCheck {
         if (httpConn <= 0) issues.add("非法: easybot.http_connect_timeout_seconds 必须为正数");
         if (httpReq <= 0) issues.add("非法: easybot.http_request_timeout_seconds 必须为正数");
         if (httpRetries < 0) issues.add("非法: easybot.http_max_retries 不得为负数");
+        int wsRetries = cfg.getInt("ws_max_retries", 10);
+        long wsBaseRetry = cfg.getLong("ws_base_retry_ms", 5000);
+        long wsMaxDelay = cfg.getLong("ws_max_delay_ms", 60000);
+        int wsJitter = cfg.getInt("ws_jitter_percent", 10);
+        long wsStableReset = cfg.getLong("ws_stable_reset_ms", 20000);
+        long wsLogThrottle = cfg.getLong("ws_message_log_throttle_ms", 60000);
+        long logThrottle = cfg.getLong("log_throttle_ms", 5000);
+        if (wsRetries < 0) issues.add("非法: easybot.ws_max_retries 不得为负数");
+        if (wsBaseRetry <= 0) issues.add("非法: easybot.ws_base_retry_ms 必须为正数");
+        if (wsMaxDelay < wsBaseRetry) issues.add("非法: easybot.ws_max_delay_ms 不得小于 ws_base_retry_ms");
+        if (wsJitter < 0 || wsJitter > 100) issues.add("非法: easybot.ws_jitter_percent 范围 0-100");
+        if (wsStableReset <= 0) issues.add("非法: easybot.ws_stable_reset_ms 必须为正数");
+        if (wsLogThrottle <= 0) issues.add("非法: easybot.ws_message_log_throttle_ms 必须为正数");
+        if (logThrottle <= 0) issues.add("非法: easybot.log_throttle_ms 必须为正数");
+    }
+
+    private static void validateTarget(
+            ConfigurationSection section, String field, String platform, String path, List<String> issues) {
+        String target = section.getString(field, "").trim();
+        validateTargetValue(target, field, platform, path, issues);
+    }
+
+    private static void validateTargetValue(
+            String target, String field, String platform, String path, List<String> issues) {
+        if (target.isEmpty()) return;
+        if (!target.startsWith(platform + ":") || target.length() == platform.length() + 1) {
+            issues.add("格式: " + path + "." + field + " 需为 '" + platform + ":chatId' 格式");
+        }
+    }
+
+    private static void validateAdminGroup(String target, String platform, String path, List<String> issues) {
+        if (target.isEmpty()) return;
+        if (!target.contains(":")) {
+            issues.add("格式: " + path + ".admin_group 需为 'platform:chatId' 格式");
+        } else if (!target.startsWith(platform + ":")) {
+            issues.add("格式: " + path + ".admin_group 平台前缀应为 '" + platform + ":'");
+        } else if (target.length() == platform.length() + 1) {
+            issues.add("格式: " + path + ".admin_group 需为 '" + platform + ":chatId' 格式");
+        }
+    }
+
+    private static void validateUri(String value, String scheme1, String scheme2, String path, List<String> issues) {
+        if (value == null || value.isEmpty()) return;
+        try {
+            URI uri = URI.create(value);
+            String scheme = uri.getScheme();
+            if (uri.getHost() == null || !(scheme1.equalsIgnoreCase(scheme) || scheme2.equalsIgnoreCase(scheme))) {
+                issues.add("格式: " + path + " 需为有效的 " + scheme1 + "/" + scheme2 + " URL");
+            }
+        } catch (IllegalArgumentException e) {
+            issues.add("格式: " + path + " 需为有效的 " + scheme1 + "/" + scheme2 + " URL");
+        }
     }
 
     private static void validatePortals(FileConfiguration cfg, List<String> issues) {
@@ -270,21 +320,12 @@ public final class ConfigHealthCheck {
         }
     }
 
-    private static void validateTemplates(
-            FileConfiguration cfg, Function<String, FileConfiguration> provider, List<String> issues) {
+    private static void validateTemplates(FileConfiguration cfg, List<String> issues) {
         if (cfg == null) {
             issues.add("templates.yml 未加载");
             return;
         }
         issues.addAll(TemplatePlaceholderValidator.validate(cfg));
-
-        // Validate notifications section
-        ConfigurationSection notificationsSection = cfg.getConfigurationSection("notifications");
-        if (notificationsSection == null) {
-            issues.add("templates.yml 缺失 notifications 配置段");
-        } else {
-            validateNotificationsSection(notificationsSection, provider.apply("bot"), cfg, issues);
-        }
 
         // Validate styles section
         ConfigurationSection stylesSection = cfg.getConfigurationSection("styles");
@@ -370,31 +411,6 @@ public final class ConfigHealthCheck {
                 if (!cfg.contains("templates." + key)) {
                     issues.add("建议: templates.format." + key + " 未找到对应模板");
                 }
-            }
-        }
-    }
-
-    private static void validateNotificationsSection(
-            ConfigurationSection section,
-            FileConfiguration botCfg,
-            FileConfiguration templatesCfg,
-            List<String> issues) {
-        String key = "notifications.tnt_alert.public.enabled";
-        Object v = section.get("tnt_alert.public.enabled");
-        if (!(v instanceof Boolean)) issues.add("类型错误: " + key + " 需为布尔值");
-        for (String eventKey : section.getKeys(false)) {
-            if (templatesCfg != null && !templatesCfg.contains("templates." + eventKey)) {
-                issues.add("通知事件缺少模板: notifications." + eventKey);
-            }
-            String ckey = section.getString(eventKey + ".channel_key", "");
-            if (ckey.isEmpty()) continue;
-            String qq = botCfg == null ? null : botCfg.getString("channels." + ckey + ".qq");
-            String discord = botCfg == null ? null : botCfg.getString("channels." + ckey + ".discord");
-            String lark = botCfg == null ? null : botCfg.getString("channels." + ckey + ".lark");
-            if ((qq == null || qq.isEmpty())
-                    && (discord == null || discord.isEmpty())
-                    && (lark == null || lark.isEmpty())) {
-                issues.add("通知频道未映射: notifications." + eventKey + ".channel_key=" + ckey);
             }
         }
     }

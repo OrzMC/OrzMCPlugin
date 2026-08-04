@@ -44,7 +44,7 @@ public class CommandAndEventIntegrationTest {
         Assertions.assertDoesNotThrow(() -> server.dispatchCommand(player, "bot"));
         Component actual = player.nextComponentMessage();
         BotModule botModule = getBotModule(plugin);
-        Component expected = botModule.botStatusService().buildStatusMessage();
+        Component expected = botModule.botStatusService().buildMinimalMessage();
         String actualText = PlainTextComponentSerializer.plainText().serialize(actual);
         String expectedText = PlainTextComponentSerializer.plainText().serialize(expected);
         Assertions.assertEquals(expectedText, actualText);
@@ -73,7 +73,7 @@ public class CommandAndEventIntegrationTest {
         MessageEnvelope envelope = got.get();
         Assertions.assertNotNull(envelope, "missing bot command response");
         Assertions.assertEquals(MessageEnvelope.Format.CODE_BLOCK, envelope.format());
-        Assertions.assertTrue(envelope.message().contains("QQBot:"), envelope.message());
+        Assertions.assertTrue(envelope.message().contains("ws"), envelope.message());
     }
 
     private static BotModule getBotModule(OrzMC plugin) {

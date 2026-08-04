@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.command.Command;
@@ -179,7 +180,7 @@ class OrzConfigCommandTest {
     @Test
     void set_configNull_sendsError() {
         // Return null config for a different config file
-        when(configService.getConfig("bot")).thenReturn(null);
+        when(configService.getConfig("easybot")).thenReturn(null);
 
         cmd.onCommand(sender, command, "orzmc", new String[] {"set", "cmd_prompt_char", "$"});
 
@@ -263,6 +264,17 @@ class OrzConfigCommandTest {
 
         verify(configService).reloadConfig("nonexistent");
         verify(textStyles).error(contains("不存在"));
+    }
+
+    @Test
+    void reload_easyBot_notifiesConnectionCoordinator() {
+        AtomicInteger reloads = new AtomicInteger();
+        OrzConfigCommand easyBotCommand = new OrzConfigCommand(configService, textStyles, reloads::incrementAndGet);
+        when(configService.reloadConfig("easybot")).thenReturn(true);
+
+        easyBotCommand.onCommand(sender, command, "orzmc", new String[] {"reload", "easybot"});
+
+        assertEquals(1, reloads.get());
     }
 
     // ---------------------------------------------------------------

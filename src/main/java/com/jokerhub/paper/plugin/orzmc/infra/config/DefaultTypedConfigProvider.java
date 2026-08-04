@@ -25,7 +25,7 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
 
     @Override
     public BotConfig bot() {
-        return BotConfig.from(configService.getConfig("bot"));
+        return BotConfig.from(configService.getConfig("easybot"));
     }
 
     @Override

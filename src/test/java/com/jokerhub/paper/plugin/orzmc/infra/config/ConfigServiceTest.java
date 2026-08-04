@@ -35,7 +35,7 @@ class ConfigServiceTest {
     void setup_registersConfigs() {
         configService.setup();
         assertNotNull(configService.getConfig("config"));
-        assertNotNull(configService.getConfig("bot"));
+        assertNotNull(configService.getConfig("easybot"));
         assertNotNull(configService.getConfig("templates"));
         assertNotNull(configService.getConfig("portals"));
         assertNotNull(configService.getConfig("ip_blacklist"));

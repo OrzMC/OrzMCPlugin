@@ -74,7 +74,7 @@ class TntEventServiceTest extends ServiceTestBase {
         when(templateOpts.coordUnitLabel()).thenReturn("m");
         when(configs.templateOptions()).thenReturn(templateOpts);
         when(configs.renderEvent(anyString(), anyMap()))
-                .thenReturn(new MessageEnvelope(TargetType.CHANNEL, "msg", "alert", Format.DEFAULT));
+                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
 
         templateResolversMock = mockStatic(TemplateResolvers.class);
         templateResolversMock
@@ -131,7 +131,7 @@ class TntEventServiceTest extends ServiceTestBase {
         TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
-                .thenReturn(new MessageEnvelope(TargetType.CHANNEL, "msg", "alert", Format.DEFAULT));
+                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
         service = new TntEventService(configs, styles, notifier, throttledNotifier);
 
         Location loc = mock(Location.class);
@@ -154,7 +154,7 @@ class TntEventServiceTest extends ServiceTestBase {
         TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
-                .thenReturn(new MessageEnvelope(TargetType.CHANNEL, "msg", "alert", Format.DEFAULT));
+                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
         service = new TntEventService(configs, styles, notifier, throttledNotifier);
 
         Location loc = mock(Location.class);
@@ -178,7 +178,7 @@ class TntEventServiceTest extends ServiceTestBase {
         TntConfig tntConfig = new TntConfig(false, false, 0, 1000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
-                .thenReturn(new MessageEnvelope(TargetType.CHANNEL, "msg", "alert", Format.DEFAULT));
+                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
         service = new TntEventService(configs, styles, notifier, throttledNotifier);
 
         Location loc = mock(Location.class);
@@ -313,5 +313,48 @@ class TntEventServiceTest extends ServiceTestBase {
         service.onEntityExplode(event);
 
         verify(throttledNotifier).runDefault(anyString(), any());
+    }
+
+    // ---- 热重载：不重建 service，配置变更后立即生效 ----
+
+    @Test
+    void onTNTPrime_configChangedAfterConstruction_takesEffectImmediately() {
+        // setUp 已建 service（enable=false）。模拟 reload：provider 返回新配置，不重建 service。
+        TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
+        when(configs.tnt()).thenReturn(tntConfig);
+
+        Location loc = mock(Location.class);
+        World world = mockWorld();
+        when(loc.getWorld()).thenReturn(world);
+        Block block = mockBlock(loc);
+        TNTPrimeEvent event = mock(TNTPrimeEvent.class);
+        when(event.getBlock()).thenReturn(block);
+
+        service.onTNTPrime(event);
+
+        verify(event, never()).setCancelled(anyBoolean());
+    }
+
+    @Test
+    void onEntityExplode_exemptListChangedAfterConstruction_takesEffectImmediately() {
+        // setUp 的 config 空 exempt → 默认豁免（含 CREEPER，不含 ENDERMAN）。
+        // 模拟 reload：新配置把 ENDERMAN 加入豁免，不重建 service。
+        TntConfig tntConfig = new TntConfig(false, true, 0, 1000L, List.of(), List.of("ENDERMAN"));
+        when(configs.tnt()).thenReturn(tntConfig);
+
+        Location loc = mock(Location.class);
+        World world = mockWorld();
+        when(loc.getWorld()).thenReturn(world);
+        when(loc.getBlockX()).thenReturn(10);
+        when(loc.getBlockY()).thenReturn(64);
+        when(loc.getBlockZ()).thenReturn(20);
+
+        EntityExplodeEvent event = mock(EntityExplodeEvent.class);
+        when(event.getEntityType()).thenReturn(EntityType.ENDERMAN);
+        when(event.getLocation()).thenReturn(loc);
+
+        service.onEntityExplode(event);
+
+        verify(throttledNotifier, never()).runDefault(anyString(), any());
     }
 }

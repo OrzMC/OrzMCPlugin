@@ -23,7 +23,7 @@ public final class TemplateRenderer {
             String templateKey, String template, Map<String, String> vars, FileConfiguration cfg) {
         String message = render(template, vars);
         MessageEnvelope.Format format = formatFromConfig(templateKey, cfg);
-        return new MessageEnvelope(MessageEnvelope.TargetType.PUBLIC, message, null, format);
+        return new MessageEnvelope(MessageEnvelope.TargetType.PUBLIC, message, format);
     }
 
     public static String resolveTemplate(String templateKey, FileConfiguration cfg, String fallback) {

@@ -5,6 +5,9 @@ import org.bukkit.configuration.ConfigurationSection;
 public record BotConfig(String cmdPromptChar, String discordServerLink, String qqGroupId) {
 
     public static BotConfig from(ConfigurationSection cfg) {
+        if (cfg == null) {
+            return new BotConfig("$", null, null);
+        }
         String cmdPromptChar = cfg.getString("cmd_prompt_char", "$");
         String discordServerLink = cfg.getString("discord_server_link");
         String qqGroupId = cfg.getString("qq_group_id");

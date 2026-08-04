@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### ♻️ 重构
+- **统一 EasyBot 网关** — 移除 NapCatQQ、Discord JDA 与飞书 Webhook 直连适配器，机器人消息统一经 EasyBot 收发。
+- **简化消息链路** — 移除多适配器 Router/Manager 与旧重连管理器，由 `OrzEasyBot` 直接实现消息服务、健康状态和重连。
+- **统一配置** — 删除 `bot.yml`，将命令前缀、社区入口与日志限流迁移至 `easybot.yml`。
+- **固定通知路由** — 删除低使用率的 `notifications` 与 `channels` 配置；玩家状态、服务器状态、TNT、GeoIP、白名单事件固定走 PUBLIC，异常与维护事件固定走 PRIVATE。
+- **入站安全** — 仅允许已配置的管理群、玩家群或管理员私聊执行 Bot 命令。
+
+### ⬇️ 依赖
+- 移除 `net.dv8tion:JDA` 及其传递依赖，缩减插件产物体积。
+
 ---
 
 ## [1.0.12] - 2026-07-09

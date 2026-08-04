@@ -29,30 +29,21 @@ repositories {
         name = "papermc"
         url = uri("https://repo.papermc.io/repository/maven-public/")
     }
-    maven {
-        name = "sonatype"
-        url = uri("https://oss.sonatype.org/content/groups/public/")
-    }
     mavenCentral()
 }
 dependencies {
     // orc-mc-api 子模块（纯 Java 端口与模型）
     implementation(project(":orzmc-api"))
 
-    compileOnly("io.papermc.paper:paper-api:${property("plugin_debug_server_version") as String}.build.+")
-    // WebSocket Client For NapCat QQBot
+    compileOnly("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
+    // WebSocket client used by the EasyBot event stream.
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
-    // Java Discord API
-    implementation("net.dv8tion:JDA:6.5.0") {
-        exclude(module = "opus-java")
-        exclude(module = "tink")
-    }
     // Minecraft World Backup Lib
     implementation("io.github.wangzhizhou:backup-core:0.1.6")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.2")
-    testImplementation("io.papermc.paper:paper-api:${property("plugin_debug_server_version") as String}.build.+")
+    testImplementation("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
@@ -76,28 +67,20 @@ configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
 )
 
 dependencies {
-    val integrationPaperVersion = property("plugin_debug_server_version") as String
-    add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.2")
-    add("integrationTestImplementation", "io.papermc.paper:paper-api:$integrationPaperVersion.build.+")
     add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.114.0")
-    add("integrationTestImplementation", "com.squareup.okhttp3:mockwebserver:5.4.0")
-    add("integrationTestImplementation", "org.mockito:mockito-core:5.23.0")
-    add("integrationTestImplementation", "org.mockito:mockito-junit-jupiter:5.23.0")
-    add("integrationTestRuntimeOnly", "org.junit.jupiter:junit-jupiter-engine:6.1.2")
-    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher:6.1.2")
 }
 
 // 项目编译时插件添加
 plugins {
     kotlin("jvm") version "2.4.10"
-    id("com.gradleup.shadow") version "9.6.0"
+    id("com.gradleup.shadow") version "9.6.1"
     // 工程内直接调试服务端插件：https://docs.papermc.io/paper/dev/debugging#using-direct-debugging
     id("xyz.jpenilla.run-paper") version "3.0.2"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
-    id("com.modrinth.minotaur") version "2.+"
-    id("com.diffplug.spotless") version "8.8.0"
+    id("com.modrinth.minotaur") version "2.9.0"
+    id("com.diffplug.spotless") version "8.9.0"
     id("jacoco")
 }
 
@@ -120,7 +103,8 @@ fun executeGitCommand(vararg command: String): String {
 }
 
 fun latestCommitMessage(): String {
-    return executeGitCommand("log", "-1", "--pretty=%B")
+    return runCatching { executeGitCommand("log", "-1", "--pretty=%B") }
+        .getOrElse { "OrzMC ${project.version} build" }
 }
 
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
@@ -196,7 +180,7 @@ modrinth {
     syncBodyFrom.set(project.file("README.md").readText())
 }
 
-val debugServerVesion = property("plugin_debug_server_version") as String
+val debugServerVersion = property("plugin_debug_server_version") as String
 tasks {
     register("installGitHooks") {
         doLast {
@@ -231,7 +215,7 @@ tasks {
         // Configure the Minecraft version for our task.
         // This is the only required configuration besides applying the plugin.
         // Your plugin's jar (or shadowJar if present) will be used automatically.
-        minecraftVersion(debugServerVesion)
+        minecraftVersion(debugServerVersion)
         // 以离线模式启动服务端
         args("--nojline", "--nogui", "--online-mode=false")
         dependsOn(agreeEula)
@@ -241,6 +225,7 @@ tasks {
     }
     shadowJar {
         minimize()
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
         archiveClassifier.set(null as String?)
         archiveVersion.set(shadowJarVersion)
     }
@@ -257,7 +242,6 @@ tasks {
             showStackTraces = true
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         }
-        finalizedBy("jacocoTestReport")
     }
     named<Copy>("processIntegrationTestResources") {
         duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
@@ -268,13 +252,13 @@ tasks {
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
         shouldRunAfter(test)
-        finalizedBy("jacocoTestReport")
     }
 }
 
 // JaCoCo 报告输出（在 tasks {} 块外用 withType 避免 Kotlin DSL 接收者歧义）
 tasks.withType<JacocoReport>().configureEach {
-    dependsOn("test")
+    dependsOn("test", "integrationTest")
+    executionData(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
     reports {
         xml.required.set(true)
         html.required.set(true)
@@ -283,7 +267,8 @@ tasks.withType<JacocoReport>().configureEach {
 
 // JaCoCo 覆盖率验证门禁
 tasks.withType<JacocoCoverageVerification>().configureEach {
-    dependsOn("test")
+    dependsOn("test", "integrationTest")
+    executionData(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
     violationRules {
         rule {
             limit {

@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.health;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.health.HealthStatus;
+import java.util.List;
 
 /**
  * 将 {@link HealthRegistry} 适配为 {@link HealthStatus} 接口。
@@ -18,6 +19,16 @@ public final class HealthAccessor implements HealthStatus {
     @Override
     public Entry get(String service) {
         HealthRegistry.Status s = healthRegistry.getRaw(service);
-        return new Entry(s.enabled, s.httpOk, s.wsConnected, s.apiReady, s.lastError, s.lastUpdated);
+        return new Entry(
+                s.enabled,
+                s.httpOk,
+                s.httpChecked,
+                s.wsConnected,
+                s.apiReady,
+                s.lastError,
+                s.deliveryFailed,
+                s.deliveryTotal,
+                s.deliveryTargets == null ? List.of() : s.deliveryTargets,
+                s.lastUpdated);
     }
 }

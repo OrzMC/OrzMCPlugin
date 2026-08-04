@@ -45,7 +45,7 @@ public class CommandIntegrationTest {
         Assertions.assertDoesNotThrow(() -> server.dispatchCommand(player, "bot"));
         Component actual = player.nextComponentMessage();
         BotModule botModule = plugin.services().botModule();
-        Component expected = botModule.botStatusService().buildStatusMessage();
+        Component expected = botModule.botStatusService().buildMinimalMessage();
         String actualText = PlainTextComponentSerializer.plainText().serialize(actual);
         String expectedText = PlainTextComponentSerializer.plainText().serialize(expected);
         Assertions.assertEquals(expectedText, actualText);
@@ -132,7 +132,7 @@ public class CommandIntegrationTest {
         server.getScheduler().performOneTick();
         MessageEnvelope envelope = got.get();
         Assertions.assertNotNull(envelope, "Bot command should produce response");
-        Assertions.assertTrue(envelope.message().contains("QQBot:"), "Status should mention QQBot");
+        Assertions.assertTrue(envelope.message().contains("ws"), "Status should show ws state");
     }
 
     @Test

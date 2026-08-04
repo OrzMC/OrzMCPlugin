@@ -11,6 +11,7 @@ class HealthStatusTest {
         HealthStatus.Entry entry = new HealthStatus.Entry(true, false, true, true, "timeout", 1000L);
         assertTrue(entry.enabled());
         assertFalse(entry.httpOk());
+        assertFalse(entry.httpChecked());
         assertTrue(entry.wsConnected());
         assertTrue(entry.apiReady());
         assertEquals("timeout", entry.lastError());
@@ -21,6 +22,7 @@ class HealthStatusTest {
     void entry_defaultValues() {
         HealthStatus.Entry entry = new HealthStatus.Entry(false, false, false, false, "", 0L);
         assertFalse(entry.enabled());
+        assertFalse(entry.httpChecked());
         assertEquals("", entry.lastError());
         assertEquals(0L, entry.lastUpdated());
     }

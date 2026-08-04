@@ -71,10 +71,10 @@ public final class ConfigPath {
         reg(map, "config", "command_policies.menu.admin_only", Boolean.class, false, "菜单仅管理员可用");
         reg(map, "config", "command_policies.portal.cooldown_secs", Integer.class, 5, "传送门冷却(秒)");
         reg(map, "config", "command_policies.portal.admin_only", Boolean.class, true, "传送门仅管理员可用");
-        // bot (bot.yml)
-        reg(map, "bot", "cmd_prompt_char", String.class, "$", "Bot命令前缀符");
-        reg(map, "bot", "discord_server_link", String.class, null, "Discord邀请链接");
-        reg(map, "bot", "qq_group_id", String.class, null, "QQ群号");
+        // bot settings (easybot.yml)
+        reg(map, "easybot", "cmd_prompt_char", String.class, "$", "Bot命令前缀符");
+        reg(map, "easybot", "discord_server_link", String.class, null, "Discord邀请链接");
+        reg(map, "easybot", "qq_group_id", String.class, null, "QQ群号");
         // templates (templates.yml)
         reg(map, "templates", "templates.locale", String.class, "zh-CN", "本地化语言");
         reg(map, "templates", "templates.coord.scale", Double.class, 1.0, "坐标缩放比例");

@@ -24,8 +24,9 @@ public class RobustWebSocketClient implements WsClient {
     private final long logMessageThrottleMs;
     private final Map<String, String> httpHeaders;
     private final WebSocketEventListener listener;
-    private WebSocketClient client;
+    private volatile WebSocketClient client;
     private volatile boolean shouldReconnect = true;
+    private final AtomicBoolean disconnected = new AtomicBoolean(false);
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
     private int retryCount = 0;
     private volatile ScheduledFuture<?> heartbeatFuture;
@@ -62,7 +63,7 @@ public class RobustWebSocketClient implements WsClient {
         this.logMessageThrottleMs = logMessageThrottleMs;
         this.httpHeaders = httpHeaders;
         this.listener = listener;
-        this.executor = Executors.newScheduledThreadPool(3);
+        this.executor = Executors.newSingleThreadScheduledExecutor();
         this.heartbeatPayload = heartbeatPayload;
         createClient();
     }
@@ -132,13 +133,24 @@ public class RobustWebSocketClient implements WsClient {
     }
 
     public void disconnect() {
+        if (!disconnected.compareAndSet(false, true)) {
+            return;
+        }
         shouldReconnect = false;
         stopHeartbeat();
-        client.close();
-        executor.shutdown();
+        try {
+            if (client != null) {
+                client.close();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private void scheduleReconnect() {
+        if (disconnected.get() || executor.isShutdown()) {
+            return;
+        }
         if (!reconnecting.compareAndSet(false, true)) {
             return;
         }

@@ -27,16 +27,16 @@ jobs:
         uses: actions/checkout@v7
 
       - name: gradle wrapper validation
-        uses: gradle/actions/wrapper-validation@v6
+        uses: gradle/actions/wrapper-validation@v6.2.0
 
       - name: jdk
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v5.6.0
         with:
           distribution: 'temurin'
           java-version: 25
 
       - name: setup gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v6.2.0
         with:
           cache-read-only: true
 
@@ -48,6 +48,9 @@ jobs:
 
       - name: integration tests
         run: ./gradlew integrationTest --stacktrace
+
+      - name: coverage verification
+        run: ./gradlew jacocoTestReport jacocoTestCoverageVerification --stacktrace
 
       - name: build shadowJar
         run: ./gradlew shadowJar --stacktrace

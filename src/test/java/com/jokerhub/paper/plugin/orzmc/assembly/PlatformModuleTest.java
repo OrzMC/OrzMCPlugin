@@ -41,8 +41,8 @@ class PlatformModuleTest {
         lenient().when(plugin.getDataFolder()).thenReturn(tempDir);
         lenient().when(plugin.getLogger()).thenReturn(Logger.getLogger("OrzMC"));
 
-        // 预创建 bot.yml 和 guide_book.yml 等配置文件避免 NPE
-        Files.createFile(tempDir.toPath().resolve("bot.yml"));
+        // 预创建 easybot.yml 和 guide_book.yml 等配置文件避免 NPE
+        Files.createFile(tempDir.toPath().resolve("easybot.yml"));
         Files.createFile(tempDir.toPath().resolve("guide_book.yml"));
 
         module = new PlatformModule(plugin);

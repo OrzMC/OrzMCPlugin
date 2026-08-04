@@ -12,7 +12,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 /**
  * Bot 消息模块。
  *
- * <p>管理 QQ/Discord/Lark 机器人适配器、消息路由和通知派发。
+ * <p>管理 EasyBot 网关适配器、消息路由和通知派发。
  * 内部处理 BotCommandService ← Notifier ← BotMessageService ← BotCommandService
  * 的循环依赖关系。</p>
  */
@@ -32,15 +32,13 @@ public final class BotModule implements ServiceModule, Initializable {
         // Phase C: 创建 BotMessageService（以 BotCommandService 作为 BotInboundHandler）
         this.botMessageService = BotMessageServiceProvider.create(
                 platform.serverFacade(),
-                platform.serverFacade(),
-                platform.serverFacade(),
                 platform.configService(),
                 platform.throttledLogger(),
                 botCommandService,
                 healthRegistry);
 
         // Phase D: 创建 Notifier（依赖 BotMessageService）
-        this.notifier = new Notifier(platform.serverAccess(), platform.configService(), botMessageService);
+        this.notifier = new Notifier(platform.serverAccess(), botMessageService);
 
         // BotStatusService
         this.botStatusService = new BotStatusService(platform.textStyles(), new HealthAccessor(healthRegistry));

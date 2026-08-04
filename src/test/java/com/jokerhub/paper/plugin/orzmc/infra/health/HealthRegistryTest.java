@@ -20,6 +20,7 @@ class HealthRegistryTest {
         assertNotNull(status);
         assertFalse(status.enabled);
         assertFalse(status.httpOk);
+        assertFalse(status.httpChecked);
         assertFalse(status.wsConnected);
         assertFalse(status.apiReady);
         assertNull(status.lastError);
@@ -44,7 +45,20 @@ class HealthRegistryTest {
     void setHttpOk_updatesStatus() {
         registry.setHttpOk("discord", true);
         assertTrue(registry.get("discord").httpOk);
+        assertTrue(registry.get("discord").httpChecked);
         assertTrue(registry.get("discord").lastUpdated > 0);
+    }
+
+    @Test
+    void setHttpChecked_falseClearsPreviousHttpState() {
+        registry.setHttpOk("easybot", true);
+        registry.setApiReady("easybot", true);
+
+        registry.setHttpChecked("easybot", false);
+
+        assertFalse(registry.get("easybot").httpChecked);
+        assertFalse(registry.get("easybot").httpOk);
+        assertFalse(registry.get("easybot").apiReady);
     }
 
     @Test

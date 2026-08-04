@@ -17,7 +17,6 @@ public final class ConfigService {
     public void setup() {
         // Register consolidated config files
         configManager.registerConfig("config", "config.yml");
-        configManager.registerConfig("bot", "bot.yml");
         configManager.registerConfig("guide_book", "guide_book.yml");
         configManager.registerConfig("templates", "templates.yml");
         configManager.registerConfig("portals", "portals.yml");
@@ -25,11 +24,9 @@ public final class ConfigService {
         configManager.registerConfig("ip_blacklist", "ip_blacklist.yml");
         configManager.markAlwaysSave("ip_blacklist");
 
-        // Register EasyBot config (independent from bot.yml)
+        // Register the unified bot gateway config.
         configManager.registerConfig("easybot", "easybot.yml");
 
-        // Set defaults for bot (used programmatically)
-        configManager.setDefaults("bot", config -> {});
         configManager.setDefaults("guide_book", config -> {});
 
         // 检查 config-version，过旧则发出迁移提醒

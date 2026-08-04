@@ -86,7 +86,8 @@ public class RobustWebSocketClientHeartbeatTest {
         rawLogger.setLevel(java.util.logging.Level.OFF);
         ServerLogger logger = () -> rawLogger;
         ConfigService configService = Mockito.mock(ConfigService.class);
-        Mockito.when(configService.getConfig("bot")).thenReturn(new org.bukkit.configuration.file.YamlConfiguration());
+        Mockito.when(configService.getConfig("easybot"))
+                .thenReturn(new org.bukkit.configuration.file.YamlConfiguration());
         Testable client = new Testable(
                 logger,
                 "ws://localhost:65534",
@@ -125,7 +126,8 @@ public class RobustWebSocketClientHeartbeatTest {
         rawLogger.setLevel(java.util.logging.Level.OFF);
         ServerLogger logger = () -> rawLogger;
         ConfigService configService = Mockito.mock(ConfigService.class);
-        Mockito.when(configService.getConfig("bot")).thenReturn(new org.bukkit.configuration.file.YamlConfiguration());
+        Mockito.when(configService.getConfig("easybot"))
+                .thenReturn(new org.bukkit.configuration.file.YamlConfiguration());
         Testable client = new Testable(
                 logger,
                 "ws://localhost:65534",

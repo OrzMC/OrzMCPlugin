@@ -56,7 +56,7 @@ class WhitelistEventServiceTest extends ServiceTestBase {
         when(styles.info(anyString())).thenReturn(Component.text("info"));
         when(styles.colorPlayer()).thenReturn(net.kyori.adventure.text.format.NamedTextColor.GOLD);
         when(configs.renderEvent(anyString(), anyMap()))
-                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", null, Format.DEFAULT));
+                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
 
         service = new WhitelistEventService(configs, styles, notifier);
     }

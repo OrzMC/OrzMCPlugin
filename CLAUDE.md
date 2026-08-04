@@ -20,7 +20,7 @@
 
 ## 架构概览
 
-**PaperMC 服务端插件** — 集成 QQ/Discord/Lark/EasyBot 网关机器人，具备白名单管理、跨服传送门、TNT 防护、GeoIP 区域限制等功能。
+**PaperMC 服务端插件** — 通过 EasyBot 网关统一接入多平台机器人，具备白名单管理、跨服传送门、TNT 防护、GeoIP 区域限制等功能。
 
 ### 模块结构（Gradle 多模块）
 
@@ -38,7 +38,7 @@ OrzMC/
 │   ├── OrzServices.java        组合根（装配 5 个领域模块）
 │   ├── assembly/               领域模块：
 │   │   ├── PlatformModule.java     配置、服务端门面、样式、限流
-│   │   ├── BotModule.java          QQ/Discord/Lark/EasyBot 机器人、通知派发、消息路由
+│   │   ├── BotModule.java          EasyBot 机器人、通知派发、消息路由
 │   │   ├── PortalModule.java       跨服传送门
 │   │   ├── MaintenanceModule.java  世界备份与地图优化
 │   │   └── FeatureModule.java      所有 Feature 服务 + 命令/事件注册（Brigadier 命令注册 + 拦截器链）
@@ -54,8 +54,7 @@ OrzMC/
 │   │   └── ...                guide, menu, teleport, player
 │   ├── infra/                 基础设施实现
 │   │   ├── config/            ConfigService + 类型化配置记录类（16个，含 EasyBotConfig）、ConfigHealthCheck
-│   │   ├── bot/               OrzBotManager, BotRouter, BotAdapter, BotReconnectionManager,
-│   │   │                      OrzQQBot, OrzDiscordBot, OrzLarkBot, OrzEasyBot
+│   │   ├── bot/               BotMessageService, BotMessageServiceProvider, OrzEasyBot
 │   │   ├── ws/                RobustWebSocketClient（自动重连 + 心跳检测）
 │   │   ├── net/               AsyncHttp（指数退避重试）
 │   │   ├── scheduler/         SafeScheduler（异步异常日志包装器）
@@ -88,4 +87,4 @@ Tag 使用严格 SemVer，**不加 `v` 前缀**。本地构建产物为 `{versio
 - **无 DI 框架**：通过显式组合根进行构造器注入
 - **类型化配置**：所有 YAML 访问通过 `configs/` 子包中的记录类（如 `WhitelistConfig`, `TntConfig`），附带健康检查
 - **异步安全**：`SafeScheduler` 包装 Bukkit 调度器，统一异常日志
-- **健康注册表**：`HealthStatus` 接口在 orzmc-api 中，`HealthAccessor` 适配器桥接静态 `HealthRegistry`
+- **健康注册表**：`HealthStatus` 接口在 orzmc-api 中，`HealthAccessor` 适配器桥接实例化的 `HealthRegistry`

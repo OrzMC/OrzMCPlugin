@@ -32,7 +32,7 @@ public final class ThrottledLogger {
 
     private long defaultPeriodMs() {
         try {
-            long v = configService.getConfig("bot").getLong("log_throttle_ms");
+            long v = configService.getConfig("easybot").getLong("log_throttle_ms");
             return v <= 0 ? 5000L : v;
         } catch (Exception ignored) {
             // 配置未就绪或键不存在时使用默认节流阈值 —— 安全兜底，无需日志

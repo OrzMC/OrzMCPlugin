@@ -5,7 +5,7 @@ import java.util.function.Consumer;
 /**
  * 机器人入站消息处理接口。
  *
- * <p>各机器人适配器（QQ / Discord / Lark）实现此接口将原始消息传递给统一的业务处理层。</p>
+ * <p>EasyBot 网关适配器通过此接口将各平台原始消息传递给统一的业务处理层。</p>
  */
 public interface BotInboundHandler {
 

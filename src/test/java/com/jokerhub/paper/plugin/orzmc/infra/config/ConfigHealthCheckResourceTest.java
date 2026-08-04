@@ -22,10 +22,10 @@ public class ConfigHealthCheckResourceTest {
 
     @Test
     public void testDefaultConfigsPassHealthCheck() throws Exception {
-        // Only load the 5 registered config files (old individual files removed)
+        // Load the registered config files used by the health check.
         Map<String, FileConfiguration> cfgs = new HashMap<>();
         cfgs.put("config", load("config.yml"));
-        cfgs.put("bot", load("bot.yml"));
+        cfgs.put("easybot", load("easybot.yml"));
         cfgs.put("guide_book", load("guide_book.yml"));
         cfgs.put("templates", load("templates.yml"));
         cfgs.put("portals", load("portals.yml"));

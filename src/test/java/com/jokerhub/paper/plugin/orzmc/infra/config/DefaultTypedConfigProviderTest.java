@@ -32,7 +32,7 @@ class DefaultTypedConfigProviderTest {
     @Test
     void bot_returnsBotConfig() {
         FileConfiguration botConfig = mock(FileConfiguration.class);
-        when(configService.getConfig("bot")).thenReturn(botConfig);
+        when(configService.getConfig("easybot")).thenReturn(botConfig);
         BotConfig result = provider.bot();
         assertNotNull(result);
     }

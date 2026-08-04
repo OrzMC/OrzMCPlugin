@@ -23,6 +23,7 @@ class RobustWebSocketClientLifecycleTest {
         boolean closed = false;
         boolean manuallyOpened;
         boolean manuallyClosed;
+        int closeCalls;
         String lastSent;
         private final AtomicBoolean listenerOnOpenInvoked = new AtomicBoolean();
         private volatile WebSocketEventListener webSocketListener;
@@ -67,6 +68,7 @@ class RobustWebSocketClientLifecycleTest {
 
         @Override
         public void close() {
+            closeCalls++;
             closed = true;
         }
 
@@ -197,8 +199,10 @@ class RobustWebSocketClientLifecycleTest {
         setClientField(client, stub);
 
         client.disconnect();
+        client.disconnect();
 
         assertTrue(stub.closed);
+        assertEquals(1, stub.closeCalls);
     }
 
     @Test

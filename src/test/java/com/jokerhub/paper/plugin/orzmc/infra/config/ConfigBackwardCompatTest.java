@@ -241,7 +241,7 @@ public class ConfigBackwardCompatTest {
         // 健康检查应优雅处理，不抛出异常
         Map<String, FileConfiguration> cfgs = new HashMap<>();
         cfgs.put("config", oldStyleConfig());
-        cfgs.put("bot", load("bot.yml"));
+        cfgs.put("easybot", load("easybot.yml"));
         cfgs.put("guide_book", load("guide_book.yml"));
         cfgs.put("templates", load("templates.yml"));
         cfgs.put("portals", load("portals.yml"));
@@ -257,7 +257,7 @@ public class ConfigBackwardCompatTest {
     public void testHealthCheckWithNewStyleConfigPasses() throws Exception {
         Map<String, FileConfiguration> cfgs = new HashMap<>();
         cfgs.put("config", newStyleConfig());
-        cfgs.put("bot", load("bot.yml"));
+        cfgs.put("easybot", load("easybot.yml"));
         cfgs.put("guide_book", load("guide_book.yml"));
         cfgs.put("templates", load("templates.yml"));
         cfgs.put("portals", load("portals.yml"));

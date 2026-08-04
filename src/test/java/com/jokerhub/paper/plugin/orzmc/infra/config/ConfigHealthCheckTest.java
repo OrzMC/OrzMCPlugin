@@ -160,7 +160,6 @@ class ConfigHealthCheckTest {
             templates.set("templates." + cmd, "x");
         }
 
-        templates.createSection("notifications").set("tnt_alert.public.enabled", true);
         templates.createSection("styles").createSection("colors");
         templates
                 .getConfigurationSection("styles")
@@ -226,7 +225,6 @@ class ConfigHealthCheckTest {
         provider = name -> null;
         List<String> issues = runValidate();
         assertTrue(issues.contains("config.yml 未加载"));
-        assertTrue(issues.contains("bot.yml 未加载"));
         assertTrue(issues.contains("templates.yml 未加载"));
         assertTrue(issues.contains("portals.yml 未加载"));
         assertTrue(issues.contains("easybot.yml 未加载"));
@@ -680,14 +678,14 @@ class ConfigHealthCheckTest {
     }
 
     // ================================================================
-    // Bot section
+    // EasyBot section
     // ================================================================
 
     @Test
-    void botMissingFile_reportsIssue() {
+    void easyBotMissingFile_reportsIssue() {
         provider = name -> switch (name) {
             case "config" -> config;
-            case "bot" -> null;
+            case "easybot" -> null;
             case "templates" -> templates;
             case "portals" -> portals;
             default -> null;
@@ -699,12 +697,12 @@ class ConfigHealthCheckTest {
         addFullValidConfig_commandPolicies();
         addMinimalValidConfig_templates();
         List<String> issues = runValidate();
-        assertTrue(issues.contains("bot.yml 未加载"));
+        assertTrue(issues.contains("easybot.yml 未加载"));
     }
 
     @Test
-    void botBoolKeysWrongType_reportsIssue() {
-        bot.set("enable_qq_bot", "yes");
+    void easyBotPlatformEnabledWrongType_reportsIssue() {
+        easybot.set("platforms.qq.enabled", "yes");
         addFullValidConfig_whitelist();
         addFullValidConfig_maintenance();
         addFullValidConfig_tnt();
@@ -712,12 +710,12 @@ class ConfigHealthCheckTest {
         addFullValidConfig_commandPolicies();
         addMinimalValidConfig_templates();
         List<String> issues = runValidate();
-        assertTrue(issues.contains("类型错误: bot.enable_qq_bot 需为布尔值"));
+        assertTrue(issues.contains("类型错误: easybot.platforms.qq.enabled 需为布尔值"));
     }
 
     @Test
-    void botEmptyCmdPrompt_reportsIssue() {
-        bot.set("cmd_prompt_char", "");
+    void easyBotEmptyCmdPrompt_reportsIssue() {
+        easybot.set("cmd_prompt_char", "");
         addFullValidConfig_whitelist();
         addFullValidConfig_maintenance();
         addFullValidConfig_tnt();
@@ -725,20 +723,71 @@ class ConfigHealthCheckTest {
         addFullValidConfig_commandPolicies();
         addMinimalValidConfig_templates();
         List<String> issues = runValidate();
-        assertTrue(issues.contains("非法: bot.cmd_prompt_char 不可为空"));
+        assertTrue(issues.contains("非法: easybot.cmd_prompt_char 不可为空"));
     }
 
     @Test
-    void botNegativeHttpTimeout_reportsIssue() {
+    void easyBotNegativeHttpTimeout_reportsIssue() {
         addFullValidConfig_whitelist();
         addFullValidConfig_maintenance();
         addFullValidConfig_tnt();
         addFullValidConfig_geoip();
         addFullValidConfig_commandPolicies();
         addMinimalValidConfig_templates();
-        bot.set("http_connect_timeout_seconds", -1);
+        easybot.set("http_connect_timeout_seconds", -1);
         List<String> issues = runValidate();
-        assertTrue(issues.contains("非法: bot.http_connect_timeout_seconds 必须为正数"));
+        assertTrue(issues.contains("非法: easybot.http_connect_timeout_seconds 必须为正数"));
+    }
+
+    @Test
+    void easyBotInvalidGatewayAndTargetValues_reportIssues() {
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addMinimalValidConfig_templates();
+        easybot.set("api_server", "ftp://localhost");
+        easybot.set("ws_server", "http://localhost");
+        easybot.set("platforms.qq.enabled", true);
+        easybot.set("platforms.qq.admin_group", "discord:123");
+        easybot.set("platforms.qq.player_group", "123");
+        easybot.set("platforms.qq.admin_dm", "qq:");
+        easybot.set("api_key", "secret");
+
+        List<String> issues = runValidate();
+
+        assertTrue(issues.contains("格式: easybot.api_server 需为有效的 http/https URL"));
+        assertTrue(issues.contains("格式: easybot.ws_server 需为有效的 ws/wss URL"));
+        assertTrue(issues.contains("格式: easybot.platforms.qq.admin_group 平台前缀应为 'qq:'"));
+        assertTrue(issues.contains("格式: easybot.platforms.qq.player_group 需为 'qq:chatId' 格式"));
+        assertTrue(issues.contains("格式: easybot.platforms.qq.admin_dm 需为 'qq:chatId' 格式"));
+    }
+
+    @Test
+    void easyBotInvalidWebSocketTuning_reportsIssues() {
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addMinimalValidConfig_templates();
+        easybot.set("ws_max_retries", -1);
+        easybot.set("ws_base_retry_ms", 5000);
+        easybot.set("ws_max_delay_ms", 1000);
+        easybot.set("ws_jitter_percent", 101);
+        easybot.set("ws_stable_reset_ms", 0);
+        easybot.set("ws_message_log_throttle_ms", 0);
+        easybot.set("log_throttle_ms", 0);
+
+        List<String> issues = runValidate();
+
+        assertTrue(issues.contains("非法: easybot.ws_max_retries 不得为负数"));
+        assertTrue(issues.contains("非法: easybot.ws_max_delay_ms 不得小于 ws_base_retry_ms"));
+        assertTrue(issues.contains("非法: easybot.ws_jitter_percent 范围 0-100"));
+        assertTrue(issues.contains("非法: easybot.ws_stable_reset_ms 必须为正数"));
+        assertTrue(issues.contains("非法: easybot.ws_message_log_throttle_ms 必须为正数"));
+        assertTrue(issues.contains("非法: easybot.log_throttle_ms 必须为正数"));
     }
 
     // ================================================================
@@ -823,20 +872,7 @@ class ConfigHealthCheckTest {
         assertTrue(issues.contains("templates.yml 未加载"));
     }
 
-    @Test
-    void templatesMissingNotifications_reportsIssue() {
-        addFullValidConfig_whitelist();
-        addFullValidConfig_maintenance();
-        addFullValidConfig_tnt();
-        addFullValidConfig_geoip();
-        addFullValidConfig_commandPolicies();
-        addFullValidConfig_bot();
-        addMinimalValidConfig_templates_witoutNotifications();
-        List<String> issues = runValidate();
-        assertTrue(issues.contains("templates.yml 缺失 notifications 配置段"));
-    }
-
-    private void addMinimalValidConfig_templates_witoutNotifications() {
+    private void addMinimalValidConfig_templatesBase() {
         templates.set("templates.player_join", "x");
         templates.set("templates.player_quit", "x");
         templates.set("templates.player_kick", "x");
@@ -931,8 +967,7 @@ class ConfigHealthCheckTest {
         addFullValidConfig_geoip();
         addFullValidConfig_commandPolicies();
         addFullValidConfig_bot();
-        addMinimalValidConfig_templates_witoutNotifications();
-        templates.createSection("notifications").set("tnt_alert.public.enabled", true);
+        addMinimalValidConfig_templatesBase();
         templates.set("styles", null);
         List<String> issues = runValidate();
         assertTrue(issues.contains("templates.yml 缺失 styles 配置段"));
@@ -954,7 +989,6 @@ class ConfigHealthCheckTest {
         templates.set("templates.progress_units.rate", "per_sec");
         templates.set("templates.progress_units.eta", "ms");
         templates.set("templates.locale", "zh-CN");
-        templates.createSection("notifications").set("tnt_alert.public.enabled", true);
         templates.createSection("styles").createSection("colors");
         templates
                 .getConfigurationSection("styles")
@@ -963,39 +997,6 @@ class ConfigHealthCheckTest {
         List<String> issues = runValidate();
         assertTrue(issues.contains("缺失: templates.player_quit"));
         assertTrue(issues.contains("缺失: templates.player_kick"));
-    }
-
-    // ================================================================
-    // Notifications section
-    // ================================================================
-
-    @Test
-    void notificationsTntAlertNonBool_reportsIssue() {
-        addFullValidConfig_whitelist();
-        addFullValidConfig_maintenance();
-        addFullValidConfig_tnt();
-        addFullValidConfig_geoip();
-        addFullValidConfig_commandPolicies();
-        addFullValidConfig_bot();
-        addMinimalValidConfig_templates();
-        templates.getConfigurationSection("notifications").set("tnt_alert.public.enabled", "yes");
-        List<String> issues = runValidate();
-        assertTrue(issues.contains("类型错误: notifications.tnt_alert.public.enabled 需为布尔值"));
-    }
-
-    @Test
-    void notificationsChannelKeyNoMapping_reportsIssue() {
-        addFullValidConfig_whitelist();
-        addFullValidConfig_maintenance();
-        addFullValidConfig_tnt();
-        addFullValidConfig_geoip();
-        addFullValidConfig_commandPolicies();
-        addFullValidConfig_bot();
-        addMinimalValidConfig_templates();
-        templates.getConfigurationSection("notifications").set("player_join.channel_key", "missing_channel");
-        templates.getConfigurationSection("notifications").set("player_join.public.enabled", true);
-        List<String> issues = runValidate();
-        assertTrue(issues.contains("通知频道未映射: notifications.player_join.channel_key=missing_channel"));
     }
 
     // ================================================================

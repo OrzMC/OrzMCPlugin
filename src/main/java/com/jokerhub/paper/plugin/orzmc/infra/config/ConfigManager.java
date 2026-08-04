@@ -2,7 +2,6 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,8 +19,8 @@ public class ConfigManager {
 
     public ConfigManager(JavaPlugin plugin) {
         this.plugin = plugin;
-        this.configs = new HashMap<>();
-        this.configFiles = new HashMap<>();
+        this.configs = new ConcurrentHashMap<>();
+        this.configFiles = new ConcurrentHashMap<>();
 
         if (!plugin.getDataFolder().exists()) {
             boolean ret = plugin.getDataFolder().mkdirs();
@@ -88,7 +87,7 @@ public class ConfigManager {
     }
 
     public java.util.Set<String> getConfigNames() {
-        return configs.keySet();
+        return java.util.Set.copyOf(configs.keySet());
     }
 
     public void markDirty(String name) {

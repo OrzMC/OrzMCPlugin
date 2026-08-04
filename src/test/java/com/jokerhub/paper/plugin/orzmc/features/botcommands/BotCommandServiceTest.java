@@ -37,7 +37,7 @@ class BotCommandServiceTest {
         when(configs.bot()).thenReturn(botConfig);
         when(configs.whitelist()).thenReturn(whitelistConfig);
         when(configs.renderTemplate(anyString(), anyMap(), anyString()))
-                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "response", null, Format.DEFAULT));
+                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "response", Format.DEFAULT));
         when(serverFacade.logger()).thenReturn(logger);
 
         // Execute async/sync runnables immediately

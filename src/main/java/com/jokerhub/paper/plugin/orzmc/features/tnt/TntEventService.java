@@ -32,10 +32,21 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class TntEventService {
+    private static final List<String> DEFAULT_EXEMPT_ENTITIES = List.of(
+            "CREEPER",
+            "FIREBALL",
+            "BREEZE",
+            "WIND_CHARGE",
+            "BREEZE_WIND_CHARGE",
+            "ENDER_DRAGON",
+            "END_CRYSTAL",
+            "WITHER",
+            "WITHER_SKULL",
+            "SLIME",
+            "STRAY");
+
     private final TypedConfigProvider configs;
-    private final TntPolicy policy;
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
-    private final EnumSet<EntityType> explosionExemptTypes = EnumSet.noneOf(EntityType.class);
     private final OrzTextStyles styles;
     private final Notifier notifier;
     private final ThrottledNotifier throttledNotifier;
@@ -46,13 +57,16 @@ public final class TntEventService {
         this.styles = styles;
         this.notifier = notifier;
         this.throttledNotifier = throttledNotifier;
-        TntConfig typed = configs.tnt();
-        this.policy = new TntPolicy(typed);
-        initExplosionExemptTypes(typed);
+    }
+
+    /** 读时解析当前 TNT 策略；配置 reload 后自动取新值，无需重建服务。 */
+    private TntPolicy currentPolicy() {
+        return new TntPolicy(configs.tnt());
     }
 
     public void onTNTPrime(@NotNull TNTPrimeEvent event) {
         Block placedBlock = event.getBlock();
+        TntPolicy policy = currentPolicy();
         if (!policy.isEnableTnt() && policy.isNotInWhiteList(placedBlock.getLocation())) {
             event.setCancelled(true);
             notifyTNTEvent(placedBlock, "TNT被点燃（已禁止）");
@@ -69,7 +83,7 @@ public final class TntEventService {
             handleTNTPlace(event, player, placedBlock);
             return;
         }
-        if (placedBlockType == Material.RESPAWN_ANCHOR && !policy.isEnableRespawnAnchor()) {
+        if (placedBlockType == Material.RESPAWN_ANCHOR && !currentPolicy().isEnableRespawnAnchor()) {
             event.setCancelled(true);
             player.sendMessage(Component.text("重生锚放置已被管理员禁用").color(TextColor.color(0xFF5555)));
         }
@@ -82,6 +96,7 @@ public final class TntEventService {
             return;
         }
         Block dispenser = event.getBlock();
+        TntPolicy policy = currentPolicy();
         if (!policy.isEnableTnt() && policy.isNotInWhiteList(dispenser.getLocation())) {
             event.setCancelled(true);
             notifyTNTEvent(dispenser, "发射" + itemType.name() + "被禁止");
@@ -101,7 +116,7 @@ public final class TntEventService {
 
     public void onEntityExplode(@NotNull EntityExplodeEvent event) {
         EntityType entityType = event.getEntityType();
-        if (explosionExemptTypes.contains(entityType)) {
+        if (isExemptEntity(entityType)) {
             return;
         }
         Location loc = event.getLocation();
@@ -110,6 +125,7 @@ public final class TntEventService {
     }
 
     private void handleTNTPlace(BlockPlaceEvent event, Player player, Block placedBlock) {
+        TntPolicy policy = currentPolicy();
         int tntPlaceCooldown = policy.getPlaceCooldownSeconds();
         if (tntPlaceCooldown > 0 && checkCooldown(player, tntPlaceCooldown)) {
             event.setCancelled(true);
@@ -217,29 +233,23 @@ public final class TntEventService {
         return world + "|" + cx + "|" + cz + "|" + message;
     }
 
-    private void addExemptTypeIfAvailable(String name) {
-        try {
-            explosionExemptTypes.add(EntityType.valueOf(name));
-        } catch (IllegalArgumentException ignored) {
-        }
+    private boolean isExemptEntity(@NotNull EntityType type) {
+        EnumSet<EntityType> exempt = buildExemptTypes(configs.tnt());
+        return exempt.contains(type);
     }
 
-    private void initExplosionExemptTypes(@NotNull TntConfig tntConfig) {
-        List<String> names = tntConfig.exemptEntities();
+    private static EnumSet<EntityType> buildExemptTypes(TntConfig cfg) {
+        EnumSet<EntityType> set = EnumSet.noneOf(EntityType.class);
+        List<String> names = cfg.exemptEntities();
         if (names.isEmpty()) {
-            names = List.of(
-                    "CREEPER",
-                    "FIREBALL",
-                    "BREEZE",
-                    "WIND_CHARGE",
-                    "BREEZE_WIND_CHARGE",
-                    "ENDER_DRAGON",
-                    "END_CRYSTAL",
-                    "WITHER",
-                    "WITHER_SKULL",
-                    "SLIME",
-                    "STRAY");
+            names = DEFAULT_EXEMPT_ENTITIES;
         }
-        names.forEach(this::addExemptTypeIfAvailable);
+        for (String name : names) {
+            try {
+                set.add(EntityType.valueOf(name));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return set;
     }
 }
