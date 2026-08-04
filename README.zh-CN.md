@@ -1,9 +1,5 @@
 # OrzMC
 
-[English](./README.md) | **简体中文**
-
-<img src="assets/avatar.png" alt="OrzMC logo" width="32" style="vertical-align: middle;">
-
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
 [![Test Count](https://img.shields.io/badge/tests-800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
@@ -12,7 +8,8 @@
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
 通过 EasyBot 统一接入多平台机器人的 Paper 服务器管理插件
-
+> 🌐 [English](./README.md) | **简体中文**
+>
 > 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，由于
 > `PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
 > 所以插件开发对有 Bukkit 和 Spigot 插件开发经验的开发者也比较友好

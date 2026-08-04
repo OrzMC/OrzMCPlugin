@@ -1,7 +1,5 @@
 # OrzMC
 
-**English** | [简体中文](./README.zh-CN.md)
-
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
 [![Test Count](https://img.shields.io/badge/tests-800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
@@ -11,6 +9,8 @@
 
 A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and WeChat bots through the EasyBot gateway.
 
+> 🌐 **English** | [简体中文](./README.zh-CN.md)
+> 
 > This plugin is built for [PaperMC](https://papermc.io/) servers. Since the
 > `PaperAPI` is compatible with the `BukkitAPI` and `SpigotAPI`, it is also
 > friendly to developers with Bukkit and Spigot plugin development experience.
