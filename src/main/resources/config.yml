@@ -36,6 +36,10 @@ tnt:
   enable: false
   enable_respawn_anchor: false
   place_cooldown: 5
+  # TNT/爆炸告警聚合窗口(ms)：同一区域(128×128×64区块)同类型事件在窗口内合并为一条告警(带 ×N 和首个坐标)；
+  # 既是突发合并也限制持续刷屏频率。单发事件仍立即发，不受窗口延迟。
+  notify_aggregate_ms: 3000
+  # 玩家上下线消息限流(ms)：本 key 由 PlayerEventService 读取，与 TNT 告警无关（TNT 限流由 notify_aggregate_ms 承担）。
   notify_throttle_ms: 1000
   whitelist:
     - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world' }

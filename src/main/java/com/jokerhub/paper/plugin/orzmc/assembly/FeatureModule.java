@@ -115,7 +115,7 @@ public final class FeatureModule implements ServiceModule {
                 platform.throttledNotifier(),
                 this.listFormatter);
         this.tntEventService = new TntEventService(
-                platform.configs(), platform.textStyles(), botModule.notifier(), platform.throttledNotifier());
+                platform.configs(), platform.textStyles(), botModule.notifier(), platform.serverScheduler());
         this.whitelistEventService =
                 new WhitelistEventService(platform.configs(), platform.textStyles(), botModule.notifier());
         this.menuEventService = new MenuEventService(platform.textStyles());

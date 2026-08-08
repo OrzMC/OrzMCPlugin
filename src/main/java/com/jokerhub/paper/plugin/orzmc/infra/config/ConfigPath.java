@@ -63,7 +63,8 @@ public final class ConfigPath {
         reg(map, "config", "tnt.enable", Boolean.class, false, "启用TNT放置检测");
         reg(map, "config", "tnt.enable_respawn_anchor", Boolean.class, false, "启用重生锚检测");
         reg(map, "config", "tnt.place_cooldown", Integer.class, 5, "TNT放置冷却(秒)");
-        reg(map, "config", "tnt.notify_throttle_ms", Long.class, 1000L, "TNT通知限流(毫秒)");
+        reg(map, "config", "tnt.notify_aggregate_ms", Long.class, 3000L, "TNT/爆炸告警聚合窗口(毫秒)");
+        reg(map, "config", "tnt.notify_throttle_ms", Long.class, 1000L, "玩家上下线消息限流(毫秒)");
         // command policies (config.yml)
         reg(map, "config", "command_policies.tpbow.cooldown_secs", Integer.class, 3, "传送弓冷却(秒)");
         reg(map, "config", "command_policies.tpbow.admin_only", Boolean.class, false, "传送弓仅管理员可用");

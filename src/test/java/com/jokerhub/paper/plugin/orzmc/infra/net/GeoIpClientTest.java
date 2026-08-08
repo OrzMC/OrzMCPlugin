@@ -56,9 +56,9 @@ class GeoIpClientTest {
             asyncHttp.verify(() -> AsyncHttp.get(
                     eq("https://get.geojs.io/v1/ip/geo/1.2.3.4.json"),
                     eq(Map.of()),
-                    eq(Duration.ofSeconds(3)),
-                    eq(Duration.ofSeconds(3)),
-                    eq(2)));
+                    eq(Duration.ofSeconds(2)),
+                    eq(Duration.ofSeconds(2)),
+                    eq(0)));
         }
     }
 

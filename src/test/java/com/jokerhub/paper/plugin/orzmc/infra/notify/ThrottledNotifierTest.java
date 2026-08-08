@@ -67,6 +67,19 @@ class ThrottledNotifierTest {
     }
 
     @Test
+    void shouldRun_withFixedPeriod_throttlesWithinPeriod() {
+        assertTrue(notifier.shouldRun("fixed-key", 60_000L), "首调应放行");
+        assertFalse(notifier.shouldRun("fixed-key", 60_000L), "周期内应抑制");
+    }
+
+    @Test
+    void shouldRun_withFixedPeriod_differentKeysIndependently() {
+        assertTrue(notifier.shouldRun("fixed-key-a", 60_000L));
+        assertTrue(notifier.shouldRun("fixed-key-b", 60_000L));
+        assertFalse(notifier.shouldRun("fixed-key-a", 60_000L));
+    }
+
+    @Test
     void defaultPeriodMs_fallsBackToDefault_whenConfigFails() {
         reset(config);
         lenient().when(configService.getConfig("config")).thenThrow(new RuntimeException("not ready"));

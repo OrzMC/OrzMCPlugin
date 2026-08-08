@@ -185,7 +185,7 @@ public class ConfigBackwardCompatTest {
         TntConfig tnt = TntConfig.from(legacy);
         Assertions.assertFalse(tnt.enable());
         Assertions.assertEquals(5, tnt.placeCooldownSeconds());
-        Assertions.assertEquals(1000L, tnt.notifyThrottleMs());
+        // notify_throttle_ms 已移出 TntConfig（ThrottledNotifier 直接读原始配置），旧文件仍能无损解析
     }
 
     @Test

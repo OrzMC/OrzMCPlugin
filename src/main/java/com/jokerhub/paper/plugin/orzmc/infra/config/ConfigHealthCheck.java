@@ -92,6 +92,8 @@ public final class ConfigHealthCheck {
         if (cd < 0) issues.add("非法: tnt.place_cooldown 不得为负数");
         long thr = section.getLong("notify_throttle_ms", 1000L);
         if (thr < 0) issues.add("非法: tnt.notify_throttle_ms 不得为负数");
+        long agg = section.getLong("notify_aggregate_ms", 3000L);
+        if (agg <= 0) issues.add("非法: tnt.notify_aggregate_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）");
         Object wl = section.get("whitelist");
         if (wl != null && !(wl instanceof List<?>)) issues.add("类型错误: tnt.whitelist 需为列表");
         Object exempt = section.get("exempt_entities");

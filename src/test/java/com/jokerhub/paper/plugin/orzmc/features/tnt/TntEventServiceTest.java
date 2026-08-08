@@ -1,5 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.tnt;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -7,10 +9,10 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.Format;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.TargetType;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
@@ -32,6 +34,7 @@ import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 class TntEventServiceTest extends ServiceTestBase {
@@ -39,7 +42,7 @@ class TntEventServiceTest extends ServiceTestBase {
     private TypedConfigProvider configs;
     private OrzTextStyles styles;
     private Notifier notifier;
-    private ThrottledNotifier throttledNotifier;
+    private ServerScheduler scheduler;
     private TntEventService service;
 
     private MockedStatic<TemplateResolvers> templateResolversMock;
@@ -50,13 +53,13 @@ class TntEventServiceTest extends ServiceTestBase {
         configs = mock(TypedConfigProvider.class);
         styles = mock(OrzTextStyles.class);
         notifier = mock(Notifier.class);
-        throttledNotifier = mock(ThrottledNotifier.class);
+        scheduler = mock(ServerScheduler.class);
 
         TntConfig tntConfig = new TntConfig(
                 false, // enable = false (TNT globally disabled)
                 true, // enableRespawnAnchor
                 0, // placeCooldownSeconds (0 = no cooldown)
-                1000L, // notifyThrottleMs
+                3000L, // notifyAggregateMs (3s 聚合窗口 → 60 ticks)
                 List.of(), // whitelistRegions (empty)
                 List.of()); // exemptEntities
 
@@ -83,7 +86,7 @@ class TntEventServiceTest extends ServiceTestBase {
 
         displayNamesMock = mockStatic(PlayerDisplayNames.class);
 
-        service = new TntEventService(configs, styles, notifier, throttledNotifier);
+        service = new TntEventService(configs, styles, notifier, scheduler);
     }
 
     @AfterEach
@@ -128,11 +131,11 @@ class TntEventServiceTest extends ServiceTestBase {
     @Test
     void onTNTPrime_tntEnabled_doesNotCancel() {
         // Recreate service with TNT enabled
-        TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(true, false, 0, 3000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
-        service = new TntEventService(configs, styles, notifier, throttledNotifier);
+        service = new TntEventService(configs, styles, notifier, scheduler);
 
         Location loc = mock(Location.class);
         World world = mockWorld();
@@ -151,11 +154,11 @@ class TntEventServiceTest extends ServiceTestBase {
     @Test
     void onPlaceBlock_placingTnt_noCooldown_notCancelled() {
         // TNT enabled with whitelist covering location
-        TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(true, false, 0, 3000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
-        service = new TntEventService(configs, styles, notifier, throttledNotifier);
+        service = new TntEventService(configs, styles, notifier, scheduler);
 
         Location loc = mock(Location.class);
         World world = mockWorld();
@@ -175,11 +178,11 @@ class TntEventServiceTest extends ServiceTestBase {
 
     @Test
     void onPlaceBlock_placingTnt_disabledAndNotInWhitelist_cancels() {
-        TntConfig tntConfig = new TntConfig(false, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(false, false, 0, 3000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
-        service = new TntEventService(configs, styles, notifier, throttledNotifier);
+        service = new TntEventService(configs, styles, notifier, scheduler);
 
         Location loc = mock(Location.class);
         World world = mockWorld();
@@ -197,9 +200,9 @@ class TntEventServiceTest extends ServiceTestBase {
 
     @Test
     void onPlaceBlock_placingRespawnAnchor_disabled_cancels() {
-        TntConfig tntConfig = new TntConfig(false, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(false, false, 0, 3000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
-        service = new TntEventService(configs, styles, notifier, throttledNotifier);
+        service = new TntEventService(configs, styles, notifier, scheduler);
 
         Player player = mock(Player.class);
         Block block = mock(Block.class);
@@ -257,27 +260,19 @@ class TntEventServiceTest extends ServiceTestBase {
 
         service.onBlockExplode(event);
 
-        verify(throttledNotifier, never()).runDefault(anyString(), any());
+        verifyNoInteractions(notifier);
+        verifyNoInteractions(scheduler);
     }
 
     @Test
-    void onBlockExplode_nonAirBlock_throttles() {
-        Location loc = mock(Location.class);
-        World world = mockWorld();
-        when(loc.getWorld()).thenReturn(world);
-        when(loc.getBlockX()).thenReturn(10);
-        when(loc.getBlockY()).thenReturn(64);
-        when(loc.getBlockZ()).thenReturn(20);
-
-        BlockExplodeEvent event = mock(BlockExplodeEvent.class);
-        Block block = mock(Block.class);
-        when(block.getType()).thenReturn(Material.STONE);
-        when(block.getLocation()).thenReturn(loc);
-        when(event.getBlock()).thenReturn(block);
+    void onBlockExplode_nonAirBlock_sendsImmediatelyAndSchedulesTail() {
+        BlockExplodeEvent event = blockExplodeAt(10, 64, 20, Material.STONE);
 
         service.onBlockExplode(event);
 
-        verify(throttledNotifier).runDefault(anyString(), any());
+        // 首事件立即发送（当前语义），并调度窗口尾部冲刷（3000ms → 60 ticks）
+        verify(notifier).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler).runLater(any(Runnable.class), eq(60L));
     }
 
     // ---- onEntityExplode ----
@@ -285,34 +280,27 @@ class TntEventServiceTest extends ServiceTestBase {
     @Test
     void onEntityExplode_exemptEntity_doesNothing() {
         // Creeper is in the default exempt list
-        TntConfig tntConfig = new TntConfig(false, true, 0, 1000L, List.of(), List.of("CREEPER"));
+        TntConfig tntConfig = new TntConfig(false, true, 0, 3000L, List.of(), List.of("CREEPER"));
         when(configs.tnt()).thenReturn(tntConfig);
-        service = new TntEventService(configs, styles, notifier, throttledNotifier);
+        service = new TntEventService(configs, styles, notifier, scheduler);
 
         EntityExplodeEvent event = mock(EntityExplodeEvent.class);
         when(event.getEntityType()).thenReturn(EntityType.CREEPER);
 
         service.onEntityExplode(event);
 
-        verify(throttledNotifier, never()).runDefault(anyString(), any());
+        verifyNoInteractions(notifier);
+        verifyNoInteractions(scheduler);
     }
 
     @Test
-    void onEntityExplode_nonExemptEntity_sendsNotification() {
-        Location loc = mock(Location.class);
-        World world = mockWorld();
-        when(loc.getWorld()).thenReturn(world);
-        when(loc.getBlockX()).thenReturn(10);
-        when(loc.getBlockY()).thenReturn(64);
-        when(loc.getBlockZ()).thenReturn(20);
-
-        EntityExplodeEvent event = mock(EntityExplodeEvent.class);
-        when(event.getEntityType()).thenReturn(EntityType.ENDERMAN);
-        when(event.getLocation()).thenReturn(loc);
+    void onEntityExplode_nonExemptEntity_sendsImmediatelyAndSchedulesTail() {
+        EntityExplodeEvent event = entityExplodeAt(10, 64, 20, EntityType.ENDERMAN);
 
         service.onEntityExplode(event);
 
-        verify(throttledNotifier).runDefault(anyString(), any());
+        verify(notifier).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler).runLater(any(Runnable.class), eq(60L));
     }
 
     // ---- 热重载：不重建 service，配置变更后立即生效 ----
@@ -320,7 +308,7 @@ class TntEventServiceTest extends ServiceTestBase {
     @Test
     void onTNTPrime_configChangedAfterConstruction_takesEffectImmediately() {
         // setUp 已建 service（enable=false）。模拟 reload：provider 返回新配置，不重建 service。
-        TntConfig tntConfig = new TntConfig(true, false, 0, 1000L, List.of(), List.of());
+        TntConfig tntConfig = new TntConfig(true, false, 0, 3000L, List.of(), List.of());
         when(configs.tnt()).thenReturn(tntConfig);
 
         Location loc = mock(Location.class);
@@ -339,22 +327,177 @@ class TntEventServiceTest extends ServiceTestBase {
     void onEntityExplode_exemptListChangedAfterConstruction_takesEffectImmediately() {
         // setUp 的 config 空 exempt → 默认豁免（含 CREEPER，不含 ENDERMAN）。
         // 模拟 reload：新配置把 ENDERMAN 加入豁免，不重建 service。
-        TntConfig tntConfig = new TntConfig(false, true, 0, 1000L, List.of(), List.of("ENDERMAN"));
+        TntConfig tntConfig = new TntConfig(false, true, 0, 3000L, List.of(), List.of("ENDERMAN"));
         when(configs.tnt()).thenReturn(tntConfig);
 
-        Location loc = mock(Location.class);
-        World world = mockWorld();
-        when(loc.getWorld()).thenReturn(world);
-        when(loc.getBlockX()).thenReturn(10);
-        when(loc.getBlockY()).thenReturn(64);
-        when(loc.getBlockZ()).thenReturn(20);
-
-        EntityExplodeEvent event = mock(EntityExplodeEvent.class);
-        when(event.getEntityType()).thenReturn(EntityType.ENDERMAN);
-        when(event.getLocation()).thenReturn(loc);
+        EntityExplodeEvent event = entityExplodeAt(10, 64, 20, EntityType.ENDERMAN);
 
         service.onEntityExplode(event);
 
-        verify(throttledNotifier, never()).runDefault(anyString(), any());
+        verifyNoInteractions(notifier);
+        verifyNoInteractions(scheduler);
+    }
+
+    // ---- 突发聚合：同区域同类型合并，窗口尾部冲刷补发 ×N ----
+
+    @Test
+    void aggregate_sameRegion_singleImmediateThenTailWithCount() {
+        service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
+        service.onEntityExplode(entityExplodeAt(30, 64, 40, EntityType.TNT));
+        service.onEntityExplode(entityExplodeAt(50, 64, 60, EntityType.TNT));
+
+        // 批次内只有首事件立即发；三个事件仅调度一次尾部冲刷
+        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler, times(1)).runLater(any(Runnable.class), anyLong());
+
+        runTail();
+
+        // 尾部冲刷补发 "×3"（含首事件），消息为 "TNT爆炸 ×3"
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<String, String>> vars = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs, times(2)).renderEvent(eq("tnt_alert"), vars.capture());
+        assertEquals("TNT爆炸", vars.getAllValues().get(0).get("msg"));
+        assertEquals("TNT爆炸 ×3", vars.getAllValues().get(1).get("msg"));
+        // 尾部汇总复用批次内首个事件的坐标（首事件坐标即批次告警坐标）
+        assertEquals(
+                vars.getAllValues().get(0).get("x"), vars.getAllValues().get(1).get("x"));
+        assertEquals(
+                vars.getAllValues().get(0).get("y"), vars.getAllValues().get(1).get("y"));
+        assertEquals(
+                vars.getAllValues().get(0).get("z"), vars.getAllValues().get(1).get("z"));
+    }
+
+    @Test
+    void aggregate_singleEvent_tailIsNoOp() {
+        service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
+
+        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        runTail();
+
+        // count=1 → 不补发第二条，消息总数不变（无回归）
+        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+    }
+
+    @Test
+    void aggregate_differentRegions_areIndependent() {
+        // 区域 0 两个事件 + 区域 1（z≥128）两个事件 → 各自独立聚合
+        service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT)); // region 0
+        service.onEntityExplode(entityExplodeAt(20, 64, 30, EntityType.TNT)); // region 0
+        service.onEntityExplode(entityExplodeAt(10, 64, 200, EntityType.TNT)); // region 1
+        service.onEntityExplode(entityExplodeAt(20, 64, 220, EntityType.TNT)); // region 1
+
+        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
+    }
+
+    @Test
+    void aggregate_differentMessageTypes_areIndependent() {
+        // 同区域但消息类型不同（实体爆炸 vs 方块爆炸）分开聚合
+        service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
+        service.onBlockExplode(blockExplodeAt(30, 64, 40, Material.STONE));
+
+        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
+    }
+
+    @Test
+    void aggregate_blockExplode_multipleMaterials_mergedIntoSingleLabel() {
+        // 大爆炸波及 STONE 与 DIRT：统一归并到 "方块爆炸"，不按材质拆分
+        service.onBlockExplode(blockExplodeAt(10, 64, 20, Material.STONE));
+        service.onBlockExplode(blockExplodeAt(30, 64, 40, Material.DIRT));
+
+        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        runTail();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<String, String>> vars = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs, times(2)).renderEvent(eq("tnt_alert"), vars.capture());
+        assertEquals("方块爆炸", vars.getAllValues().get(0).get("msg"));
+        assertEquals("方块爆炸 ×2", vars.getAllValues().get(1).get("msg"));
+    }
+
+    @Test
+    void aggregate_reloadAfterConstruction_usesNewWindowForTail() {
+        // 配置热重载：新窗口 5000ms → 尾部冲刷延迟 100 ticks
+        TntConfig tntConfig = new TntConfig(false, true, 0, 5000L, List.of(), List.of());
+        when(configs.tnt()).thenReturn(tntConfig);
+
+        service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
+
+        verify(scheduler).runLater(any(Runnable.class), eq(100L));
+    }
+
+    @Test
+    void aggregate_differentHeightLayers_areIndependent() {
+        // 同 XZ 立柱但高度层不同（y=10 层 0 vs y=250 层 3）→ 分开聚合，告警坐标不串层
+        service.onEntityExplode(entityExplodeAt(10, 10, 20, EntityType.TNT)); // ry=0
+        service.onEntityExplode(entityExplodeAt(10, 250, 20, EntityType.TNT)); // ry=3
+
+        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
+    }
+
+    @Test
+    void aggregate_negativeCoordinates_floorDivRegionsSymmetric() {
+        // floorDiv：x=-1 → 区域 -1，x=127 → 区域 0；边界恰在 128 整数倍，负坐标区域宽度均匀，不出现 256 宽区域
+        service.onEntityExplode(entityExplodeAt(-1, 64, 20, EntityType.TNT)); // region -1
+        service.onEntityExplode(entityExplodeAt(127, 64, 20, EntityType.TNT)); // region 0
+
+        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
+    }
+
+    @Test
+    void aggregate_renderFailure_firstEvent_doesNotOrphanBatch() {
+        // 用 doThrow 打桩：避免 when(mock).thenThrow() 后再次 when(mock) 重打桩时执行旧 throw 桩
+        doThrow(new IllegalStateException("template broken")).when(configs).renderEvent(anyString(), anyMap());
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT)));
+
+        // 恢复后同一 key 的事件应创建全新批次，不被孤儿条目永久静默
+        doReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT))
+                .when(configs)
+                .renderEvent(anyString(), anyMap());
+        service.onEntityExplode(entityExplodeAt(30, 64, 40, EntityType.TNT));
+
+        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler, times(1)).runLater(any(Runnable.class), anyLong());
+    }
+
+    /** 执行已捕获的尾部冲刷任务（模拟调度器在窗口到期后运行）。仅适用于恰好调度了一次的场景。 */
+    private void runTail() {
+        ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduler).runLater(task.capture(), anyLong());
+        task.getValue().run();
+    }
+
+    private EntityExplodeEvent entityExplodeAt(int x, int y, int z, EntityType type) {
+        Location loc = mock(Location.class);
+        World world = mockWorld();
+        when(loc.getWorld()).thenReturn(world);
+        when(loc.getBlockX()).thenReturn(x);
+        when(loc.getBlockY()).thenReturn(y);
+        when(loc.getBlockZ()).thenReturn(z);
+        EntityExplodeEvent event = mock(EntityExplodeEvent.class);
+        when(event.getEntityType()).thenReturn(type);
+        when(event.getLocation()).thenReturn(loc);
+        return event;
+    }
+
+    private BlockExplodeEvent blockExplodeAt(int x, int y, int z, Material type) {
+        Location loc = mock(Location.class);
+        World world = mockWorld();
+        when(loc.getWorld()).thenReturn(world);
+        when(loc.getBlockX()).thenReturn(x);
+        when(loc.getBlockY()).thenReturn(y);
+        when(loc.getBlockZ()).thenReturn(z);
+        Block block = mock(Block.class);
+        when(block.getType()).thenReturn(type);
+        when(block.getLocation()).thenReturn(loc);
+        BlockExplodeEvent event = mock(BlockExplodeEvent.class);
+        when(event.getBlock()).thenReturn(block);
+        return event;
     }
 }

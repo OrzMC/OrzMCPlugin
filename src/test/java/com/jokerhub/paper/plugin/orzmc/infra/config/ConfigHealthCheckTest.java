@@ -509,6 +509,19 @@ class ConfigHealthCheckTest {
     }
 
     @Test
+    void tntNonPositiveAggregateWindow_reportsIssue() {
+        config.createSection("tnt").set("notify_aggregate_ms", 0L);
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("非法: tnt.notify_aggregate_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）"));
+    }
+
+    @Test
     void tntWhitelistWrongType_reportsIssue() {
         config.createSection("tnt").set("whitelist", "not_a_list");
         addFullValidConfig_whitelist();

@@ -2,15 +2,16 @@ package com.jokerhub.paper.plugin.orzmc.features.tnt;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
+import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.CoordFormatter;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,6 +33,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class TntEventService {
+    /** 方块爆炸统一归并到该标签，避免一次大爆炸按方块材质（STONE/DIRT/...）拆分刷屏。 */
+    private static final String BLOCK_EXPLODE_LABEL = "方块爆炸";
+
+    /** 聚合区域水平边长（方块数）：128 = 8×8 区块，覆盖一次大型爆炸的横向跨度。 */
+    private static final int REGION_SIZE_BLOCKS = 128;
+
+    /** 聚合区域垂直跨度（方块数）：64 ≈ 常见一层建筑高度。同 XZ 立柱但不同高度层的爆炸分开聚合，告警坐标才可行动。 */
+    private static final int REGION_VERTICAL_BLOCKS = 64;
+
     private static final List<String> DEFAULT_EXEMPT_ENTITIES = List.of(
             "CREEPER",
             "FIREBALL",
@@ -49,14 +59,16 @@ public final class TntEventService {
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
     private final OrzTextStyles styles;
     private final Notifier notifier;
-    private final ThrottledNotifier throttledNotifier;
+    private final ServerScheduler scheduler;
+    /** 突发聚合状态：key=world|区域|消息类型 → 批次计数/首事件坐标。仅主线程访问（Bukkit 事件与 runLater 均同步）。 */
+    private final Map<String, PendingAlert> pendingAlerts = new HashMap<>();
 
     public TntEventService(
-            TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier, ThrottledNotifier throttledNotifier) {
+            TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier, ServerScheduler scheduler) {
         this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
-        this.throttledNotifier = throttledNotifier;
+        this.scheduler = scheduler;
     }
 
     /** 读时解析当前 TNT 策略；配置 reload 后自动取新值，无需重建服务。 */
@@ -69,10 +81,15 @@ public final class TntEventService {
         TntPolicy policy = currentPolicy();
         if (!policy.isEnableTnt() && policy.isNotInWhiteList(placedBlock.getLocation())) {
             event.setCancelled(true);
-            notifyTNTEvent(placedBlock, "TNT被点燃（已禁止）");
+            aggregateNotify(
+                    placedBlock.getLocation(),
+                    "TNT被点燃（已禁止）",
+                    placedBlock.getType().name(),
+                    false);
             return;
         }
-        notifyTNTEvent(placedBlock, "TNT被点燃");
+        aggregateNotify(
+                placedBlock.getLocation(), "TNT被点燃", placedBlock.getType().name(), false);
     }
 
     public void onPlaceBlock(@NotNull BlockPlaceEvent event) {
@@ -99,19 +116,20 @@ public final class TntEventService {
         TntPolicy policy = currentPolicy();
         if (!policy.isEnableTnt() && policy.isNotInWhiteList(dispenser.getLocation())) {
             event.setCancelled(true);
-            notifyTNTEvent(dispenser, "发射" + itemType.name() + "被禁止");
+            aggregateNotify(
+                    dispenser.getLocation(),
+                    "发射" + itemType.name() + "被禁止",
+                    dispenser.getType().name(),
+                    false);
         }
     }
 
     public void onBlockExplode(@NotNull BlockExplodeEvent event) {
         Block block = event.getBlock();
-        Material material = block.getType();
-        if (material.isAir()) {
+        if (block.getType().isAir()) {
             return;
         }
-        Location loc = block.getLocation();
-        String key = explosionKey(loc, material.name() + "爆炸");
-        throttledNotifier.runDefault(key, () -> notifyExplosionEvent(loc, material.name() + "爆炸"));
+        aggregateNotify(block.getLocation(), BLOCK_EXPLODE_LABEL, "EXPLOSION", true);
     }
 
     public void onEntityExplode(@NotNull EntityExplodeEvent event) {
@@ -119,9 +137,7 @@ public final class TntEventService {
         if (isExemptEntity(entityType)) {
             return;
         }
-        Location loc = event.getLocation();
-        String key = explosionKey(loc, entityType.name() + "爆炸");
-        throttledNotifier.runDefault(key, () -> notifyExplosionEvent(loc, entityType.name() + "爆炸"));
+        aggregateNotify(event.getLocation(), entityType.name() + "爆炸", "EXPLOSION", true);
     }
 
     private void handleTNTPlace(BlockPlaceEvent event, Player player, Block placedBlock) {
@@ -157,30 +173,51 @@ public final class TntEventService {
         return System.currentTimeMillis() - lastPlaceTime < tntPlaceCooldown * 1000L;
     }
 
-    private void notifyTNTEvent(Block block, String message) {
-        TemplateOptions opt = configs.templateOptions();
-        java.util.Map<String, String> vars = CoordFormatter.format(block.getLocation(), opt);
-        vars.put("msg", message);
-        vars.put("actor", "");
-        vars.put("block_type", block.getType().name());
-        MessageEnvelope envelope = configs.renderEvent("tnt_alert", vars);
-        TextComponent msg = Component.text()
-                .append(styles.tntPrefix())
-                .append(Component.text(envelope.message()))
-                .build();
-        notifier.server(msg);
-        notifier.event("tnt_alert", envelope);
+    /**
+     * 突发聚合入口：同区域同类型事件在窗口内合并为一条告警。
+     *
+     * <p>批次首个事件立即发送（保持"TNT被点燃"等告警的时效性），并在窗口尾部由
+     * {@link #flushTail(String)} 补发一条带 {@code ×N} 的汇总（含首个事件精确坐标）。
+     * 单发事件只有立即发送那条，无第二条汇总，行为与改造前一致。</p>
+     */
+    private void aggregateNotify(Location location, String message, String blockType, boolean explosionPrefix) {
+        String key = aggregateKey(location, message);
+        PendingAlert alert = pendingAlerts.get(key);
+        if (alert == null) {
+            alert = new PendingAlert();
+            alert.epicenter = location;
+            alert.message = message;
+            alert.blockType = blockType;
+            alert.explosionPrefix = explosionPrefix;
+            notifyAggregated(location, message, blockType, explosionPrefix);
+            long windowMs = currentPolicy().getNotifyAggregateMs();
+            long ticks = Math.max(1, windowMs / 50);
+            scheduler.runLater(() -> flushTail(key), ticks);
+            // 立即发送 + 尾部调度都成功后才入表：中途抛异常不留孤儿条目，避免该 key 永久静默且 map 无界增长
+            pendingAlerts.put(key, alert);
+        }
+        alert.count++;
     }
 
-    private void notifyExplosionEvent(Location location, String message) {
+    /** 窗口尾部冲刷：批次内不止一个事件时补发一条带次数与首事件坐标的汇总。 */
+    private void flushTail(String key) {
+        PendingAlert alert = pendingAlerts.remove(key);
+        if (alert == null || alert.count <= 1) {
+            return;
+        }
+        notifyAggregated(alert.epicenter, alert.message + " ×" + alert.count, alert.blockType, alert.explosionPrefix);
+    }
+
+    /** 渲染并派发 tnt_alert：游戏内广播 + 群消息走同一条聚合结果。 */
+    private void notifyAggregated(Location location, String message, String blockType, boolean explosionPrefix) {
         TemplateOptions opt = configs.templateOptions();
         java.util.Map<String, String> vars = CoordFormatter.format(location, opt);
         vars.put("msg", message);
         vars.put("actor", "");
-        vars.put("block_type", "EXPLOSION");
+        vars.put("block_type", blockType);
         MessageEnvelope envelope = configs.renderEvent("tnt_alert", vars);
         TextComponent msg = Component.text()
-                .append(styles.explosionPrefix())
+                .append(explosionPrefix ? styles.explosionPrefix() : styles.tntPrefix())
                 .append(Component.text(envelope.message()))
                 .build();
         notifier.server(msg);
@@ -226,11 +263,29 @@ public final class TntEventService {
         return styles.coordString(location);
     }
 
-    private @NotNull String explosionKey(@NotNull Location location, @NotNull String message) {
-        int cx = location.getBlockX() >> 4;
-        int cz = location.getBlockZ() >> 4;
+    /** 聚合 key：世界 + 128×128×64 方块区域 + 消息类型，保证批次内事件地理上相邻（含高度）、消息类型一致。 */
+    private @NotNull String aggregateKey(@NotNull Location location, @NotNull String message) {
+        int rx = Math.floorDiv(location.getBlockX(), REGION_SIZE_BLOCKS);
+        int rz = Math.floorDiv(location.getBlockZ(), REGION_SIZE_BLOCKS);
+        int ry = Math.floorDiv(location.getBlockY(), REGION_VERTICAL_BLOCKS);
         String world = location.getWorld().getName();
-        return world + "|" + cx + "|" + cz + "|" + message;
+        return world + "|" + rx + "|" + ry + "|" + rz + "|" + message;
+    }
+
+    /** 一批待聚合的 TNT/爆炸告警。仅主线程访问。 */
+    private static final class PendingAlert {
+        int count;
+
+        @NotNull
+        Location epicenter;
+
+        @NotNull
+        String message;
+
+        @NotNull
+        String blockType;
+
+        boolean explosionPrefix;
     }
 
     private boolean isExemptEntity(@NotNull EntityType type) {

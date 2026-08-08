@@ -53,7 +53,7 @@ public class TypedConfigsTest {
         Assertions.assertTrue(tc.enable());
         Assertions.assertTrue(tc.enableRespawnAnchor());
         Assertions.assertEquals(10, tc.placeCooldownSeconds());
-        Assertions.assertEquals(2000L, tc.notifyThrottleMs());
+        // notify_throttle_ms 已移出 TntConfig（ThrottledNotifier 直接读原始配置），此处仅验证未知 key 不破坏解析
         Assertions.assertEquals(1, tc.whitelistRegions().size());
         Assertions.assertEquals(List.of("CREEPER", "FIREBALL"), tc.exemptEntities());
     }

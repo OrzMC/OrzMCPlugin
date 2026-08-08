@@ -57,7 +57,8 @@ public final class ThrottledNotifier {
         }
     }
 
-    private boolean shouldRun(String key, long periodMs) {
+    /** 按固定周期限频（不读取 tnt 配置）：key 在 periodMs 内最多放行一次，用于与 TNT 无关的告警限频。 */
+    public boolean shouldRun(String key, long periodMs) {
         return shouldRun(key, periodMs, periodMs);
     }
 

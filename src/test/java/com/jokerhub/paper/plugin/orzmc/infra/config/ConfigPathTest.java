@@ -11,7 +11,7 @@ class ConfigPathTest {
     void all_containsExpectedEntries() {
         Map<String, ConfigPath> all = ConfigPath.all();
         assertNotNull(all);
-        assertEquals(24, all.size());
+        assertEquals(25, all.size());
     }
 
     @Test
@@ -44,6 +44,11 @@ class ConfigPathTest {
         assertNotNull(tntCooldown);
         assertEquals(Integer.class, tntCooldown.type());
         assertEquals(5, tntCooldown.defaultValue());
+
+        ConfigPath tntAggregate = all.get("tnt.notify_aggregate_ms");
+        assertNotNull(tntAggregate);
+        assertEquals(Long.class, tntAggregate.type());
+        assertEquals(3000L, tntAggregate.defaultValue());
     }
 
     @Test
@@ -129,7 +134,7 @@ class ConfigPathTest {
         // tnt entries come after maintenance
         assertTrue(keys[7].startsWith("tnt."));
         // bot entries after command_policies
-        assertTrue(keys[17].startsWith("cmd_prompt_char") || keys[17].startsWith("discord_server_link"));
+        assertTrue(keys[18].startsWith("cmd_prompt_char") || keys[18].startsWith("discord_server_link"));
     }
 
     @Test
