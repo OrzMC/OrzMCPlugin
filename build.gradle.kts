@@ -36,12 +36,16 @@ dependencies {
     implementation(project(":orzmc-api"))
 
     compileOnly("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
+    // LuckPerms API（软依赖：LP 插件在运行时提供 API 类——compileOnly 不打进 jar，
+    // shadowJar 排除 net/luckperms 避免类加载器冲突；paper-plugin.yml dependencies 新格式声明软依赖）
+    compileOnly("net.luckperms:api:5.5")
+    testImplementation("net.luckperms:api:5.5")
     // WebSocket client used by the EasyBot event stream.
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
     // Minecraft World Backup Lib
     implementation("io.github.wangzhizhou:backup-core:0.1.6")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.2")
     testImplementation("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
@@ -67,7 +71,7 @@ configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
 )
 
 dependencies {
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.114.0")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.115.0")
 }
 
 // 项目编译时插件添加
@@ -228,6 +232,8 @@ tasks {
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         archiveClassifier.set(null as String?)
         archiveVersion.set(shadowJarVersion)
+        // LuckPerms API 由 LP 插件运行时提供，不打进 jar（避免类加载器冲突）
+        exclude("net/luckperms/**")
     }
     build {
         dependsOn("shadowJar")

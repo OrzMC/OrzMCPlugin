@@ -6,15 +6,12 @@ import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
-import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
+import com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.CoordFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.ExceptionFormatter;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
 import java.util.ArrayList;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 
@@ -24,18 +21,21 @@ public final class PlayerEventService {
     private final OrzTextStyles styles;
     private final Notifier notifier;
     private final ThrottledNotifier throttledNotifier;
+    private final OnlineListFormatter listFormatter;
 
     public PlayerEventService(
             ServerFacade server,
             TypedConfigProvider configs,
             OrzTextStyles styles,
             Notifier notifier,
-            ThrottledNotifier throttledNotifier) {
+            ThrottledNotifier throttledNotifier,
+            OnlineListFormatter listFormatter) {
         this.server = server;
         this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
         this.throttledNotifier = throttledNotifier;
+        this.listFormatter = listFormatter;
     }
 
     public enum PlayerState {
@@ -141,35 +141,22 @@ public final class PlayerEventService {
         }
         int onlinePlayerCount = onlinePlayers.size();
         int maxPlayerCount = server.server().getMaxPlayers();
-        String playerName = PlayerDisplayNames.format(player);
+        String playerName = listFormatter.line(player);
         boolean minusCurrent = (state == PlayerState.QUIT || state == PlayerState.KICK);
         int displayOnlineCount = onlinePlayerCount - (minusCurrent ? 1 : 0);
         StringBuilder listBuilder = new StringBuilder();
         for (Player p : onlinePlayers) {
             if (minusCurrent && p.getUniqueId().equals(player.getUniqueId())) continue;
-            listBuilder.append(PlayerDisplayNames.format(p)).append("\n");
+            listBuilder.append(listFormatter.line(p)).append("\n");
         }
         org.bukkit.Location loc = player.getLocation();
         String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
         TemplateOptions opt = configs.templateOptions();
-        boolean isAdmin = (player.isOp() || player.hasPermission("orzmc.admin"));
-        String role = isAdmin ? "admin" : "member";
-        java.util.Set<String> permKeys = new java.util.HashSet<>();
-        for (org.bukkit.permissions.PermissionAttachmentInfo info : player.getEffectivePermissions()) {
-            if (info != null && info.getValue()) {
-                String perm = info.getPermission();
-                if (!perm.isEmpty()) {
-                    permKeys.add(perm);
-                }
-            }
-        }
-        String groupAlias = TemplateResolvers.roleGroupAliasFromPermissions(permKeys, opt);
-        String roleAlias = groupAlias != null ? groupAlias : TemplateResolvers.roleAlias(isAdmin, opt);
+        // 权限组中文名统一走 RankService.groupDisplayName（唯一事实源），
+        // 不再用模板系统的 role_alias 配置（已删除：与权限组映射重复维护）
         java.util.Map<String, String> vars = CoordFormatter.format(loc, opt);
         vars.put("world", world); // 覆盖 CoordFormatter 的别名，保留原始世界名
         vars.put("name", playerName);
-        vars.put("role", role);
-        vars.put("role_alias", roleAlias);
         vars.put("online_count", String.valueOf(displayOnlineCount));
         vars.put("max_count", String.valueOf(maxPlayerCount));
         vars.put("online_list", listBuilder.toString().trim());
@@ -182,11 +169,5 @@ public final class PlayerEventService {
         MessageEnvelope envelope = configs.renderEvent(eventKey, vars);
         notifier.event(eventKey, envelope);
         server.logger().info(envelope.message());
-        if (displayOnlineCount == 0) {
-            Component motd = server.server().motd();
-            String motdText = PlainTextComponentSerializer.plainText().serialize(motd);
-            MessageEnvelope hint = configs.renderEvent("server_maintenance_hint", java.util.Map.of("motd", motdText));
-            notifier.event("server_maintenance_hint", hint);
-        }
     }
 }

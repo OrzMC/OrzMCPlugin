@@ -1,7 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.botcommands;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.infra.player.PlayerDisplayNames;
+import com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
 import java.util.ArrayList;
@@ -11,10 +11,17 @@ import org.bukkit.entity.Player;
 public final class BotCommandListFeedbackService {
     private final ServerFacade server;
     private final TypedConfigProvider configs;
+    private final OnlineListFormatter listFormatter;
 
     public BotCommandListFeedbackService(ServerFacade server, TypedConfigProvider configs) {
+        this(server, configs, new OnlineListFormatter());
+    }
+
+    public BotCommandListFeedbackService(
+            ServerFacade server, TypedConfigProvider configs, OnlineListFormatter listFormatter) {
         this.server = server;
         this.configs = configs;
+        this.listFormatter = listFormatter;
     }
 
     public record OnlineList(String list, String fallback, String header, String onlineCount, String maxCount) {}
@@ -27,12 +34,7 @@ public final class BotCommandListFeedbackService {
 
     public OnlineList buildOnlineList(ArrayList<Player> onlinePlayers, int maxPlayers) {
         String header = String.format("------当前在线(%d/%d)------", onlinePlayers.size(), maxPlayers);
-        StringBuilder listBuilder = new StringBuilder();
-        for (Player p : onlinePlayers) {
-            String name = PlayerDisplayNames.format(p);
-            listBuilder.append("\n").append(name);
-        }
-        String list = listBuilder.toString().trim();
+        String list = listFormatter.list(onlinePlayers);
         String fallbackDefault = header + (list.isEmpty() ? "" : "\n" + list);
         OnlineList online = new OnlineList(
                 list, fallbackDefault, header, String.valueOf(onlinePlayers.size()), String.valueOf(maxPlayers));

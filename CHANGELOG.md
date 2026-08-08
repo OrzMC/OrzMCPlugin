@@ -4,6 +4,18 @@
 
 ---
 
+## [1.0.16] - 2026-08-07
+
+### ✨ 新功能
+- **权限晋升系统（Rank）** — 玩家按游戏阶段自动/申请晋升：
+  - `default→member`：累计在线时长 ≥10 小时自动晋升（LuckPerms track）
+  - `member→builder`：`/apply` 申请，管理员 `/rank approve|reject <玩家>` 审核
+  - `builder→admin`：手动分配（不自动）
+  - `/rank` 查询自己的晋升进度；ranks.yml 持久化时长与申请状态
+  - 晋升通过控制台执行 LuckPerms 命令（零依赖）
+
+---
+
 ## [1.0.15] - 2026-08-06
 
 ### 🐛 修复

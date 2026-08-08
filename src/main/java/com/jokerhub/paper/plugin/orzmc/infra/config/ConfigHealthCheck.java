@@ -358,10 +358,6 @@ public final class ConfigHealthCheck {
         if (wal != null && !(wal instanceof ConfigurationSection)) {
             issues.add("类型错误: templates.i18n.world_alias 需为对象映射");
         }
-        Object ral = cfg.get("templates.i18n.role_alias");
-        if (ral != null && !(ral instanceof ConfigurationSection)) {
-            issues.add("类型错误: templates.i18n.role_alias 需为对象映射");
-        }
         Object sal = cfg.get("templates.i18n.stage_alias");
         if (sal != null && !(sal instanceof ConfigurationSection)) {
             issues.add("类型错误: templates.i18n.stage_alias 需为对象映射");
@@ -375,9 +371,8 @@ public final class ConfigHealthCheck {
             issues.add("建议: templates.world_alias.world_nether 缺失");
         if (!cfg.contains("templates.world_alias.world_the_end"))
             issues.add("建议: templates.world_alias.world_the_end 缺失");
-        if (!cfg.contains("templates.role_alias.admin")) issues.add("建议: templates.role_alias.admin 缺失");
-        if (!cfg.contains("templates.role_alias.member")) issues.add("建议: templates.role_alias.member 缺失");
-        if (!cfg.contains("templates.role_groups")) issues.add("建议: templates.role_groups 未配置，将使用默认别名");
+        // 权限组中文名由 RankService.groupDisplayName 统一提供（唯一事实源），
+        // 模板系统的 role_alias/role_groups 配置已删除，不再校验
         String[] commandKeys = TemplateKeys.COMMAND_KEYS;
         String[] requiredTemplates = TemplateKeys.ALL;
         for (String key : requiredTemplates) {

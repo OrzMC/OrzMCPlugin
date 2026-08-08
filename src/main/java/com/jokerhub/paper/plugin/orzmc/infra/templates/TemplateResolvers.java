@@ -20,26 +20,6 @@ public final class TemplateResolvers {
         return opt.worldAlias().getOrDefault("world", "主世界");
     }
 
-    public static String roleAlias(boolean isAdmin, TemplateOptions opt) {
-        Map<String, String> localized =
-                opt.roleAliasLocalized().getOrDefault(opt.locale() == null ? "" : opt.locale(), null);
-        if (localized != null) {
-            String v = localized.getOrDefault(isAdmin ? "admin" : "member", null);
-            if (v != null) return v;
-        }
-        return opt.roleAlias().getOrDefault(isAdmin ? "admin" : "member", isAdmin ? "管理员" : "玩家");
-    }
-
-    public static String roleGroupAliasFromPermissions(java.util.Collection<String> permKeys, TemplateOptions opt) {
-        for (java.util.Map.Entry<String, String> e : opt.roleGroupAliases().entrySet()) {
-            String key = e.getKey();
-            if (!"default".equalsIgnoreCase(key) && permKeys.contains(key)) {
-                return e.getValue();
-            }
-        }
-        return opt.roleGroupAliases().getOrDefault("default", roleAlias(false, opt));
-    }
-
     public static String stageAlias(String stageName, TemplateOptions opt) {
         if (stageName == null) return opt.stageCnMap().getOrDefault("Running", "进行中");
         Map<String, String> localized =

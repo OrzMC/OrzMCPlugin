@@ -71,21 +71,21 @@ class OrzEasyBotTest {
     void processInboundEvent_allowsConfiguredPlatformConversation() {
         bot.processInboundEvent(event("qq", "player-chat", "$h", "Member"));
 
-        verify(inboundHandler).handleMessage(eq("$h"), eq(false), any());
+        verify(inboundHandler).handleMessage(eq("$h"), eq(false), any(), any());
     }
 
     @Test
     void processInboundEvent_allowsConfiguredAdminConversationAndRole() {
         bot.processInboundEvent(event("qq", "qq:admin-chat", "$b", "Admin"));
 
-        verify(inboundHandler).handleMessage(eq("$b"), eq(true), any());
+        verify(inboundHandler).handleMessage(eq("$b"), eq(true), any(), any());
     }
 
     @Test
     void processInboundEvent_rejectsUnconfiguredConversation() {
         bot.processInboundEvent(event("qq", "unknown-chat", "$h", "Owner"));
 
-        verify(inboundHandler, never()).handleMessage(any(), eq(true), any());
+        verify(inboundHandler, never()).handleMessage(any(), eq(true), any(), any());
         verify(throttledLogger)
                 .warning(eq("easybot-inbound-target"), eq("EasyBot 忽略未授权会话消息: platform=qq, target=qq:unknown-chat"));
     }
@@ -94,7 +94,7 @@ class OrzEasyBotTest {
     void processInboundEvent_normalizesPlatformCase() {
         bot.processInboundEvent(event("QQ", "player-chat", "$h", "Member"));
 
-        verify(inboundHandler).handleMessage(eq("$h"), eq(false), any());
+        verify(inboundHandler).handleMessage(eq("$h"), eq(false), any(), any());
     }
 
     @Test

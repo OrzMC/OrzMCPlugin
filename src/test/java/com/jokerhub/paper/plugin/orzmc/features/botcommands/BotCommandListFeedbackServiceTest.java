@@ -66,8 +66,8 @@ class BotCommandListFeedbackServiceTest {
         players.add(alice);
         players.add(bob);
 
-        displayNamesMock.when(() -> PlayerDisplayNames.format(alice)).thenReturn("§aAlice");
-        displayNamesMock.when(() -> PlayerDisplayNames.format(bob)).thenReturn("§bBob");
+        displayNamesMock.when(() -> PlayerDisplayNames.format(alice, null)).thenReturn("§aAlice");
+        displayNamesMock.when(() -> PlayerDisplayNames.format(bob, null)).thenReturn("§bBob");
         when(configs.resolveTemplate(eq("command_players"), anyString())).thenAnswer(i -> i.getArgument(1));
         templateMock.when(() -> TemplateRenderer.render(anyString(), anyMap())).thenAnswer(i -> i.getArgument(0));
 

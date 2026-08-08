@@ -112,8 +112,6 @@ public abstract class ServiceTestBase {
      * 与 {@link #mockConfigProvider(TemplateOptions)} 配合使用。
      */
     protected TemplateOptions defaultTemplateOptions() {
-        return new TemplateOptions(
-                Map.of(), "per_sec", "ms", Map.of(), Map.of(), 1.0, 2, "block", Map.of(), "zh-CN", Map.of(), Map.of(),
-                Map.of());
+        return new TemplateOptions(Map.of(), "per_sec", "ms", Map.of(), Map.of(), 1.0, 2, "block", "zh-CN", Map.of());
     }
 }

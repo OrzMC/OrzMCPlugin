@@ -7,6 +7,11 @@ public final class PlayerDisplayNames {
     private PlayerDisplayNames() {}
 
     public static String format(Player player) {
+        return format(player, null);
+    }
+
+    /** 玩家显示名：玩家名(op) 游戏模式 权限组（groupName 可为 null，省略权限组）。 */
+    public static String format(Player player, String groupName) {
         String ret = player.getPlayerProfile().getName();
         if (player.isOp()) {
             ret += "(op)";
@@ -18,6 +23,9 @@ public final class PlayerDisplayNames {
         else if (gm == GameMode.ADVENTURE) gameMode = "冒险";
         else if (gm == GameMode.SPECTATOR) gameMode = "观察";
         ret += " " + gameMode + "模式";
+        if (groupName != null && !groupName.isBlank()) {
+            ret += " " + groupName;
+        }
         return ret;
     }
 }

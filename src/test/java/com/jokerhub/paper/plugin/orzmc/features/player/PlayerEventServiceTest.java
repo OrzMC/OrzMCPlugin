@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.player;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
@@ -10,6 +11,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
+import com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
@@ -49,7 +51,8 @@ class PlayerEventServiceTest extends ServiceTestBase {
 
     @BeforeEach
     void setUp() {
-        service = new PlayerEventService(server, configs, styles, notifier, throttledNotifier);
+        service =
+                new PlayerEventService(server, configs, styles, notifier, throttledNotifier, new OnlineListFormatter());
     }
 
     @Test
@@ -161,5 +164,103 @@ class PlayerEventServiceTest extends ServiceTestBase {
         String addressInfo = captor.getValue().get("address_info");
         assertNotNull(addressInfo, "address_info should be present");
         assertTrue(addressInfo.contains("\n  \"ip\""), "JSON should be pretty-printed, got: " + addressInfo);
+    }
+
+    // ---- 上下线广播：在线列表含权限组（2026-08-07 修复：缺组名）----
+
+    @Test
+    void notifyPlayerState_join_withRankService_includesGroupInList() {
+        com.jokerhub.paper.plugin.orzmc.features.rank.RankService rankService =
+                mock(com.jokerhub.paper.plugin.orzmc.features.rank.RankService.class);
+        com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter formatter =
+                new com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter();
+        formatter.setRankService(rankService);
+        service = new PlayerEventService(server, configs, styles, notifier, throttledNotifier, formatter);
+
+        org.bukkit.entity.Player p1 = mock(org.bukkit.entity.Player.class);
+        org.bukkit.entity.Player p2 = mock(org.bukkit.entity.Player.class);
+        com.destroystokyo.paper.profile.PlayerProfile profile1 =
+                mock(com.destroystokyo.paper.profile.PlayerProfile.class);
+        com.destroystokyo.paper.profile.PlayerProfile profile2 =
+                mock(com.destroystokyo.paper.profile.PlayerProfile.class);
+        when(profile1.getName()).thenReturn("Alice");
+        when(profile2.getName()).thenReturn("Bob");
+        when(p1.getPlayerProfile()).thenReturn(profile1);
+        when(p2.getPlayerProfile()).thenReturn(profile2);
+        when(p1.getGameMode()).thenReturn(org.bukkit.GameMode.SURVIVAL);
+        when(p2.getGameMode()).thenReturn(org.bukkit.GameMode.CREATIVE);
+
+        org.bukkit.Server bukkitServer = mock(org.bukkit.Server.class);
+        when(server.server()).thenReturn(bukkitServer);
+        java.util.Collection<? extends org.bukkit.entity.Player> online = java.util.List.of(p1, p2);
+        doReturn(online).when(bukkitServer).getOnlinePlayers();
+        when(bukkitServer.getMaxPlayers()).thenReturn(20);
+
+        // p1 是 admin 组、p2 是 builder 组（LP 真实组 → 显示名）
+        java.util.UUID id1 = java.util.UUID.randomUUID();
+        java.util.UUID id2 = java.util.UUID.randomUUID();
+        when(p1.getUniqueId()).thenReturn(id1);
+        when(p2.getUniqueId()).thenReturn(id2);
+        when(rankService.currentGroup(id1)).thenReturn("admin");
+        when(rankService.currentGroup(id2)).thenReturn("builder");
+
+        org.bukkit.Location loc = mock(org.bukkit.Location.class);
+        when(p1.getLocation()).thenReturn(loc);
+        when(loc.getWorld()).thenReturn(null);
+        when(server.logger()).thenReturn(logger);
+        when(configs.templateOptions())
+                .thenReturn(mock(com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions.class));
+        when(configs.renderEvent(eq("player_join"), anyMap())).thenReturn(MessageEnvelope.publicMessage("ok"));
+        when(throttledNotifier.shouldRunDefault(anyString())).thenReturn(true);
+
+        service.notifyPlayerState(p1, PlayerEventService.PlayerState.JOIN);
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.Map<String, String>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs).renderEvent(eq("player_join"), captor.capture());
+        String onlineList = captor.getValue().get("online_list");
+        assertNotNull(onlineList, "online_list should be present");
+        assertTrue(onlineList.contains("Alice"), "list should contain Alice, got: " + onlineList);
+        assertTrue(onlineList.contains("管理员"), "Alice 应显示权限组 管理员, got: " + onlineList);
+        assertTrue(onlineList.contains("Bob"), "list should contain Bob, got: " + onlineList);
+        assertTrue(onlineList.contains("建造者"), "Bob 应显示权限组 建造者, got: " + onlineList);
+    }
+
+    @Test
+    void notifyPlayerState_join_withoutRankService_omitsGroup() {
+        org.bukkit.entity.Player p1 = mock(org.bukkit.entity.Player.class);
+        com.destroystokyo.paper.profile.PlayerProfile profile1 =
+                mock(com.destroystokyo.paper.profile.PlayerProfile.class);
+        when(profile1.getName()).thenReturn("Alice");
+        when(p1.getPlayerProfile()).thenReturn(profile1);
+        when(p1.getGameMode()).thenReturn(org.bukkit.GameMode.SURVIVAL);
+
+        org.bukkit.Server bukkitServer = mock(org.bukkit.Server.class);
+        when(server.server()).thenReturn(bukkitServer);
+        java.util.Collection<? extends org.bukkit.entity.Player> online = java.util.List.of(p1);
+        doReturn(online).when(bukkitServer).getOnlinePlayers();
+        when(bukkitServer.getMaxPlayers()).thenReturn(20);
+
+        org.bukkit.Location loc = mock(org.bukkit.Location.class);
+        when(p1.getLocation()).thenReturn(loc);
+        when(loc.getWorld()).thenReturn(null);
+        when(server.logger()).thenReturn(logger);
+        when(configs.templateOptions())
+                .thenReturn(mock(com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions.class));
+        when(configs.renderEvent(eq("player_join"), anyMap())).thenReturn(MessageEnvelope.publicMessage("ok"));
+        when(throttledNotifier.shouldRunDefault(anyString())).thenReturn(true);
+
+        service.notifyPlayerState(p1, PlayerEventService.PlayerState.JOIN);
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.Map<String, String>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs).renderEvent(eq("player_join"), captor.capture());
+        String onlineList = captor.getValue().get("online_list");
+        assertNotNull(onlineList);
+        // 无 rankService：只显示 玩家名+游戏模式，不含任何权限组词
+        assertTrue(onlineList.contains("Alice 生存模式"), "got: " + onlineList);
+        assertFalse(onlineList.contains("管理员"), "不应含权限组, got: " + onlineList);
     }
 }

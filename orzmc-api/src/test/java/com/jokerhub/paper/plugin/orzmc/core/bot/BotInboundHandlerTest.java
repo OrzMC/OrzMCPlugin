@@ -11,7 +11,7 @@ class BotInboundHandlerTest {
     void handleMessage_invokesCallback() {
         AtomicReference<String> captured = new AtomicReference<>();
 
-        BotInboundHandler handler = (message, isAdmin, callback) -> {
+        BotInboundHandler handler = (message, isAdmin, senderName, callback) -> {
             callback.accept(MessageEnvelope.publicMessage("reply: " + message));
         };
 
@@ -24,7 +24,7 @@ class BotInboundHandlerTest {
     void handleMessage_adminFlagPassed() {
         AtomicReference<Boolean> adminFlag = new AtomicReference<>();
 
-        BotInboundHandler handler = (message, isAdmin, callback) -> {
+        BotInboundHandler handler = (message, isAdmin, senderName, callback) -> {
             adminFlag.set(isAdmin);
         };
 
@@ -36,8 +36,24 @@ class BotInboundHandlerTest {
     }
 
     @Test
+    void handleMessage_senderNamePassed() {
+        AtomicReference<String> sender = new AtomicReference<>();
+
+        BotInboundHandler handler = (message, isAdmin, senderName, callback) -> {
+            sender.set(senderName);
+        };
+
+        handler.handleMessage("cmd", true, "老板", env -> {});
+        assertEquals("老板", sender.get());
+
+        // 4 参 default 入口 senderName 为 null
+        handler.handleMessage("cmd", true, env -> {});
+        assertNull(sender.get());
+    }
+
+    @Test
     void handleMessage_nullCallback_doesNotThrow() {
-        BotInboundHandler handler = (message, isAdmin, callback) -> {
+        BotInboundHandler handler = (message, isAdmin, senderName, callback) -> {
             // callback 可能为 null，实现应能处理
         };
 
@@ -46,7 +62,7 @@ class BotInboundHandlerTest {
 
     @Test
     void handleMessage_emptyMessage_doesNotThrow() {
-        BotInboundHandler handler = (message, isAdmin, callback) -> {
+        BotInboundHandler handler = (message, isAdmin, senderName, callback) -> {
             if (callback != null) {
                 callback.accept(MessageEnvelope.publicMessage(""));
             }

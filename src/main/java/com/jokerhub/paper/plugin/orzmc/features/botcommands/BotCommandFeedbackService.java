@@ -15,6 +15,10 @@ public final class BotCommandFeedbackService {
                 + "\n"
                 + OrzUserCmd.EXECUTE_CONSOLE_COMMAND.display(promptChar)
                 + "\n"
+                + OrzUserCmd.REVIEW.display(promptChar)
+                + "\n"
+                + OrzUserCmd.PERMISSION.display(promptChar)
+                + "\n"
                 + "👨🏻‍💻 通用命令: \n"
                 + OrzUserCmd.SHOW_PLAYERS.display(promptChar)
                 + "\n"
@@ -69,6 +73,25 @@ public final class BotCommandFeedbackService {
                         + promptChar
                         + cmd.cmdName()
                         + " -[IP]   移除黑名单";
+            case REVIEW ->
+                "用法：\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " l            查看待审列表\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " y [玩家]     通过申请\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " n [玩家]     拒绝申请";
+            case PERMISSION ->
+                "用法：\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " u [玩家]     权限升级（default→member→builder→admin）\n"
+                        + promptChar
+                        + cmd.cmdName()
+                        + " d [玩家]     权限降级（admin→builder→member→default）";
             default -> "";
         };
     }

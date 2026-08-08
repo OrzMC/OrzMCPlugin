@@ -24,6 +24,11 @@ public final class ConfigService {
         configManager.registerConfig("ip_blacklist", "ip_blacklist.yml");
         configManager.markAlwaysSave("ip_blacklist");
 
+        // 权限模块统一配置（两段式：config 阈值 / reviews 审核记录），
+        // markAlwaysSave 保证频繁写不丢；替代原 ranks.yml 单文件存储（权限状态由 LP track 持有）
+        configManager.registerConfig("permission", "permission.yml");
+        configManager.markAlwaysSave("permission");
+
         // Register the unified bot gateway config.
         configManager.registerConfig("easybot", "easybot.yml");
 
@@ -72,6 +77,11 @@ public final class ConfigService {
     /** Load a YAML file from plugin data folder without registering. For backward-compat fallback. */
     public FileConfiguration loadFile(String fileName) {
         return configManager.loadFile(fileName);
+    }
+
+    /** 插件数据目录（定位遗留文件用）。 */
+    public java.io.File dataFolder() {
+        return configManager.dataFolder();
     }
 
     /**

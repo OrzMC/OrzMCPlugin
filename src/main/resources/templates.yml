@@ -26,7 +26,6 @@ templates:
     command_optimize_disabled: PLAIN
     server_load: PLAIN
     server_stop: PLAIN
-    server_maintenance_hint: PLAIN
     whitelist_block: PLAIN
     whitelist_toggle_alert: PLAIN
     maintenance_backup_stage: CODE_BLOCK
@@ -35,6 +34,17 @@ templates:
     maintenance_optimize_stage: CODE_BLOCK
     maintenance_optimize_done: CODE_BLOCK
     maintenance_optimize_error: CODE_BLOCK
+    review_submitted: PLAIN
+    review_cancelled: PLAIN
+    review_approved: PLAIN
+    review_rejected: PLAIN
+    rank_promoted: PLAIN
+    rank_demoted: PLAIN
+    rank_status: CODE_BLOCK
+    command_review_list: CODE_BLOCK
+    command_review_list_empty: PLAIN
+    command_review_result: PLAIN
+    command_review_error: PLAIN
   command_output: "{message}"
   command_help: "{help}"
   command_players: "------当前在线({online_count}/{max_count})------\n{online_list}"
@@ -52,9 +62,19 @@ templates:
   command_backup: "{message}"
   command_optimize: "{message}"
   command_optimize_disabled: "{message}"
+  review_submitted: "📋 [新申请] {player}：{summary}（$v l 查看）"
+  review_cancelled: "↩️ {player} 撤回了申请：{summary}"
+  review_approved: "✅ {player} 的申请已通过（审核人：{reviewer}）：{summary}"
+  review_rejected: "❌ {player} 的申请被拒（审核人：{reviewer}）：{summary}"
+  rank_promoted: "🎉 {player} 权限已升级为「{group}」"
+  rank_demoted: "⬇️ {player} 权限已被降级为「{group}」"
+  rank_status: "{message}"
+  command_review_list: "{message}"
+  command_review_list_empty: "当前没有待审核的申请。"
+  command_review_result: "{message}"
+  command_review_error: "{message}"
   server_load: "{message}"
   server_stop: "{message}"
-  server_maintenance_hint: "服务器当前无玩家，可进行服务器维护"
   whitelist_block: "{message}"
   whitelist_toggle_alert: "{message}"
   player_join: "{name} 上线\n------当前在线({online_count}/{max_count})------\n{online_list}"
@@ -81,22 +101,8 @@ templates:
     world: 主世界
     world_nether: 下界
     world_the_end: 末地
-  role_alias:
-    admin: 管理员
-    member: 玩家
-  # 权限组名称别称：用于通知中通过 {role_alias} 展示
-  role_groups:
-    orzmc.admin: 管理员
-    default: 玩家
   locale: zh-CN
   i18n:
-    role_alias:
-      zh-CN:
-        admin: 管理员
-        member: 玩家
-      en-US:
-        admin: Admin
-        member: Member
     command:
       en-US:
         command_output: "{message}"

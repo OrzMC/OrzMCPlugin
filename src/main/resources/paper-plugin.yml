@@ -9,6 +9,13 @@ website: https://orzmc.jokerhub.cn
 api-version: '26.1.2'
 folia-supported: false
 
+# LuckPerms 软依赖（Paper 26 新格式）：确保 OrzMC 在 LP 之后加载，
+# 且 LP 的类加载器对 OrzMC 可见（LP API 类由其插件提供）；LP 未安装时功能降级
+dependencies:
+  server:
+    LuckPerms:
+      required: false
+
 # Paper 26.1 插件模式忽略 YAML 命令声明，命令通过 CommandBinder 使用 CommandMap API 注册。
 # 此处只保留权限声明，供 Bukkit Permission 系统使用。
 permissions:

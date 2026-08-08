@@ -111,6 +111,10 @@ public class ConfigManager {
      * Returns null if the file doesn't exist. Used for backward-compat fallback
      * when reading from old individual config files.
      */
+    public java.io.File dataFolder() {
+        return plugin.getDataFolder();
+    }
+
     public FileConfiguration loadFile(String fileName) {
         File file = new File(plugin.getDataFolder(), fileName);
         if (file.exists()) {

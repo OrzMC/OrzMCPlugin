@@ -109,7 +109,6 @@ public final class TemplatePlaceholderValidator {
                 "z_unit",
                 "coord_unit",
                 "role",
-                "role_alias",
                 "online_count",
                 "max_count",
                 "online_list");
@@ -139,7 +138,6 @@ public final class TemplatePlaceholderValidator {
         m.put("maintenance_backup_error", Set.of("label", "duration_ms"));
         m.put("maintenance_optimize_done", Set.of("label", "duration_ms"));
         m.put("maintenance_optimize_error", Set.of("label", "duration_ms"));
-        m.put("server_maintenance_hint", Set.of("motd"));
         m.put("server_load", Set.of("message"));
         m.put("server_stop", Set.of("message"));
         m.put("whitelist_block", Set.of("message"));

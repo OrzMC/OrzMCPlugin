@@ -753,13 +753,18 @@ public class OrzEasyBot implements BotMessageService {
                 return;
             }
 
-            // sender.role: 发送者角色（EasyBot 已各平台标准化）
+            // sender.role: 发送者角色（EasyBot 已各平台标准化）；sender.nickname: 群昵称（审核人身份用）
             boolean isAdmin = false;
+            String senderName = null;
             if (data.has("sender") && data.get("sender").isJsonObject()) {
                 JsonObject sender = data.getAsJsonObject("sender");
                 String role = stringValue(sender, "role");
                 if (role != null) {
                     isAdmin = "Owner".equalsIgnoreCase(role) || "Admin".equalsIgnoreCase(role);
+                }
+                senderName = stringValue(sender, "nickname");
+                if (senderName == null || senderName.isBlank()) {
+                    senderName = stringValue(sender, "user_id"); // 无昵称时用平台 ID 兜底
                 }
             }
 
@@ -774,7 +779,7 @@ public class OrzEasyBot implements BotMessageService {
                 }
             };
 
-            BotInboundDispatcher.dispatch(inboundHandler, text, isAdmin, sink);
+            BotInboundDispatcher.dispatch(inboundHandler, text, isAdmin, senderName, sink);
         } catch (Exception e) {
             healthRegistry.setLastError(HEALTH_KEY, e.toString());
             logger.logger().info("EasyBot inbound parse error: " + e);

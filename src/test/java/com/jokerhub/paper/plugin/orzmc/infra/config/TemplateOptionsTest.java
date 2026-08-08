@@ -17,8 +17,6 @@ public class TemplateOptionsTest extends ServiceTestBase {
         Assertions.assertEquals("主世界", opt.worldAlias().get("world"));
         Assertions.assertEquals("下界", opt.worldAlias().get("world_nether"));
         Assertions.assertEquals("末地", opt.worldAlias().get("world_the_end"));
-        Assertions.assertEquals("管理员", opt.roleAlias().get("admin"));
-        Assertions.assertEquals("玩家", opt.roleAlias().get("member"));
         Assertions.assertEquals(2.0, opt.coordScale());
         Assertions.assertEquals("meter", opt.coordUnitLabel());
         Assertions.assertEquals("区域", opt.stageCnMap().get("Region"));
@@ -32,8 +30,6 @@ public class TemplateOptionsTest extends ServiceTestBase {
         cfg.set("templates.progress_units.rate", "per_min");
         cfg.set("templates.progress_units.eta", "sec");
         cfg.set("templates.world_alias.world", "主世界");
-        cfg.set("templates.role_alias.admin", "管理员");
-        cfg.set("templates.role_alias.member", "玩家");
         cfg.set("templates.coord.scale", 2.0);
         cfg.set("templates.coord.unit_label", "meter");
         return cfg;

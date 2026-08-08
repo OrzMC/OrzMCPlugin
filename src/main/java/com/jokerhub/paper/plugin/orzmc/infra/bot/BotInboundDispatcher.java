@@ -9,7 +9,16 @@ public final class BotInboundDispatcher {
 
     public static void dispatch(
             BotInboundHandler handler, String content, boolean isAdmin, Consumer<MessageEnvelope> sink) {
-        handler.handleMessage(content, isAdmin, env -> {
+        dispatch(handler, content, isAdmin, null, sink);
+    }
+
+    public static void dispatch(
+            BotInboundHandler handler,
+            String content,
+            boolean isAdmin,
+            String senderName,
+            Consumer<MessageEnvelope> sink) {
+        handler.handleMessage(content, isAdmin, senderName, env -> {
             if (env != null) {
                 sink.accept(env);
             }

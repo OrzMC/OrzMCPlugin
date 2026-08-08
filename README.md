@@ -23,8 +23,9 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 
 | Feature | Description |
 |---------|-------------|
+| Permission system (Rank & Review) | 4-level player rank chain (guest → member → builder → admin) powered by LuckPerms with auto-promotion, apply-and-review workflow (`/apply` / `/review` / `$v`), and manual promotion/demotion (`$p`). Zero setup: auto-creates the track and missing groups on startup; degrades gracefully when LuckPerms is absent. |
 | Whitelist management | Control server access. Admins add/remove players via bot commands (`$a` / `$r` / `$w`); inactive players are cleaned up automatically; kicked non-whitelisted players receive a helpful notice. |
-| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 9 bot commands for player management, queries and interaction; 30+ customizable message templates push server events to the matching group or channel. |
+| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 11 bot commands for player management, queries and interaction; 30+ customizable message templates push server events to the matching group or channel. |
 | Cross-server portals | Admins create or remove portals; players stepping on a portal are transferred across servers. Optional LoginSecurity verification before transfer. |
 | TNT protection | Restrict where TNT can be placed, with per-area whitelist exemption; explosion notifications to the group chat; control respawn anchor explosion behavior. |
 | Security controls | Restrict joins by GeoIP country; three blacklist modes (exact IP / CIDR / wildcard); optional LoginSecurity secondary verification. |
@@ -43,6 +44,12 @@ Download the plugin, drop it into the `plugins/` directory of your PaperMC
 server, and start the server. The plugin creates a data directory with the same
 name on first run. During operation, configuration is loaded into memory and
 written back to the config files when the server stops.
+
+> **Optional dependency**: [LuckPerms](https://luckperms.net/) (v5.5+) enables
+> the rank & review permission system. Without it the plugin runs normally but
+> permission features are disabled. When LuckPerms is present, the plugin
+> auto-creates the `rank` track and missing groups on startup — no manual
+> LuckPerms setup required.
 
 ## Bot setup (EasyBot gateway)
 
