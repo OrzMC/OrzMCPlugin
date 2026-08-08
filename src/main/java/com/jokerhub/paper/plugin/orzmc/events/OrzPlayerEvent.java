@@ -56,15 +56,14 @@ public class OrzPlayerEvent extends OrzBaseListener {
         if (ipAddress.isEmpty()) {
             return;
         }
-        geoIpAccessService
-                .decide(ipAddress)
-                .thenAccept(decision -> {
-                    service.handleGeoIpDecision(event, playerName, ipAddress, decision);
-                })
-                .exceptionally(e -> {
-                    service.handleGeoIpException(e);
-                    return null;
-                });
+        // 阻塞等待本次查询结果：只在异步处理器线程上等待，不阻塞主线程；
+        // 超时/异常由 handleGeoIpPreLogin 内部按 fail-open 放行并告警。
+        service.handleGeoIpPreLogin(
+                event,
+                playerName,
+                ipAddress,
+                geoIpAccessService.decide(ipAddress),
+                GeoIpAccessService.DECISION_TIMEOUT_MS);
     }
 
     @EventHandler

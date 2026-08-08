@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+---
+
+## [1.0.15] - 2026-08-06
+
+### 🐛 修复
+- **GeoIP 内网 IP 误拦截** — 内网/私有地址（192.168.x / 10.x / 172.16-31.x / 127.x / 100.64.x 运营商大内网 / IPv6 内网）直接放行，不触发 GeoIP 查询。此前 geojs.io 无法解析私有段返回未知国家码，在 `allow_country_code` 白名单模式下会误拦截内网玩家。公网 IP 仍正常走 GeoIP 区域检查（TDD：9 个测试覆盖）。
+
+---
+
+## [1.0.14] - 2026-08-06
+
+### 🚀 新功能
+- **结构化批量投递健康检查** — `/bot` 状态升级为结构化输出（`enabled httpOk wsOk`），批量投递后健康校验。
+- **TNT 配置热重载** — TNT 保护配置改为读取时解析，运行时修改立即生效，无需重启。
+- **GeoIP 拦截增强** — 拦截改为阻塞等待查询结果并加超时告警，避免异步竞态导致误放行。
+
+### 🐛 修复
+- **orzdebug 调试命令不可用（#159）** — 原 `debug` 前缀被原版 `/debug` 命令抢占（Incorrect argument），改前缀为 `orzdebug` 并由 FeatureModule 注册命令，模拟群发 Bot 命令链路恢复正常。
+- **传送门配置示例清理** — 移除 portals.yml 资源中的示例条目，防止首次安装误加载测试传送门。
+- **shadowJar 构建警告** — 设置 duplicatesStrategy=INCLUDE，消除 Kotlin metadata 合并警告。
+
+### ✅ 测试
+- 补齐核心逻辑测试缺口（GuideBook / Tp / Debug 事件）
+- 补充 OrzPlayerEventTest 覆盖 prelogin 接线逻辑
+
+### 📝 文档
+- README / README.zh-CN 更新
+- 插件文档目录新增：功能测试用例（28 项）+ 端到端测试报告（2026-08-06，28/28 通过）
+
+### ⚙️ CI/CD
+- 声明 Paper 26.2 支持（保留 26.1 编译基线）
+- 依赖升级：shadow 9.6.1 / spotless 8.9.0 / gradle-actions 6.2.0 / setup-java 5.6.0 / Kotlin JVM 2.4.10
+
+---
+
+## [1.0.13] - 2026-08-03
+
 ### ♻️ 重构
 - **统一 EasyBot 网关** — 移除 NapCatQQ、Discord JDA 与飞书 Webhook 直连适配器，机器人消息统一经 EasyBot 收发。
 - **简化消息链路** — 移除多适配器 Router/Manager 与旧重连管理器，由 `OrzEasyBot` 直接实现消息服务、健康状态和重连。

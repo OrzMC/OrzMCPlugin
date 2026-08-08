@@ -18,7 +18,7 @@ public class OrzDebugEvent extends OrzBaseListener {
 
     @EventHandler
     public void cmdDebugHandler(ServerCommandEvent event) {
-        String debugCmdPrefix = "debug";
+        String debugCmdPrefix = "orzdebug";
         debug = event.getCommand().startsWith(debugCmdPrefix);
         if (!debug) {
             return;

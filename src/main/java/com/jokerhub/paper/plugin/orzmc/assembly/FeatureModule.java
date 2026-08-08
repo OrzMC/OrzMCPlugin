@@ -217,6 +217,25 @@ public final class FeatureModule implements ServiceModule {
 
             // ---- Config: /config list|get|set|reset|dump|reload ----
             registerConfig(commands, cp);
+
+            // ---- Debug: /orzdebug <bot-command> 模拟群里用户发 Bot 命令 ----
+            // 注：不能叫 /debug（Paper 1.20+ 原版 debug 命令抢占且未注册命令不触发 ServerCommandEvent），
+            // 必须注册本命令后由 ServerCommandEvent 捕获（见 OrzDebugEvent）。
+            commands.register(
+                    literal("orzdebug")
+                            .requires(src -> true)
+                            .then(argument("cmd", StringArgumentType.greedyString())
+                                    .executes(ctx -> {
+                                        ctx.getSource().getSender().sendMessage("debug 已受理（模拟 Bot 入站命令）");
+                                        return 1;
+                                    }))
+                            .executes(ctx -> {
+                                ctx.getSource().getSender().sendMessage("用法: /orzdebug <Bot命令>");
+                                return 1;
+                            })
+                            .build(),
+                    "模拟群里用户发 Bot 命令（调试用）",
+                    List.of());
         });
     }
 

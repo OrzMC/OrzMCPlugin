@@ -54,7 +54,7 @@ public final class PlayerEventService {
         vars.put("ip", ipAddress);
         vars.put("country_code", decision.countryCode());
         vars.put("allow_list", String.join(",", decision.allowList()));
-        vars.put("address_info", decision.rawJson());
+        vars.put("address_info", formatAddressInfo(decision.rawJson()));
         MessageEnvelope envelope = configs.renderEvent("geoip_block", vars);
         notifier.event("geoip_block", envelope);
         event.disallow(
@@ -63,12 +63,67 @@ public final class PlayerEventService {
                         + String.join(",", decision.allowList())));
     }
 
+    /** 将 GeoIP 返回的原始 JSON 格式化为可读的多行形式；空或非法内容原样返回。 */
+    static String formatAddressInfo(String rawJson) {
+        if (rawJson == null || rawJson.isBlank()) {
+            return "";
+        }
+        try {
+            return new com.google.gson.GsonBuilder()
+                    .setPrettyPrinting()
+                    .create()
+                    .toJson(com.google.gson.JsonParser.parseString(rawJson));
+        } catch (com.google.gson.JsonSyntaxException e) {
+            return rawJson;
+        }
+    }
+
     public void handleGeoIpException(Throwable e) {
         String msgText = "IP地址解析服务异常: " + e.toString();
         server.logger().warning(msgText);
         MessageEnvelope envelope = configs.renderEvent(
                 "exception_alert",
                 java.util.Map.of("message", msgText, "stack_summary", ExceptionFormatter.summarize(e)));
+        notifier.event("exception_alert", envelope);
+    }
+
+    /**
+     * 阻塞等待 GeoIP 决策结果并据此放行/拦截。
+     *
+     * <p>在异步的 AsyncPlayerPreLoginEvent 处理器内调用：只阻塞当前 netty 线程，
+     * 不会阻塞主线程。超时未取到结果或查询异常均 fail-open 放行，但告警到日志与群。</p>
+     *
+     * @param decisionFuture GeoIP 查询的异步结果
+     * @param timeoutMs 阻塞等待上限，超过则按超时处理
+     */
+    public void handleGeoIpPreLogin(
+            AsyncPlayerPreLoginEvent event,
+            String playerName,
+            String ipAddress,
+            java.util.concurrent.CompletableFuture<GeoIpAccessService.Decision> decisionFuture,
+            long timeoutMs) {
+        GeoIpAccessService.Decision decision;
+        try {
+            decision = decisionFuture.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            handleGeoIpTimeout(playerName, ipAddress, timeoutMs);
+            return;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            handleGeoIpException(e);
+            return;
+        } catch (Exception e) {
+            handleGeoIpException(e);
+            return;
+        }
+        handleGeoIpDecision(event, playerName, ipAddress, decision);
+    }
+
+    public void handleGeoIpTimeout(String playerName, String ipAddress, long timeoutMs) {
+        String msgText = "IP地址解析超时(" + timeoutMs + "ms)，已放行: " + playerName + "(" + ipAddress + ")";
+        server.logger().warning(msgText);
+        MessageEnvelope envelope = configs.renderEvent(
+                "exception_alert", java.util.Map.of("message", msgText, "stack_summary", "geoip lookup timeout"));
         notifier.event("exception_alert", envelope);
     }
 
