@@ -11,6 +11,7 @@ import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.context.ImmutableContextSet;
 import net.luckperms.api.model.user.User;
 import net.luckperms.api.model.user.UserManager;
+import net.luckperms.api.node.types.InheritanceNode;
 import net.luckperms.api.query.QueryOptions;
 import net.luckperms.api.track.DemotionResult;
 import net.luckperms.api.track.PromotionResult;
@@ -148,6 +149,33 @@ public final class LuckPermsPromoter implements RankPromoter {
                 .build();
     }
 
+    /**
+     * 操作前归一键：清除玩家全部继承节点（含带 world/gamemode 上下文的脏节点），
+     * 仅保留 global 上下文当前 track 组——根治历史多组残留导致的
+     * AMBIGUOUS_CALL 与组节点累积（2026-08-08 joker 案例）。
+     */
+    private boolean normalizeSingleGroup(User user, Track trk) {
+        var inherited = user.getInheritedGroups(queryOptionsGlobal()).stream()
+                .map(g -> g.getName())
+                .collect(java.util.stream.Collectors.toCollection(
+                        () -> new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
+        String current = null;
+        for (String group : trk.getGroups()) {
+            if (inherited.contains(group)) {
+                current = group;
+            }
+        }
+        user.data().clear(node -> node instanceof InheritanceNode);
+        if (current != null) {
+            user.data()
+                    .add(api().getNodeBuilderRegistry()
+                            .forInheritance()
+                            .group(current)
+                            .build());
+        }
+        return saveUser(user);
+    }
+
     @Override
     public String currentTrackGroup(UUID playerId) {
         User user = loadUser(playerId);
@@ -179,6 +207,12 @@ public final class LuckPermsPromoter implements RankPromoter {
         Track trk = track();
         if (user == null || trk == null) {
             LOG.warning("promote 跳过: user=" + (user != null) + " track=" + (trk != null));
+            return null;
+        }
+        // 操作前归一键：清理历史多组残留（含带上下文的脏节点），仅保留 global 当前组，
+        // 根治 LP track 操作在多组状态下的 AMBIGUOUS_CALL 与组节点累积
+        if (!normalizeSingleGroup(user, trk)) {
+            LOG.warning("promote(" + playerId + ") 归一组失败，视为失败");
             return null;
         }
         PromotionResult result = runSync(() -> trk.promote(user, globalContext()));
@@ -224,6 +258,11 @@ public final class LuckPermsPromoter implements RankPromoter {
         Track trk = track();
         if (user == null || trk == null) {
             LOG.warning("demote 跳过: user=" + (user != null) + " track=" + (trk != null));
+            return null;
+        }
+        // 操作前归一键（同 promote，见 normalizeSingleGroup 注释）
+        if (!normalizeSingleGroup(user, trk)) {
+            LOG.warning("demote(" + playerId + ") 归一组失败，视为失败");
             return null;
         }
         DemotionResult result = runSync(() -> trk.demote(user, globalContext()));

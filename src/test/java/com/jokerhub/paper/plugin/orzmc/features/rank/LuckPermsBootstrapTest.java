@@ -5,13 +5,16 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 import net.luckperms.api.LuckPerms;
+import net.luckperms.api.model.data.NodeMap;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.group.GroupManager;
+import net.luckperms.api.node.Node;
 import net.luckperms.api.node.NodeBuilderRegistry;
 import net.luckperms.api.node.types.InheritanceNode;
 import net.luckperms.api.track.Track;
@@ -19,7 +22,7 @@ import net.luckperms.api.track.TrackManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** LuckPermsBootstrap 测试：幂等、只补缺失、已有不覆盖、先组后 track。 */
+/** LuckPermsBootstrap 测试：幂等、继承链/track 链序由插件保证、权限节点不动。 */
 class LuckPermsBootstrapTest {
 
     private LuckPerms api;
@@ -29,6 +32,8 @@ class LuckPermsBootstrapTest {
     private Logger logger;
     /** 已「创建」的组（createAndLoadGroup 完成后 getGroup 返回）。 */
     private final Map<String, Group> created = new HashMap<>();
+
+    private final Map<String, String> groupParents = new HashMap<>();
 
     @BeforeEach
     void setUp() {
@@ -55,16 +60,34 @@ class LuckPermsBootstrapTest {
             return node;
         });
         created.clear();
+        groupParents.clear();
         created.put("default", defaultGroup);
         // 组缺失时 getGroup=null；createAndLoadGroup 完成后存入 created（track 建链可引用）
         when(groupManager.getGroup(anyString())).thenAnswer(inv -> created.get(inv.getArgument(0)));
         when(groupManager.createAndLoadGroup(anyString())).thenAnswer(inv -> {
-            Group g = mock(Group.class);
-            when(g.data()).thenReturn(mock(net.luckperms.api.model.data.NodeMap.class));
+            Group g = mockGroup(inv.getArgument(0), null);
             created.put(inv.getArgument(0), g);
             return CompletableFuture.completedFuture(g);
         });
         when(groupManager.saveGroup(any())).thenReturn(CompletableFuture.completedFuture(null));
+    }
+
+    /** 创建带指定继承节点的组 mock（parent=null 表示无继承）。 */
+    private Group mockGroup(String name, String parent) {
+        Group g = mock(Group.class);
+        NodeMap nm = mock(NodeMap.class);
+        java.util.Collection<Node> nodes = new java.util.ArrayList<>();
+        if (parent != null) {
+            InheritanceNode node = mock(InheritanceNode.class);
+            when(node.getGroupName()).thenReturn(parent);
+            nodes.add(node);
+        }
+        when(nm.toCollection()).thenReturn(nodes);
+        when(g.data()).thenReturn(nm);
+        if (parent != null) {
+            groupParents.put(name, parent);
+        }
+        return g;
     }
 
     private void mockTrackMissing() {
@@ -74,8 +97,10 @@ class LuckPermsBootstrapTest {
         when(trackManager.saveTrack(track)).thenReturn(CompletableFuture.completedFuture(null));
     }
 
-    private void mockTrackExists() {
-        when(trackManager.getTrack("rank")).thenReturn(mock(Track.class));
+    private void mockTrackExists(List<String> chain) {
+        Track track = mock(Track.class);
+        when(track.getGroups()).thenReturn(chain);
+        when(trackManager.getTrack("rank")).thenReturn(track);
     }
 
     private void assertInheritanceAdded(Group group, String parentName) {
@@ -94,7 +119,6 @@ class LuckPermsBootstrapTest {
         verify(groupManager).createAndLoadGroup("member");
         verify(groupManager).createAndLoadGroup("builder");
         verify(groupManager).createAndLoadGroup("admin");
-        verify(groupManager, times(3)).saveGroup(any());
         assertInheritanceAdded(created.get("member"), "default");
         assertInheritanceAdded(created.get("builder"), "member");
         assertInheritanceAdded(created.get("admin"), "builder");
@@ -104,34 +128,71 @@ class LuckPermsBootstrapTest {
     }
 
     @Test
-    void initialize_trackExists_skipsTrackCreation() {
-        mockTrackExists();
+    void initialize_trackExists_chainMatches_skipsRebuild() {
+        mockTrackExists(List.of("default", "member", "builder", "admin"));
 
         new LuckPermsBootstrap(api, logger).initialize();
 
         verify(trackManager, never()).createAndLoadTrack("rank");
+        verify(trackManager, never()).deleteTrack(any());
         verify(trackManager, never()).saveTrack(any());
     }
 
     @Test
-    void initialize_groupsExist_skipsGroupCreation() {
-        mockTrackExists();
-        created.put("member", mock(Group.class));
-        created.put("builder", mock(Group.class));
-        created.put("admin", mock(Group.class));
+    void initialize_trackExists_chainMismatch_rebuilds() {
+        mockTrackExists(List.of("default", "member", "admin"));
+        Track fresh = mock(Track.class);
+        when(trackManager.createAndLoadTrack("rank")).thenReturn(CompletableFuture.completedFuture(fresh));
+        when(trackManager.saveTrack(fresh)).thenReturn(CompletableFuture.completedFuture(null));
+
+        new LuckPermsBootstrap(api, logger).initialize();
+
+        verify(trackManager).deleteTrack(any());
+        verify(trackManager).createAndLoadTrack("rank");
+        verify(trackManager, atLeastOnce()).saveTrack(any());
+    }
+
+    @Test
+    void initialize_groupsExist_inheritanceCorrect_skipsSave() {
+        mockTrackExists(List.of("default", "member", "builder", "admin"));
+        created.put("member", mockGroup("member", "default"));
+        created.put("builder", mockGroup("builder", "member"));
+        created.put("admin", mockGroup("admin", "builder"));
 
         new LuckPermsBootstrap(api, logger).initialize();
 
         verify(groupManager, never()).createAndLoadGroup(any());
         verify(groupManager, never()).saveGroup(any());
+        verify(groupManager, never()).deleteGroup(any());
+    }
+
+    @Test
+    void initialize_groupsExist_wrongInheritance_correctsParent() {
+        mockTrackExists(List.of("default", "member", "builder", "admin"));
+        // member/admin 继承正确；builder 继承 default（错误，应为 member）
+        created.put("member", mockGroup("member", "default"));
+        created.put("builder", mockGroup("builder", "default"));
+        created.put("admin", mockGroup("admin", "builder"));
+
+        new LuckPermsBootstrap(api, logger).initialize();
+
+        // 只有 builder 被校正（清除旧继承 + 重挂 member）
+        verify(builderData()).clear(any(java.util.function.Predicate.class));
+        assertInheritanceAdded(created.get("builder"), "member");
+        verify(groupManager, times(1)).saveGroup(created.get("builder"));
+    }
+
+    private NodeMap builderData() {
+        return created.get("builder").data();
     }
 
     @Test
     void initialize_partialMissing_onlyCreatesMissing() {
-        mockTrackExists();
-        created.put("member", mock(Group.class));
-        created.put("builder", mock(Group.class));
+        mockTrackExists(List.of("default", "member", "builder", "admin"));
+        created.put("member", mockGroup("member", "default"));
+        created.put("builder", mockGroup("builder", "member"));
         // admin 缺失 → 只建 admin（继承 builder）
+        when(groupManager.getGroup("admin")).thenReturn(null);
 
         new LuckPermsBootstrap(api, logger).initialize();
 

@@ -1,21 +1,28 @@
 package com.jokerhub.paper.plugin.orzmc.features.rank;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 import net.luckperms.api.LuckPerms;
+import net.luckperms.api.model.group.Group;
+import net.luckperms.api.node.Node;
+import net.luckperms.api.node.types.InheritanceNode;
+import net.luckperms.api.track.Track;
 
 /**
  * 权限自动初始化（启动时幂等执行）——「装即用」：安装/更新插件后无需手动创建
  * track 或权限组，LP 可用时自动补齐骨架。
  *
- * <p>设计原则：<b>只补缺失，绝不覆盖已有</b>——
+ * <p>设计原则：<b>继承链与 track 链序由插件保证正确，权限节点由线上自管</b>——
  * <ul>
- *   <li>track「rank」缺失 → 创建（default→member→builder→admin）；已有 → 跳过
- *       （链序由管理员维护，插件不强制改写）</li>
+ *   <li>track「rank」缺失 → 创建（default→member→builder→admin）；已存在但链序不一致
+ *       → 重建校正（rank 晋升链是插件功能依赖，必须正确）</li>
  *   <li>组 member/builder/admin 缺失 → 创建并按继承链挂 parent
- *       （member→default、builder→member、admin→builder）；已有 → 跳过
- *       （组权限内容/继承以线上定义为准，插件不覆盖）</li>
+ *       （member→default、builder→member、admin→builder）；已存在但继承关系与设计不符
+ *       → 校正 parent（清除现有继承节点、按设计重挂——<b>只动继承，不碰任何权限节点</b>，
+ *       组内其它权限完全以线上定义为准）</li>
  * </ul>
  *
  * <p>不内置具体权限节点：新组继承链最终落到 default 组，基础权限由各服 default
@@ -27,7 +34,7 @@ public final class LuckPermsBootstrap {
     /** track「rank」的链序（与 {@link LuckPermsPromoter#TRACK} 对应）。 */
     private static final List<String> TRACK_GROUPS = List.of("default", "member", "builder", "admin");
 
-    /** 新建组的继承链（子组 → 父组）。 */
+    /** 继承链（子组 → 父组），与 TRACK_GROUPS 的相邻递进一致。 */
     private static final List<String[]> INHERITANCE = List.of(
             new String[] {"member", "default"}, new String[] {"builder", "member"}, new String[] {"admin", "builder"});
 
@@ -39,7 +46,7 @@ public final class LuckPermsBootstrap {
         this.logger = logger;
     }
 
-    /** 启动初始化：先补组、再补 track（track 链引用组对象，须组先就绪；幂等，已有不覆盖）。 */
+    /** 启动初始化：先补组（含继承校正）、再补 track（track 链引用组对象，须组先就绪；幂等）。 */
     public void initialize() {
         ensureGroups().thenRun(this::ensureTrack);
     }
@@ -52,15 +59,26 @@ public final class LuckPermsBootstrap {
     }
 
     private void ensureTrack() {
-        if (api.getTrackManager().getTrack(LuckPermsPromoter.TRACK) != null) {
+        Track existing = api.getTrackManager().getTrack(LuckPermsPromoter.TRACK);
+        if (existing == null) {
+            createTrack();
             return;
         }
+        List<String> current = existing.getGroups();
+        if (current.equals(TRACK_GROUPS)) {
+            return;
+        }
+        logger.info("[OrzMC] 权限初始化：track「rank」链序不一致（" + String.join("→", current) + "），重建为 "
+                + String.join("→", TRACK_GROUPS));
+        api.getTrackManager().deleteTrack(existing).thenRun(this::createTrack);
+    }
+
+    private void createTrack() {
         api.getTrackManager()
                 .createAndLoadTrack(LuckPermsPromoter.TRACK)
                 .thenCompose(track -> {
                     for (String groupName : TRACK_GROUPS) {
-                        net.luckperms.api.model.group.Group group =
-                                api.getGroupManager().getGroup(groupName);
+                        Group group = api.getGroupManager().getGroup(groupName);
                         if (group != null) {
                             track.appendGroup(group);
                         }
@@ -77,9 +95,14 @@ public final class LuckPermsBootstrap {
     }
 
     private CompletableFuture<Void> ensureGroup(String name, String parentName) {
-        if (api.getGroupManager().getGroup(name) != null) {
-            return CompletableFuture.completedFuture(null);
+        Group existing = api.getGroupManager().getGroup(name);
+        if (existing == null) {
+            return createGroup(name, parentName);
         }
+        return ensureParent(existing, name, parentName);
+    }
+
+    private CompletableFuture<Void> createGroup(String name, String parentName) {
         CompletableFuture<Void> done = new CompletableFuture<>();
         api.getGroupManager()
                 .createAndLoadGroup(name)
@@ -99,6 +122,35 @@ public final class LuckPermsBootstrap {
                     }
                     done.complete(null); // 组失败不阻塞后续（track 建链时跳过缺失组）
                 });
+        return done;
+    }
+
+    /** 校正已有组的继承关系：只动继承节点，绝不触碰权限节点（线上权限由线上自管）。 */
+    private CompletableFuture<Void> ensureParent(Group group, String name, String expectedParent) {
+        Set<String> current = new HashSet<>();
+        for (Node node : group.data().toCollection()) {
+            if (node instanceof InheritanceNode inheritance) {
+                current.add(inheritance.getGroupName());
+            }
+        }
+        if (current.size() == 1 && current.contains(expectedParent)) {
+            return CompletableFuture.completedFuture(null);
+        }
+        logger.info("[OrzMC] 权限初始化：校正组「" + name + "」继承 " + (current.isEmpty() ? "(无)" : String.join(",", current))
+                + " -> " + expectedParent);
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        group.data().clear(node -> node instanceof InheritanceNode);
+        group.data()
+                .add(api.getNodeBuilderRegistry()
+                        .forInheritance()
+                        .group(expectedParent)
+                        .build());
+        api.getGroupManager().saveGroup(group).whenComplete((v, err) -> {
+            if (err != null) {
+                logger.warning("[OrzMC] 权限初始化：校正组「" + name + "」继承失败 - " + err);
+            }
+            done.complete(null);
+        });
         return done;
     }
 }

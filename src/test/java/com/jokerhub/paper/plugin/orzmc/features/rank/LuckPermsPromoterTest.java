@@ -61,6 +61,12 @@ class LuckPermsPromoterTest {
         when(api.getTrackManager()).thenReturn(trackManager);
         when(api.getUserManager()).thenReturn(userManager);
         when(userManager.getUser(id)).thenReturn(user);
+        // normalizeSingleGroup（promote/demote 前置归一键）依赖的 mock 链
+        when(track.getGroups()).thenReturn(java.util.List.of("default", "member", "builder", "admin"));
+        when(user.getInheritedGroups(any())).thenReturn(java.util.List.of());
+        net.luckperms.api.model.data.NodeMap nodeMap = mock(net.luckperms.api.model.data.NodeMap.class);
+        when(user.data()).thenReturn(nodeMap);
+        when(userManager.saveUser(any())).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null));
 
         providerMock = mockStatic(LuckPermsProvider.class);
         providerMock.when(LuckPermsProvider::get).thenReturn(api);
@@ -115,7 +121,7 @@ class LuckPermsPromoterTest {
 
         assertEquals("member", promoter.promote(id));
         verify(track).promote(eq(user), any(net.luckperms.api.context.ImmutableContextSet.class));
-        verify(userManager).saveUser(user); // 必须显式落库
+        verify(userManager, times(2)).saveUser(user); // normalize 清理落库 + promote 落库
     }
 
     @Test
@@ -148,7 +154,7 @@ class LuckPermsPromoterTest {
 
         assertEquals("member", promoter.promote(id));
         verify(track, times(2)).promote(any(), any());
-        verify(userManager).saveUser(user);
+        verify(userManager, times(2)).saveUser(user); // normalize 清理落库 + 首入链落库
     }
 
     @Test
@@ -173,7 +179,7 @@ class LuckPermsPromoterTest {
         when(track.promote(any(), any())).thenReturn(result);
 
         assertNull(promoter.promote(id));
-        verify(userManager, never()).saveUser(any()); // 链顶不落库
+        verify(userManager, times(1)).saveUser(any()); // track 失败不落库，但 normalize 清理落库 1 次
     }
 
     // ---- demote 成功（含 saveUser 落库）----
@@ -189,7 +195,7 @@ class LuckPermsPromoterTest {
 
         assertEquals("builder", promoter.demote(id));
         verify(track).demote(eq(user), any(net.luckperms.api.context.ImmutableContextSet.class));
-        verify(userManager).saveUser(user);
+        verify(userManager, times(2)).saveUser(user); // normalize 清理落库 + 首入链落库
     }
 
     @Test
@@ -200,7 +206,7 @@ class LuckPermsPromoterTest {
         when(track.demote(any(), any())).thenReturn(result);
 
         assertNull(promoter.demote(id));
-        verify(userManager, never()).saveUser(any()); // 链底不落库
+        verify(userManager, times(1)).saveUser(any()); // 链底不落库，但 normalize 清理落库 1 次
     }
 
     // ---- 组查询 ----
