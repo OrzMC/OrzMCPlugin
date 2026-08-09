@@ -154,8 +154,9 @@ class TeleportBowServiceTest extends ServiceTestBase {
         when(bowMeta.getPersistentDataContainer()).thenReturn(pdc);
         when(pdc.has(tpBowKey, PersistentDataType.BYTE)).thenReturn(false);
 
-        service.markArrow(event);
+        Arrow marked = service.markArrow(event);
 
+        assertNull(marked);
         verify(event, never()).getProjectile();
     }
 
@@ -175,8 +176,9 @@ class TeleportBowServiceTest extends ServiceTestBase {
         when(event.getProjectile()).thenReturn(arrow);
         when(arrow.getPersistentDataContainer()).thenReturn(arrowPdc);
 
-        service.markArrow(event);
+        Arrow marked = service.markArrow(event);
 
+        assertSame(arrow, marked);
         verify(arrowPdc).set(tpBowKey, PersistentDataType.BYTE, (byte) 1);
     }
 

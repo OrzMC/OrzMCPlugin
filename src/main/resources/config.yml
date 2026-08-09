@@ -68,6 +68,20 @@ geoip:
   allow_country_code: []
 
 # ==================================================
+#              实体传送策略（2026-08-09）
+# ==================================================
+# 默认不禁止实体传送（false = 所有实体可正常传送，兼容原版行为，
+# 如村民/动物过下界传送门）。设为 true 时仅白名单内实体可传送：
+#   - 白名单项：大写 EntityType 名（如 VILLAGER），或特殊键
+#     TAMEABLE / ENDERMAN / ARMOR_STAND / SHULKER
+entity_teleport_enabled: false
+entity_teleport_whitelist:
+  - TAMEABLE
+  - ENDERMAN
+  - ARMOR_STAND
+  - SHULKER
+
+# ==================================================
 #              命令策略
 # ==================================================
 command_policies:

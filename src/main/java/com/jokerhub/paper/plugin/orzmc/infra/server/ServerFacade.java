@@ -52,6 +52,10 @@ public final class ServerFacade implements ServerAccess, ServerLogger, ServerSch
         server().getScheduler().runTaskLater(plugin, task, delayTicks);
     }
 
+    public org.bukkit.scheduler.BukkitTask runTaskTimer(Runnable task, long delayTicks, long periodTicks) {
+        return server().getScheduler().runTaskTimer(plugin, task, delayTicks, periodTicks);
+    }
+
     public void executeConsoleCommands(Runnable after, String... consoleCmds) {
         ConsoleCommandSender console = server().getConsoleSender();
         runSync(() -> {

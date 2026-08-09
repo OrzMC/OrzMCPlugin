@@ -22,8 +22,14 @@ public final class TeleportBowEventService {
     }
 
     public void handleShootBow(EntityShootBowEvent event) {
-        if (event.getEntity() instanceof Player) {
-            service.markArrow(event);
+        if (event.getEntity() instanceof Player player) {
+            if (event.isCancelled()) {
+                return;
+            }
+            Arrow marked = service.markArrow(event);
+            if (marked != null) {
+                service.startFlightTracking(marked, player);
+            }
         }
     }
 }

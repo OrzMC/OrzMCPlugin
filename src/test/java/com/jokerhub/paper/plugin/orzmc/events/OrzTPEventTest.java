@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.features.teleport.EntityTeleportPolicyService;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.util.logging.Logger;
@@ -32,7 +33,7 @@ class OrzTPEventTest extends ServiceTestBase {
 
     @BeforeEach
     void setUp() {
-        listener = new OrzTPEvent(plugin, server);
+        listener = new OrzTPEvent(plugin, server, new EntityTeleportPolicyService());
     }
 
     @Test

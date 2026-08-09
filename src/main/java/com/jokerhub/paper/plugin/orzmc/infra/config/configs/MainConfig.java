@@ -16,6 +16,8 @@ public record MainConfig(
         int backupRetentionCount,
         String backupMaintenanceMotd,
         List<String> allowCountryCode,
+        boolean entityTeleportEnabled,
+        List<String> entityTeleportWhitelist,
         Map<String, CommandPolicy> commandPolicies) {
 
     public static MainConfig from(ConfigurationSection cfg) {
@@ -33,6 +35,11 @@ public record MainConfig(
             for (Object o : list) {
                 if (o != null) allowCodes.add(String.valueOf(o));
             }
+        }
+        boolean entityTeleportEnabled = cfg.getBoolean("entity_teleport_enabled", false);
+        List<String> entityTeleportWhitelist = new ArrayList<>(cfg.getStringList("entity_teleport_whitelist"));
+        if (entityTeleportWhitelist.isEmpty()) {
+            entityTeleportWhitelist.addAll(List.of("TAMEABLE", "ENDERMAN", "ARMOR_STAND", "SHULKER"));
         }
         Map<String, CommandPolicy> policies = new HashMap<>();
         Object rawCmds = cfg.get("commands");
@@ -56,6 +63,8 @@ public record MainConfig(
                 backupRetentionCount,
                 backupMaintenanceMotd,
                 allowCodes,
+                entityTeleportEnabled,
+                entityTeleportWhitelist,
                 policies);
     }
 }

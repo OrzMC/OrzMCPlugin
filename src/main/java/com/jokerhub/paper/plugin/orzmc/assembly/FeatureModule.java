@@ -29,6 +29,7 @@ import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerLifecycleService;
+import com.jokerhub.paper.plugin.orzmc.features.teleport.EntityTeleportPolicyService;
 import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowEventService;
 import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowService;
 import com.jokerhub.paper.plugin.orzmc.features.tnt.TntEventService;
@@ -37,6 +38,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.binding.EventBinder;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigPath;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -97,12 +99,14 @@ public final class FeatureModule implements ServiceModule {
     private final PlatformModule platform;
     private final BotModule botModule;
     private final MaintenanceModule maintenanceModule;
+    private final MainConfig mainConfig;
 
     public FeatureModule(
             PlatformModule platform,
             BotModule botModule,
             PortalModule portalModule,
             MaintenanceModule maintenanceModule) {
+        this.mainConfig = MainConfig.from(platform.configService().getConfig("config"));
         // Feature services
         this.geoIpAccessService = new GeoIpAccessService(platform.configs());
         this.blacklistService = new BlacklistService(platform.configService());
@@ -219,7 +223,11 @@ public final class FeatureModule implements ServiceModule {
                     guideService,
                     platform.textStyles(),
                     maintenanceModule.worldMaintenanceService()),
-            new OrzTPEvent(plugin, platform.serverFacade()),
+            new OrzTPEvent(
+                    plugin,
+                    platform.serverFacade(),
+                    new EntityTeleportPolicyService(
+                            mainConfig.entityTeleportEnabled(), mainConfig.entityTeleportWhitelist())),
             new OrzTNTEvent(plugin, tntEventService),
             new OrzMenuEvent(plugin, menuEventService),
             new OrzServerEvent(plugin, serverEventService),

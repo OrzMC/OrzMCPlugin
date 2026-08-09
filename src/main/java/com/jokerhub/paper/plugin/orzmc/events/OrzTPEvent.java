@@ -7,12 +7,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.EntityTeleportEvent;
 
 public class OrzTPEvent extends OrzBaseListener {
-    private final EntityTeleportPolicyService policyService = new EntityTeleportPolicyService();
+    private final EntityTeleportPolicyService policyService;
     private final ServerFacade server;
 
-    public OrzTPEvent(OrzMC plugin, ServerFacade server) {
+    public OrzTPEvent(OrzMC plugin, ServerFacade server, EntityTeleportPolicyService policyService) {
         super(plugin);
         this.server = server;
+        this.policyService = policyService;
     }
 
     @EventHandler

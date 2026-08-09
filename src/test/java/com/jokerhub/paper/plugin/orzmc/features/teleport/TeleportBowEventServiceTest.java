@@ -97,4 +97,39 @@ class TeleportBowEventServiceTest extends ServiceTestBase {
 
         verify(bowService).markArrow(shootEvent);
     }
+
+    @Test
+    void handleShootBow_markedArrow_startsFlightTracking() {
+        Player player = mock(Player.class);
+        Arrow arrow = mock(Arrow.class);
+        when(shootEvent.getEntity()).thenReturn(player);
+        when(bowService.markArrow(shootEvent)).thenReturn(arrow);
+
+        service.handleShootBow(shootEvent);
+
+        verify(bowService).startFlightTracking(arrow, player);
+    }
+
+    @Test
+    void handleShootBow_nullMark_doesNotTrack() {
+        Player player = mock(Player.class);
+        when(shootEvent.getEntity()).thenReturn(player);
+        when(bowService.markArrow(shootEvent)).thenReturn(null);
+
+        service.handleShootBow(shootEvent);
+
+        verify(bowService, never()).startFlightTracking(any(), any());
+    }
+
+    @Test
+    void handleShootBow_cancelled_doesNotMark() {
+        Player player = mock(Player.class);
+        when(shootEvent.getEntity()).thenReturn(player);
+        when(shootEvent.isCancelled()).thenReturn(true);
+
+        service.handleShootBow(shootEvent);
+
+        verify(bowService, never()).markArrow(shootEvent);
+        verify(bowService, never()).startFlightTracking(any(), any());
+    }
 }

@@ -15,11 +15,14 @@ import org.bukkit.persistence.PersistentDataType;
 
 public final class TeleportBowService {
     public static final String name = "传送弓";
+    private final ServerFacade server;
     private final OrzTextStyles styles;
     private final TeleportBowTexts texts;
     private final NamespacedKey keyTpBow;
+    private final ForceLoadedChunkLease chunkLease = new ForceLoadedChunkLease();
 
     public TeleportBowService(ServerFacade server, OrzTextStyles styles) {
+        this.server = server;
         this.styles = styles;
         this.texts = new TeleportBowTexts(styles);
         this.keyTpBow = server.key(OrzConstants.TPBOW_KEY);
@@ -56,7 +59,12 @@ public final class TeleportBowService {
         return false;
     }
 
-    public void markArrow(org.bukkit.event.entity.EntityShootBowEvent event) {
+    /**
+     * 标记传送弓箭射出的箭，返回被标记的箭（否则返回 {@code null}）。
+     *
+     * @return 被标记的传送弓箭；普通箭或未携带传送弓标记时返回 {@code null}
+     */
+    public org.bukkit.entity.Arrow markArrow(org.bukkit.event.entity.EntityShootBowEvent event) {
         org.bukkit.inventory.meta.ItemMeta meta =
                 event.getBow() != null ? event.getBow().getItemMeta() : null;
         if (meta != null
@@ -64,8 +72,19 @@ public final class TeleportBowService {
             if (event.getProjectile() instanceof org.bukkit.entity.Arrow arrow) {
                 arrow.getPersistentDataContainer()
                         .set(keyTpBow, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+                return arrow;
             }
         }
+        return null;
+    }
+
+    /**
+     * 开始跟踪传送弓箭的飞行：沿飞行路径 force-load 区块，保证箭在未加载区块也不冻结。
+     *
+     * <p>每支箭一个 {@link TeleportBowFlightTracker} 实例，箭停后自动释放加载的区块。</p>
+     */
+    public void startFlightTracking(org.bukkit.entity.Arrow arrow, org.bukkit.entity.Player player) {
+        new TeleportBowFlightTracker(server, chunkLease).start(arrow, player);
     }
 
     private static final java.util.EnumSet<org.bukkit.Material> DANGEROUS = java.util.EnumSet.of(

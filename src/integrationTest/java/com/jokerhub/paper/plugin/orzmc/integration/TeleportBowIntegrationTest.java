@@ -6,7 +6,13 @@ import com.jokerhub.paper.plugin.orzmc.infra.notify.NotifierSink;
 import java.util.ArrayList;
 import java.util.List;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Arrow;
+import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +71,28 @@ public class TeleportBowIntegrationTest {
         PlayerMock player = server.addPlayer();
         Assertions.assertDoesNotThrow(() -> server.dispatchCommand(player, "tpbow"));
         server.getScheduler().performOneTick();
+    }
+
+    @Test
+    public void testShootTeleportBowTicksWithoutThrowing() {
+        // 用唯一玩家名，避免静态 CooldownRegistry 被同类其他测试的 tpbow 触发冷却而跳过 giveAndEquip。
+        PlayerMock player = server.addPlayer("tpbow-shooter");
+        Assertions.assertDoesNotThrow(() -> server.dispatchCommand(player, "tpbow"));
+
+        ItemStack bow = player.getInventory().getItemInMainHand();
+        Assertions.assertEquals(Material.BOW, bow.getType(), "tpbow 应把传送弓放到主手");
+
+        World world = player.getWorld();
+        Arrow arrow = world.spawn(new Location(world, 100, 64, 100), Arrow.class);
+        EntityShootBowEvent shootEvent = new EntityShootBowEvent(player, bow, arrow, 1.0F);
+        Assertions.assertDoesNotThrow(() -> server.getPluginManager().callEvent(shootEvent));
+
+        // MockBukkit 的 AbstractArrowMock.isInBlock() 抛 UnimplementedOperationException：
+        // tracker 首 tick 的 shouldStop() 抛异常被 try/catch(Throwable) 捕获，优雅停掉并释放区块。
+        // 这里验证发射 + 跟踪 + 停止的全过程不向测试泄漏异常。
+        for (int i = 0; i < 5; i++) {
+            Assertions.assertDoesNotThrow(() -> server.getScheduler().performOneTick());
+        }
     }
 
     private static final class CapturingSink implements NotifierSink {
