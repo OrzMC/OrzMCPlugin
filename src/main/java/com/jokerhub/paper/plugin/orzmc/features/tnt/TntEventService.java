@@ -176,9 +176,9 @@ public final class TntEventService {
     /**
      * 突发聚合入口：同区域同类型事件在窗口内合并为一条告警。
      *
-     * <p>批次首个事件立即发送（保持"TNT被点燃"等告警的时效性），并在窗口尾部由
-     * {@link #flushTail(String)} 补发一条带 {@code ×N} 的汇总（含首个事件精确坐标）。
-     * 单发事件只有立即发送那条，无第二条汇总，行为与改造前一致。</p>
+     * <p>批次事件不立即发送，统一在窗口尾部由 {@link #flushTail(String)} 冲刷为
+     * 一条消息：多事件补发 {@code ×N} 汇总，单发事件补发不带次数的单条。
+     * 避免「立即发送 + 尾部汇总」双条刷屏。</p>
      */
     private void aggregateNotify(Location location, String message, String blockType, boolean explosionPrefix) {
         String key = aggregateKey(location, message);
@@ -189,23 +189,23 @@ public final class TntEventService {
             alert.message = message;
             alert.blockType = blockType;
             alert.explosionPrefix = explosionPrefix;
-            notifyAggregated(location, message, blockType, explosionPrefix);
             long windowMs = currentPolicy().getNotifyAggregateMs();
             long ticks = Math.max(1, windowMs / 50);
             scheduler.runLater(() -> flushTail(key), ticks);
-            // 立即发送 + 尾部调度都成功后才入表：中途抛异常不留孤儿条目，避免该 key 永久静默且 map 无界增长
+            // 尾部调度成功后才入表：中途抛异常不留孤儿条目，避免该 key 永久静默且 map 无界增长
             pendingAlerts.put(key, alert);
         }
         alert.count++;
     }
 
-    /** 窗口尾部冲刷：批次内不止一个事件时补发一条带次数与首事件坐标的汇总。 */
+    /** 窗口尾部冲刷：批次内事件统一补发一条（多事件带 ×N，单发不带次数）。 */
     private void flushTail(String key) {
         PendingAlert alert = pendingAlerts.remove(key);
-        if (alert == null || alert.count <= 1) {
+        if (alert == null) {
             return;
         }
-        notifyAggregated(alert.epicenter, alert.message + " ×" + alert.count, alert.blockType, alert.explosionPrefix);
+        String suffix = alert.count > 1 ? " ×" + alert.count : "";
+        notifyAggregated(alert.epicenter, alert.message + suffix, alert.blockType, alert.explosionPrefix);
     }
 
     /** 渲染并派发 tnt_alert：游戏内广播 + 群消息走同一条聚合结果。 */

@@ -125,6 +125,9 @@ class TntEventServiceTest extends ServiceTestBase {
         service.onTNTPrime(event);
 
         verify(event).setCancelled(true);
+        // 纯聚合：通知推迟到窗口尾部（游戏内 server 提示同样聚合）
+        verify(notifier, never()).server(any(Component.class));
+        runTail();
         verify(notifier).server(any(Component.class));
     }
 
@@ -265,13 +268,13 @@ class TntEventServiceTest extends ServiceTestBase {
     }
 
     @Test
-    void onBlockExplode_nonAirBlock_sendsImmediatelyAndSchedulesTail() {
+    void onBlockExplode_nonAirBlock_schedulesTailOnly() {
         BlockExplodeEvent event = blockExplodeAt(10, 64, 20, Material.STONE);
 
         service.onBlockExplode(event);
 
-        // 首事件立即发送（当前语义），并调度窗口尾部冲刷（3000ms → 60 ticks）
-        verify(notifier).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        // 纯聚合：不立即发送，仅调度窗口尾部冲刷（3000ms → 60 ticks）
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler).runLater(any(Runnable.class), eq(60L));
     }
 
@@ -294,12 +297,12 @@ class TntEventServiceTest extends ServiceTestBase {
     }
 
     @Test
-    void onEntityExplode_nonExemptEntity_sendsImmediatelyAndSchedulesTail() {
+    void onEntityExplode_nonExemptEntity_schedulesTailOnly() {
         EntityExplodeEvent event = entityExplodeAt(10, 64, 20, EntityType.ENDERMAN);
 
         service.onEntityExplode(event);
 
-        verify(notifier).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler).runLater(any(Runnable.class), eq(60L));
     }
 
@@ -341,41 +344,36 @@ class TntEventServiceTest extends ServiceTestBase {
     // ---- 突发聚合：同区域同类型合并，窗口尾部冲刷补发 ×N ----
 
     @Test
-    void aggregate_sameRegion_singleImmediateThenTailWithCount() {
+    void aggregate_sameRegion_tailSendsCountedSingle() {
         service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
         service.onEntityExplode(entityExplodeAt(30, 64, 40, EntityType.TNT));
         service.onEntityExplode(entityExplodeAt(50, 64, 60, EntityType.TNT));
 
-        // 批次内只有首事件立即发；三个事件仅调度一次尾部冲刷
-        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        // 纯聚合：事件不立即发送，仅调度一次尾部冲刷
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler, times(1)).runLater(any(Runnable.class), anyLong());
 
         runTail();
 
-        // 尾部冲刷补发 "×3"（含首事件），消息为 "TNT爆炸 ×3"
+        // 尾部统一冲刷为一条 "×3" 汇总（含首事件坐标），不再双条刷屏
         @SuppressWarnings("unchecked")
         ArgumentCaptor<java.util.Map<String, String>> vars = ArgumentCaptor.forClass(java.util.Map.class);
-        verify(configs, times(2)).renderEvent(eq("tnt_alert"), vars.capture());
-        assertEquals("TNT爆炸", vars.getAllValues().get(0).get("msg"));
-        assertEquals("TNT爆炸 ×3", vars.getAllValues().get(1).get("msg"));
-        // 尾部汇总复用批次内首个事件的坐标（首事件坐标即批次告警坐标）
-        assertEquals(
-                vars.getAllValues().get(0).get("x"), vars.getAllValues().get(1).get("x"));
-        assertEquals(
-                vars.getAllValues().get(0).get("y"), vars.getAllValues().get(1).get("y"));
-        assertEquals(
-                vars.getAllValues().get(0).get("z"), vars.getAllValues().get(1).get("z"));
+        verify(configs, times(1)).renderEvent(eq("tnt_alert"), vars.capture());
+        assertEquals("TNT爆炸 ×3", vars.getAllValues().get(0).get("msg"));
     }
 
     @Test
-    void aggregate_singleEvent_tailIsNoOp() {
+    void aggregate_singleEvent_tailSendsPlainSingle() {
         service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
 
-        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         runTail();
 
-        // count=1 → 不补发第二条，消息总数不变（无回归）
-        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        // count=1 → 尾部统一发不带次数的单条（仅延迟一个窗口，不双条）
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<String, String>> vars = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs, times(1)).renderEvent(eq("tnt_alert"), vars.capture());
+        assertEquals("TNT爆炸", vars.getAllValues().get(0).get("msg"));
     }
 
     @Test
@@ -386,7 +384,7 @@ class TntEventServiceTest extends ServiceTestBase {
         service.onEntityExplode(entityExplodeAt(10, 64, 200, EntityType.TNT)); // region 1
         service.onEntityExplode(entityExplodeAt(20, 64, 220, EntityType.TNT)); // region 1
 
-        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
     }
 
@@ -396,7 +394,7 @@ class TntEventServiceTest extends ServiceTestBase {
         service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
         service.onBlockExplode(blockExplodeAt(30, 64, 40, Material.STONE));
 
-        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
     }
 
@@ -406,14 +404,13 @@ class TntEventServiceTest extends ServiceTestBase {
         service.onBlockExplode(blockExplodeAt(10, 64, 20, Material.STONE));
         service.onBlockExplode(blockExplodeAt(30, 64, 40, Material.DIRT));
 
-        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         runTail();
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<java.util.Map<String, String>> vars = ArgumentCaptor.forClass(java.util.Map.class);
-        verify(configs, times(2)).renderEvent(eq("tnt_alert"), vars.capture());
-        assertEquals("方块爆炸", vars.getAllValues().get(0).get("msg"));
-        assertEquals("方块爆炸 ×2", vars.getAllValues().get(1).get("msg"));
+        verify(configs, times(1)).renderEvent(eq("tnt_alert"), vars.capture());
+        assertEquals("方块爆炸 ×2", vars.getAllValues().get(0).get("msg"));
     }
 
     @Test
@@ -433,7 +430,7 @@ class TntEventServiceTest extends ServiceTestBase {
         service.onEntityExplode(entityExplodeAt(10, 10, 20, EntityType.TNT)); // ry=0
         service.onEntityExplode(entityExplodeAt(10, 250, 20, EntityType.TNT)); // ry=3
 
-        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
     }
 
@@ -443,18 +440,21 @@ class TntEventServiceTest extends ServiceTestBase {
         service.onEntityExplode(entityExplodeAt(-1, 64, 20, EntityType.TNT)); // region -1
         service.onEntityExplode(entityExplodeAt(127, 64, 20, EntityType.TNT)); // region 0
 
-        verify(notifier, times(2)).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
     }
 
     @Test
-    void aggregate_renderFailure_firstEvent_doesNotOrphanBatch() {
+    void aggregate_renderFailure_tailDoesNotOrphanBatch() {
         // 用 doThrow 打桩：避免 when(mock).thenThrow() 后再次 when(mock) 重打桩时执行旧 throw 桩
         doThrow(new IllegalStateException("template broken")).when(configs).renderEvent(anyString(), anyMap());
 
-        assertThrows(
-                IllegalStateException.class,
-                () -> service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT)));
+        // 纯聚合：事件本身不再渲染（异常推迟到尾部冲刷），批次正常调度
+        service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
+
+        // 尾部冲刷渲染失败 → 异常冒出，批次已移除不留孤儿条目
+        assertThrows(IllegalStateException.class, () -> runTail());
 
         // 恢复后同一 key 的事件应创建全新批次，不被孤儿条目永久静默
         doReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT))
@@ -462,8 +462,8 @@ class TntEventServiceTest extends ServiceTestBase {
                 .renderEvent(anyString(), anyMap());
         service.onEntityExplode(entityExplodeAt(30, 64, 40, EntityType.TNT));
 
-        verify(notifier, times(1)).event(eq("tnt_alert"), any(MessageEnvelope.class));
-        verify(scheduler, times(1)).runLater(any(Runnable.class), anyLong());
+        verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
+        verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
     }
 
     /** 执行已捕获的尾部冲刷任务（模拟调度器在窗口到期后运行）。仅适用于恰好调度了一次的场景。 */
