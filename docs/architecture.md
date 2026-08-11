@@ -93,12 +93,12 @@ PlatformModule
 BotModule
 ├── BotCommandService     ← 机器人消息解析与路由（实现 BotInboundHandler）
 │   ├── 命令分发映射（OrzUserCmd 枚举 → CmdHandler）
-│   ├── $a / $r / $b / $o / $e / $d / $l / $w / $h
+│   ├── $a / $r / $b / $o / $e / $d / $l / $w / $h / $v / $p（11 个）
 │   ├── 统一分派：所有指令经 parse() 方法分派（消除三条代码路径分叉）
 │   ├── $cmd ? 支持：在指令后加 ? 或 ？ 查询详细用法
 │   ├── BotCommandFeedbackService     ← 指令反馈信息构建（帮助、用法提示）
-│   ├── BotCommandListFeedbackService ← 在线列表/白名单列表构建
-│   └── setMaintenanceService() / setBlacklistService() 跨模块注入
+│   ├── BotCommandListFeedbackService ← 在线列表/白名单列表构建（含权限组展示）
+│   └── setMaintenanceService() / setBlacklistService() / setReviewService() / setRankService() 跨模块注入
 ├── BotMessageService     ← EasyBot 统一网关消息服务
 ├── Notifier              ← 通知派发（依赖 BotMessageService）
 ├── BotStatusService      ← 机器人状态查询
@@ -107,7 +107,9 @@ BotModule
 
 - 循环依赖处理：BotModule 实现 `Initializable.afterPropertiesSet()`，
   在组合根完成跨模块注入后触发二阶段初始化
-- 跨模块回引用：`setWorldMaintenanceService()` 向 BotCommandService 注入维护服务
+- 跨模块回引用：`setWorldMaintenanceService()` 向 BotCommandService 注入维护服务；
+  `setReviewService()` / `setRankService()` 注入审核与权限服务（供 `$v` / `$p` 使用），
+  注入 rankService 时重建列表反馈服务（在线列表显示权限组）
 
 ### 3. PortalModule — 传送门模块
 
@@ -145,6 +147,7 @@ MaintenanceModule
 - OrzWhiteListEvent — 白名单检查
 - OrzDebugEvent — 调试事件
 - OrzPortalEvent — 传送门交互
+- OrzRankEvent — 权限/晋升相关事件
 
 **注册的命令**（通过 Paper LifecycleEvents.COMMANDS + Brigadier `LiteralCommandNode`，替代旧的 CommandMap API）：
 - `/guide` — 获取玩家指南
@@ -154,6 +157,10 @@ MaintenanceModule
 - `/portal` — 管理传送门（`<host> [port]` 创建，`remove <host> [port]` 移除）
 - `/blacklist`（别名 `/bl`） — IP 黑名单管理（list/add/remove）
 - `/config`（别名 `/cfg`） — 管理员配置管理（list/get/set/reset/dump/reload）
+- `/apply` — 玩家提交/查询/撤回审核申请（如 `/apply builder [理由]`）
+- `/review approve|reject <玩家>` — 管理员审核申请
+- `/rank [玩家]` — 查询权限组与晋升进度（admin 可查指定玩家）
+- `/orzdebug <Bot命令>` — 模拟群里用户发 Bot 命令（调试用）
 
 **命令拦截器**（`features/command/binding/`）：
 - `PlayerOnlyInterceptor` — 玩家限定
@@ -344,7 +351,7 @@ command_policies:
     - 对命令拦截器（PlayerOnlyInterceptor, AdminOnlyInterceptor, CooldownInterceptor, CooldownRegistry）分别验证
 - **集成测试**
     - 使用 MockBukkit 模拟 Paper 环境，验证命令与事件完整链路（运行：`./gradlew integrationTest`）
-    - 对高频事件（TNT/爆炸）启用 ThrottledLogger/Notifier 限流，验证日志与通知频率
+    - 对高频事件（TNT/爆炸）验证聚合告警逻辑（区域合并、窗口尾部单条冲刷、配置回退）
 
 ## 关键文件索引
 
@@ -357,9 +364,9 @@ command_policies:
 | 模块 | `assembly/PortalModule.java` | 传送门模块 |
 | 模块 | `assembly/MaintenanceModule.java` | 维护模块 |
 | 模块 | `assembly/FeatureModule.java` | 功能模块（注册命令/事件） |
-| 事件 | `events/` | 事件适配层（9 个监听器） |
+| 事件 | `events/` | 事件适配层（10 个监听器） |
 | 命令 | `commands/` | 命令适配层（仅保留 OrzConfigCommand，其余命令已内联至 FeatureModule Brigadier 注册） |
-| 配置 | `infra/config/configs/` | 类型化配置记录类（16 个，含 EasyBotConfig） |
+| 配置 | `infra/config/configs/` | 类型化配置记录类（15 个，含 EasyBotConfig） |
 | 配置 | `src/main/resources/easybot.yml` | EasyBot IM Gateway 默认配置 |
 | 适配器 | `infra/bot/OrzEasyBot.java` | EasyBot 网关适配器（WS + HTTP） |
 | 拦截器 | `features/command/binding/` | 命令拦截器（5 个文件：4 拦截器 + CooldownRegistry） |

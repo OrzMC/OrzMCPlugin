@@ -60,7 +60,7 @@
 | 前置条件 | 管理员权限 |
 | 步骤 | 依次执行 `/config list`、`get`、`set`、`reset`、`dump`、`reload` |
 | 预期 | 全部子命令可用，配置读写生效 |
-| 实际 | ✅ list（24 项）/ get / set / reset / dump / reload 全通 |
+| 实际 | ✅ list（25 项）/ get / set / reset / dump / reload 全通 |
 | 方式 | 机器人 |
 
 ### TC-06 `/blacklist` IP 黑名单管理

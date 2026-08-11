@@ -2,8 +2,8 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
-[![Coverage](https://img.shields.io/badge/coverage-64%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-880+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
@@ -25,15 +25,15 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 |---------|-------------|
 | Permission system (Rank & Review) | 4-level player rank chain (guest → member → builder → admin) powered by LuckPerms with auto-promotion, apply-and-review workflow (`/apply` / `/review` / `$v`), and manual promotion/demotion (`$p`). Zero setup: auto-creates the track and missing groups on startup; degrades gracefully when LuckPerms is absent. |
 | Whitelist management | Control server access. Admins add/remove players via bot commands (`$a` / `$r` / `$w`); inactive players are cleaned up automatically; kicked non-whitelisted players receive a helpful notice. |
-| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 11 bot commands for player management, queries and interaction; 30+ customizable message templates push server events to the matching group or channel. |
+| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 11 bot commands for player management, queries and interaction; 50+ customizable message templates push server events to the matching group or channel. |
 | Cross-server portals | Admins create or remove portals; players stepping on a portal are transferred across servers. Optional LoginSecurity verification before transfer. |
-| TNT protection | Restrict where TNT can be placed, with per-area whitelist exemption; explosion notifications to the group chat; control respawn anchor explosion behavior. |
+| TNT protection | Restrict where TNT can be placed, with per-area whitelist exemption; explosion notifications to the group chat; control respawn anchor explosion behavior. Burst explosions are aggregated into a single alert (`×N` with first-event coordinates) so dispenser/explosion spam never floods the group. |
 | Security controls | Restrict joins by GeoIP country; three blacklist modes (exact IP / CIDR / wildcard); optional LoginSecurity secondary verification. |
-| Teleport bow | Shoot an arrow to teleport to its landing spot with automatic safe-landing detection; searches a nearby safe spot when needed; configurable entity teleport policy. |
+| Teleport bow | Shoot an arrow to teleport to its landing spot with automatic safe-landing detection; chunks along the flight path are force-loaded so long shots always land; configurable entity teleport policy (off by default, whitelist when enabled). |
 | World maintenance | One-click world backup or optimization with real-time progress reports; the server list MOTD switches automatically during maintenance. |
-| Player notifications | Push join/quit/kick details (role name, reason) to the group chat; show role prefixes before player messages. |
+| Player notifications | Push join/quit/kick details (world, coordinates, online count, permission group) to the group chat; the online list shows each player's game mode and rank group. |
 | Guide book | First-join players automatically receive a guide book; content is YAML-configurable so server owners can tailor the onboarding. |
-| Runtime configuration | Manage 24 configuration options in-game with `/config`; changes hot-reload without restarting the server. |
+| Runtime configuration | Manage 25 configuration options in-game with `/config`; changes hot-reload without restarting the server. |
 | OrzMC menu | Open an in-game feature menu with quick access to every operation (in development). |
 
 For the full feature list, see [docs/features.md](./docs/features.md).

@@ -60,7 +60,7 @@
 | `/menu` | ✅ | 打开窗口 + 点击 stone → 「功能开发中」 |
 | `/tpbow` | ✅ | `你获得了传送弓` → `[传送弓] 传送完成!` |
 | `/bot` | ✅ | `enabled httpOk wsOk` |
-| `/config` | ✅ | list(24项)/get/set/reset/dump/reload 全通 |
+| `/config` | ✅ | list(25项)/get/set/reset/dump/reload 全通 |
 | `/blacklist` | ✅ | list/add/remove |
 | `/portal` | ✅ | 双服互指建门成功（详见 §3.4） |
 | `/portal remove` | ✅ | 移除映射 + 清理方块 |

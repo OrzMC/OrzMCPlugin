@@ -1,26 +1,42 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.16] - 2026-08-09
 
 ### ✨ 新功能
+- **权限晋升系统二期（Rank & Review 通用审核框架）** — 一期自动晋升 + 二期申请审核全链路：
+  - 通用审核框架：注册式审核类型（`builder-promotion` / `admin-promotion`），申请 → 审核 → 处理 → 通知全流程编排，新增审核类型零框架改动
+  - 单一权限配置文件 `permission.yml`（两段式：`config` 阈值节 + `reviews` 申请记录节），权限组状态由 LuckPerms track 持有，本地不存储
+  - 游戏内命令：`/apply`（提交/查询/撤回）、`/review approve|reject <玩家>`（审核）、`/rank [玩家]`（查询权限组/进度/下一步可申请）
+  - 群指令：`$v l` 待审列表 / `$v y|n <玩家>` 审核、`$p u|d <玩家>` 手动升降级（`default→member→builder→admin` 四级，track 钳位）
+  - `member→builder` 与 `builder→admin` 均走 `/apply` 申请审核；`default→member` 在线时长达阈值（默认 10 小时）自动晋升
+  - 在线列表与上下线广播显示权限组（`玩家名(op) 游戏模式 权限组`），权限组中文名由 `RankService.groupDisplayName` 单一事实源提供
 - **TNT/爆炸告警突发聚合** — 大面积爆炸或发射器快速射 TNT 不再刷屏：
-  - 同一区域（128×128×64 方块）+ 同类型事件在窗口内合并为一条告警，带 `×N` 次数与首个事件精确坐标，群消息、游戏内广播、服务端日志三通道同步
-  - 批次首个事件仍立即发送，时效性不变；单发事件与改造前行为一致
+  - 同一区域（128×128×64 方块）+ 同类型事件在聚合窗口内合并，窗口尾部只发一条告警（带 `×N` 次数与首个事件坐标）；批次内事件不立即发送，避免「立即发送 + 尾部汇总」双条刷屏
   - 方块爆炸统一归并为 `方块爆炸` 标签，不再按方块材质拆分
-  - 新增配置 `tnt.notify_aggregate_ms`（默认 3000ms）控制聚合窗口，既合并突发也限制持续刷屏频率
+  - 新增配置 `tnt.notify_aggregate_ms`（默认 3000ms）控制聚合窗口，既是突发合并也限制持续刷屏频率
   - 仅影响 TNT/爆炸相关告警，玩家上下线等其它消息不受影响
+- **实体传送可配置化** — 默认不禁止实体传送（兼容原版行为，如村民/动物过下界传送门）；开启后仅白名单实体豁免（默认 `TAMEABLE` / `ENDERMAN` / `ARMOR_STAND` / `SHULKER`，支持任意大写 `EntityType` 名）
+- **GeoIP 上游异常私信告警管理员** — 上游查询失败/超时/返回空国家码时 fail-open 放行，并私信告警管理员（1 分钟限频，日志始终保留完整现场），告警不入玩家群
 
----
+### 🐛 修复
+- **GeoIP 频繁 fail-open** — 统一登录阻塞决策超时预算（3 秒），与上游查询超时对齐，避免预算不一致导致误放行
+- **传送弓远射不传送** — 沿箭的飞行路径 force-load 区块（提前约 24 格异步加载，路径不留缺口），修复箭进入未加载区块冻结导致 `ProjectileHitEvent` 不触发、传送落点错误
+- **LuckPerms 已有组校正（#163）** — 启动时校正已有权限组的继承链与 track 链序（只动继承，不碰任何权限节点；组内权限完全以线上定义为准）
+- **TNT 聚合健壮性** — 窗口尾部调度成功后才入表，避免中途异常留下孤儿条目导致该区域 key 永久静默且 map 无界增长
+- **聚合窗口配置健壮性** — `tnt.notify_aggregate_ms` 非正值回退默认，避免静默关闭防刷屏
 
-## [1.0.16] - 2026-08-07
+### ♻️ 重构
+- 移除最后一名玩家离开时的维护提示（`server_maintenance_hint` 模板及通知逻辑）
+- 移除模板 `role_alias` / `role_groups` 配置，权限组显示名统一收敛至 `RankService.groupDisplayName`，删除模板系统内重复维护的映射
+- 统一在线玩家列表格式（`OnlineListFormatter`：玩家名、OP 标记、游戏模式、权限组），`$l` 命令与上下线广播共用同一事实源
 
-### ✨ 新功能
-- **权限晋升系统（Rank）** — 玩家按游戏阶段自动/申请晋升：
-  - `default→member`：累计在线时长 ≥10 小时自动晋升（LuckPerms track）
-  - `member→builder`：`/apply` 申请，管理员 `/rank approve|reject <玩家>` 审核
-  - `builder→admin`：手动分配（不自动）
-  - `/rank` 查询自己的晋升进度；ranks.yml 持久化时长与申请状态
-  - 晋升通过控制台执行 LuckPerms 命令（零依赖）
+### ✅ 测试
+- 新增 LuckPermsBootstrap / LuckPermsPromoter / PermissionStore / RankService / RankCommandService / ReviewService / ReviewCommandService / EntityTeleportPolicyService / TeleportBowFlightTracker / ForceLoadedChunkLease 等测试
+- 累计 885 个测试用例（`@Test`）
+
+### 📝 文档
+- README / README.zh-CN 同步最新功能
+- docs/features.md 对齐最新逻辑（TNT 聚合、实体传送策略、GeoIP 告警、权限组显示、配置项）
 
 ---
 

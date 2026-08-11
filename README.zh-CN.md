@@ -2,8 +2,8 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
-[![Coverage](https://img.shields.io/badge/coverage-64%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-880+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
@@ -22,15 +22,15 @@
 |---------|---------|
 | 权限管理系统（Rank & Review） | 基于 LuckPerms 的四级玩家权限链（访客→成员→建造者→管理员）：自动晋升 + 申请审核（`/apply` / `/review` / `$v`）+ 手动升降级（`$p`）。装即用：启动自动创建 track 与缺失权限组；无 LuckPerms 时自动降级，其余功能不受影响 |
 | 白名单管理 | 控制服务器准入，管理员可通过 Bot 命令（$a/$r/$w）添加/移除白名单，自动清理不活跃玩家，非白名单玩家踢出时附带提示 |
-| 多平台 Bot 系统 | 通过 EasyBot 网关统一接入 QQ、Telegram、Discord、飞书和微信，11 个 Bot 命令实现玩家管理/查询/互动，30 余个可定制消息模板将服务器事件推送到对应群聊或频道 |
+| 多平台 Bot 系统 | 通过 EasyBot 网关统一接入 QQ、Telegram、Discord、飞书和微信，11 个 Bot 命令实现玩家管理/查询/互动，50 余个可定制消息模板将服务器事件推送到对应群聊或频道 |
 | 跨服传送门 | 管理员可创建或删除传送门，玩家踩踏传送门时跨服 transfer 跳转，可选集成 LoginSecurity 验证身份后再传送 |
-| TNT 保护 | 限制 TNT 放置范围，允许区域白名单豁免，TNT 爆炸时群聊通知，并可控制重生锚的爆炸行为 |
+| TNT 保护 | 限制 TNT 放置范围，允许区域白名单豁免，TNT 爆炸时群聊通知，并可控制重生锚的爆炸行为。突发爆炸聚合为一条告警（带 ×N 与首个事件坐标），发射器/大面积爆炸不再刷屏 |
 | 安全控制 | 按 GeoIP 判断玩家所在国家限制加入，精确 IP/CIDR 段/通配符三种黑名单模式，可选集成 LoginSecurity 二次验证 |
-| 传送弓 | 射箭即可传送至落点，自动检测落点安全性（固体方块/不危险），落点不安全时就近搜索安全位置，可配置生物传送策略 |
+| 传送弓 | 射箭即可传送至落点，自动检测落点安全性（固体方块/不危险），落点不安全时就近搜索安全位置；沿飞行路径 force-load 区块，远射稳定命中落点；可配置实体传送策略（默认不禁止，开启时仅白名单豁免） |
 | 世界维护 | 一键备份或优化世界地图文件，实时进度报告，维护期间 MOTD 自动切换提示玩家 |
-| 玩家通知 | 玩家加入/退出/被踢出时向群聊推送详情（含角色名、原因），玩家消息前显示角色标识/头衔 |
+| 玩家通知 | 玩家加入/退出/被踢出时向群聊推送详情（含世界、坐标、在线人数、权限组），在线列表展示每位玩家的游戏模式与权限组 |
 | 新手指南书 | 首次进服自动发放一本指南书，内容通过 YAML 配置，服主可自定义引导信息 |
-| 运行时配置 | 使用 /config 命令在游戏内管理 24 项配置，修改后热重载生效，无需重启服务器 |
+| 运行时配置 | 使用 /config 命令在游戏内管理 25 项配置，修改后热重载生效，无需重启服务器 |
 | OrzMC 菜单 | 游戏内呼出功能菜单，集成各项操作的便捷入口（开发中） |
 
 详情可阅读：[插件全部功能](./docs/features.md)

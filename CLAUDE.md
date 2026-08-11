@@ -43,17 +43,19 @@ OrzMC/
 │   │   ├── MaintenanceModule.java  世界备份与地图优化
 │   │   └── FeatureModule.java      所有 Feature 服务 + 命令/事件注册（Brigadier 命令注册 + 拦截器链）
 │   ├── core/ports/            含 Bukkit 依赖的端口（PortalPort, ServerAccess, TypedConfigProvider 等）
-│   ├── features/              业务逻辑层（36 个文件）
-│   │   ├── botcommands/       Bot 命令解析（$a, $r, $b, $o, $d 等，统一分派 + $cmd ? 查询）
+│   ├── features/              业务逻辑层（56 个文件）
+│   │   ├── botcommands/       Bot 命令解析（$l/$w/$h/$a/$r/$b/$o/$e/$d/$v/$p 共 11 个，统一分派 + $cmd ? 查询）
 │   │   ├── maintenance/       世界备份/优化编排
 │   │   ├── whitelist/         服务器白名单管理
 │   │   ├── tnt/               TNT 保护 + 区域白名单
 │   │   ├── portal/            传送门业务逻辑
 │   │   ├── security/          GeoIP 访问控制 + IP 黑名单管理
+│   │   ├── rank/              权限链（default→member→builder→admin）：自动晋升 + 手动升降级（LP track）
+│   │   ├── review/            通用审核框架（/apply 申请 / /review 审核 / $v 群指令）
 │   │   ├── server/            服务端生命周期事件
-│   │   └── ...                guide, menu, teleport, player
+│   │   └── ...                guide, menu, teleport, player, bot
 │   ├── infra/                 基础设施实现
-│   │   ├── config/            ConfigService + 类型化配置记录类（16个，含 EasyBotConfig）、ConfigHealthCheck
+│   │   ├── config/            ConfigService + 类型化配置记录类（15个，含 EasyBotConfig）、ConfigHealthCheck
 │   │   ├── bot/               BotMessageService, BotMessageServiceProvider, OrzEasyBot
 │   │   ├── ws/                RobustWebSocketClient（自动重连 + 心跳检测）
 │   │   ├── net/               AsyncHttp（指数退避重试）
@@ -85,6 +87,6 @@ Tag 使用严格 SemVer，**不加 `v` 前缀**。本地构建产物为 `{versio
 
 - **无数据库**：所有状态存储在 YAML 配置文件中（portals.yml 在运行时修改）
 - **无 DI 框架**：通过显式组合根进行构造器注入
-- **类型化配置**：所有 YAML 访问通过 `configs/` 子包中的记录类（如 `WhitelistConfig`, `TntConfig`），附带健康检查
+- **类型化配置**：所有 YAML 访问通过 `configs/` 子包中的记录类（15 个，含 `WhitelistConfig`, `TntConfig`），附带健康检查
 - **异步安全**：`SafeScheduler` 包装 Bukkit 调度器，统一异常日志
 - **健康注册表**：`HealthStatus` 接口在 orzmc-api 中，`HealthAccessor` 适配器桥接实例化的 `HealthRegistry`
