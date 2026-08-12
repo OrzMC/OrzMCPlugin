@@ -12,7 +12,7 @@
 3. **不含管理侧**：任何组的通配符都避开管理分支（worldedit.reload、worldguard.region.bypass、essentials.gamemode.others 等）
 4. **权限组内其它细节由线上自管**：本表只保证「定位功能可用」，不覆盖线上自定义
 
-## L0 default（访客）— 生存基础体验（14 项）
+## L0 default（访客）— 生存基础体验（13 项）
 
 | 权限节点 | 验证指令 | 预期 |
 |:--|:--|:--|
@@ -32,7 +32,7 @@
 
 > 剔除项：`getmehome.user`（家功能属 member，default 不给）、`deathchest.command.report`（管理命令，位于 DeathChest admin 包）、`essentials.reply`（无此权限，/reply 随 /msg）。
 
-## L1 member（成员）— 完整玩家功能（12 项）
+## L1 member（成员）— 完整玩家功能（13 项）
 
 | 权限节点 | 验证指令 | 预期 |
 |:--|:--|:--|
@@ -52,7 +52,7 @@
 
 > 剔除项：`essentials.spawn`（继承自 default，不重复列）；5 个 `getmehome.command.*` 分列节点 → 合并为 `getmehome.user`（省 5 项）。
 
-## L2 builder（建造者）— WE/WG 裁剪子集 + 建造便利（26 项）
+## L2 builder（建造者）— WE/WG 裁剪子集 + 建造便利 + Litematica 投影（33 项）
 
 | 权限节点 | 验证指令 | 预期 |
 |:--|:--|:--|
@@ -78,14 +78,25 @@
 | `worldguard.region.list` | `/rg list` | 显示区域 |
 | `worldguard.region.info` | `/rg info test` | 显示区域详情 |
 | `worldguard.region.teleport` | `/rg tp test` | 传送到区域 |
-| `essentials.gamemode.creative` | `/gamemode creative` | 切换创造（**无 .others**） |
+| `essentials.gamemode` | `/gamemode creative` | 切换创造（**父权限=命令基础权限**） |
+| `essentials.gamemode.creative` | `/gamemode creative` | 子权限（随父权限生效） |
 | `essentials.gamemode.survival` | `/gamemode survival` | 切回生存 |
+| `essentials.gamemode.others` | `/gamemode creative NoSuchPlayer` | ⚠️ **显式 false（08-12 实测：父权限含 .others，必须显式拒绝防改他人模式）** |
 | `essentials.fly` | `/fly` | 飞行开启 |
 | `essentials.heal` | `/heal` | 恢复满血（无 heal.others） |
 | `essentials.workbench` | `/workbench` | 打开随身工作台（含 /craft 别名） |
 | `essentials.top` | `/top` | 传送到地表 |
+| `minecraft.command.setblock` | `/setblock ~ ~ ~ stone` | 放置成功（**Litematica 粘贴核心**） |
+| `minecraft.command.fill` | `/fill ~ ~ ~ ~5 ~ ~5 stone` | 填充成功（Litematica 连续区域） |
+| `minecraft.command.data` | `/data get block ~ ~ ~` | 读取方块 NBT（Litematica NBT 恢复） |
 
-> 合并说明：`worldguard.region.claim` + `claim.own` → `claim.*`（省 1）；`essentials.craft` 无此权限（/craft 是 /workbench 别名，已剔除）；**fly/gamemode 归属 builder（增量原则）——admin 经继承自动获得**。
+> **Litematica 投影粘贴支持（2026-08-12 新增，方案 A）**
+> - 需求来源：玩家客户端 Litematica 模组 Paste 功能（官方 wiki Schematic Pasting）
+> - 原版命令模式（默认/推荐）：`/setblock` + `/fill`（必）+ `/data`（推荐：箱子/告示牌 NBT 恢复）
+> - **不授予 `minecraft.command.summon`**：可召唤凋灵/末影龙等危险实体、刷物品实体；玩家客户端开 `pasteIgnoreEntities` 即可跳过实体
+> - WE 模式（客户端 `commandUseWorldEdit=true`）无需新增：`worldedit.selection.pos`（//pos1//pos2）+ `worldedit.region.set`（//set）已被现有通配覆盖
+> - 安全前置：三端 `enable-command-block=false`（命令方块禁用）→ 无法借 /setblock 放置可执行命令方块，无权限提升风险
+> - 合并说明：`worldguard.region.claim` + `claim.own` → `claim.*`（省 1）；`essentials.craft` 无此权限（/craft 是 /workbench 别名，已剔除）；**fly/gamemode 归属 builder（增量原则）——admin 经继承自动获得**。
 
 ## L3 admin（管理员）— 管理命令（32 项，**无 `*`、无 luckperms.\*、无 op**）
 
