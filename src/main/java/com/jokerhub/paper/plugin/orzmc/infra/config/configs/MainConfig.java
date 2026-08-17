@@ -36,7 +36,7 @@ public record MainConfig(
                 if (o != null) allowCodes.add(String.valueOf(o));
             }
         }
-        boolean entityTeleportEnabled = cfg.getBoolean("entity_teleport_enabled", false);
+        boolean entityTeleportEnabled = cfg.getBoolean("entity_teleport_enabled", true);
         List<String> entityTeleportWhitelist = new ArrayList<>(cfg.getStringList("entity_teleport_whitelist"));
         if (entityTeleportWhitelist.isEmpty()) {
             entityTeleportWhitelist.addAll(List.of("TAMEABLE", "ENDERMAN", "ARMOR_STAND", "SHULKER"));

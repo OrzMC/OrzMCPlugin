@@ -40,13 +40,13 @@ public record Templates(
         String mbStage = cfg.getString(
                 base + ".maintenance_backup_stage",
                 "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}");
-        String mbDone = cfg.getString(base + ".maintenance_backup_done", "地图{label} 完成 用时:{duration_ms}ms");
-        String mbErr = cfg.getString(base + ".maintenance_backup_error", "地图{label} 失败 用时:{duration_ms}ms");
+        String mbDone = cfg.getString(base + ".maintenance_backup_done", "地图{label} 完成 用时:{duration_human}");
+        String mbErr = cfg.getString(base + ".maintenance_backup_error", "地图{label} 失败 用时:{duration_human}");
         String moStage = cfg.getString(
                 base + ".maintenance_optimize_stage",
                 "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}");
-        String moDone = cfg.getString(base + ".maintenance_optimize_done", "地图{label} 完成 用时:{duration_ms}ms");
-        String moErr = cfg.getString(base + ".maintenance_optimize_error", "地图{label} 失败 用时:{duration_ms}ms");
+        String moDone = cfg.getString(base + ".maintenance_optimize_done", "地图{label} 完成 用时:{duration_human}");
+        String moErr = cfg.getString(base + ".maintenance_optimize_error", "地图{label} 失败 用时:{duration_human}");
         String serverLoad = cfg.getString(base + ".server_load", "{message}");
         String serverStop = cfg.getString(base + ".server_stop", "{message}");
         String whitelistBlock = cfg.getString(base + ".whitelist_block", "{message}");

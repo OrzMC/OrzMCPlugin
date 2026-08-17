@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -231,7 +232,7 @@ class OrzEasyBotTest {
             }
             assertTrue(health.getRaw("easybot").httpChecked);
             // 失败目标被单独记录（带错误原因），已成功目标不出现
-            verify(throttledLogger)
+            verify(throttledLogger, timeout(1000))
                     .warning(eq("easybot-batch-partial"), contains("telegram:fail-chat -> failed: chat not found"));
             // 部分目标失败：httpOk 保持绿（网关健康），投递字段结构化记录 1/2 + 失败目标列表
             assertTrue(health.getRaw("easybot").httpOk);
@@ -294,7 +295,7 @@ class OrzEasyBotTest {
             assertEquals(
                     List.of("telegram:player-chat", "discord:player-chat"), health.getRaw("easybot").deliveryTargets);
             // 完整明细（含所有失败目标及原因）进 throttled logger
-            verify(throttledLogger)
+            verify(throttledLogger, timeout(1000))
                     .warning(eq("easybot-batch-partial"), contains("discord:player-chat -> failed: down"));
         } finally {
             server.stop(0);
@@ -340,7 +341,8 @@ class OrzEasyBotTest {
                 Thread.sleep(20);
             }
             // 未知 total：不判定为全部失败，记 warning（部分失败），deliveryTotal=0
-            verify(throttledLogger).warning(eq("easybot-batch-partial"), contains("qq:player-chat -> failed: down"));
+            verify(throttledLogger, timeout(1000))
+                    .warning(eq("easybot-batch-partial"), contains("qq:player-chat -> failed: down"));
             assertEquals(1, health.getRaw("easybot").deliveryFailed);
             assertEquals(0, health.getRaw("easybot").deliveryTotal);
             assertEquals(List.of("qq:player-chat"), health.getRaw("easybot").deliveryTargets);
@@ -390,7 +392,8 @@ class OrzEasyBotTest {
             }
             assertTrue(health.getRaw("easybot").httpChecked);
             // 全部目标失败 → 记 error 日志（完整明细）
-            verify(throttledLogger).error(eq("easybot-batch-fail"), contains("qq:player-chat -> failed: chat closed"));
+            verify(throttledLogger, timeout(1000))
+                    .error(eq("easybot-batch-fail"), contains("qq:player-chat -> failed: chat closed"));
             // 全部失败：httpOk 保持绿（网关本身健康），投递字段 2/2（由渲染层标红），无 lastError
             assertTrue(health.getRaw("easybot").httpOk);
             assertTrue(health.getRaw("easybot").apiReady);

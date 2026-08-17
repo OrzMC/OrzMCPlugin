@@ -2,7 +2,7 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-880+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-990+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
@@ -22,7 +22,7 @@
 |---------|---------|
 | 权限管理系统（Rank & Review） | 基于 LuckPerms 的四级玩家权限链（访客→成员→建造者→管理员）：自动晋升 + 申请审核（`/apply` / `/review` / `$v`）+ 手动升降级（`$p`）。装即用：启动自动创建 track 与缺失权限组；无 LuckPerms 时自动降级，其余功能不受影响 |
 | 白名单管理 | 控制服务器准入，管理员可通过 Bot 命令（$a/$r/$w）添加/移除白名单，自动清理不活跃玩家，非白名单玩家踢出时附带提示 |
-| 多平台 Bot 系统 | 通过 EasyBot 网关统一接入 QQ、Telegram、Discord、飞书和微信，11 个 Bot 命令实现玩家管理/查询/互动，50 余个可定制消息模板将服务器事件推送到对应群聊或频道 |
+| 多平台 Bot 系统 | 通过 EasyBot 网关统一接入 QQ、Telegram、Discord、飞书和微信，11 个 Bot 命令实现玩家管理/查询/互动，控制台命令（`$e`）执行结果完整回传群聊（含 Essentials/LuckPerms 等异步输出，日志窗口捕获 + 噪音过滤 + 30 行截断），50 余个可定制消息模板将服务器事件推送到对应群聊或频道 |
 | 跨服传送门 | 管理员可创建或删除传送门，玩家踩踏传送门时跨服 transfer 跳转，可选集成 LoginSecurity 验证身份后再传送 |
 | TNT 保护 | 限制 TNT 放置范围，允许区域白名单豁免，TNT 爆炸时群聊通知，并可控制重生锚的爆炸行为。突发爆炸聚合为一条告警（带 ×N 与首个事件坐标），发射器/大面积爆炸不再刷屏 |
 | 安全控制 | 按 GeoIP 判断玩家所在国家限制加入，精确 IP/CIDR 段/通配符三种黑名单模式，可选集成 LoginSecurity 二次验证 |

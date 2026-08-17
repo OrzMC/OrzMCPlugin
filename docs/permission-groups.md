@@ -1,6 +1,6 @@
 # 权限组节点配置表（Rank & Review）
 
-> 基于本地测试服（与线上插件一致：EssentialsX 2.22.0/GetMeHome 3.0.0-4/GriefPrevention/WorldEdit 7.4.4/WorldGuard 7.0.18/DeathChest/EzShops 2.5.9/BackOnDeath/LoginSecurity 3.3.2/OrzMC 等 16 插件）**逐权限名核对 plugin.yml 与 jar 字节码后**设计。
+> 基于本地测试服（与线上插件一致：EssentialsX 2.22.0/GetMeHome 3.0.0-4/GriefPrevention 16.18.7/WorldEdit 7.4.5/WorldGuard 7.0.18/DeathChest 3.0.1/EzShops 2.5.9/BackOnDeath 0.4/LoginSecurity 3.3.2-SNAPSHOT/OrzMC 1.0.16 等 16 插件）**逐权限名核对 plugin.yml 与 jar 字节码后**设计。
 > 配置命令：`lp group <组> permission set <节点> true`（LP 继承链 admin→builder→member→default，各组只配增量）。
 > **线上同步时逐条执行本表命令即可**（同步前先 `lp export` 备份）。
 > **⚠️ 继承链（parent）必须一并设置**：`lp group member parent set default`、`lp group builder parent set member`、`lp group admin parent set builder`——LuckPermsBootstrap 已自动校正（启动时校验/修正，不动权限节点）。
@@ -23,7 +23,7 @@
 | `essentials.balance` | `/balance` | 显示余额 |
 | `essentials.balancetop` | `/baltop` | 显示排行 |
 | `essentials.pay` | `/pay <玩家> 1` | 转账成功 |
-| `essentials.spawn` | `lp group default permission check essentials.spawn` | ⚠️ **命令未注册（26.2 兼容问题）——当前不可用**；权限节点保留（命令恢复后即生效） |
+| `essentials.spawn` | `lp group default permission check essentials.spawn` | ⚠️ **命令未注册（26.2 兼容问题）——当前不可用**（2026-08-12 26.2-111 复验仍 Unknown）；权限节点保留（命令恢复后即生效） |
 | `bod.back` | 死亡后重生 | 死亡箱/回档提示 |
 | `ezshops.shop` | `/shop` | 打开商店 GUI |
 | `ezshops.shop.buy` | 商店点购买 | 购买成功 |
@@ -66,7 +66,7 @@
 | `worldedit.utility.*` | `//fill`、`//drain` | 工具命令可用 |
 | `worldedit.help` | `//help` | 显示帮助 |
 | `worldedit.schematic.*` | `//schem save test` | 保存成功 |
-| `worldedit.navigation.*` | `//unstuck` | ⚠️ **//unstuck 命令未注册（26.2 兼容）——当前不可用**；权限节点有效（LP check true，与 /spawn 同类） |
+| `worldedit.navigation.*` | `//unstuck` | ⚠️ **//unstuck 命令未注册——当前不可用**（2026-08-12 WE 7.4.5 复验仍 Unknown，7.4.4→7.4.5 未修复）；权限节点有效（LP check true，与 /spawn 同类） |
 | `worldedit.analysis.*` | `//count stone` | 显示统计 |
 | `worldguard.region.claim.*` | `//claim`、`/rg claim` | 圈地成功（含 claim.own） |
 | `worldguard.region.define` | `/rg define test` | 创建区域 |
@@ -120,7 +120,6 @@
 | `essentials.ban` | `/ban <玩家>` | Essentials 封禁 |
 | `essentials.unban` | `/unban <玩家>` | Essentials 解封 |
 | `essentials.gamemode` | `/gamemode creative <玩家>` | 改他人模式 |
-| `essentials.heal` | `/heal` | 自我治疗（继承 builder，2026-08-08 验收清理冗余；无 heal.others） |
 | `essentials.give` | `/give <玩家> stone 1` | 发放物品 |
 | `essentials.tp` | `/tp <玩家>` | 传送他人 |
 | `essentials.time` | `/time` | 时间基础 |
@@ -184,7 +183,7 @@
 | L2 | `worldedit.utility.*` | LP check | ✅ true |
 | L2 | `worldedit.help` | `//help` | ✅ |
 | L2 | `worldedit.schematic.*` | `//schem save test` | ✅ 放行 |
-| L2 | `worldedit.navigation.*` | `//unstuck` | ⚠️ Unknown（WE 7.4.4 命令注册待查） |
+| L2 | `worldedit.navigation.*` | `//unstuck` | ⚠️ Unknown（WE 7.4.5 复验仍 Unknown，2026-08-12） |
 | L2 | `worldedit.analysis.*` | `//count stone` | ✅ 放行 |
 | L2 | `worldguard.region.claim.*` | `/rg claim testregion` | ✅ 放行（需选区提示） |
 | L2 | `worldguard.region.define/remove/addmember/removemember/setparent/flag/info/teleport` | `/rg define testrg` 等 | ✅ 全部放行（「No region found」） |
@@ -222,7 +221,7 @@
 ### 遗留标注（非权限配置问题）
 
 - `//tool`：Unknown 因无参（需 `//tool <类型>`）——命令存在，权限项有效
-- `//unstuck`：Unknown——WE 7.4.4 命令注册异常（与 /spawn 同类 26.2 兼容问题），`worldedit.navigation.*` 权限本身有效（LP check true）
+- `//unstuck`：Unknown——WE 7.4.4→7.4.5 均命令未注册（2026-08-12 复验），`worldedit.navigation.*` 权限本身有效（LP check true）
 - `/spawn`：Unknown——Essentials 在 Paper 26.2 未注册 spawn 命令（兼容问题，权限节点已配好，命令恢复后即生效）
 - `/msg`：被反垃圾插件拦截（需移动后聊天）——非权限问题
 
@@ -289,5 +288,5 @@ lp user <X> parent set <目标组>
 ## 注意事项
 
 - **joker 脏数据已清理**（2026-08-08）：`parent clear + set builder` 根治（见上文案例），`$p d/u` 已恢复正常；线上部署前仍需逐个检查存量玩家（`lp user <X> parent info`）
-- 配置以命令清单形式同步：`perm_commands.txt`（本地测试服执行记录）可作为线上同步脚本蓝本，**线上执行前先 `lp export` 备份**
-- **Essentials spawn 命令缺失**：Paper 26.2（实验版）不被 EssentialsX 2.22.0 支持，/spawn 命令未注册（权限节点 essentials.spawn 已配好，命令恢复后即生效）
+- 配置以命令清单形式同步：`~/.hermes/skills/gaming/orzmc/scripts/gen_perm_commands.py` 从本表生成执行清单（**唯一权威=本文件**，2026-08-12 起），**线上执行前先 `lp export` 备份**
+- **Essentials spawn 命令缺失**：Paper 26.2（实验版）不被 EssentialsX 2.22.0 支持，/spawn 命令未注册（2026-08-12 26.2-111 复验仍 Unknown；权限节点 essentials.spawn 已配好，命令恢复后即生效）

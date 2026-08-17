@@ -129,7 +129,14 @@ public class CommandIntegrationTest {
         BotModule botModule = plugin.services().botModule();
         AtomicReference<MessageEnvelope> got = new AtomicReference<>();
         Assertions.assertDoesNotThrow(() -> botModule.botInboundHandler().handleMessage("$e bot", true, got::set));
-        server.getScheduler().performOneTick();
+        // $e 走「同步执行 + 日志窗口延迟回包」（40 tick 收集窗口）：窗口前不回包，窗口后回包
+        for (int i = 0; i < 39; i++) {
+            server.getScheduler().performOneTick();
+        }
+        Assertions.assertNull(got.get(), "$e 回包不应早于收集窗口");
+        for (int i = 39; i < 60; i++) {
+            server.getScheduler().performOneTick();
+        }
         MessageEnvelope envelope = got.get();
         Assertions.assertNotNull(envelope, "Bot command should produce response");
         Assertions.assertTrue(envelope.message().contains("ws"), "Status should show ws state");

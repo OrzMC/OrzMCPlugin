@@ -28,7 +28,8 @@ public enum OrzUserCmd {
     }
 
     public String display(String promptChar) {
-        return promptChar + this.cmdName + "\t" + this.description;
+        // 10 个半角空格对齐注释列（命令名均为单字符，$x 恒为 2 列宽）
+        return promptChar + this.cmdName + "          " + this.description;
     }
 
     @Override

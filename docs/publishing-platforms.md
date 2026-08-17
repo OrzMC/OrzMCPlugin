@@ -292,7 +292,7 @@ modrinth {
 | `plugin_support_paper_versions` | `gradle.properties` | `26.1,26.2` | 两个平台共用，逗号分隔 |
 | `modrinth_project_id` | `gradle.properties` | `r8ZufLjY` | 本地默认值，CI 可通过变量覆盖 |
 | `plugin_debug_server_version` | `gradle.properties` | `26.2` | 仅本地调试用 |
-| `version` | `paper-plugin.yml` | `1.0.16` | 版本号源，tag 发布后自动递增 |
+| `version` | `paper-plugin.yml` | `1.0.17` | 版本号源，tag 发布后自动递增 |
 
 ### 7.3 Token 轮换
 

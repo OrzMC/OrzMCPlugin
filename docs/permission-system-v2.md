@@ -1,5 +1,7 @@
 # 权限系统二期 · 通用审核框架方案（v8 定稿）
 
+> ⚠️ **设计稿（已交付 2026-08-07）**：现行权限配置事实以 **[permission-groups.md](permission-groups.md)** 为准（唯一权威）；本文件记录设计决策，不再随权限调整更新。
+
 > 状态：✅ 已交付（2026-08-07）｜分支：`feat/rank-promotion`（PR #160）｜关联：[features.md](features.md)、[test-cases.md](test-cases.md)、[permission-system-v2-acceptance.md](permission-system-v2-acceptance.md)
 
 ## 一、背景与目标

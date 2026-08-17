@@ -36,6 +36,10 @@ dependencies {
     implementation(project(":orzmc-api"))
 
     compileOnly("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
+    // Log4J（Paper 运行时自带；compileOnly 不打进 jar）——$e 命令日志窗口收集 Appender
+    compileOnly("org.apache.logging.log4j:log4j-api:2.26.1")
+    compileOnly("org.apache.logging.log4j:log4j-core:2.26.1")
+    testImplementation("org.apache.logging.log4j:log4j-core:2.26.1")
     // LuckPerms API（软依赖：LP 插件在运行时提供 API 类——compileOnly 不打进 jar，
     // shadowJar 排除 net/luckperms 避免类加载器冲突；paper-plugin.yml dependencies 新格式声明软依赖）
     compileOnly("net.luckperms:api:5.5")
@@ -46,7 +50,7 @@ dependencies {
     implementation("io.github.wangzhizhou:backup-core:0.1.6")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
     testImplementation("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
@@ -79,7 +83,7 @@ plugins {
     kotlin("jvm") version "2.4.10"
     id("com.gradleup.shadow") version "9.6.1"
     // 工程内直接调试服务端插件：https://docs.papermc.io/paper/dev/debugging#using-direct-debugging
-    id("xyz.jpenilla.run-paper") version "3.0.2"
+    id("xyz.jpenilla.run-paper") version "3.1.0"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur

@@ -134,10 +134,10 @@ public final class TemplatePlaceholderValidator {
                 "eta_unit");
         m.put("maintenance_backup_stage", progressVars);
         m.put("maintenance_optimize_stage", progressVars);
-        m.put("maintenance_backup_done", Set.of("label", "duration_ms"));
-        m.put("maintenance_backup_error", Set.of("label", "duration_ms"));
-        m.put("maintenance_optimize_done", Set.of("label", "duration_ms"));
-        m.put("maintenance_optimize_error", Set.of("label", "duration_ms"));
+        m.put("maintenance_backup_done", Set.of("label", "duration_ms", "duration_human"));
+        m.put("maintenance_backup_error", Set.of("label", "duration_ms", "duration_human"));
+        m.put("maintenance_optimize_done", Set.of("label", "duration_ms", "duration_human"));
+        m.put("maintenance_optimize_error", Set.of("label", "duration_ms", "duration_human"));
         m.put("server_load", Set.of("message"));
         m.put("server_stop", Set.of("message"));
         m.put("whitelist_block", Set.of("message"));

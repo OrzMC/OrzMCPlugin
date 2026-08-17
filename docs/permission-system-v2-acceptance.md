@@ -1,5 +1,7 @@
 # 权限系统二期 · 验收报告（2026-08-07）
 
+> ⚠️ **历史快照**（验收当时记录，组节点数等数字反映 8-07 配置）：现行权限节点以 **[permission-groups.md](permission-groups.md)** 为准（唯一权威，2026-08-12 起由 gen_perm_commands.py 派生执行清单）。
+
 > 关联：[permission-system-v2.md](permission-system-v2.md)（方案 v8 定稿）｜分支：`feat/rank-promotion`（PR #160）｜构建：`OrzMC-1.0.16-dev.jar`
 
 ## 一、验收范围

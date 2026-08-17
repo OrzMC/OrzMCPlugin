@@ -1,6 +1,6 @@
 # paper-plugin.yml: https://docs.papermc.io/paper/dev/paper-plugin-yml
 name: OrzMC
-version: 1.0.17
+version: 1.0.18
 main: com.jokerhub.paper.plugin.orzmc.OrzMC
 description: OrzMC for Paper Server Plugin
 authors: [ wangzhizhou ]
@@ -22,3 +22,6 @@ permissions:
   orzmc.admin:
     description: OrzMC 管理命令权限
     default: op
+  orzmc.tpbow.use:
+    description: 使用传送弓（射箭传送）的权限，默认放行
+    default: true

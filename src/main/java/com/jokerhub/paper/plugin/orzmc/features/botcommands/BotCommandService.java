@@ -11,6 +11,7 @@ import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.logging.LogCaptureService;
 import com.jokerhub.paper.plugin.orzmc.infra.paging.Paginator;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.ArrayList;
@@ -33,6 +34,13 @@ public final class BotCommandService implements BotInboundHandler {
     private BlacklistService blacklistService;
     private com.jokerhub.paper.plugin.orzmc.features.review.ReviewService reviewService;
     private com.jokerhub.paper.plugin.orzmc.features.rank.RankService rankService;
+    private LogCaptureService logCaptureService;
+
+    /** $e 日志收集窗口：40 tick ≈ 2 秒（按 20 TPS 推算，覆盖大多数插件异步命令输出）。 */
+    private static final long CONSOLE_OUTPUT_COLLECT_TICKS = 40L;
+
+    /** $e 输出最大行数，超过截断防刷群。 */
+    private static final int CONSOLE_OUTPUT_MAX_LINES = 30;
 
     @FunctionalInterface
     private interface CmdHandler {
@@ -89,6 +97,11 @@ public final class BotCommandService implements BotInboundHandler {
         this.listFeedbackService = new BotCommandListFeedbackService(server, configs, formatter);
     }
 
+    /** 注入日志窗口收集服务（$e 命令输出兜底）。未注入时 $e 退化为仅返回执行状态。 */
+    public void setLogCaptureService(LogCaptureService logCaptureService) {
+        this.logCaptureService = logCaptureService;
+    }
+
     @Override
     public void handleMessage(String message, boolean isAdmin, Consumer<MessageEnvelope> callback) {
         parse(message, isAdmin, null, callback);
@@ -111,16 +124,27 @@ public final class BotCommandService implements BotInboundHandler {
         for (OrzUserCmd userCmd : OrzUserCmd.values()) {
             String cmdPrefix = promptChar + userCmd.cmdName();
             if (matchesCommandPrefix(message, cmdPrefix)) {
-                String rawArgs = extractArgs(message, cmdPrefix);
+                // 全角空格（U+3000）归一化为半角再 trim——Java String.trim() 不处理 U+3000，
+                // 否则 "$b　?"（全角空格分隔）会绕过 ? 拦截直接触发备份/优化等重量级命令
+                String rawArgs =
+                        extractArgs(message, cmdPrefix).replace('\u3000', ' ').trim();
 
-                // $cmd ?：在此指令分发前统一拦截
-                if (rawArgs.equals("?") || rawArgs.equals("？")) {
+                // $cmd ?：在此指令分发前统一拦截。
+                // 前缀匹配（$b ?x / $b ?? / $b ? 2 均视为帮助请求），防误触重量级命令；
+                // $e 特判精确匹配——控制台命令本身可能以 ? 开头（如 "$e ?list"）
+                boolean helpQuery = userCmd == OrzUserCmd.EXECUTE_CONSOLE_COMMAND
+                        ? rawArgs.equals("?") || rawArgs.equals("？")
+                        : rawArgs.startsWith("?") || rawArgs.startsWith("？");
+                if (helpQuery) {
                     String tip = feedbackService.usageTip(userCmd, promptChar);
                     if (!tip.isBlank()) {
                         emitUsage(callback, tip);
                         return;
                     }
-                    // 无 usageTip 定义，降级为此指令的正常执行
+                    // 防御：无 usageTip 定义时发总帮助，绝不降级为执行命令
+                    // （避免 $b ? / $o ? 等误触发备份/优化等重量级操作）
+                    emitHelp(callback);
+                    return;
                 }
 
                 CmdHandler handler = handlers.get(userCmd);
@@ -271,8 +295,33 @@ public final class BotCommandService implements BotInboundHandler {
             return;
         }
         server.runSync(() -> {
+            if (logCaptureService == null) {
+                // 未注入日志窗口服务：退化为仅返回执行状态
+                ServerFacade.ConsoleCommandResult result = server.executeConsoleCommand(rawArgs);
+                emit(callback, "command_output", Map.of("message", result.message()), result.message());
+                return;
+            }
+            // 先取水位再执行，命令执行期间的日志行才能落入窗口
+            long watermark = logCaptureService.watermark();
             ServerFacade.ConsoleCommandResult result = server.executeConsoleCommand(rawArgs);
-            emit(callback, "command_output", Map.of("message", result.message()), result.message());
+            // 延迟一个收集窗口后取日志增量：覆盖异步命令输出（LuckPerms 等回调式输出）。
+            // 日志窗口是「尽力而为」兜底：窗口内可能混入服务器其他活动日志（已过滤
+            // 命令回显/玩家聊天），缓冲溢出时输出头部提示可能缺失
+            server.runLater(
+                    () -> {
+                        List<String> windowLogLines = logCaptureService.drainSince(watermark);
+                        String assembled = CommandOutputAssembler.assemble(
+                                result.outputLines(), windowLogLines, CONSOLE_OUTPUT_MAX_LINES);
+                        // 缺口检测独立于输出内容：即使窗口内有效行全被驱逐/过滤也要提示
+                        String message;
+                        if (logCaptureService.hasGapSince(watermark)) {
+                            message = assembled.isEmpty() ? "⚠️ 日志缓冲溢出，输出可能不完整" : "⚠️ 日志缓冲溢出，输出可能不完整\n" + assembled;
+                        } else {
+                            message = assembled.isEmpty() ? result.message() : assembled;
+                        }
+                        emit(callback, "command_output", Map.of("message", message), message);
+                    },
+                    CONSOLE_OUTPUT_COLLECT_TICKS);
         });
     }
 
@@ -330,22 +379,18 @@ public final class BotCommandService implements BotInboundHandler {
             return;
         }
         if (rawArgs.isBlank()) {
-            emit(
+            emitUsage(
                     callback,
-                    "command_review_error",
-                    Map.of("message", "用法: $p u <玩家> 升级 / $p d <玩家> 降级"),
-                    "用法: $p u <玩家> 升级 / $p d <玩家> 降级");
+                    feedbackService.usageTip(OrzUserCmd.PERMISSION, botConfig().cmdPromptChar()));
             return;
         }
         String[] parts = rawArgs.split("\\s+", 2);
         String sub = parts[0].toLowerCase();
         String playerName = parts.length > 1 ? parts[1].trim() : "";
         if (playerName.isBlank()) {
-            emit(
+            emitUsage(
                     callback,
-                    "command_review_error",
-                    Map.of("message", "用法: $p " + sub + " <玩家>"),
-                    "用法: $p " + sub + " <玩家>");
+                    feedbackService.usageTip(OrzUserCmd.PERMISSION, botConfig().cmdPromptChar()));
             return;
         }
         boolean upgrade;
@@ -353,11 +398,10 @@ public final class BotCommandService implements BotInboundHandler {
             case "u", "up" -> upgrade = true;
             case "d", "down" -> upgrade = false;
             default -> {
-                emit(
+                emitUsage(
                         callback,
-                        "command_review_error",
-                        Map.of("message", "用法: $p u <玩家> 升级 / $p d <玩家> 降级"),
-                        "用法: $p u <玩家> 升级 / $p d <玩家> 降级");
+                        feedbackService.usageTip(
+                                OrzUserCmd.PERMISSION, botConfig().cmdPromptChar()));
                 return;
             }
         }
@@ -518,8 +562,10 @@ public final class BotCommandService implements BotInboundHandler {
     }
 
     private void emitReviewUsage(Consumer<MessageEnvelope> callback) {
-        String tip = "用法：\n" + "$v l — 待审列表\n" + "$v l 2 — 第 2 页\n" + "$v y <玩家> — 通过\n" + "$v n <玩家> — 拒绝";
-        emit(callback, "command_review_error", Map.of("message", tip), tip);
+        // 与 $v ? 同一套内容（统一 usageTip 模板），保证 fallback 与主动查询一致
+        emitUsage(
+                callback,
+                feedbackService.usageTip(OrzUserCmd.REVIEW, botConfig().cmdPromptChar()));
     }
 
     // ---- Helper ----

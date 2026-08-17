@@ -226,8 +226,10 @@ public final class FeatureModule implements ServiceModule {
             new OrzTPEvent(
                     plugin,
                     platform.serverFacade(),
+                    // entityTeleportEnabled=true 表示「允许所有实体传送」，
+                    // service 的 cancelEnabled 需取反（true = 仅白名单内实体可传送）
                     new EntityTeleportPolicyService(
-                            mainConfig.entityTeleportEnabled(), mainConfig.entityTeleportWhitelist())),
+                            !mainConfig.entityTeleportEnabled(), mainConfig.entityTeleportWhitelist())),
             new OrzTNTEvent(plugin, tntEventService),
             new OrzMenuEvent(plugin, menuEventService),
             new OrzServerEvent(plugin, serverEventService),
@@ -303,11 +305,15 @@ public final class FeatureModule implements ServiceModule {
             // ---- Debug: /orzdebug <bot-command> 模拟群里用户发 Bot 命令 ----
             // 注：Paper 26 中 Brigadier 命令不触发 ServerCommandEvent，OrzDebugEvent
             // 监听器收不到事件，因此直接在此处调用 BotInboundHandler 完成模拟。
+            // 安全：仅 OP/orzmc.admin 可用（AdminOnlyInterceptor），控制台始终放行。
+            // 非管理员在 Tab 补全中不可见，直接输入会被 Brigadier 拒绝（requires 拦截）。
+            List<CommandInterceptor> debugInterceptors = adminInterceptors("orzdebug");
+            Predicate<CommandSourceStack> debugRequires = requirement(debugInterceptors);
             commands.register(
                     literal("orzdebug")
-                            .requires(src -> true)
+                            .requires(debugRequires)
                             .then(argument("cmd", StringArgumentType.greedyString())
-                                    .executes(ctx -> {
+                                    .executes(guardedExec("orzdebug", debugInterceptors, ctx -> {
                                         String cmd = ctx.getArgument("cmd", String.class);
                                         ctx.getSource().getSender().sendMessage("debug 已受理（模拟 Bot 入站命令）");
                                         var inbound = botModule.botInboundHandler();
@@ -324,11 +330,11 @@ public final class FeatureModule implements ServiceModule {
                                             }
                                         });
                                         return 1;
-                                    }))
-                            .executes(ctx -> {
+                                    })))
+                            .executes(guardedExec("orzdebug", debugInterceptors, ctx -> {
                                 ctx.getSource().getSender().sendMessage("用法: /orzdebug <Bot命令>");
                                 return 1;
-                            })
+                            }))
                             .build(),
                     "模拟群里用户发 Bot 命令（调试用）",
                     List.of());

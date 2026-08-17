@@ -10,11 +10,13 @@ import org.bukkit.entity.Tameable;
 /**
  * 实体传送策略（2026-08-09 可配置化）：
  * <ul>
- *   <li>默认（enabled=false）不禁止——所有实体可正常传送（原版行为，兼容旧版村民过传送门等场景）</li>
- *   <li>配置为禁止（enabled=true）时，仅白名单内实体豁免（默认白名单兼容旧逻辑：
+ *   <li>{@code cancelEnabled=false} 不禁止——所有实体可正常传送（原版行为）</li>
+ *   <li>{@code cancelEnabled=true} 时，仅白名单内实体豁免（默认白名单：
  *       TAMEABLE / ENDERMAN / ARMOR_STAND / SHULKER）</li>
  * </ul>
  * 白名单项：大写 EntityType 名（如 VILLAGER）或特殊接口键（TAMEABLE）。
+ * 注意：config.yml 的 {@code entity_teleport_enabled} 语义与此相反（true = 允许所有实体传送），
+ * 装配层（FeatureModule）传入前取反。
  */
 public final class EntityTeleportPolicyService {
 

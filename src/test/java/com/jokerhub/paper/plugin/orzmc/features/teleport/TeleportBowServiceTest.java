@@ -168,6 +168,7 @@ class TeleportBowServiceTest extends ServiceTestBase {
         PersistentDataContainer bowPdc = mock(PersistentDataContainer.class);
         Arrow arrow = mock(Arrow.class);
         PersistentDataContainer arrowPdc = mock(PersistentDataContainer.class);
+        Player player = mock(Player.class);
 
         when(event.getBow()).thenReturn(bow);
         when(bow.getItemMeta()).thenReturn(bowMeta);
@@ -175,11 +176,59 @@ class TeleportBowServiceTest extends ServiceTestBase {
         when(bowPdc.has(tpBowKey, PersistentDataType.BYTE)).thenReturn(true);
         when(event.getProjectile()).thenReturn(arrow);
         when(arrow.getPersistentDataContainer()).thenReturn(arrowPdc);
+        when(event.getEntity()).thenReturn(player);
+        when(player.hasPermission(OrzConstants.PERM_TPBOW_USE)).thenReturn(true);
 
         Arrow marked = service.markArrow(event);
 
         assertSame(arrow, marked);
         verify(arrowPdc).set(tpBowKey, PersistentDataType.BYTE, (byte) 1);
+    }
+
+    @Test
+    void markArrow_bowWithKey_noPermission_doesNotMark_andNotifies() {
+        EntityShootBowEvent event = mock(EntityShootBowEvent.class);
+        ItemStack bow = mock(ItemStack.class);
+        ItemMeta bowMeta = mock(ItemMeta.class);
+        PersistentDataContainer bowPdc = mock(PersistentDataContainer.class);
+        Player player = mock(Player.class);
+
+        when(event.getBow()).thenReturn(bow);
+        when(bow.getItemMeta()).thenReturn(bowMeta);
+        when(bowMeta.getPersistentDataContainer()).thenReturn(bowPdc);
+        when(bowPdc.has(tpBowKey, PersistentDataType.BYTE)).thenReturn(true);
+        when(event.getEntity()).thenReturn(player);
+        when(player.hasPermission(OrzConstants.PERM_TPBOW_USE)).thenReturn(false);
+
+        Arrow marked = service.markArrow(event);
+
+        assertNull(marked);
+        verify(event, never()).getProjectile();
+        ArgumentCaptor<Component> captor = ArgumentCaptor.captor();
+        verify(player).sendMessage(captor.capture());
+        assertTrue(PlainTextComponentSerializer.plainText()
+                .serialize(captor.getValue())
+                .contains("传送弓已被禁用"));
+    }
+
+    @Test
+    void markArrow_bowWithoutKey_noPermission_doesNotNotify() {
+        // 普通弓（无传送弓标记）+ 无权限 → 不提示（权限检查只针对传送弓）
+        EntityShootBowEvent event = mock(EntityShootBowEvent.class);
+        ItemStack bow = mock(ItemStack.class);
+        ItemMeta bowMeta = mock(ItemMeta.class);
+        PersistentDataContainer pdc = mock(PersistentDataContainer.class);
+
+        when(event.getBow()).thenReturn(bow);
+        when(bow.getItemMeta()).thenReturn(bowMeta);
+        when(bowMeta.getPersistentDataContainer()).thenReturn(pdc);
+        when(pdc.has(tpBowKey, PersistentDataType.BYTE)).thenReturn(false);
+
+        Arrow marked = service.markArrow(event);
+
+        assertNull(marked);
+        verify(event, never()).getProjectile();
+        verify(event, never()).getEntity(); // PDC 短路：不触达玩家分支
     }
 
     @Test

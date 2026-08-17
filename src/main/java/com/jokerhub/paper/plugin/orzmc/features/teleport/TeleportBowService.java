@@ -52,6 +52,10 @@ public final class TeleportBowService {
         player.sendMessage(styles.success("你获得了" + name));
     }
 
+    public void sendDisabledMessage(Player player) {
+        player.sendMessage(texts.logText("传送弓已被禁用，请与管理员联系").color(styles.colorError()));
+    }
+
     public boolean isTPBowArrow(org.bukkit.entity.Projectile proj) {
         if (proj instanceof org.bukkit.entity.Arrow arrow) {
             return arrow.getPersistentDataContainer().has(keyTpBow, org.bukkit.persistence.PersistentDataType.BYTE);
@@ -62,13 +66,20 @@ public final class TeleportBowService {
     /**
      * 标记传送弓箭射出的箭，返回被标记的箭（否则返回 {@code null}）。
      *
-     * @return 被标记的传送弓箭；普通箭或未携带传送弓标记时返回 {@code null}
+     * <p>权限检查在此处（而非 {@code handleShootBow}）：只有真正携带传送弓标记的弓
+     * 才检查 {@code orzmc.tpbow.use}——普通弓/弩射箭不会触发禁用提示。</p>
+     *
+     * @return 被标记的传送弓箭；普通箭、未携带传送弓标记、或无使用权限时返回 {@code null}
      */
     public org.bukkit.entity.Arrow markArrow(org.bukkit.event.entity.EntityShootBowEvent event) {
         org.bukkit.inventory.meta.ItemMeta meta =
                 event.getBow() != null ? event.getBow().getItemMeta() : null;
         if (meta != null
                 && meta.getPersistentDataContainer().has(keyTpBow, org.bukkit.persistence.PersistentDataType.BYTE)) {
+            if (event.getEntity() instanceof Player player && !player.hasPermission(OrzConstants.PERM_TPBOW_USE)) {
+                sendDisabledMessage(player);
+                return null;
+            }
             if (event.getProjectile() instanceof org.bukkit.entity.Arrow arrow) {
                 arrow.getPersistentDataContainer()
                         .set(keyTpBow, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);

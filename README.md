@@ -2,7 +2,7 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-880+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-990+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
@@ -25,7 +25,7 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 |---------|-------------|
 | Permission system (Rank & Review) | 4-level player rank chain (guest → member → builder → admin) powered by LuckPerms with auto-promotion, apply-and-review workflow (`/apply` / `/review` / `$v`), and manual promotion/demotion (`$p`). Zero setup: auto-creates the track and missing groups on startup; degrades gracefully when LuckPerms is absent. |
 | Whitelist management | Control server access. Admins add/remove players via bot commands (`$a` / `$r` / `$w`); inactive players are cleaned up automatically; kicked non-whitelisted players receive a helpful notice. |
-| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 11 bot commands for player management, queries and interaction; 50+ customizable message templates push server events to the matching group or channel. |
+| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 11 bot commands for player management, queries and interaction; console commands (`$e`) return full output to the group — including async plugin output (e.g. Essentials/LuckPerms) captured via a log window, with noise filtering and 30-line truncation; 50+ customizable message templates push server events to the matching group or channel. |
 | Cross-server portals | Admins create or remove portals; players stepping on a portal are transferred across servers. Optional LoginSecurity verification before transfer. |
 | TNT protection | Restrict where TNT can be placed, with per-area whitelist exemption; explosion notifications to the group chat; control respawn anchor explosion behavior. Burst explosions are aggregated into a single alert (`×N` with first-event coordinates) so dispenser/explosion spam never floods the group. |
 | Security controls | Restrict joins by GeoIP country; three blacklist modes (exact IP / CIDR / wildcard); optional LoginSecurity secondary verification. |

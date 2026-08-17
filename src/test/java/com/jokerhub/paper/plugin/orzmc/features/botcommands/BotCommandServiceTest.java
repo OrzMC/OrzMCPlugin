@@ -11,6 +11,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.rank.RankService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.logging.LogCaptureService;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -37,8 +38,11 @@ class BotCommandServiceTest {
         WhitelistConfig whitelistConfig = mock(WhitelistConfig.class);
         when(configs.bot()).thenReturn(botConfig);
         when(configs.whitelist()).thenReturn(whitelistConfig);
-        when(configs.renderTemplate(anyString(), anyMap(), anyString()))
-                .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "response", Format.DEFAULT));
+        when(configs.renderTemplate(anyString(), anyMap(), anyString())).thenAnswer(invocation -> {
+            // 透传 fallback 文本进信封，便于断言实际展示内容（如帮助文本与 usageTip 一致）
+            String fallback = invocation.getArgument(2);
+            return new MessageEnvelope(TargetType.PUBLIC, fallback, Format.DEFAULT);
+        });
         when(serverFacade.logger()).thenReturn(logger);
 
         // Execute async/sync runnables immediately
@@ -57,6 +61,14 @@ class BotCommandServiceTest {
                 })
                 .when(serverFacade)
                 .runSync(any(Runnable.class));
+
+        doAnswer(invocation -> {
+                    Runnable r = invocation.getArgument(0);
+                    r.run();
+                    return null;
+                })
+                .when(serverFacade)
+                .runLater(any(Runnable.class), anyLong());
 
         service = new BotCommandService(serverFacade, configs);
     }
@@ -155,6 +167,97 @@ class BotCommandServiceTest {
 
         service.parse("$e say hello", true, callback);
         verify(callback, atLeastOnce()).accept(any(MessageEnvelope.class));
+    }
+
+    // ---- $e 日志窗口收集（setLogCaptureService 注入后） ----
+
+    @Test
+    void parse_executeConsole_withLogCapture_emitsAssembledOutput() {
+        LogCaptureService capture = mock(LogCaptureService.class);
+        when(capture.watermark()).thenReturn(42L);
+        when(capture.drainSince(42L)).thenReturn(java.util.List.of("async log line"));
+        service.setLogCaptureService(capture);
+
+        when(serverFacade.executeConsoleCommand("say hello"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("say hello", true, java.util.List.of("sync line")));
+
+        service.parse("$e say hello", true, callback);
+
+        org.mockito.ArgumentCaptor<MessageEnvelope> captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        // 同步捕获行在前，日志窗口行在后（合并去重）
+        assertEquals("sync line\nasync log line", captor.getValue().message());
+    }
+
+    @Test
+    void parse_executeConsole_withLogCapture_watermarkTakenBeforeDispatch() {
+        LogCaptureService capture = mock(LogCaptureService.class);
+        when(capture.watermark()).thenReturn(1L);
+        when(capture.drainSince(anyLong())).thenReturn(java.util.List.of());
+        service.setLogCaptureService(capture);
+
+        when(serverFacade.executeConsoleCommand("say hi"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
+
+        service.parse("$e say hi", true, callback);
+
+        // 水位必须在执行命令前取，否则命令自身的日志行会漏出窗口
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(capture, serverFacade);
+        inOrder.verify(capture).watermark();
+        inOrder.verify(serverFacade).executeConsoleCommand("say hi");
+    }
+
+    @Test
+    void parse_executeConsole_withLogCapture_noOutputFallsBackToStatus() {
+        LogCaptureService capture = mock(LogCaptureService.class);
+        when(capture.watermark()).thenReturn(7L);
+        when(capture.drainSince(7L)).thenReturn(java.util.List.of());
+        service.setLogCaptureService(capture);
+
+        when(serverFacade.executeConsoleCommand("say hi"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
+
+        service.parse("$e say hi", true, callback);
+
+        org.mockito.ArgumentCaptor<MessageEnvelope> captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals("命令已执行: say hi", captor.getValue().message());
+    }
+
+    @Test
+    void parse_executeConsole_withLogCapture_filtersIssuedServerCommandNoise() {
+        LogCaptureService capture = mock(LogCaptureService.class);
+        when(capture.watermark()).thenReturn(9L);
+        when(capture.drainSince(9L))
+                .thenReturn(java.util.List.of("Rcon issued server command: /say hi", "real async output"));
+        service.setLogCaptureService(capture);
+
+        when(serverFacade.executeConsoleCommand("say hi"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
+
+        service.parse("$e say hi", true, callback);
+
+        org.mockito.ArgumentCaptor<MessageEnvelope> captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals("real async output", captor.getValue().message());
+    }
+
+    @Test
+    void parse_executeConsole_withLogCapture_bufferOverflow_prependsWarning() {
+        LogCaptureService capture = mock(LogCaptureService.class);
+        when(capture.watermark()).thenReturn(3L);
+        when(capture.drainSince(3L)).thenReturn(java.util.List.of("survived line"));
+        when(capture.hasGapSince(3L)).thenReturn(true);
+        service.setLogCaptureService(capture);
+
+        when(serverFacade.executeConsoleCommand("say hi"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
+
+        service.parse("$e say hi", true, callback);
+
+        org.mockito.ArgumentCaptor<MessageEnvelope> captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals("⚠️ 日志缓冲溢出，输出可能不完整\nsurvived line", captor.getValue().message());
     }
 
     @Test
@@ -379,5 +482,135 @@ class BotCommandServiceTest {
         service.parse("$p d TestMember", false, callback);
         verify(rankService, never()).demote(any(java.util.UUID.class));
         verify(callback, atLeastOnce()).accept(any(MessageEnvelope.class));
+    }
+
+    // ---- parse: $cmd ? 帮助拦截与 fallback 收敛（PR #12 审查 M1/M2 回归护栏） ----
+
+    @Test
+    void parse_backupHelpQuery_emitsUsageWithoutBackup() {
+        var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
+        service.setMaintenanceService(maintenance);
+
+        service.parse("$b ?", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.BACKUP, "$"),
+                captor.getValue().message());
+        verify(maintenance, never()).backup(anyLong(), anyInt(), any());
+    }
+
+    @Test
+    void parse_backupHelpQuerySuffix_emitsUsageWithoutBackup() {
+        // M1：前缀匹配——$b ?x / $b ?? / $b ? 2 均视为帮助请求，绝不执行备份
+        var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
+        service.setMaintenanceService(maintenance);
+
+        service.parse("$b ? 2", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.BACKUP, "$"),
+                captor.getValue().message());
+        verify(maintenance, never()).backup(anyLong(), anyInt(), any());
+    }
+
+    @Test
+    void parse_backupHelpQueryFullWidthSpace_emitsUsageWithoutBackup() {
+        // M1：U+3000 全角空格分隔（Java trim 不去全角空格），归一化后仍触发帮助拦截
+        var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
+        service.setMaintenanceService(maintenance);
+
+        service.parse("$b　?", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.BACKUP, "$"),
+                captor.getValue().message());
+        verify(maintenance, never()).backup(anyLong(), anyInt(), any());
+    }
+
+    @Test
+    void parse_optimizeHelpQuery_emitsUsageWithoutOptimize() {
+        var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
+        service.setMaintenanceService(maintenance);
+
+        service.parse("$o ?", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.OPTIMIZE_WORLD, "$"),
+                captor.getValue().message());
+        verify(maintenance, never()).optimize(anyLong(), any());
+    }
+
+    @Test
+    void parse_permissionBlank_emitsUsageMatchingTip() {
+        var rankService = mock(RankService.class);
+        service.setRankService(rankService);
+        when(rankService.isLuckPermsAvailable()).thenReturn(true);
+
+        service.parse("$p", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.PERMISSION, "$"),
+                captor.getValue().message());
+    }
+
+    @Test
+    void parse_permissionInvalidSubcommand_emitsUsageMatchingTip() {
+        var rankService = mock(RankService.class);
+        service.setRankService(rankService);
+        when(rankService.isLuckPermsAvailable()).thenReturn(true);
+
+        service.parse("$p x", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.PERMISSION, "$"),
+                captor.getValue().message());
+    }
+
+    @Test
+    void parse_reviewBlank_emitsUsageMatchingTip() {
+        service.setReviewService(mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class));
+
+        service.parse("$v", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.REVIEW, "$"),
+                captor.getValue().message());
+    }
+
+    @Test
+    void parse_addWhitelistBlank_emitsUsageMatchingTip() {
+        service.parse("$a", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.ADD_PLAYER_TO_WHITELIST, "$"),
+                captor.getValue().message());
+    }
+
+    @Test
+    void parse_executeConsoleHelpQuery_emitsUsage() {
+        service.parse("$e ?", true, callback);
+        var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertEquals(
+                new BotCommandFeedbackService().usageTip(OrzUserCmd.EXECUTE_CONSOLE_COMMAND, "$"),
+                captor.getValue().message());
+    }
+
+    @Test
+    void parse_executeConsoleQuestionMarkCommand_notHelp() {
+        // M1 $e 特判：控制台命令以 ? 开头（如 "$e ?list"）不算帮助请求，正常执行
+        when(serverFacade.executeConsoleCommand("?list"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("?list", true, java.util.List.of()));
+
+        service.parse("$e ?list", true, callback);
+        verify(serverFacade).executeConsoleCommand("?list");
     }
 }
