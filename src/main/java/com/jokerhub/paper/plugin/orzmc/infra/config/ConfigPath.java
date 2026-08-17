@@ -64,7 +64,13 @@ public final class ConfigPath {
         reg(map, "config", "tnt.enable_respawn_anchor", Boolean.class, false, "启用重生锚检测");
         reg(map, "config", "tnt.place_cooldown", Integer.class, 5, "TNT放置冷却(秒)");
         reg(map, "config", "tnt.notify_aggregate_ms", Long.class, 3000L, "TNT/爆炸告警聚合窗口(毫秒)");
-        reg(map, "config", "tnt.notify_throttle_ms", Long.class, 1000L, "玩家上下线消息限流(毫秒)");
+        // player_notify (config.yml)
+        reg(map, "config", "player_notify.enabled_join", Boolean.class, true, "上线消息通知开关");
+        reg(map, "config", "player_notify.enabled_quit", Boolean.class, true, "下线消息通知开关");
+        reg(map, "config", "player_notify.enabled_kick", Boolean.class, true, "被踢消息通知开关");
+        reg(map, "config", "player_notify.window_ms", Long.class, 3000L, "上下线通知聚合窗口(毫秒)");
+        reg(map, "config", "player_notify.max_list_items", Integer.class, 6, "聚合摘要最多列出的玩家数");
+        reg(map, "config", "player_notify.include_online_list", Boolean.class, false, "聚合摘要是否附带在线列表");
         // command policies (config.yml)
         reg(map, "config", "command_policies.tpbow.cooldown_secs", Integer.class, 3, "传送弓冷却(秒)");
         reg(map, "config", "command_policies.tpbow.admin_only", Boolean.class, false, "传送弓仅管理员可用");

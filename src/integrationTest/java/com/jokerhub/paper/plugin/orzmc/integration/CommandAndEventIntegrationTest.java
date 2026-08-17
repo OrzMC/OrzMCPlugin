@@ -4,9 +4,6 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.assembly.BotModule;
 import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.NotifierSink;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -53,13 +50,21 @@ public class CommandAndEventIntegrationTest {
     @Test
     public void testPlayerJoinEventDispatch() {
         PlayerMock player = server.addPlayer();
+        // addPlayer() 已触发真实 PlayerJoinEvent；通知经聚合延迟一个窗口，先冲刷掉，
+        // 避免与下面手动派发的事件同窗口合并为摘要。
+        server.getScheduler().performTicks(FLUSH_TICKS);
+        sink.clear();
         Assertions.assertDoesNotThrow(
                 () -> server.getPluginManager().callEvent(new PlayerJoinEvent(player, Component.text("hi"))));
+        server.getScheduler().performTicks(FLUSH_TICKS);
         Assertions.assertTrue(
                 sink.keys.stream().anyMatch(k -> k.equals("player_join")), "player_join event not captured");
         Assertions.assertTrue(
                 sink.envelopes.stream().anyMatch(e -> e != null && e.message() != null), "missing event message");
     }
+
+    /** 聚合窗口（config.yml window_ms=3000ms / 50 = 60 ticks），多 1 tick 确保冲刷执行。 */
+    private static final long FLUSH_TICKS = 61;
 
     @Test
     public void testAdminBotCommandCanExecuteConsoleCommand() {
@@ -85,22 +90,5 @@ public class CommandAndEventIntegrationTest {
 
     private static BotModule getBotModule(OrzMC plugin) {
         return plugin.services().botModule();
-    }
-
-    private static final class CapturingSink implements NotifierSink {
-        private final List<String> keys = new ArrayList<>();
-        private final List<MessageEnvelope> envelopes = new ArrayList<>();
-        private final List<Component> serverMessages = new ArrayList<>();
-
-        @Override
-        public void server(Component message) {
-            serverMessages.add(message);
-        }
-
-        @Override
-        public void event(String key, MessageEnvelope envelope) {
-            keys.add(key);
-            envelopes.add(envelope);
-        }
     }
 }

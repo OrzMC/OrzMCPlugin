@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PlayerNotifyConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
@@ -25,6 +26,8 @@ public interface TypedConfigProvider {
     Templates templates();
 
     TntConfig tnt();
+
+    PlayerNotifyConfig playerNotify();
 
     IpWhitelist ipWhitelist();
 

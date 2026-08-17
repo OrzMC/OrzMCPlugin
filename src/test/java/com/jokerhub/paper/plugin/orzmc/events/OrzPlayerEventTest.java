@@ -16,7 +16,11 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.Component;
+import org.bukkit.entity.Player;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerKickEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -50,6 +54,18 @@ class OrzPlayerEventTest extends ServiceTestBase {
     @Mock
     private PlayerProfile profile;
 
+    @Mock
+    private Player player;
+
+    @Mock
+    private PlayerJoinEvent joinEvent;
+
+    @Mock
+    private PlayerQuitEvent quitEvent;
+
+    @Mock
+    private PlayerKickEvent kickEvent;
+
     private OrzPlayerEvent listener;
 
     @BeforeEach
@@ -62,6 +78,9 @@ class OrzPlayerEventTest extends ServiceTestBase {
         when(blacklistService.isBlocked(anyString())).thenReturn(false);
         when(styles.warn(anyString())).thenReturn(Component.text("warn"));
         when(styles.error(anyString())).thenReturn(Component.text("error"));
+        when(joinEvent.getPlayer()).thenReturn(player);
+        when(quitEvent.getPlayer()).thenReturn(player);
+        when(kickEvent.getPlayer()).thenReturn(player);
 
         listener = new OrzPlayerEvent(
                 plugin, geoIpAccessService, blacklistService, service, guideService, styles, maintenanceService);
@@ -134,5 +153,38 @@ class OrzPlayerEventTest extends ServiceTestBase {
         verify(service)
                 .handleGeoIpPreLogin(
                         eq(event), eq("player1"), eq("1.2.3.4"), any(), eq(GeoIpAccessService.DECISION_TIMEOUT_MS));
+    }
+
+    @Test
+    void onPlayerJoin_notifiesJoinState() {
+        listener.onPlayerJoin(joinEvent);
+
+        verify(service).notifyPlayerState(player, PlayerEventService.PlayerState.JOIN);
+    }
+
+    @Test
+    void onPlayerQuit_notifiesQuitState() {
+        listener.onPlayerQuit(quitEvent);
+
+        verify(service).notifyPlayerState(player, PlayerEventService.PlayerState.QUIT);
+    }
+
+    @Test
+    void onPlayerKickLeave_notCancelled_notifiesKick() {
+        when(kickEvent.isCancelled()).thenReturn(false);
+
+        listener.onPlayerKickLeave(kickEvent);
+
+        verify(service).notifyPlayerState(player, PlayerEventService.PlayerState.KICK);
+    }
+
+    @Test
+    void onPlayerKickLeave_cancelled_skipsNotification() {
+        when(kickEvent.isCancelled()).thenReturn(true);
+
+        listener.onPlayerKickLeave(kickEvent);
+
+        // 被取消的踢人：玩家仍在线上，不产生「被踢」通知
+        verify(service, never()).notifyPlayerState(any(), any());
     }
 }

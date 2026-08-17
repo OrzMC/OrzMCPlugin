@@ -15,6 +15,7 @@ public final class TemplateKeys {
     public static final String PLAYER_JOIN = "player_join";
     public static final String PLAYER_KICK = "player_kick";
     public static final String PLAYER_QUIT = "player_quit";
+    public static final String PLAYER_DIGEST = "player_digest";
 
     // ---- 命令事件 ----
     public static final String COMMAND_OUTPUT = "command_output";
@@ -77,7 +78,13 @@ public final class TemplateKeys {
     public static final String PATTERNS = "patterns";
     public static final String MOTD = "motd";
 
-    /** 所有已知的模板事件 key。用于 {@link ConfigHealthCheck} 校验。 */
+    /**
+     * 所有已知的模板事件 key。用于 {@link ConfigHealthCheck} 校验。
+     *
+     * <p>不含 {@link #PLAYER_DIGEST}：它在 {@code Templates} 中有完整 Java 默认模板，
+     * 升级安装（templates.yml 已存在故未复制新默认值）不携带该键即可正常工作；
+     * 纳入 ALL 会要求模板文件提供该键，造成升级后每次启动的持久「缺失」告警。</p>
+     */
     public static final String[] ALL = {
         PLAYER_JOIN,
         PLAYER_KICK,

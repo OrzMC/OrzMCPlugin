@@ -39,8 +39,6 @@ tnt:
   # TNT/爆炸告警聚合窗口(ms)：同一区域(128×128×64区块)同类型事件在窗口内合并为一条告警(带 ×N 和首个坐标)；
   # 既是突发合并也限制持续刷屏频率。单发事件仍立即发，不受窗口延迟。
   notify_aggregate_ms: 3000
-  # 玩家上下线消息限流(ms)：本 key 由 PlayerEventService 读取，与 TNT 告警无关（TNT 限流由 notify_aggregate_ms 承担）。
-  notify_throttle_ms: 1000
   whitelist:
     - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world' }
     - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_nether' }
@@ -66,6 +64,23 @@ geoip:
   # 填写大写两位 ISO 国家码，例如：
   #   allow_country_code: [CN, JP, TW]
   allow_country_code: []
+
+# ==================================================
+#             玩家上下线通知（2026-08-16）
+# ==================================================
+player_notify:
+  # 各类型通知开关：关闭后该类型事件不再产生群消息
+  enabled_join: true
+  enabled_quit: true
+  enabled_kick: true
+  # 聚合窗口(ms)：窗口内所有上下线事件合并为一条消息，限制高频上下线刷屏。
+  # 单条事件仍按原模板单发（延迟一个窗口），多条事件渲染 player_digest 摘要。
+  # 消息频率被限制为最多 1 条/窗口，事件不丢失（逐条精确计数）。
+  window_ms: 3000
+  # 聚合摘要最多列出的玩家名数量，超出用 "+等N人" 截断（仅显示截断，计数不受影响）
+  max_list_items: 6
+  # 聚合摘要是否附带完整在线列表（单条事件模板始终含在线列表，不受此开关影响）
+  include_online_list: false
 
 # ==================================================
 #              实体传送策略（2026-08-09）

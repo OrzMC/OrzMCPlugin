@@ -115,6 +115,9 @@ public final class TemplatePlaceholderValidator {
         m.put("player_join", playerVars);
         m.put("player_quit", playerVars);
         m.put("player_kick", playerVars);
+        m.put(
+                "player_digest",
+                Set.of("join_summary", "quit_summary", "kick_summary", "online_count", "max_count", "online_list"));
         m.put("exception_alert", Set.of("message", "stack_summary"));
         m.put("geoip_block", Set.of("name", "ip", "country_code", "allow_list", "address_info"));
         m.put(

@@ -71,9 +71,18 @@ class ConfigHealthCheckTest {
         config.getConfigurationSection("tnt").set("enable", false);
         config.getConfigurationSection("tnt").set("enable_respawn_anchor", false);
         config.getConfigurationSection("tnt").set("place_cooldown", 5);
-        config.getConfigurationSection("tnt").set("notify_throttle_ms", 1000L);
         config.getConfigurationSection("tnt").set("whitelist", List.of());
         config.getConfigurationSection("tnt").set("exempt_entities", List.of());
+    }
+
+    private void addFullValidConfig_playerNotify() {
+        config.createSection("player_notify");
+        config.getConfigurationSection("player_notify").set("enabled_join", true);
+        config.getConfigurationSection("player_notify").set("enabled_quit", true);
+        config.getConfigurationSection("player_notify").set("enabled_kick", true);
+        config.getConfigurationSection("player_notify").set("window_ms", 3000L);
+        config.getConfigurationSection("player_notify").set("max_list_items", 6);
+        config.getConfigurationSection("player_notify").set("include_online_list", false);
     }
 
     private void addFullValidConfig_geoip() {
@@ -161,7 +170,8 @@ class ConfigHealthCheckTest {
             "command_review_list",
             "command_review_list_empty",
             "command_review_result",
-            "command_review_error"
+            "command_review_error",
+            "player_digest"
         };
         for (String cmd : requiredCmds) {
             templates.set("templates." + cmd, "x");
@@ -215,6 +225,7 @@ class ConfigHealthCheckTest {
         addFullValidConfig_whitelist();
         addFullValidConfig_maintenance();
         addFullValidConfig_tnt();
+        addFullValidConfig_playerNotify();
         addFullValidConfig_geoip();
         addFullValidConfig_commandPolicies();
         addFullValidConfig_bot();
@@ -496,19 +507,6 @@ class ConfigHealthCheckTest {
     }
 
     @Test
-    void tntNegativeNotifyThrottle_reportsIssue() {
-        config.createSection("tnt").set("notify_throttle_ms", -100L);
-        addFullValidConfig_whitelist();
-        addFullValidConfig_maintenance();
-        addFullValidConfig_geoip();
-        addFullValidConfig_commandPolicies();
-        addFullValidConfig_bot();
-        addMinimalValidConfig_templates();
-        List<String> issues = runValidate();
-        assertTrue(issues.contains("非法: tnt.notify_throttle_ms 不得为负数"));
-    }
-
-    @Test
     void tntNonPositiveAggregateWindow_reportsIssue() {
         config.createSection("tnt").set("notify_aggregate_ms", 0L);
         addFullValidConfig_whitelist();
@@ -519,6 +517,66 @@ class ConfigHealthCheckTest {
         addMinimalValidConfig_templates();
         List<String> issues = runValidate();
         assertTrue(issues.contains("非法: tnt.notify_aggregate_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）"));
+    }
+
+    @Test
+    void missingPlayerNotifySection_reportsIssue() {
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("建议: config.yml 缺失 player_notify 配置段，将使用默认配置（窗口 3000ms，三类通知启用）"));
+    }
+
+    @Test
+    void playerNotifyNonPositiveWindow_reportsIssue() {
+        addFullValidConfig_playerNotify();
+        config.getConfigurationSection("player_notify").set("window_ms", -1L);
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("非法: player_notify.window_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）"));
+    }
+
+    @Test
+    void playerNotifyMaxListBelowOne_reportsIssue() {
+        addFullValidConfig_playerNotify();
+        config.getConfigurationSection("player_notify").set("max_list_items", 0);
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("非法: player_notify.max_list_items 不得小于 1"));
+    }
+
+    @Test
+    void playerNotifyWrongToggleTypes_reportIssue() {
+        addFullValidConfig_playerNotify();
+        config.getConfigurationSection("player_notify").set("enabled_join", "yes");
+        config.getConfigurationSection("player_notify").set("include_online_list", 1);
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("类型错误: player_notify.enabled_join 需为布尔值"));
+        assertTrue(issues.contains("类型错误: player_notify.include_online_list 需为布尔值"));
     }
 
     @Test
@@ -942,7 +1000,8 @@ class ConfigHealthCheckTest {
             "command_review_list",
             "command_review_list_empty",
             "command_review_result",
-            "command_review_error"
+            "command_review_error",
+            "player_digest"
         };
         for (String cmd : requiredCmds) {
             templates.set("templates." + cmd, "x");

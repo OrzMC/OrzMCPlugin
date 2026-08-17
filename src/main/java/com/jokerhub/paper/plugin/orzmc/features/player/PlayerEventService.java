@@ -3,16 +3,12 @@ package com.jokerhub.paper.plugin.orzmc.features.player;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
-import com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
-import com.jokerhub.paper.plugin.orzmc.infra.templates.CoordFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.ExceptionFormatter;
 import java.time.Duration;
-import java.util.ArrayList;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 
@@ -27,7 +23,7 @@ public final class PlayerEventService {
     private final OrzTextStyles styles;
     private final Notifier notifier;
     private final ThrottledNotifier throttledNotifier;
-    private final OnlineListFormatter listFormatter;
+    private final PlayerEventAggregator aggregator;
 
     public PlayerEventService(
             ServerFacade server,
@@ -35,13 +31,13 @@ public final class PlayerEventService {
             OrzTextStyles styles,
             Notifier notifier,
             ThrottledNotifier throttledNotifier,
-            OnlineListFormatter listFormatter) {
+            PlayerEventAggregator aggregator) {
         this.server = server;
         this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
         this.throttledNotifier = throttledNotifier;
-        this.listFormatter = listFormatter;
+        this.aggregator = aggregator;
     }
 
     public enum PlayerState {
@@ -151,47 +147,24 @@ public final class PlayerEventService {
         notifier.event("exception_alert", envelope);
     }
 
+    /**
+     * 收纳入队一条上下线广播事件。
+     *
+     * <p>不再直接发送：事件进入 {@link PlayerEventAggregator} 聚合窗口，窗口尾部统一冲刷
+     * （单发走原模板，多发走 {@code player_digest} 摘要）。限流通过窗口合并实现，
+     * 不丢消息——每条事件要么作为唯一事件单条渲染，要么进入摘要被精确计数。</p>
+     */
     public void notifyPlayerState(Player player, PlayerState state) {
-        String key = "player_event|" + player.getUniqueId() + "|" + state.name();
-        if (!throttledNotifier.shouldRunDefault(key)) {
-            return;
-        }
-        ArrayList<Player> onlinePlayers = new ArrayList<>();
-        Object[] objects = server.server().getOnlinePlayers().toArray();
-        for (Object obj : objects) {
-            if (obj instanceof Player p) {
-                onlinePlayers.add(p);
-            }
-        }
-        int onlinePlayerCount = onlinePlayers.size();
-        int maxPlayerCount = server.server().getMaxPlayers();
-        String playerName = listFormatter.line(player);
-        boolean minusCurrent = (state == PlayerState.QUIT || state == PlayerState.KICK);
-        int displayOnlineCount = onlinePlayerCount - (minusCurrent ? 1 : 0);
-        StringBuilder listBuilder = new StringBuilder();
-        for (Player p : onlinePlayers) {
-            if (minusCurrent && p.getUniqueId().equals(player.getUniqueId())) continue;
-            listBuilder.append(listFormatter.line(p)).append("\n");
-        }
-        org.bukkit.Location loc = player.getLocation();
-        String world = loc.getWorld() != null ? loc.getWorld().getName() : "unknown";
-        TemplateOptions opt = configs.templateOptions();
-        // 权限组中文名统一走 RankService.groupDisplayName（唯一事实源），
-        // 不再用模板系统的 role_alias 配置（已删除：与权限组映射重复维护）
-        java.util.Map<String, String> vars = CoordFormatter.format(loc, opt);
-        vars.put("world", world); // 覆盖 CoordFormatter 的别名，保留原始世界名
-        vars.put("name", playerName);
-        vars.put("online_count", String.valueOf(displayOnlineCount));
-        vars.put("max_count", String.valueOf(maxPlayerCount));
-        vars.put("online_list", listBuilder.toString().trim());
-        String eventKey =
-                switch (state) {
-                    case JOIN -> "player_join";
-                    case QUIT -> "player_quit";
-                    case KICK -> "player_kick";
-                };
-        MessageEnvelope envelope = configs.renderEvent(eventKey, vars);
-        notifier.event(eventKey, envelope);
-        server.logger().info(envelope.message());
+        aggregator.enqueue(player, state);
+    }
+
+    /**
+     * 立即冲刷聚合器中挂起的批次（同步）。
+     *
+     * <p>插件禁用/重载时调用：Bukkit 会取消插件待执行任务，窗口尾部调度可能来不及运行，
+     * 此方法保证最后一个窗口的上下线事件在卸载前交付，不静默丢弃。</p>
+     */
+    public void flushPending() {
+        aggregator.flushPending();
     }
 }

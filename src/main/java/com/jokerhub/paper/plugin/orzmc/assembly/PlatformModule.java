@@ -41,7 +41,7 @@ public final class PlatformModule implements ServiceModule {
         this.configs = new DefaultTypedConfigProvider(configService);
         this.textStyles = new OrzTextStyles(configService);
         this.throttledLogger = new ThrottledLogger(configService, plugin.getLogger());
-        this.throttledNotifier = new ThrottledNotifier(configService);
+        this.throttledNotifier = new ThrottledNotifier();
         this.healthRegistry = new HealthRegistry();
         this.logCaptureService = new LogCaptureService(LOG_CAPTURE_CAPACITY);
     }

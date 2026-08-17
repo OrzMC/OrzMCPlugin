@@ -21,6 +21,7 @@ import com.jokerhub.paper.plugin.orzmc.features.command.binding.PlayerOnlyInterc
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuEventService;
+import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventAggregator;
 import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalEventService;
@@ -111,13 +112,15 @@ public final class FeatureModule implements ServiceModule {
         this.geoIpAccessService = new GeoIpAccessService(platform.configs());
         this.blacklistService = new BlacklistService(platform.configService());
         this.guideService = new GuideService(platform.serverFacade(), platform.configService(), platform.textStyles());
+        // 上下线通知：窗口聚合限流（不丢消息），单发走原模板、多发走 player_digest 摘要
         this.playerEventService = new PlayerEventService(
                 platform.serverFacade(),
                 platform.configs(),
                 platform.textStyles(),
                 botModule.notifier(),
                 platform.throttledNotifier(),
-                this.listFormatter);
+                new PlayerEventAggregator(
+                        platform.serverFacade(), platform.configs(), botModule.notifier(), this.listFormatter));
         this.tntEventService = new TntEventService(
                 platform.configs(), platform.textStyles(), botModule.notifier(), platform.serverScheduler());
         this.whitelistEventService =
@@ -866,6 +869,11 @@ public final class FeatureModule implements ServiceModule {
     }
 
     // --- Lifecycle ---
+
+    /** 禁用/重载时同步冲刷上下线聚合批次，避免最后一个窗口的事件被调度器取消而静默丢弃。 */
+    public void flushPlayerNotifications() {
+        playerEventService.flushPending();
+    }
 
     public void notifyServerStop() {
         serverLifecycleService.notifyServerStop();

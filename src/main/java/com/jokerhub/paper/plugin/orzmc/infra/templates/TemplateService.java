@@ -21,6 +21,7 @@ public final class TemplateService {
         if ("player_join".equals(eventKey)) return templates.playerJoin();
         if ("player_quit".equals(eventKey)) return templates.playerQuit();
         if ("player_kick".equals(eventKey)) return templates.playerKick();
+        if ("player_digest".equals(eventKey)) return templates.playerDigest();
         if ("exception_alert".equals(eventKey)) return templates.exceptionAlert();
         if ("geoip_block".equals(eventKey)) return templates.geoipBlock();
         if ("tnt_alert".equals(eventKey)) return templates.tntAlert();

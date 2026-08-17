@@ -3,11 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.integration;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.NotifierSink;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import net.kyori.adventure.text.Component;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -29,6 +25,9 @@ public class WhitelistIntegrationTest {
     public void setUp() {
         server = MockBukkit.mock();
         plugin = MockBukkit.load(OrzMC.class);
+        // 关闭服务端白名单：MockBukkit 会在 PlayerJoinEvent 后把非白名单玩家移出在线列表，
+        // 保持玩家在线的测试语义（与真实服 E2E 的 force_whitelist=false 对齐）。
+        server.setWhitelist(false);
         sink = new CapturingSink();
         plugin.services().botModule().notifier().registerSink(sink);
     }
@@ -87,10 +86,15 @@ public class WhitelistIntegrationTest {
     public void testPlayerJoinCapturedBySink() {
         PlayerMock player = server.addPlayer();
         // addPlayer() triggers PlayerJoinEvent which routes through notifier
+        // 通知经聚合延迟一个窗口，推进调度器触发冲刷
+        server.getScheduler().performTicks(FLUSH_TICKS);
         Assertions.assertFalse(sink.keys.isEmpty(), "Sink should have captured at least one event");
         Assertions.assertTrue(
                 sink.keys.stream().anyMatch(k -> k.equals("player_join")), "player_join should be captured");
     }
+
+    /** 聚合窗口（config.yml window_ms=3000ms / 50 = 60 ticks），多 1 tick 确保冲刷执行。 */
+    private static final long FLUSH_TICKS = 61;
 
     @Test
     public void testWhitelistConfigLoadedFromYaml() {
@@ -103,22 +107,5 @@ public class WhitelistIntegrationTest {
         Assertions.assertTrue(
                 config.forceWhitelist(),
                 "Default force_whitelist should be true when config section is present but empty");
-    }
-
-    private static final class CapturingSink implements NotifierSink {
-        private final List<String> keys = new ArrayList<>();
-        private final List<MessageEnvelope> envelopes = new ArrayList<>();
-        private final List<Component> serverMessages = new ArrayList<>();
-
-        @Override
-        public void server(Component message) {
-            serverMessages.add(message);
-        }
-
-        @Override
-        public void event(String key, MessageEnvelope envelope) {
-            keys.add(key);
-            envelopes.add(envelope);
-        }
     }
 }

@@ -87,6 +87,10 @@ public final class OrzServices {
     }
 
     public void shutdownAll() {
+        // 先冲刷上下线聚合挂起批次（配置/通知器仍存活），再通知服务端关闭：
+        // Bukkit 禁用插件时会取消待执行任务，窗口尾部调度来不及运行，同步冲刷避免静默丢弃
+        featureModule.flushPlayerNotifications();
+
         // 通知服务端关闭
         featureModule.notifyServerStop();
 

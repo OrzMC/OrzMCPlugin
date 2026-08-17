@@ -11,7 +11,7 @@ class ConfigPathTest {
     void all_containsExpectedEntries() {
         Map<String, ConfigPath> all = ConfigPath.all();
         assertNotNull(all);
-        assertEquals(25, all.size());
+        assertEquals(30, all.size());
     }
 
     @Test
@@ -134,7 +134,27 @@ class ConfigPathTest {
         // tnt entries come after maintenance
         assertTrue(keys[7].startsWith("tnt."));
         // bot entries after command_policies
-        assertTrue(keys[18].startsWith("cmd_prompt_char") || keys[18].startsWith("discord_server_link"));
+        assertTrue(keys[24].startsWith("cmd_prompt_char") || keys[24].startsWith("discord_server_link"));
+    }
+
+    @Test
+    void all_containsPlayerNotifyPaths() {
+        Map<String, ConfigPath> all = ConfigPath.all();
+
+        ConfigPath window = all.get("player_notify.window_ms");
+        assertNotNull(window);
+        assertEquals(Long.class, window.type());
+        assertEquals(3000L, window.defaultValue());
+
+        ConfigPath maxList = all.get("player_notify.max_list_items");
+        assertNotNull(maxList);
+        assertEquals(Integer.class, maxList.type());
+        assertEquals(6, maxList.defaultValue());
+
+        ConfigPath includeList = all.get("player_notify.include_online_list");
+        assertNotNull(includeList);
+        assertEquals(Boolean.class, includeList.type());
+        assertEquals(false, includeList.defaultValue());
     }
 
     @Test

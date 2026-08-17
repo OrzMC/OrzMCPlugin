@@ -1,17 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.integration;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
-import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.NotifierSink;
-import java.util.ArrayList;
-import java.util.List;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
@@ -26,6 +19,9 @@ import org.mockbukkit.mockbukkit.entity.PlayerMock;
 @Tag("integration")
 public class EventIntegrationTest {
 
+    /** 玩家上下线通知聚合窗口（config.yml window_ms=3000ms / 50 = 60 ticks），多 1 tick 确保冲刷执行。 */
+    private static final long FLUSH_TICKS = 61;
+
     private ServerMock server;
     private OrzMC plugin;
     private CapturingSink sink;
@@ -34,6 +30,9 @@ public class EventIntegrationTest {
     public void setUp() {
         server = MockBukkit.mock();
         plugin = MockBukkit.load(OrzMC.class);
+        // 关闭服务端白名单：MockBukkit 会在 PlayerJoinEvent 后把非白名单玩家移出在线列表，
+        // 保持玩家在线的测试语义（与真实服 E2E 的 force_whitelist=false 对齐）。
+        server.setWhitelist(false);
         sink = new CapturingSink();
         plugin.services().botModule().notifier().registerSink(sink);
     }
@@ -46,7 +45,8 @@ public class EventIntegrationTest {
     @Test
     public void testPlayerJoinEventTriggersNotification() {
         PlayerMock player = server.addPlayer();
-        // addPlayer() fires PlayerJoinEvent which should be captured by sink
+        // addPlayer() fires PlayerJoinEvent；通知经聚合延迟一个窗口，推进调度器触发冲刷
+        server.getScheduler().performTicks(FLUSH_TICKS);
         Assertions.assertTrue(
                 sink.keys.stream().anyMatch(k -> k.equals("player_join")),
                 "player_join event should be captured after player join");
@@ -55,38 +55,15 @@ public class EventIntegrationTest {
     @Test
     public void testPlayerQuitEventTriggersNotification() {
         PlayerMock player = server.addPlayer();
-        sink.keys.clear();
-        sink.envelopes.clear();
+        server.getScheduler().performTicks(FLUSH_TICKS); // 先冲刷上线，避免与下线同窗口合并为摘要
+        sink.clear();
 
-        Assertions.assertDoesNotThrow(() -> server.getPluginManager()
-                .callEvent(
-                        new PlayerQuitEvent(player, Component.text("bye"), PlayerQuitEvent.QuitReason.DISCONNECTED)));
+        // disconnect() 触发 PlayerQuitEvent 并移出在线列表（与真实服语义一致）
+        Assertions.assertDoesNotThrow(player::disconnect);
 
+        server.getScheduler().performTicks(FLUSH_TICKS); // 冲刷下线
         Assertions.assertTrue(
                 sink.keys.stream().anyMatch(k -> k.equals("player_quit")), "player_quit event should be captured");
-    }
-
-    @Test
-    public void testManualPlayerJoinEventDispatchesNotification() {
-        PlayerMock player = server.addPlayer();
-        // Clear the sink from the auto-generated player_join event from addPlayer()
-        sink.keys.clear();
-        sink.envelopes.clear();
-
-        Assertions.assertDoesNotThrow(
-                () -> server.getPluginManager().callEvent(new PlayerJoinEvent(player, Component.text("welcome back"))));
-
-        // The manual join event fires notifyPlayerState which routes through throttledNotifier.
-        // If the key was recently used (by addPlayer's join), it may be throttled.
-        boolean captured = sink.keys.stream().anyMatch(k -> k.equals("player_join"));
-        if (!captured) {
-            // Throttling is acceptable — the throttled code path was exercised without error.
-            Assertions.assertTrue(true, "Event may be throttled, which is acceptable");
-        } else {
-            Assertions.assertTrue(
-                    sink.envelopes.stream().anyMatch(e -> e != null && e.message() != null),
-                    "Join event should have a message envelope");
-        }
     }
 
     @Test
@@ -142,22 +119,5 @@ public class EventIntegrationTest {
         Assertions.assertDoesNotThrow(
                 () -> server.getPluginManager().callEvent(event),
                 "TNT BlockPlaceEvent should dispatch without exception");
-    }
-
-    private static final class CapturingSink implements NotifierSink {
-        private final List<String> keys = new ArrayList<>();
-        private final List<MessageEnvelope> envelopes = new ArrayList<>();
-        private final List<Component> serverMessages = new ArrayList<>();
-
-        @Override
-        public void server(Component message) {
-            serverMessages.add(message);
-        }
-
-        @Override
-        public void event(String key, MessageEnvelope envelope) {
-            keys.add(key);
-            envelopes.add(envelope);
-        }
     }
 }

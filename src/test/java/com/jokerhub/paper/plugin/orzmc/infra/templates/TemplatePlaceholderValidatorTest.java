@@ -40,4 +40,29 @@ class TemplatePlaceholderValidatorTest {
         assertFalse(issues.isEmpty());
         assertTrue(issues.stream().anyMatch(i -> i.contains("模板变量未知")));
     }
+
+    @Test
+    void playerDigest_knownPlaceholders_pass() {
+        FileConfiguration cfg = mock(FileConfiguration.class);
+        when(cfg.getString(anyString(), anyString())).thenReturn("");
+        when(cfg.getString(eq("templates.player_digest"), anyString()))
+                .thenReturn("{join_summary}{quit_summary}{kick_summary}{online_count}{max_count}{online_list}");
+        when(cfg.get(anyString())).thenReturn(null);
+        when(cfg.contains(anyString())).thenReturn(false);
+
+        List<String> issues = TemplatePlaceholderValidator.validate(cfg);
+        assertTrue(issues.isEmpty());
+    }
+
+    @Test
+    void playerDigest_unknownPlaceholder_reportsError() {
+        FileConfiguration cfg = mock(FileConfiguration.class);
+        when(cfg.getString(anyString(), anyString())).thenReturn("");
+        when(cfg.getString(eq("templates.player_digest"), anyString())).thenReturn("{bogus_var}");
+        when(cfg.get(anyString())).thenReturn(null);
+        when(cfg.contains(anyString())).thenReturn(false);
+
+        List<String> issues = TemplatePlaceholderValidator.validate(cfg);
+        assertTrue(issues.stream().anyMatch(i -> i.contains("模板变量未知")));
+    }
 }

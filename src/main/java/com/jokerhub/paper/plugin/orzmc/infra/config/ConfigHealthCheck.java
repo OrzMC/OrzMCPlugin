@@ -34,6 +34,7 @@ public final class ConfigHealthCheck {
         validateWhitelistSection(cfg.getConfigurationSection("whitelist"), issues);
         validateMaintenanceSection(cfg.getConfigurationSection("maintenance"), issues);
         validateTntSection(cfg.getConfigurationSection("tnt"), issues);
+        validatePlayerNotifySection(cfg.getConfigurationSection("player_notify"), issues);
         validateGeoIpSection(cfg.getConfigurationSection("geoip"), issues);
         validateCommandPoliciesSection(cfg.getConfigurationSection("command_policies"), issues);
     }
@@ -90,14 +91,32 @@ public final class ConfigHealthCheck {
             issues.add("类型错误: tnt.enable_respawn_anchor 需为布尔值");
         int cd = section.getInt("place_cooldown", 0);
         if (cd < 0) issues.add("非法: tnt.place_cooldown 不得为负数");
-        long thr = section.getLong("notify_throttle_ms", 1000L);
-        if (thr < 0) issues.add("非法: tnt.notify_throttle_ms 不得为负数");
         long agg = section.getLong("notify_aggregate_ms", 3000L);
         if (agg <= 0) issues.add("非法: tnt.notify_aggregate_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）");
         Object wl = section.get("whitelist");
         if (wl != null && !(wl instanceof List<?>)) issues.add("类型错误: tnt.whitelist 需为列表");
         Object exempt = section.get("exempt_entities");
         if (exempt != null && !(exempt instanceof List<?>)) issues.add("类型错误: tnt.exempt_entities 需为列表");
+    }
+
+    private static void validatePlayerNotifySection(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            // 降级为建议：默认配置完整可用，仅升级安装（config.yml 存在故未复制新默认值）会缺此段，
+            // 属提示而非缺陷，避免升级后每次启动的持久告警
+            issues.add("建议: config.yml 缺失 player_notify 配置段，将使用默认配置（窗口 3000ms，三类通知启用）");
+            return;
+        }
+        for (String key : new String[] {"enabled_join", "enabled_quit", "enabled_kick"}) {
+            Object en = section.get(key);
+            if (en != null && !(en instanceof Boolean)) issues.add("类型错误: player_notify." + key + " 需为布尔值");
+        }
+        long window = section.getLong("window_ms", 3000L);
+        if (window <= 0) issues.add("非法: player_notify.window_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）");
+        int maxList = section.getInt("max_list_items", 6);
+        if (maxList < 1) issues.add("非法: player_notify.max_list_items 不得小于 1");
+        Object include = section.get("include_online_list");
+        if (include != null && !(include instanceof Boolean))
+            issues.add("类型错误: player_notify.include_online_list 需为布尔值");
     }
 
     private static void validateGeoIpSection(ConfigurationSection section, List<String> issues) {
