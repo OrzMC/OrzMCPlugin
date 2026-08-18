@@ -6,9 +6,11 @@ import static org.mockito.Mockito.*;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
+import io.papermc.paper.threadedregions.scheduler.AsyncScheduler;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import java.util.function.Consumer;
 import org.bukkit.Server;
 import org.bukkit.event.server.RemoteServerCommandEvent;
-import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -17,6 +19,9 @@ import org.mockito.Mock;
 /**
  * orzdebug RCON 通道测试：游戏内/控制台走 Brigadier executes 直调（FeatureModule），
  * 本类仅监听 RemoteServerCommandEvent（RCON 不走 Brigadier）。
+ *
+ * <p>异步派发经 {@link OrzBaseListener#serverFacade()} 门面（Paper/Folia 兼容），
+ * 因此断言目标是 {@link AsyncScheduler#runNow} 而非 BukkitScheduler。
  */
 class OrzDebugEventTest extends ServiceTestBase {
 
@@ -33,7 +38,7 @@ class OrzDebugEventTest extends ServiceTestBase {
     private Server server;
 
     @Mock
-    private BukkitScheduler scheduler;
+    private AsyncScheduler asyncScheduler;
 
     private OrzDebugEvent listener;
 
@@ -55,13 +60,14 @@ class OrzDebugEventTest extends ServiceTestBase {
     void rconDebugHandler_debugCommand_dispatchesAsync() {
         when(event.getCommand()).thenReturn("orzdebug hello $a");
         when(plugin.getServer()).thenReturn(server);
-        when(server.getScheduler()).thenReturn(scheduler);
+        when(server.getAsyncScheduler()).thenReturn(asyncScheduler);
 
         listener.rconDebugHandler(event);
 
-        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler).runTaskAsynchronously(eq(plugin), captor.capture());
-        captor.getValue().run();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<ScheduledTask>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(asyncScheduler).runNow(eq(plugin), captor.capture());
+        captor.getValue().accept(mock(ScheduledTask.class));
         verify(inboundHandler).handleMessage(eq("hello $a"), eq(true), eq("RCON"), any());
     }
 
@@ -69,13 +75,14 @@ class OrzDebugEventTest extends ServiceTestBase {
     void rconDebugHandler_leadingSlash_stripped() {
         when(event.getCommand()).thenReturn("/orzdebug $l");
         when(plugin.getServer()).thenReturn(server);
-        when(server.getScheduler()).thenReturn(scheduler);
+        when(server.getAsyncScheduler()).thenReturn(asyncScheduler);
 
         listener.rconDebugHandler(event);
 
-        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler).runTaskAsynchronously(eq(plugin), captor.capture());
-        captor.getValue().run();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<ScheduledTask>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(asyncScheduler).runNow(eq(plugin), captor.capture());
+        captor.getValue().accept(mock(ScheduledTask.class));
         verify(inboundHandler).handleMessage(eq("$l"), eq(true), eq("RCON"), any());
     }
 
@@ -83,13 +90,14 @@ class OrzDebugEventTest extends ServiceTestBase {
     void rconDebugHandler_emptyBody_dispatchesEmpty() {
         when(event.getCommand()).thenReturn("orzdebug   ");
         when(plugin.getServer()).thenReturn(server);
-        when(server.getScheduler()).thenReturn(scheduler);
+        when(server.getAsyncScheduler()).thenReturn(asyncScheduler);
 
         listener.rconDebugHandler(event);
 
-        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler).runTaskAsynchronously(eq(plugin), captor.capture());
-        captor.getValue().run();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<ScheduledTask>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(asyncScheduler).runNow(eq(plugin), captor.capture());
+        captor.getValue().accept(mock(ScheduledTask.class));
         verify(inboundHandler).handleMessage(eq(""), eq(true), eq("RCON"), any());
     }
 }

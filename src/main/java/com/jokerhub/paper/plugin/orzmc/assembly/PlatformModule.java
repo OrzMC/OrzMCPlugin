@@ -5,6 +5,8 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.DefaultTypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
@@ -34,6 +36,10 @@ public final class PlatformModule implements ServiceModule {
     private final HealthRegistry healthRegistry;
     private final LogCaptureService logCaptureService;
     private OrzLog4JCaptureAppender logCaptureAppender;
+    /** 危险命令判定核心（安全加固）：BotModule（$e）与 FeatureModule（事件）共享同一实例。 */
+    private final CommandGuardService commandGuardService;
+    /** 命令审计日志（安全加固 P0-4）：audit/command_audit.log，全入口共享同一实例。 */
+    private final CommandAuditService commandAuditService;
 
     public PlatformModule(OrzMC plugin) {
         this.serverFacade = new ServerFacade(plugin);
@@ -44,6 +50,13 @@ public final class PlatformModule implements ServiceModule {
         this.throttledNotifier = new ThrottledNotifier();
         this.healthRegistry = new HealthRegistry();
         this.logCaptureService = new LogCaptureService(LOG_CAPTURE_CAPACITY);
+        // 危险命令 guard + 审计：零 Bukkit 依赖的纯服务，由平台模块统一持有（配置热重载经 Supplier 生效）
+        this.commandGuardService = new CommandGuardService(() -> configs.securityGuard());
+        this.commandAuditService = new CommandAuditService(
+                () -> configs.securityGuard().auditEnabled(),
+                configService.dataFolder().toPath().resolve("audit"),
+                CommandAuditService.DEFAULT_MAX_BYTES,
+                plugin.getLogger());
     }
 
     /** 日志环形缓冲容量（$e 命令输出窗口收集）。 */
@@ -138,5 +151,13 @@ public final class PlatformModule implements ServiceModule {
 
     public LogCaptureService logCaptureService() {
         return logCaptureService;
+    }
+
+    public CommandGuardService commandGuardService() {
+        return commandGuardService;
+    }
+
+    public CommandAuditService commandAuditService() {
+        return commandAuditService;
     }
 }

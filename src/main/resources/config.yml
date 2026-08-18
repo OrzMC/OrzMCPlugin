@@ -28,6 +28,9 @@ maintenance:
   optimize_tick_time_threshold: 300
   backup_retention_count: 5
   backup_maintenance_motd: "服务器维护中，稍后再试"
+  # 定时自动备份间隔（小时）：0 = 关闭；>0 表示每 N 小时自动备份一次。
+  # 该字段支持 /config reload 热重载：修改后无需重启，下一个检查点（每分钟）即生效。
+  backup_interval_hours: 0
 
 # ==================================================
 #                   TNT 检查配置
@@ -109,3 +112,96 @@ command_policies:
   portal:
     cooldown_secs: 5
     admin_only: true
+
+# ==================================================
+#             危险命令拦截（安全加固）
+# ==================================================
+# 高危命令 deny-list：命中即拦截执行并（可选）私信管理员。
+# 覆盖站点文章《PaperMC 危险指令与防护》中的核心高危项：
+#   op/deop —— 误给 OP / 影子管理员
+#   publish —— 绕过 online-mode 认证
+#   seed    —— 泄露世界种子
+#   reload  —— Bukkit 热重载造成状态错乱
+#   plugman —— 插件热重载同类问题
+#   stop    —— 未经确认的停服
+guard:
+  # 总开关：关闭后危险命令拦截/审计全部停用
+  enabled: true
+  # 高危命令 deny-list（小写命令名，支持子命令项，如 plugman reload）
+  blocked_commands:
+    - op
+    - deop
+    - publish
+    - seed
+    - reload
+    - plugman
+    - stop
+  # 拦截时是否私信管理员（PRIVATE 路由）
+  notify_admins: true
+  # 是否记录命令审计到 audit/command_audit.log
+  audit_enabled: true
+
+# ==================================================
+#             聊天反垃圾/反广告（安全加固）
+# ==================================================
+# 在异步聊天事件（AsyncChatEvent）上做三类拦截，命中即丢弃该条消息：
+#   max_messages_per_minute —— 60s 滑动窗口内最多发言条数（限流）
+#   detect_links            —— 检测并丢弃含链接（http/https/www.）的消息（反广告）
+#   detect_repeat           —— 检测并丢弃与本人上一条完全相同的消息（反刷屏）
+# 命中任一规则即取消该条聊天并给玩家发送 message 提示。
+chat:
+  # 总开关：关闭后聊天过滤全部停用
+  enabled: true
+  # 每分钟最多发言条数（60s 滑动窗口）
+  max_messages_per_minute: 6
+  # 是否丢弃含链接的消息
+  detect_links: true
+  # 是否丢弃与上一条完全相同的重复消息
+  detect_repeat: true
+  # 命中时的提示文案
+  message: "请勿刷屏或发送广告"
+
+# ==================================================
+#             进服限流/反 bot（安全加固）
+# ==================================================
+# 在异步登录事件（AsyncPlayerPreLoginEvent）上按 IP 做两类拦截，命中即拒绝进入：
+#   max_login_attempts_per_minute —— 60s 滑动窗口内最多登录尝试次数（频率，反 bot 群刷）
+#   max_concurrent_per_ip        —— 同 IP 最大在线上限（并发，反多开/alt 农场）
+# 命中时按 notify_admins 配置 PRIVATE 私信管理员，并给玩家发送 message 提示。
+login_rate_limit:
+  # 总开关：关闭后进服限流全部停用
+  enabled: true
+  # 每分钟最多登录尝试次数（60s 滑动窗口）
+  max_login_attempts_per_minute: 5
+  # 同 IP 最大在线上限
+  max_concurrent_per_ip: 3
+  # 命中时是否 PRIVATE 私信管理员
+  notify_admins: true
+  # 命中时的提示文案
+  message: "登录过于频繁，请稍后再试"
+
+# ==================================================
+#             已知漏洞加固（安全加固 P2-3）
+# ==================================================
+# 三类已知利用的插件侧兜底（对应站点文章《PaperMC 开放服务器检查清单》§4）：
+#   book_enabled / book_max_pages           —— 书与笔页数上限（防超大书页/大量书崩溃）
+#   item_enabled / item_max_attribute_modifiers —— 物品属性修饰符数量上限（防 32k：NBT 叠加超量属性）
+#   entity_enabled / entity_max_per_chunk   —— 单区块实体数上限（防卡服机，到达上限后拒绝新的实体生成，
+#                                              掉落物/抛射物豁免）
+# 命中书页/物品规则时按 notify_admins 配置 PRIVATE 私信管理员，并给玩家发送 message 提示。
+exploit_hardening:
+  # 总开关：关闭后漏洞加固全部停用
+  enabled: true
+  # 书与笔：每本最多页数（关闭请用 book_enabled=false）
+  book_enabled: true
+  book_max_pages: 100
+  # 物品：属性修饰符数量上限（关闭请用 item_enabled=false）
+  item_enabled: true
+  item_max_attribute_modifiers: 6
+  # 实体：单区块实体数上限（关闭请用 entity_enabled=false）
+  entity_enabled: true
+  entity_max_per_chunk: 128
+  # 命中书页/物品时是否 PRIVATE 私信管理员（实体拦截静默，防刷屏）
+  notify_admins: true
+  # 命中时的提示文案
+  message: "检测到异常内容，已自动处理"

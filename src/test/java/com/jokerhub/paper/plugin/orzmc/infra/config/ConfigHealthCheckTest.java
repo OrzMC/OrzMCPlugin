@@ -89,6 +89,45 @@ class ConfigHealthCheckTest {
         config.createSection("geoip").set("allow_country_code", List.of("CN", "HK"));
     }
 
+    private void addFullValidConfig_guard() {
+        config.createSection("guard");
+        config.getConfigurationSection("guard").set("enabled", true);
+        config.getConfigurationSection("guard").set("notify_admins", true);
+        config.getConfigurationSection("guard").set("audit_enabled", true);
+        config.getConfigurationSection("guard").set("blocked_commands", List.of("op", "reload"));
+    }
+
+    private void addFullValidConfig_chat() {
+        config.createSection("chat");
+        config.getConfigurationSection("chat").set("enabled", true);
+        config.getConfigurationSection("chat").set("max_messages_per_minute", 6);
+        config.getConfigurationSection("chat").set("detect_links", true);
+        config.getConfigurationSection("chat").set("detect_repeat", true);
+        config.getConfigurationSection("chat").set("message", "请勿刷屏或发送广告");
+    }
+
+    private void addFullValidConfig_exploitHardening() {
+        config.createSection("exploit_hardening");
+        config.getConfigurationSection("exploit_hardening").set("enabled", true);
+        config.getConfigurationSection("exploit_hardening").set("book_enabled", true);
+        config.getConfigurationSection("exploit_hardening").set("book_max_pages", 100);
+        config.getConfigurationSection("exploit_hardening").set("item_enabled", true);
+        config.getConfigurationSection("exploit_hardening").set("item_max_attribute_modifiers", 6);
+        config.getConfigurationSection("exploit_hardening").set("entity_enabled", true);
+        config.getConfigurationSection("exploit_hardening").set("entity_max_per_chunk", 128);
+        config.getConfigurationSection("exploit_hardening").set("notify_admins", true);
+        config.getConfigurationSection("exploit_hardening").set("message", "检测到异常内容，已自动处理");
+    }
+
+    private void addFullValidConfig_loginRateLimit() {
+        config.createSection("login_rate_limit");
+        config.getConfigurationSection("login_rate_limit").set("enabled", true);
+        config.getConfigurationSection("login_rate_limit").set("max_login_attempts_per_minute", 5);
+        config.getConfigurationSection("login_rate_limit").set("max_concurrent_per_ip", 3);
+        config.getConfigurationSection("login_rate_limit").set("notify_admins", true);
+        config.getConfigurationSection("login_rate_limit").set("message", "登录过于频繁，请稍后再试");
+    }
+
     private void addFullValidConfig_commandPolicies() {
         config.createSection("command_policies");
         config.getConfigurationSection("command_policies").createSection("tpbow");
@@ -228,6 +267,10 @@ class ConfigHealthCheckTest {
         addFullValidConfig_playerNotify();
         addFullValidConfig_geoip();
         addFullValidConfig_commandPolicies();
+        addFullValidConfig_guard();
+        addFullValidConfig_chat();
+        addFullValidConfig_loginRateLimit();
+        addFullValidConfig_exploitHardening();
         addFullValidConfig_bot();
         addFullValidConfig_templates();
         List<String> issues = runValidate();
@@ -577,6 +620,154 @@ class ConfigHealthCheckTest {
         List<String> issues = runValidate();
         assertTrue(issues.contains("类型错误: player_notify.enabled_join 需为布尔值"));
         assertTrue(issues.contains("类型错误: player_notify.include_online_list 需为布尔值"));
+    }
+
+    @Test
+    void missingGuardSection_reportsSuggestion() {
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        // no guard section
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("建议: config.yml 缺失 guard 配置段，将使用默认配置（危险命令拦截开启）"));
+    }
+
+    @Test
+    void missingChatSection_reportsSuggestion() {
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        // no chat section
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("建议: config.yml 缺失 chat 配置段，将使用默认配置（聊天反垃圾开启）"));
+    }
+
+    @Test
+    void missingLoginRateLimitSection_reportsSuggestion() {
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        // no login_rate_limit section
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("建议: config.yml 缺失 login_rate_limit 配置段，将使用默认配置（进服限流开启）"));
+    }
+
+    @Test
+    void loginRateLimitWrongTypes_reportIssues() {
+        config.createSection("login_rate_limit").set("enabled", "yes");
+        config.getConfigurationSection("login_rate_limit").set("max_login_attempts_per_minute", 0);
+        config.getConfigurationSection("login_rate_limit").set("max_concurrent_per_ip", 0);
+        config.getConfigurationSection("login_rate_limit").set("notify_admins", "yes");
+        config.getConfigurationSection("login_rate_limit").set("message", "");
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("类型错误: login_rate_limit.enabled 需为布尔值"));
+        assertTrue(issues.contains("非法: login_rate_limit.max_login_attempts_per_minute 不得小于 1"));
+        assertTrue(issues.contains("非法: login_rate_limit.max_concurrent_per_ip 不得小于 1"));
+        assertTrue(issues.contains("类型错误: login_rate_limit.notify_admins 需为布尔值"));
+        assertTrue(issues.contains("缺失: login_rate_limit.message 不可为空"));
+    }
+
+    @Test
+    void missingExploitHardeningSection_reportsSuggestion() {
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        // no exploit_hardening section
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("建议: config.yml 缺失 exploit_hardening 配置段，将使用默认配置（漏洞加固开启）"));
+    }
+
+    @Test
+    void exploitHardeningWrongTypes_reportIssues() {
+        config.createSection("exploit_hardening").set("enabled", "yes");
+        config.getConfigurationSection("exploit_hardening").set("book_enabled", "yes");
+        config.getConfigurationSection("exploit_hardening").set("book_max_pages", 0);
+        config.getConfigurationSection("exploit_hardening").set("item_max_attribute_modifiers", 0);
+        config.getConfigurationSection("exploit_hardening").set("entity_enabled", "yes");
+        config.getConfigurationSection("exploit_hardening").set("entity_max_per_chunk", 0);
+        config.getConfigurationSection("exploit_hardening").set("notify_admins", "yes");
+        config.getConfigurationSection("exploit_hardening").set("message", "");
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("类型错误: exploit_hardening.enabled 需为布尔值"));
+        assertTrue(issues.contains("类型错误: exploit_hardening.book_enabled 需为布尔值"));
+        assertTrue(issues.contains("非法: exploit_hardening.book_max_pages 不得小于 1"));
+        assertTrue(issues.contains("非法: exploit_hardening.item_max_attribute_modifiers 不得小于 1"));
+        assertTrue(issues.contains("类型错误: exploit_hardening.entity_enabled 需为布尔值"));
+        assertTrue(issues.contains("非法: exploit_hardening.entity_max_per_chunk 不得小于 1"));
+        assertTrue(issues.contains("类型错误: exploit_hardening.notify_admins 需为布尔值"));
+        assertTrue(issues.contains("缺失: exploit_hardening.message 不可为空"));
+    }
+
+    @Test
+    void chatWrongTypes_reportIssues() {
+        config.createSection("chat").set("enabled", "yes");
+        config.getConfigurationSection("chat").set("max_messages_per_minute", 0);
+        config.getConfigurationSection("chat").set("detect_links", "yes");
+        config.getConfigurationSection("chat").set("detect_repeat", 1);
+        config.getConfigurationSection("chat").set("message", "");
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("类型错误: chat.enabled 需为布尔值"));
+        assertTrue(issues.contains("非法: chat.max_messages_per_minute 不得小于 1"));
+        assertTrue(issues.contains("类型错误: chat.detect_links 需为布尔值"));
+        assertTrue(issues.contains("类型错误: chat.detect_repeat 需为布尔值"));
+        assertTrue(issues.contains("缺失: chat.message 不可为空"));
+    }
+
+    @Test
+    void guardWrongTypes_reportIssues() {
+        config.createSection("guard").set("enabled", "yes");
+        config.getConfigurationSection("guard").set("notify_admins", "yes");
+        config.getConfigurationSection("guard").set("audit_enabled", 1);
+        config.getConfigurationSection("guard").set("blocked_commands", "op,reload");
+        addFullValidConfig_whitelist();
+        addFullValidConfig_maintenance();
+        addFullValidConfig_tnt();
+        addFullValidConfig_geoip();
+        addFullValidConfig_commandPolicies();
+        addFullValidConfig_bot();
+        addMinimalValidConfig_templates();
+        List<String> issues = runValidate();
+        assertTrue(issues.contains("类型错误: guard.enabled 需为布尔值"));
+        assertTrue(issues.contains("类型错误: guard.notify_admins 需为布尔值"));
+        assertTrue(issues.contains("类型错误: guard.audit_enabled 需为布尔值"));
+        assertTrue(issues.contains("类型错误: guard.blocked_commands 需为列表"));
     }
 
     @Test

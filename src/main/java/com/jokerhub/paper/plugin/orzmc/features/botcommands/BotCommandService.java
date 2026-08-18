@@ -7,6 +7,8 @@ import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceServ
 import com.jokerhub.paper.plugin.orzmc.features.rank.RankService;
 import com.jokerhub.paper.plugin.orzmc.features.review.ReviewService;
 import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardService;
 import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
@@ -35,6 +37,10 @@ public final class BotCommandService implements BotInboundHandler {
     private com.jokerhub.paper.plugin.orzmc.features.review.ReviewService reviewService;
     private com.jokerhub.paper.plugin.orzmc.features.rank.RankService rankService;
     private LogCaptureService logCaptureService;
+    /** 危险命令判定核心（安全加固 P0-5）：$e 控制台执行前过 guard。未注入时放行（向后兼容测试）。 */
+    private CommandGuardService commandGuardService;
+    /** 命令审计日志（安全加固 P0-4）：$e 路径记录 bot 来源审计。 */
+    private CommandAuditService commandAuditService;
 
     /** $e 日志收集窗口：40 tick ≈ 2 秒（按 20 TPS 推算，覆盖大多数插件异步命令输出）。 */
     private static final long CONSOLE_OUTPUT_COLLECT_TICKS = 40L;
@@ -73,7 +79,7 @@ public final class BotCommandService implements BotInboundHandler {
                 Map.entry(OrzUserCmd.PERMISSION, (c, a, s, cb, r) -> handlePermission(c, a, cb, r)),
                 Map.entry(
                         OrzUserCmd.EXECUTE_CONSOLE_COMMAND,
-                        (c, a, s, cb, r) -> handleExecuteConsoleCommand(c, a, cb, r)));
+                        (c, a, s, cb, r) -> handleExecuteConsoleCommand(c, a, s, cb, r)));
     }
 
     public void setMaintenanceService(WorldMaintenanceService maintenanceService) {
@@ -100,6 +106,12 @@ public final class BotCommandService implements BotInboundHandler {
     /** 注入日志窗口收集服务（$e 命令输出兜底）。未注入时 $e 退化为仅返回执行状态。 */
     public void setLogCaptureService(LogCaptureService logCaptureService) {
         this.logCaptureService = logCaptureService;
+    }
+
+    /** 注入危险命令 guard 与审计（安全加固 P0-5）。未注入时 $e 按原路径直接执行（测试向后兼容）。 */
+    public void setCommandGuard(CommandGuardService commandGuardService, CommandAuditService commandAuditService) {
+        this.commandGuardService = commandGuardService;
+        this.commandAuditService = commandAuditService;
     }
 
     @Override
@@ -208,7 +220,7 @@ public final class BotCommandService implements BotInboundHandler {
         server.runAsync(() -> {
             try {
                 WhitelistConfig whitelistConfig = configs.whitelist();
-                WhitelistService svc = WhitelistService.defaultImpl();
+                WhitelistService svc = WhitelistService.defaultImpl(server.plugin());
                 int delayTicks = Math.max(0, whitelistConfig.paginationDelayTicks());
                 Integer page = parsePageArg(rawArgs);
                 if (isAdmin) {
@@ -243,7 +255,7 @@ public final class BotCommandService implements BotInboundHandler {
         Set<String> userNames = parseArgs(rawArgs);
         if (!guardWhitelistCommand(cmd, isAdmin, userNames, callback)) return;
         server.runSync(() -> {
-            WhitelistService svc = WhitelistService.defaultImpl();
+            WhitelistService svc = WhitelistService.defaultImpl(server.plugin());
             String message = svc.addPlayers(server.server(), userNames);
             emit(callback, "command_whitelist_add_result", Map.of("message", message), message);
         });
@@ -254,7 +266,7 @@ public final class BotCommandService implements BotInboundHandler {
         Set<String> userNames = parseArgs(rawArgs);
         if (!guardWhitelistCommand(cmd, isAdmin, userNames, callback)) return;
         server.runSync(() -> {
-            WhitelistService svc = WhitelistService.defaultImpl();
+            WhitelistService svc = WhitelistService.defaultImpl(server.plugin());
             String message = svc.removePlayers(server.server(), userNames);
             emit(callback, "command_whitelist_remove_result", Map.of("message", message), message);
         });
@@ -285,7 +297,7 @@ public final class BotCommandService implements BotInboundHandler {
     // ---- Console command ----
 
     private void handleExecuteConsoleCommand(
-            OrzUserCmd cmd, boolean isAdmin, Consumer<MessageEnvelope> callback, String rawArgs) {
+            OrzUserCmd cmd, boolean isAdmin, String senderName, Consumer<MessageEnvelope> callback, String rawArgs) {
         if (!guardAdminCommand(cmd, isAdmin, callback)) return;
         if (rawArgs.isBlank()) {
             emitUsage(
@@ -293,6 +305,22 @@ public final class BotCommandService implements BotInboundHandler {
                     feedbackService.usageTip(
                             OrzUserCmd.EXECUTE_CONSOLE_COMMAND, botConfig().cmdPromptChar()));
             return;
+        }
+        // 安全加固 P0-5：$e 控制台执行前过 guard。BLOCK → 拦截 + 审计 blocked，不执行；
+        // WARN/ALLOW → 审计 executed 后照常执行。guard 未注入时直接执行（测试向后兼容）。
+        String auditSender = senderName == null ? CommandAuditService.SOURCE_BOT : senderName;
+        CommandGuardService.GuardDecision decision = commandGuardService == null
+                ? CommandGuardService.GuardDecision.allow()
+                : commandGuardService.guard(rawArgs);
+        if (decision.blocked()) {
+            if (commandAuditService != null) {
+                commandAuditService.record(CommandAuditService.SOURCE_BOT, auditSender, rawArgs, true);
+            }
+            emit(callback, "command_output", Map.of("message", decision.reason()), decision.reason());
+            return;
+        }
+        if (commandAuditService != null) {
+            commandAuditService.record(CommandAuditService.SOURCE_BOT, auditSender, rawArgs, false);
         }
         server.runSync(() -> {
             if (logCaptureService == null) {

@@ -6,14 +6,22 @@ import static io.papermc.paper.command.brigadier.Commands.literal;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzConfigCommand;
 import com.jokerhub.paper.plugin.orzmc.events.OrzBowShootEvent;
+import com.jokerhub.paper.plugin.orzmc.events.OrzChatEvent;
+import com.jokerhub.paper.plugin.orzmc.events.OrzCommandGuardEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzDebugEvent;
+import com.jokerhub.paper.plugin.orzmc.events.OrzExploitHardeningEvent;
+import com.jokerhub.paper.plugin.orzmc.events.OrzLoginRateLimitEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzMenuEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzPlayerEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzPortalEvent;
+import com.jokerhub.paper.plugin.orzmc.events.OrzSecurityAuditEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzServerEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzTNTEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzTPEvent;
 import com.jokerhub.paper.plugin.orzmc.events.OrzWhiteListEvent;
+import com.jokerhub.paper.plugin.orzmc.features.chat.ChatSpamFilterEventService;
+import com.jokerhub.paper.plugin.orzmc.features.chat.ChatSpamFilterService;
+import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CooldownInterceptor;
@@ -26,10 +34,17 @@ import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalEventService;
 import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardEventService;
+import com.jokerhub.paper.plugin.orzmc.features.security.ExploitHardeningEventService;
+import com.jokerhub.paper.plugin.orzmc.features.security.ExploitHardeningService;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
+import com.jokerhub.paper.plugin.orzmc.features.security.LoginRateLimitEventService;
+import com.jokerhub.paper.plugin.orzmc.features.security.LoginRateLimitService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.server.ServerLifecycleService;
+import com.jokerhub.paper.plugin.orzmc.features.server.StartupSecurityAuditService;
 import com.jokerhub.paper.plugin.orzmc.features.teleport.EntityTeleportPolicyService;
 import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowEventService;
 import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowService;
@@ -72,6 +87,11 @@ public final class FeatureModule implements ServiceModule {
 
     private final GeoIpAccessService geoIpAccessService;
     private final BlacklistService blacklistService;
+    /** 命令审计日志（安全加固 P0-4）：audit/command_audit.log，超限轮转。 */
+    private final CommandAuditService commandAuditService;
+    /** 危险命令拦截（安全加固 P0-3）：玩家聊天栏 + 控制台命令统一过 guard。 */
+    private final CommandGuardEventService commandGuardEventService;
+
     private final GuideService guideService;
     /** 在线玩家列表格式化（$l 命令与上下线广播共用，rankService 创建后注入）。 */
     private final com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter listFormatter =
@@ -87,6 +107,15 @@ public final class FeatureModule implements ServiceModule {
     private final ServerFeedbackService serverFeedbackService;
     private final ServerEventService serverEventService;
     private final ServerLifecycleService serverLifecycleService;
+    /** 启动安全自检报告（安全加固 P1-2）：ServerLoadEvent 时采集配置 PRIVATE 私信管理员。 */
+    private final StartupSecurityAuditService startupSecurityAuditService;
+    /** 聊天反垃圾（安全加固 P2-1）：AsyncChatEvent 按玩家限流 + 链接/重复检测。 */
+    private final ChatSpamFilterEventService chatSpamFilterEventService;
+    /** 进服限流/反 bot（安全加固 P2-2）：AsyncPlayerPreLoginEvent 按 IP 限频率/并发。 */
+    private final LoginRateLimitEventService loginRateLimitEventService;
+    /** 已知漏洞加固（安全加固 P2-3）：书页上限 / 32k 物品 / 单区块实体上限。 */
+    private final ExploitHardeningEventService exploitHardeningEventService;
+
     private final MenuCommandService menuCommandService;
     private final PortalCommandService portalCommandService;
     private final OrzConfigCommand orzConfigCommand;
@@ -111,6 +140,16 @@ public final class FeatureModule implements ServiceModule {
         // Feature services
         this.geoIpAccessService = new GeoIpAccessService(platform.configs());
         this.blacklistService = new BlacklistService(platform.configService());
+        // 命令审计 + 危险命令判定核心：由平台模块统一持有（$e 与事件共享同一实例）
+        this.commandAuditService = platform.commandAuditService();
+        // 危险命令拦截：纯判定核心 + 事件编排；guard 每次读取最新配置（Supplier），/config reload 生效
+        this.commandGuardEventService = new CommandGuardEventService(
+                platform.commandGuardService(),
+                platform.configs(),
+                botModule.notifier(),
+                new CommandFeedbackService(),
+                commandAuditService,
+                org.bukkit.Bukkit.getLogger());
         this.guideService = new GuideService(platform.serverFacade(), platform.configService(), platform.textStyles());
         // 上下线通知：窗口聚合限流（不丢消息），单发走原模板、多发走 player_digest 摘要
         this.playerEventService = new PlayerEventService(
@@ -138,6 +177,23 @@ public final class FeatureModule implements ServiceModule {
                 botModule.notifier());
         this.serverLifecycleService =
                 new ServerLifecycleService(platform.serverFacade(), platform.configs(), botModule.notifier());
+        this.startupSecurityAuditService =
+                new StartupSecurityAuditService(platform.serverFacade(), platform.configs(), botModule.notifier());
+        // 聊天反垃圾：纯判定核心 + 事件编排；chat 每次读取最新配置（Supplier），/config reload 生效
+        this.chatSpamFilterEventService = new ChatSpamFilterEventService(
+                new ChatSpamFilterService(platform.configs()::chat), platform.configs(), platform.textStyles());
+        // 进服限流：纯判定核心 + 事件编排；login_rate_limit 每次读取最新配置（Supplier），/config reload 生效
+        this.loginRateLimitEventService = new LoginRateLimitEventService(
+                new LoginRateLimitService(platform.configs()::loginRateLimit),
+                platform.configs(),
+                botModule.notifier(),
+                platform.textStyles());
+        // 漏洞加固：纯判定核心 + 事件编排；exploit_hardening 每次读取最新配置（Supplier），/config reload 生效
+        this.exploitHardeningEventService = new ExploitHardeningEventService(
+                new ExploitHardeningService(platform.configs()::exploitHardening),
+                platform.configs(),
+                botModule.notifier(),
+                platform.textStyles());
         this.menuCommandService = new MenuCommandService(platform.textStyles());
         this.portalCommandService = new PortalCommandService(portalModule.portalService(), platform.textStyles());
         this.orzConfigCommand = new OrzConfigCommand(
@@ -225,7 +281,9 @@ public final class FeatureModule implements ServiceModule {
                     playerEventService,
                     guideService,
                     platform.textStyles(),
-                    maintenanceModule.worldMaintenanceService()),
+                    maintenanceModule.worldMaintenanceService(),
+                    botModule.notifier(),
+                    platform.configs()),
             new OrzTPEvent(
                     plugin,
                     platform.serverFacade(),
@@ -234,8 +292,13 @@ public final class FeatureModule implements ServiceModule {
                     new EntityTeleportPolicyService(
                             !mainConfig.entityTeleportEnabled(), mainConfig.entityTeleportWhitelist())),
             new OrzTNTEvent(plugin, tntEventService),
+            new OrzCommandGuardEvent(plugin, commandGuardEventService),
+            new OrzChatEvent(plugin, chatSpamFilterEventService),
+            new OrzLoginRateLimitEvent(plugin, loginRateLimitEventService),
+            new OrzExploitHardeningEvent(plugin, exploitHardeningEventService),
             new OrzMenuEvent(plugin, menuEventService),
             new OrzServerEvent(plugin, serverEventService),
+            new OrzSecurityAuditEvent(plugin, startupSecurityAuditService),
             new OrzWhiteListEvent(plugin, whitelistEventService),
             new OrzDebugEvent(plugin, botModule.botInboundHandler()),
             new OrzPortalEvent(plugin, portalEventService),
@@ -320,7 +383,7 @@ public final class FeatureModule implements ServiceModule {
                                         String cmd = ctx.getArgument("cmd", String.class);
                                         ctx.getSource().getSender().sendMessage("debug 已受理（模拟 Bot 入站命令）");
                                         var inbound = botModule.botInboundHandler();
-                                        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                                        platform.serverFacade().runAsync(() -> {
                                             try {
                                                 inbound.handleMessage(cmd, true, "控制台", env -> {
                                                     if (env != null) {

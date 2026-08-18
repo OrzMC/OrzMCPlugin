@@ -2,9 +2,13 @@ package com.jokerhub.paper.plugin.orzmc.core.ports.config;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ChatConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ExploitHardeningConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.LoginRateLimitConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PlayerNotifyConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
@@ -30,6 +34,15 @@ public interface TypedConfigProvider {
     PlayerNotifyConfig playerNotify();
 
     IpWhitelist ipWhitelist();
+
+    SecurityGuardConfig securityGuard();
+
+    ChatConfig chat();
+
+    LoginRateLimitConfig loginRateLimit();
+
+    /** 已知漏洞加固（P2-3）配置。 */
+    ExploitHardeningConfig exploitHardening();
 
     MessageEnvelope renderEvent(String eventKey, Map<String, String> vars);
 

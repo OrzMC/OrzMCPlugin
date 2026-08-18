@@ -2,6 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.features.tnt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -19,6 +20,10 @@ import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateResolvers;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -464,6 +469,37 @@ class TntEventServiceTest extends ServiceTestBase {
 
         verify(notifier, never()).event(eq("tnt_alert"), any(MessageEnvelope.class));
         verify(scheduler, times(2)).runLater(any(Runnable.class), anyLong());
+    }
+
+    // ---- Folia 并发：同一聚合 key 被不同 region 线程并发命中 → compute 原子化建表/计数 ----
+
+    @Test
+    void concurrentAggregate_sameKey_countExactSingleFlush() throws Exception {
+        // 聚合区域 128×128×64 跨越多个 chunk，Folia 下爆炸事件分布在多个 region 线程上
+        // 可同时命中同一 key。并发 64 发必须：恰好调度一次窗口尾部、计数精确 ×64（无丢失/无双表）。
+        int threads = 64;
+        CyclicBarrier barrier = new CyclicBarrier(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        for (int i = 0; i < threads; i++) {
+            pool.submit(() -> {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | java.util.concurrent.BrokenBarrierException e) {
+                    Thread.currentThread().interrupt();
+                }
+                service.onEntityExplode(entityExplodeAt(10, 64, 20, EntityType.TNT));
+            });
+        }
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS), "并发事件应在超时内完成");
+
+        verify(scheduler, times(1)).runLater(any(Runnable.class), anyLong());
+        runTail();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<String, String>> vars = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs, times(1)).renderEvent(eq("tnt_alert"), vars.capture());
+        assertEquals("TNT爆炸 ×64", vars.getAllValues().get(0).get("msg"));
     }
 
     /** 执行已捕获的尾部冲刷任务（模拟调度器在窗口到期后运行）。仅适用于恰好调度了一次的场景。 */

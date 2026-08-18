@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
  * 统一处理玩家登录状态检查，支持内置在线状态检查和第三方插件认证检查
  */
 public final class PlayerAuthenticationService {
+    private static final java.util.logging.Logger LOGGER = java.util.logging.Logger.getLogger("OrzMC.PlayerAuth");
     private static final List<String> LOGINSECURITY_PACKAGES =
             Arrays.asList("com.github.games647.loginsecurity", "com.lenis0012.bukkit.loginsecurity");
 
@@ -102,7 +103,8 @@ public final class PlayerAuthenticationService {
             // 无法获取认证状态，默认认为已认证
             return true;
         } catch (Exception e) {
-            // 认证检查失败，默认认为已认证
+            // 认证检查失败，默认认为已认证（fail-open）；记录日志便于排查（如 Folia region 线程并发反射异常）
+            LOGGER.log(java.util.logging.Level.WARNING, "LoginSecurity 认证检查失败，按已认证放行: " + player.getName(), e);
             return true;
         }
     }

@@ -31,9 +31,12 @@ import org.bukkit.entity.Player;
  * 要么进入摘要被精确计数。渲染失败（模板/通知异常）时保留批次并在下一窗口重试
  * （连续失败上限 {@link #MAX_RENDER_RETRIES} 后放弃并告警，避免无限重试/批次无限增长）。</p>
  *
- * <p>事件（Bukkit 事件监听器）与冲刷（{@code runLater} 同步任务）都在主线程，
- * 无并发竞态。配置每次 {@link #enqueue} 时实时读取，热重载立即生效；冲刷时也会
- * 按最新配置过滤（窗口内被关闭的类型不再发送，属于配置性忽略而非运行时丢消息）。</p>
+ * <p>Paper：事件（Bukkit 事件监听器）与冲刷（{@code runLater} 同步任务）都在主线程，无并发竞态。
+ * Folia：{@link #enqueue} 在当事人所在 chunk 的 region 线程触发，不同玩家可并发入队；
+ * 冲刷在 global region 线程运行，与入队可能同时发生——{@code batch} 的读写由
+ * {@code synchronized} 串行化（enqueue/flush 在同一把锁上互斥），窗口尾部调度仍在锁内发起，
+ * 保证「先调度后入表」的不变量不受并发破坏。配置每次 {@link #enqueue} 时实时读取，热重载立即生效；
+ * 冲刷时也会按最新配置过滤（窗口内被关闭的类型不再发送，属于配置性忽略而非运行时丢消息）。</p>
  *
  * <p>当事人属性（玩家名/显示行/坐标/UUID）在 {@link #enqueue} 时快照：冲刷可能发生在
  * 当事人已离线之后，避免读取离线玩家的属性（null 坐标 / null 显示名）。</p>
@@ -67,7 +70,11 @@ public final class PlayerEventAggregator {
     private final Notifier notifier;
     private final OnlineListFormatter listFormatter;
 
-    /** 当前聚合窗口批次（仅主线程访问）；null 表示无待冲刷批次。 */
+    /**
+     * 当前聚合窗口批次；null 表示无待冲刷批次。
+     * 仅通过 {@code synchronized} 方法（{@link #enqueue}/{@link #flushAndRender}）访问，
+     * 串行化 Folia 下 region 线程入队与 global region 线程冲刷的并发读写。
+     */
     private PendingBatch batch;
 
     public PlayerEventAggregator(
@@ -84,7 +91,7 @@ public final class PlayerEventAggregator {
      * @param player 事件当事人
      * @param state  事件类型
      */
-    public void enqueue(Player player, PlayerEventService.PlayerState state) {
+    public synchronized void enqueue(Player player, PlayerEventService.PlayerState state) {
         PlayerNotifyConfig cfg = configs.playerNotify();
         if (!enabled(cfg, state)) {
             // 管理员显式关闭该类型通知：配置性忽略，不属于运行时丢消息
@@ -122,7 +129,7 @@ public final class PlayerEventAggregator {
      * <p>插件禁用/重载时由组合根调用：Bukkit 会取消插件待执行任务，窗口尾部调度可能来不及
      * 运行，此入口保证最后一个窗口的事件在卸载前交付。禁用场景下渲染失败不再重排，仅告警。</p>
      */
-    public void flushPending() {
+    public synchronized void flushPending() {
         flushAndRender(false);
     }
 
@@ -132,7 +139,7 @@ public final class PlayerEventAggregator {
     }
 
     /** 窗口尾部冲刷：按最新配置过滤被关闭的类型；单发走原模板，多发走聚合摘要。 */
-    private void flushAndRender(boolean retryOnFailure) {
+    private synchronized void flushAndRender(boolean retryOnFailure) {
         PendingBatch current = batch;
         batch = null;
         if (current == null || current.total() == 0) {
@@ -292,7 +299,7 @@ public final class PlayerEventAggregator {
         }
     }
 
-    /** 一个聚合窗口内的待发批次（仅主线程访问）。 */
+    /** 一个聚合窗口内的待发批次（仅持有 {@link PlayerEventAggregator} 锁时访问）。 */
     private static final class PendingBatch {
         private final List<PendingEvent> joins = new ArrayList<>();
         private final List<PendingEvent> quits = new ArrayList<>();

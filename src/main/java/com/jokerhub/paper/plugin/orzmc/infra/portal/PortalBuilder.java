@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.portal;
 
 import java.util.Map;
+import java.util.logging.Logger;
 import org.bukkit.Axis;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -14,6 +15,10 @@ import org.bukkit.util.Vector;
  * 传送门方块构建器。
  *
  * <p>负责检测合适位置、放置黑曜石框架和下界传送门方块、计算方向。</p>
+ *
+ * <p>Folia：build 由玩家命令触发，运行在玩家所属 region 线程，方块读写在 anchor chunk
+ * （传送门主体所在 chunk）内即可直接执行。框架/底座沿轴向宽 6 格，若跨越 chunk 边界
+ * 二期需按区块分解（一期仅记录 warning 降级）。</p>
  */
 public final class PortalBuilder {
 
@@ -22,9 +27,11 @@ public final class PortalBuilder {
     private static final int MAX_ATTEMPTS = 16;
 
     private final Map<String, String> interiorTargets;
+    private final Logger logger;
 
-    public PortalBuilder(Map<String, String> interiorTargets) {
+    public PortalBuilder(Map<String, String> interiorTargets, Logger logger) {
         this.interiorTargets = interiorTargets;
+        this.logger = logger;
     }
 
     /**
@@ -44,6 +51,7 @@ public final class PortalBuilder {
         if (baseY > maxY) baseY = Math.max(2, maxY);
 
         baseY = findClearSpace(world, baseX, baseY, baseZ, axisX, maxY);
+        warnIfCrossesChunkBoundary(world, baseX, baseZ, axisX);
         placeFrame(world, baseX, baseY, baseZ, axisX, target);
         placePad(world, baseX, baseY, baseZ, axisX);
 
@@ -99,6 +107,21 @@ public final class PortalBuilder {
                     interiorTargets.put(keyPrefix + x + ":" + y + ":" + z, target);
                 }
             }
+        }
+    }
+
+    /**
+     * 一期降级：传送门足迹沿轴向宽 6 格，若跨 chunk 边界，Folia 下相邻 chunk 的方块写入
+     * 需要在各自 region 执行（二期按区块分解）；本方法仅记录 warning，不阻塞 Paper 侧。
+     */
+    private void warnIfCrossesChunkBoundary(World world, int baseX, int baseZ, boolean axisX) {
+        int c0x = axisX ? baseX >> 4 : (baseX - 1) >> 4;
+        int c1x = axisX ? baseX >> 4 : (baseX + FRAME_WIDTH) >> 4;
+        int c0z = axisX ? (baseZ - 1) >> 4 : baseZ >> 4;
+        int c1z = axisX ? (baseZ + FRAME_WIDTH) >> 4 : baseZ >> 4;
+        if (c0x != c1x || c0z != c1z) {
+            logger.warning(
+                    "传送门跨越 chunk 边界（" + c0x + "," + c0z + " .. " + c1x + "," + c1z + "），Folia 下需按区块分解后才能在跨界处正确放置");
         }
     }
 

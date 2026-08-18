@@ -30,6 +30,18 @@ public interface PortalPort {
     String findTarget(Location from);
 
     /**
+     * 精确查找某个方块位置是否命中传送门内部（无邻域容差）。
+     *
+     * <p>供 Folia PlayerMoveEvent 补偿路径使用：该路径对每个方块移动求值，
+     * 带容差的 {@link #findTarget} 会把触发区膨胀为「门 + 四周 1 格」，路过玩家会被误 transfer。
+     * Paper 的 PlayerPortalEvent 路径（玩家已站在门内）继续使用带容差的 {@link #findTarget}。</p>
+     *
+     * @param location 查询位置（按方块坐标精确匹配）
+     * @return 目标地址 "host:port" 字符串，未命中时返回 null
+     */
+    String findTargetExact(Location location);
+
+    /**
      * 移除所有指向指定目标的传送门。
      *
      * @param target 目标地址 "host:port"

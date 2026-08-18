@@ -18,9 +18,14 @@ import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import org.bukkit.GameMode;
 import org.bukkit.Server;
@@ -489,5 +494,47 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         aggregator.enqueue(mockPlayer("B"), PlayerEventService.PlayerState.JOIN);
         runTail();
         verify(notifier).event(eq("player_join"), any(MessageEnvelope.class));
+    }
+
+    // ---- Folia 并发：region 线程并发入队被锁串行化 → 单一批次、计数精确 ----
+
+    @Test
+    void concurrentEnqueue_serializedIntoOneBatch_exactCounts() throws Exception {
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6, false));
+        doReturn(List.of()).when(bukkitServer).getOnlinePlayers();
+        when(bukkitServer.getMaxPlayers()).thenReturn(100);
+        when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));
+
+        // Folia 下不同玩家的 JOIN 事件在各自 chunk 的 region 线程触发，可并发入队。
+        // synchronized 必须把所有事件串行收进同一批次，恰好一次窗口调度、摘要计数精确无丢失。
+        int threads = 50;
+        List<Player> players = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            players.add(mockPlayer("P" + i));
+        }
+        CyclicBarrier barrier = new CyclicBarrier(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        for (Player p : players) {
+            pool.submit(() -> {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | java.util.concurrent.BrokenBarrierException e) {
+                    Thread.currentThread().interrupt();
+                }
+                aggregator.enqueue(p, PlayerEventService.PlayerState.JOIN);
+            });
+        }
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS), "并发入队应在超时内完成");
+
+        verify(server, times(1)).runLater(any(Runnable.class), anyLong());
+        runTail();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> vars = ArgumentCaptor.forClass(Map.class);
+        verify(configs).renderEvent(eq("player_digest"), vars.capture());
+        assertTrue(
+                vars.getValue().get("join_summary").startsWith("🟢 +" + threads + " 上线"),
+                "got: " + vars.getValue().get("join_summary"));
     }
 }

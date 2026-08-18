@@ -136,3 +136,34 @@ jobs:
                 body: body
               });
             }
+
+  # 真实 Folia 冒烟（D8）：foliaSmoke 任务下载 Folia jar（Fill API v3 + SHA256 校验）→
+  # 无头启动 → 校验 OrzMC 加载 → stop → 断言干净退出。
+  # 独立 job 不拖慢主构建；初期 continue-on-error: true，稳定后转必须。
+  # 说明：MockBukkit 单线程模型测不出 region 隔离竞态，此 job 是「插件在 Folia 启动即崩溃」
+  # 这类回归的唯一兜底。
+  folia-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.3.0
+
+      - name: jdk
+        uses: actions/setup-java@v5.7.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          cache-read-only: true
+
+      - name: folia smoke
+        run: ./gradlew foliaSmoke --stacktrace

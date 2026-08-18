@@ -77,6 +77,7 @@ public final class OrzServices {
         // 各模块 setup（按依赖顺序）
         botModule.setup();
         portalModule.setup();
+        maintenanceModule.setup();
 
         // 注册事件监听器和命令
         featureModule.setupEventListeners(plugin);
@@ -97,6 +98,7 @@ public final class OrzServices {
         // 逆序销毁模块
         botModule.tearDown();
         portalModule.tearDown();
+        maintenanceModule.tearDown();
         platformModule.tearDown();
     }
 

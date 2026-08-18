@@ -49,7 +49,12 @@ public final class Notifier {
                 switch (key) {
                     case TemplateKeys.EXCEPTION_ALERT,
                             TemplateKeys.MAINTENANCE_BACKUP_ERROR,
-                            TemplateKeys.MAINTENANCE_OPTIMIZE_ERROR -> MessageEnvelope.TargetType.PRIVATE;
+                            TemplateKeys.MAINTENANCE_OPTIMIZE_ERROR,
+                            TemplateKeys.COMMAND_GUARD_BLOCKED,
+                            TemplateKeys.SECURITY_AUDIT,
+                            TemplateKeys.LOGIN_RATE_LIMIT_ALERT,
+                            TemplateKeys.EXPLOIT_BLOCKED,
+                            TemplateKeys.IP_BLACKLIST_BLOCK -> MessageEnvelope.TargetType.PRIVATE;
                     default -> MessageEnvelope.TargetType.PUBLIC;
                 };
         botMessageService.send(envelope.withTargetType(target));

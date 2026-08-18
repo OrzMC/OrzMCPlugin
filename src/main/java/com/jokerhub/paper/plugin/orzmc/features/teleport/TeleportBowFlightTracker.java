@@ -1,13 +1,13 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
-import java.util.HashSet;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 /**
@@ -15,7 +15,8 @@ import org.bukkit.util.Vector;
  * 从而让 {@code ProjectileHitEvent} 正常触发、传送到真实落点。
  *
  * <p>每支传送弓箭一个实例（在 {@link TeleportBowService#startFlightTracking} 中创建）。
- * 用 {@code runTaskTimer} 每 tick 检查停止条件，并把当前区块到按速度预测前方之间
+ * 用 {@code EntityScheduler.runAtFixedRate}（实体所属 region 线程）每 tick 检查停止条件，
+ * 并把当前区块到按速度预测前方之间
  * 整段路径的连续区块全部 force-load（提前 24 格，异步加载/生成有足够余量，路径中间不留缺口）；
  * 已加载区块直接 force-load（纯内存），未加载区块走 {@code getChunkAtAsync} 异步加载，
  * 加载/生成在异步线程完成，避免主线程同步生成区块造成卡顿。
@@ -35,15 +36,21 @@ final class TeleportBowFlightTracker {
     private final ServerFacade server;
     private final ForceLoadedChunkLease lease;
 
-    private final Set<Long> acquired = new HashSet<>();
-    private final Set<Long> pending = new HashSet<>();
+    /**
+     * Folia 线程模型：{@code acquired}/{@code pending} 由 tick（global region 线程）与
+     * {@code getChunkAtAsync} 回调（目标 chunk 的 region 线程）并发读写，故用并发集合。
+     * 它们是租约注册表的乐观本地镜像（非唯一状态来源），停时据此释放已 acquire 的引用。
+     */
+    private final Set<Long> acquired = ConcurrentHashMap.newKeySet();
+
+    private final Set<Long> pending = ConcurrentHashMap.newKeySet();
 
     private Arrow arrow;
     private Player player;
     private World world;
-    private BukkitTask task;
+    private ScheduledTask task;
     private int ticks;
-    private boolean active;
+    private volatile boolean active;
 
     TeleportBowFlightTracker(ServerFacade server, ForceLoadedChunkLease lease) {
         this.server = server;
@@ -56,7 +63,7 @@ final class TeleportBowFlightTracker {
         this.world = arrow.getWorld();
         this.ticks = 0;
         this.active = true;
-        this.task = server.runTaskTimer(this::tick, 1L, 1L);
+        this.task = arrow.getScheduler().runAtFixedRate(server.plugin(), unused -> tick(), this::stop, 1L, 1L);
     }
 
     /** 每 tick 主线程回调：停止条件满足则收尾释放，否则继续加载前方区块。包私有便于测试直调。 */
@@ -127,6 +134,8 @@ final class TeleportBowFlightTracker {
         if (acquired.contains(key) || pending.contains(key)) {
             return;
         }
+        // Folia：force-load 投递由 lease 内部经 region scheduler 转到目标 chunk 的 region 线程；
+        // 本线程（tracker tick 所在 region）只维护乐观的 acquired 集合，不触碰区块。
         if (world.isChunkLoaded(cx, cz)) {
             lease.acquire(world, cx, cz);
             acquired.add(key);
@@ -134,12 +143,14 @@ final class TeleportBowFlightTracker {
         }
         pending.add(key);
         world.getChunkAtAsync(cx, cz, true, true, chunk -> {
-            pending.remove(key);
+            // 先 acquire + acquired.add 再 pending.remove：任何瞬间 tick 线程都能命中
+            // acquired 或 pending 任一集合去重，避免窗口期二次 acquire 泄漏。
             // 迟到的回调（tracker 已 stop）不再 acquire，避免泄漏。
             if (active) {
                 lease.acquire(world, cx, cz);
                 acquired.add(key);
             }
+            pending.remove(key);
         });
     }
 
@@ -148,10 +159,7 @@ final class TeleportBowFlightTracker {
             return;
         }
         active = false;
-        if (task != null) {
-            task.cancel();
-            task = null;
-        }
+        cancelSafely();
         if (world != null) {
             for (long key : acquired) {
                 lease.release(world, (int) (key >> 32), (int) (key & 0xffffffffL));
@@ -162,6 +170,24 @@ final class TeleportBowFlightTracker {
         arrow = null;
         player = null;
         world = null;
+    }
+
+    /**
+     * 尽力取消跟踪任务：取消失败不阻塞收尾。真实 Paper/Folia 在插件禁用时会自动回收
+     * 本插件全部任务；MockBukkit 的 {@code PaperScheduledTask.cancel()} 尚未实现（4.115.0），
+     * 测试环境也靠此防御避免异常中断 stop()。
+     */
+    private void cancelSafely() {
+        if (task == null) {
+            return;
+        }
+        try {
+            task.cancel();
+        } catch (RuntimeException e) {
+            server.logger().warning("取消传送箭跟踪任务失败: " + e.getMessage());
+        } finally {
+            task = null;
+        }
     }
 
     private static long key(int cx, int cz) {

@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### ✨ 新功能
+- **Folia 全面适配（#186-#190、本 PR）** — 插件现同时支持 Paper 与 Folia 双运行时：
+  - `paper-plugin.yml` 声明 `folia-supported: true`，同一 shadowJar 双端兼容
+  - 调度统一切到 Folia 兼容调度器（global region / async），实体、方块、区块操作按 region 线程亲和迁移，TNT/通知聚合等共享状态并发安全化
+  - 本地 `./gradlew runFolia` 起真实 Folia 调试服务器；`./gradlew foliaSmoke` 无头冒烟（启动 → 插件加载 → 干净退出）
+  - Modrinth 单独声明 `folia` loader（Hangar 无 FOLIA 平台，兼容性由 PAPER 条目承载）
+  - CI 新增 `folia-smoke` job 每次 PR 真实启动 Folia 回归（初期 `continue-on-error: true`）
+  - 详细评估与测试策略见 [docs/folia-migration.md](docs/folia-migration.md)
+
+---
+
 ## [1.0.18] - 2026-08-16
 
 ### 🐛 修复

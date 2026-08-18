@@ -37,6 +37,10 @@ public final class ConfigHealthCheck {
         validatePlayerNotifySection(cfg.getConfigurationSection("player_notify"), issues);
         validateGeoIpSection(cfg.getConfigurationSection("geoip"), issues);
         validateCommandPoliciesSection(cfg.getConfigurationSection("command_policies"), issues);
+        validateGuardSection(cfg.getConfigurationSection("guard"), issues);
+        validateChatSection(cfg.getConfigurationSection("chat"), issues);
+        validateLoginRateLimitSection(cfg.getConfigurationSection("login_rate_limit"), issues);
+        validateExploitHardeningSection(cfg.getConfigurationSection("exploit_hardening"), issues);
     }
 
     private static void validateWhitelistSection(ConfigurationSection section, List<String> issues) {
@@ -167,6 +171,84 @@ public final class ConfigHealthCheck {
             if (ao != null && !(ao instanceof Boolean))
                 issues.add("类型错误: command_policies." + key + ".admin_only 需为布尔值");
         }
+    }
+
+    private static void validateGuardSection(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            issues.add("建议: config.yml 缺失 guard 配置段，将使用默认配置（危险命令拦截开启）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: guard.enabled 需为布尔值");
+        Object na = section.get("notify_admins");
+        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: guard.notify_admins 需为布尔值");
+        Object ae = section.get("audit_enabled");
+        if (ae != null && !(ae instanceof Boolean)) issues.add("类型错误: guard.audit_enabled 需为布尔值");
+        Object bl = section.get("blocked_commands");
+        if (bl != null && !(bl instanceof List<?>)) issues.add("类型错误: guard.blocked_commands 需为列表");
+    }
+
+    private static void validateChatSection(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            // 降级为建议：默认配置完整可用，升级安装（config.yml 存在故未复制新默认值）会缺此段，
+            // 属提示而非缺陷，避免升级后每次启动的持久告警
+            issues.add("建议: config.yml 缺失 chat 配置段，将使用默认配置（聊天反垃圾开启）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: chat.enabled 需为布尔值");
+        int max = section.getInt("max_messages_per_minute", 6);
+        if (max < 1) issues.add("非法: chat.max_messages_per_minute 不得小于 1");
+        Object dl = section.get("detect_links");
+        if (dl != null && !(dl instanceof Boolean)) issues.add("类型错误: chat.detect_links 需为布尔值");
+        Object dr = section.get("detect_repeat");
+        if (dr != null && !(dr instanceof Boolean)) issues.add("类型错误: chat.detect_repeat 需为布尔值");
+        String msg = section.getString("message", "");
+        if (msg.isBlank()) issues.add("缺失: chat.message 不可为空");
+    }
+
+    private static void validateLoginRateLimitSection(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            // 降级为建议：默认配置完整可用，升级安装（config.yml 存在故未复制新默认值）会缺此段
+            issues.add("建议: config.yml 缺失 login_rate_limit 配置段，将使用默认配置（进服限流开启）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: login_rate_limit.enabled 需为布尔值");
+        int freq = section.getInt("max_login_attempts_per_minute", 5);
+        if (freq < 1) issues.add("非法: login_rate_limit.max_login_attempts_per_minute 不得小于 1");
+        int conc = section.getInt("max_concurrent_per_ip", 3);
+        if (conc < 1) issues.add("非法: login_rate_limit.max_concurrent_per_ip 不得小于 1");
+        Object na = section.get("notify_admins");
+        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: login_rate_limit.notify_admins 需为布尔值");
+        String msg = section.getString("message", "");
+        if (msg.isBlank()) issues.add("缺失: login_rate_limit.message 不可为空");
+    }
+
+    private static void validateExploitHardeningSection(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            // 降级为建议：默认配置完整可用，升级安装（config.yml 存在故未复制新默认值）会缺此段
+            issues.add("建议: config.yml 缺失 exploit_hardening 配置段，将使用默认配置（漏洞加固开启）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: exploit_hardening.enabled 需为布尔值");
+        for (String key : List.of("book_enabled", "item_enabled", "entity_enabled")) {
+            Object flag = section.get(key);
+            if (flag != null && !(flag instanceof Boolean)) {
+                issues.add("类型错误: exploit_hardening." + key + " 需为布尔值");
+            }
+        }
+        Object na = section.get("notify_admins");
+        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: exploit_hardening.notify_admins 需为布尔值");
+        int pages = section.getInt("book_max_pages", 100);
+        if (pages < 1) issues.add("非法: exploit_hardening.book_max_pages 不得小于 1");
+        int attrs = section.getInt("item_max_attribute_modifiers", 6);
+        if (attrs < 1) issues.add("非法: exploit_hardening.item_max_attribute_modifiers 不得小于 1");
+        int entities = section.getInt("entity_max_per_chunk", 128);
+        if (entities < 1) issues.add("非法: exploit_hardening.entity_max_per_chunk 不得小于 1");
+        String msg = section.getString("message", "");
+        if (msg.isBlank()) issues.add("缺失: exploit_hardening.message 不可为空");
     }
 
     private static void validateEasyBot(FileConfiguration cfg, List<String> issues) {

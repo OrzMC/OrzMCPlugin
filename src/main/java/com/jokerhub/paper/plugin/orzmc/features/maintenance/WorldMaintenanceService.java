@@ -211,7 +211,8 @@ public class WorldMaintenanceService {
         server.runSync(() -> {
             startMs = System.currentTimeMillis();
             for (Player p : server.server().getOnlinePlayers()) {
-                p.kick(styles.warn(kickText));
+                // Folia：踢人投递到玩家所在 region 线程；save 命令留在 global region 的 dispatchCommand
+                p.getScheduler().run(server.plugin(), t -> p.kick(styles.warn(kickText)), () -> {});
             }
             OrzUtil.executeConsoleCmd(server, () -> {}, "save-off", "save-all flush");
             server.runAsync(() -> {

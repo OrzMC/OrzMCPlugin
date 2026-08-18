@@ -5,10 +5,11 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalPort;
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.WorldProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.portal.PortalBuilder.PortalBuildResult;
+import com.jokerhub.paper.plugin.orzmc.infra.server.RegionSchedulerProvider;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import org.bukkit.Axis;
 import org.bukkit.Location;
@@ -21,6 +22,10 @@ import org.bukkit.entity.Player;
  * <p>协调传送门的构建、查找、拆除和持久化。
  * 实际工作委派给 {@link PortalBuilder}（方块构建）、{@link PortalLabelRenderer}（标签渲染）、
  * {@link PortalCleaner}（方块清理）和 {@link PortalPersistence}（数据持久化）。</p>
+ *
+ * <p>Folia：createPortal 由玩家命令触发（玩家 region 线程），方块构建直接执行；
+ * 标签渲染/方块清理经 {@link RegionSchedulerProvider} 投递到目标 chunk 的 region 线程。
+ * {@code interiorTargets}/{@code portalCenters} 在 Folia 下会被不同 region 并发读写，故用线程安全 Map。</p>
  */
 public class PortalService implements PortalPort {
 
@@ -31,19 +36,30 @@ public class PortalService implements PortalPort {
     private final PortalCleaner portalCleaner;
     private final PortalPersistence persistence;
 
-    private final Map<String, String> interiorTargets = new HashMap<>();
-    private final Map<String, PortalDef> portalCenters = new HashMap<>();
+    private final Map<String, String> interiorTargets = new ConcurrentHashMap<>();
+    private final Map<String, PortalDef> portalCenters = new ConcurrentHashMap<>();
 
+    /** 测试兜底构造：同步直跑（不投递 region）。生产使用注入 {@link RegionSchedulerProvider} 的构造。 */
     public PortalService(ConfigService configService) {
-        this(configService, new BukkitWorldProvider());
+        this(configService, RegionSchedulerProvider.inline());
+    }
+
+    /** 生产入口：方块/标签操作经 region scheduler 投递到目标 chunk 的 region 线程。 */
+    public PortalService(ConfigService configService, RegionSchedulerProvider regionScheduler) {
+        this(configService, new BukkitWorldProvider(), regionScheduler);
     }
 
     public PortalService(ConfigService configService, WorldProvider worldProvider) {
+        this(configService, worldProvider, RegionSchedulerProvider.inline());
+    }
+
+    public PortalService(
+            ConfigService configService, WorldProvider worldProvider, RegionSchedulerProvider regionScheduler) {
         this.configService = configService;
         this.logger = Logger.getLogger("PortalService");
-        this.portalBuilder = new PortalBuilder(interiorTargets);
-        this.labelRenderer = new PortalLabelRenderer(worldProvider, logger);
-        this.portalCleaner = new PortalCleaner(worldProvider, logger);
+        this.portalBuilder = new PortalBuilder(interiorTargets, logger);
+        this.labelRenderer = new PortalLabelRenderer(worldProvider, logger, regionScheduler);
+        this.portalCleaner = new PortalCleaner(worldProvider, logger, regionScheduler);
         this.persistence = new PortalPersistence(configService, logger);
     }
 
@@ -71,8 +87,8 @@ public class PortalService implements PortalPort {
 
     @Override
     public String findTarget(Location location) {
-        String k = key(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
-        String v = interiorTargets.getOrDefault(k, null);
+        // 先精确命中，再做 3×3×3 邻域容差（Paper 路径玩家站在门内时方块坐标可能有 1 格对齐偏差）
+        String v = findTargetExact(location);
         if (v != null) return v;
         int bx = location.getBlockX();
         int by = location.getBlockY();
@@ -88,6 +104,12 @@ public class PortalService implements PortalPort {
             }
         }
         return null;
+    }
+
+    @Override
+    public String findTargetExact(Location location) {
+        String k = key(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        return interiorTargets.getOrDefault(k, null);
     }
 
     @Override

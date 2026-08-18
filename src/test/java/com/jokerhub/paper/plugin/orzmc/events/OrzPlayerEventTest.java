@@ -5,16 +5,20 @@ import static org.mockito.Mockito.*;
 
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
+import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
@@ -49,6 +53,15 @@ class OrzPlayerEventTest extends ServiceTestBase {
     private WorldMaintenanceService maintenanceService;
 
     @Mock
+    private Notifier notifier;
+
+    @Mock
+    private TypedConfigProvider configs;
+
+    @Mock
+    private Logger logger;
+
+    @Mock
     private AsyncPlayerPreLoginEvent event;
 
     @Mock
@@ -75,7 +88,10 @@ class OrzPlayerEventTest extends ServiceTestBase {
         when(event.getPlayerProfile()).thenReturn(profile);
         when(profile.getName()).thenReturn("player1");
         when(maintenanceService.isRunning()).thenReturn(false);
-        when(blacklistService.isBlocked(anyString())).thenReturn(false);
+        when(blacklistService.matchedPattern(anyString())).thenReturn(null);
+        when(configs.renderTemplate(anyString(), anyMap(), anyString()))
+                .thenReturn(MessageEnvelope.publicMessage("ip_blacklist_block"));
+        when(plugin.getLogger()).thenReturn(logger);
         when(styles.warn(anyString())).thenReturn(Component.text("warn"));
         when(styles.error(anyString())).thenReturn(Component.text("error"));
         when(joinEvent.getPlayer()).thenReturn(player);
@@ -83,7 +99,15 @@ class OrzPlayerEventTest extends ServiceTestBase {
         when(kickEvent.getPlayer()).thenReturn(player);
 
         listener = new OrzPlayerEvent(
-                plugin, geoIpAccessService, blacklistService, service, guideService, styles, maintenanceService);
+                plugin,
+                geoIpAccessService,
+                blacklistService,
+                service,
+                guideService,
+                styles,
+                maintenanceService,
+                notifier,
+                configs);
     }
 
     @Test
@@ -107,13 +131,30 @@ class OrzPlayerEventTest extends ServiceTestBase {
     }
 
     @Test
-    void onPlayerPreLogin_blacklisted_disallowsAndSkipsGeoIp() {
-        when(blacklistService.isBlocked("1.2.3.4")).thenReturn(true);
+    void onPlayerPreLogin_blacklisted_disallowsNotifiesAndLogs() {
+        when(blacklistService.matchedPattern("1.2.3.4")).thenReturn("1.2.3.4");
 
         listener.onPlayerPreLogin(event);
 
         verify(event).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
+        // P2-4：封禁命中 PRIVATE 告警 + 日志
+        verify(notifier).event(eq("ip_blacklist_block"), any(MessageEnvelope.class));
+        verify(logger).warning(anyString());
         verifyNoInteractions(geoIpAccessService, service);
+    }
+
+    @Test
+    void onPlayerPreLogin_blacklistedV6_notifiesWithPattern() throws Exception {
+        InetAddress v6 = InetAddress.getByName("2001:db8::1");
+        when(event.getAddress()).thenReturn(v6);
+        // 命中规则的返回与地址文本形式无关：getHostAddress() 会展开为 2001:db8:0:0:0:0:0:1
+        when(blacklistService.matchedPattern(anyString())).thenReturn("2001:db8::/32");
+
+        listener.onPlayerPreLogin(event);
+
+        verify(event).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
+        verify(notifier).event(eq("ip_blacklist_block"), any(MessageEnvelope.class));
+        verify(configs).renderTemplate(eq("ip_blacklist_block"), anyMap(), anyString());
     }
 
     @Test
@@ -124,7 +165,7 @@ class OrzPlayerEventTest extends ServiceTestBase {
 
         listener.onPlayerPreLogin(event);
 
-        verify(blacklistService).isBlocked("");
+        verify(blacklistService).matchedPattern("");
         verifyNoInteractions(geoIpAccessService, service);
         verify(event, never()).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
     }

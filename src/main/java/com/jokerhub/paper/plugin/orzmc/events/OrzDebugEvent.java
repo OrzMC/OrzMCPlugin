@@ -35,7 +35,7 @@ public class OrzDebugEvent extends OrzBaseListener {
             return;
         }
         String cmd = command.substring(debugCmdPrefix.length()).trim();
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+        serverFacade().runAsync(() -> {
             try {
                 inboundHandler.handleMessage(
                         cmd, true, "RCON", env -> plugin.getLogger().info("cmd debug: \n" + env.message()));

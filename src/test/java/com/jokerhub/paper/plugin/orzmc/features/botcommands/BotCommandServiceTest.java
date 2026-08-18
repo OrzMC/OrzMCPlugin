@@ -9,7 +9,10 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.Format;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope.TargetType;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.rank.RankService;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
+import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.LogCaptureService;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
@@ -258,6 +261,69 @@ class BotCommandServiceTest {
         org.mockito.ArgumentCaptor<MessageEnvelope> captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
         verify(callback).accept(captor.capture());
         assertEquals("⚠️ 日志缓冲溢出，输出可能不完整\nsurvived line", captor.getValue().message());
+    }
+
+    // ---- $e 危险命令 guard（安全加固 P0-5） ----
+
+    private static CommandGuardService defaultGuard() {
+        return new CommandGuardService(
+                () -> new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
+    }
+
+    @Test
+    void parse_executeConsole_guardBlocked_doesNotExecuteAndEmitsReason() {
+        CommandAuditService audit = mock(CommandAuditService.class);
+        service.setCommandGuard(defaultGuard(), audit);
+
+        service.parse("$e stop", true, "老板", callback);
+
+        verify(serverFacade, never()).executeConsoleCommand(anyString());
+        verify(audit).record(CommandAuditService.SOURCE_BOT, "老板", "stop", true);
+        org.mockito.ArgumentCaptor<MessageEnvelope> captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
+        verify(callback).accept(captor.capture());
+        assertTrue(captor.getValue().message().contains("已被安全拦截"));
+    }
+
+    @Test
+    void parse_executeConsole_guardAllowed_executesAndAudits() {
+        CommandAuditService audit = mock(CommandAuditService.class);
+        service.setCommandGuard(defaultGuard(), audit);
+        when(serverFacade.executeConsoleCommand("say hi"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of("执行成功")));
+
+        service.parse("$e say hi", true, "老板", callback);
+
+        verify(serverFacade).executeConsoleCommand("say hi");
+        verify(audit).record(CommandAuditService.SOURCE_BOT, "老板", "say hi", false);
+    }
+
+    @Test
+    void parse_executeConsole_guardWarn_stillExecutesWithAudit() {
+        CommandAuditService audit = mock(CommandAuditService.class);
+        service.setCommandGuard(defaultGuard(), audit);
+        when(serverFacade.executeConsoleCommand("kill @e"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("kill @e", true, java.util.List.of("执行成功")));
+
+        service.parse("$e kill @e", true, "老板", callback);
+
+        verify(serverFacade).executeConsoleCommand("kill @e");
+        verify(audit).record(CommandAuditService.SOURCE_BOT, "老板", "kill @e", false);
+    }
+
+    @Test
+    void parse_executeConsole_guardDisabled_executesWithoutBlock() {
+        CommandAuditService audit = mock(CommandAuditService.class);
+        service.setCommandGuard(
+                new CommandGuardService(
+                        () -> new SecurityGuardConfig(false, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true)),
+                audit);
+        when(serverFacade.executeConsoleCommand("stop"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("stop", true, java.util.List.of("执行成功")));
+
+        service.parse("$e stop", true, "老板", callback);
+
+        verify(serverFacade).executeConsoleCommand("stop");
+        verify(audit).record(CommandAuditService.SOURCE_BOT, "老板", "stop", false);
     }
 
     @Test

@@ -30,6 +30,7 @@ public final class BotModule implements ServiceModule, Initializable {
         this.botCommandService = new BotCommandService(platform.serverFacade(), platform.configs());
         // $e 命令输出兜底：注入日志窗口收集服务
         this.botCommandService.setLogCaptureService(platform.logCaptureService());
+        this.botCommandService.setCommandGuard(platform.commandGuardService(), platform.commandAuditService());
 
         // Phase C: 创建 BotMessageService（以 BotCommandService 作为 BotInboundHandler）
         this.botMessageService = BotMessageServiceProvider.create(

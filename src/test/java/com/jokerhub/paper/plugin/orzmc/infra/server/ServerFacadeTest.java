@@ -5,13 +5,16 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade.ConsoleCommandResult;
+import io.papermc.paper.threadedregions.scheduler.AsyncScheduler;
+import io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Server;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -20,7 +23,8 @@ class ServerFacadeTest {
 
     private JavaPlugin plugin;
     private Server server;
-    private BukkitScheduler scheduler;
+    private GlobalRegionScheduler regionScheduler;
+    private AsyncScheduler asyncScheduler;
     private Logger logger;
     private ServerFacade facade;
 
@@ -28,10 +32,12 @@ class ServerFacadeTest {
     void setUp() {
         plugin = mock(JavaPlugin.class);
         server = mock(Server.class);
-        scheduler = mock(BukkitScheduler.class);
+        regionScheduler = mock(GlobalRegionScheduler.class);
+        asyncScheduler = mock(AsyncScheduler.class);
         logger = mock(Logger.class);
         when(plugin.getServer()).thenReturn(server);
-        when(server.getScheduler()).thenReturn(scheduler);
+        when(server.getGlobalRegionScheduler()).thenReturn(regionScheduler);
+        when(server.getAsyncScheduler()).thenReturn(asyncScheduler);
         when(plugin.getLogger()).thenReturn(logger);
         when(plugin.getName()).thenReturn("orzmc");
         facade = new ServerFacade(plugin);
@@ -56,24 +62,47 @@ class ServerFacadeTest {
     // a running Bukkit server environment (getPluginMeta())
 
     @Test
-    void runSync_delegatesToScheduler() {
+    void runSync_delegatesToGlobalRegionScheduler() {
         Runnable task = mock(Runnable.class);
         facade.runSync(task);
-        verify(scheduler).runTask(plugin, task);
+        verify(regionScheduler).execute(plugin, task);
     }
 
     @Test
-    void runAsync_delegatesToScheduler() {
+    void runAsync_delegatesToAsyncScheduler() {
         Runnable task = mock(Runnable.class);
         facade.runAsync(task);
-        verify(scheduler).runTaskAsynchronously(plugin, task);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<ScheduledTask>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(asyncScheduler).runNow(eq(plugin), captor.capture());
+        captor.getValue().accept(mock(ScheduledTask.class));
+
+        verify(task).run();
     }
 
     @Test
-    void runLater_delegatesToScheduler() {
+    void runLater_delegatesToGlobalRegionScheduler() {
         Runnable task = mock(Runnable.class);
         facade.runLater(task, 30L);
-        verify(scheduler).runTaskLater(plugin, task, 30L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<ScheduledTask>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(regionScheduler).runDelayed(eq(plugin), captor.capture(), eq(30L));
+        captor.getValue().accept(mock(ScheduledTask.class));
+
+        verify(task).run();
+    }
+
+    @Test
+    void runTaskTimer_delegatesToGlobalRegionScheduler() {
+        Runnable task = mock(Runnable.class);
+        ScheduledTask scheduled = mock(ScheduledTask.class);
+        when(regionScheduler.runAtFixedRate(any(), any(), anyLong(), anyLong())).thenReturn(scheduled);
+
+        assertSame(scheduled, facade.runTaskTimer(task, 1L, 20L));
+
+        verify(regionScheduler).runAtFixedRate(eq(plugin), any(), eq(1L), eq(20L));
     }
 
     @Test
@@ -85,7 +114,7 @@ class ServerFacadeTest {
         facade.executeConsoleCommands(after, "/cmd1", "cmd2");
 
         ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler).runTask(eq(plugin), captor.capture());
+        verify(regionScheduler).execute(eq(plugin), captor.capture());
 
         Runnable task = captor.getValue();
         task.run();
@@ -103,7 +132,7 @@ class ServerFacadeTest {
         facade.executeConsoleCommands(null, "/cmd");
 
         ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler).runTask(eq(plugin), captor.capture());
+        verify(regionScheduler).execute(eq(plugin), captor.capture());
 
         Runnable task = captor.getValue();
         task.run();

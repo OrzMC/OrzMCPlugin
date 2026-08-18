@@ -112,6 +112,8 @@ buildNumber.properties
 
 # Common working directory
 run/
+run-folia/
+run-folia-smoke/
 .gradle/
 build/
 .idea/

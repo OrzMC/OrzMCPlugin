@@ -8,6 +8,10 @@ import com.jokerhub.paper.plugin.orzmc.infra.core.OrzConstants;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
+import io.papermc.paper.threadedregions.scheduler.EntityScheduler;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -26,6 +30,7 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +42,7 @@ class TeleportBowServiceTest extends ServiceTestBase {
     private ServerFacade serverFacade;
     private OrzTextStyles styles;
     private TeleportBowService service;
+    private JavaPlugin plugin;
 
     private NamespacedKey tpBowKey;
     private MockedStatic<Bukkit> bukkitMock;
@@ -46,6 +52,8 @@ class TeleportBowServiceTest extends ServiceTestBase {
         serverFacade = mock(ServerFacade.class);
         styles = mock(OrzTextStyles.class);
         tpBowKey = mock(NamespacedKey.class);
+        plugin = mock(JavaPlugin.class);
+        when(serverFacade.plugin()).thenReturn(plugin);
 
         ItemFactory itemFactory = mock(ItemFactory.class);
         ItemMeta itemMeta = mock(ItemMeta.class);
@@ -280,5 +288,24 @@ class TeleportBowServiceTest extends ServiceTestBase {
         assertTrue(PlainTextComponentSerializer.plainText()
                 .serialize(captor.getValue())
                 .contains("跨世界"));
+    }
+
+    @Test
+    void teleportAndFeedback_teleportsAsync_andFeedbackInPlayerRegion() {
+        Player player = mock(Player.class);
+        Location safe = mock(Location.class);
+        EntityScheduler entityScheduler = mock(EntityScheduler.class);
+        when(player.teleportAsync(any(Location.class))).thenReturn(CompletableFuture.completedFuture(true));
+        when(player.getScheduler()).thenReturn(entityScheduler);
+
+        service.teleportAndFeedback(player, safe);
+
+        // Folia 区域亲和：跨 region 传送必须用异步 API（而非同步 teleport）
+        verify(player).teleportAsync(safe);
+        // 完成回调把音效/提示投递到玩家 region 线程。
+        // 注意：不执行回调体——Sound 枚举静态初始化依赖完整注册表，普通 JUnit 环境不可用。
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<ScheduledTask>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(entityScheduler).run(eq(plugin), captor.capture(), any(Runnable.class));
     }
 }

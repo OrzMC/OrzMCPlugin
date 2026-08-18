@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.portal;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.WorldProvider;
+import com.jokerhub.paper.plugin.orzmc.infra.server.RegionSchedulerProvider;
 import java.util.Collection;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
@@ -24,6 +25,10 @@ import org.bukkit.entity.EntityType;
  * 传送门标签渲染器。
  *
  * <p>负责在传送门附近生成/清理装甲架标签和壁挂标牌。</p>
+ *
+ * <p>Folia：生成实体/放置标牌是区块级操作，必须投递到目标 chunk 所属 region 线程
+ * （以传送门中心所在 chunk 为 anchor）。跨区块的标签清理经 {@link ArmorStandCleanup}
+ * 按 chunk 逐个投递。Paper 上 region 调度即主线程执行，语义不变。</p>
  */
 public final class PortalLabelRenderer {
 
@@ -32,10 +37,12 @@ public final class PortalLabelRenderer {
 
     private final WorldProvider worldProvider;
     private final Logger logger;
+    private final RegionSchedulerProvider regionScheduler;
 
-    public PortalLabelRenderer(WorldProvider worldProvider, Logger logger) {
+    public PortalLabelRenderer(WorldProvider worldProvider, Logger logger, RegionSchedulerProvider regionScheduler) {
         this.worldProvider = worldProvider;
         this.logger = logger;
+        this.regionScheduler = regionScheduler;
     }
 
     /**
@@ -45,6 +52,10 @@ public final class PortalLabelRenderer {
     public void spawnLabel(String worldName, int cx, int cy, int cz, String target) {
         World w = worldProvider.getWorld(worldName);
         if (w == null) return;
+        regionScheduler.run(w, cx >> 4, cz >> 4, () -> doSpawnLabel(w, cx, cy, cz, target));
+    }
+
+    private void doSpawnLabel(World w, int cx, int cy, int cz, String target) {
         Location base = new Location(w, cx + 0.5, cy + 1.9, cz + 0.5);
         if (hasExistingLabel(w, base, target)) return;
         ArmorStand title = (ArmorStand) w.spawnEntity(base.clone().add(0, 0.3, 0), EntityType.ARMOR_STAND);
@@ -69,7 +80,7 @@ public final class PortalLabelRenderer {
             return;
         }
         Location base = new Location(w, cx + 0.5, cy + 1.9, cz + 0.5);
-        removeMatchingArmorStands(w, base, 2.5, target);
+        ArmorStandCleanup.removeMatchingInChunks(w, base, 2.5, target, regionScheduler);
     }
 
     /** 在传送门侧面放置壁挂标牌。 */
@@ -77,6 +88,10 @@ public final class PortalLabelRenderer {
         int sx = center.getBlockX() + dx;
         int sz = center.getBlockZ() + dz;
         int sy = center.getBlockY();
+        regionScheduler.run(world, sx >> 4, sz >> 4, () -> doPlaceInfoSign(world, sx, sy, sz, dx, dz, host, port));
+    }
+
+    private void doPlaceInfoSign(World world, int sx, int sy, int sz, int dx, int dz, String host, int port) {
         Block signBlock = world.getBlockAt(sx, sy, sz);
         if (!signBlock.getType().isAir()) return;
         signBlock.setType(Material.OAK_WALL_SIGN, false);
@@ -96,7 +111,7 @@ public final class PortalLabelRenderer {
 
     /** 在清除传送门方块后清理附近的装甲架（含在 clearPortalBlocks 中使用）。 */
     public void clearNearbyArmorStands(World w, Location center, double range, String target) {
-        removeMatchingArmorStands(w, center, range, target);
+        ArmorStandCleanup.removeMatchingInChunks(w, center, range, target, regionScheduler);
     }
 
     private boolean hasExistingLabel(World w, Location base, String target) {
@@ -113,20 +128,5 @@ public final class PortalLabelRenderer {
             }
         }
         return false;
-    }
-
-    private void removeMatchingArmorStands(World w, Location base, double range, String target) {
-        Collection<Entity> nearby = w.getNearbyEntities(base, range, range, range);
-        for (Entity e : nearby) {
-            if (e instanceof ArmorStand as) {
-                Component name = as.customName();
-                String plain = name == null
-                        ? ""
-                        : PlainTextComponentSerializer.plainText().serialize(name);
-                if (!plain.isEmpty() && (plain.contains(target) || plain.contains("跨服传送"))) {
-                    e.remove();
-                }
-            }
-        }
     }
 }

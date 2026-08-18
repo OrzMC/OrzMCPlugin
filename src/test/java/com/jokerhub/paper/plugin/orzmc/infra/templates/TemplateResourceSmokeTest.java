@@ -85,4 +85,84 @@ public class TemplateResourceSmokeTest extends ServiceTestBase {
         String rejected = TemplateRenderer.render(TemplateRenderer.resolveTemplate("review_rejected", cfg, ""), vars);
         Assertions.assertFalse(rejected.contains("{message}"), "rejected 不得为字面 {message}: " + rejected);
     }
+
+    @Test
+    public void testSecurityAuditTemplateResolvesWithRealText() throws Exception {
+        // 安全加固 P1-2：启动自检报告模板必须渲染真实中文文案，而非字面 "{online_mode}" 等占位符
+        YamlConfiguration cfg = load("templates.yml");
+        String resolved = TemplateRenderer.resolveTemplate("security_audit", cfg, "");
+        Assertions.assertFalse(resolved.isEmpty(), "security_audit 模板缺失");
+
+        var vars = java.util.Map.of(
+                "online_mode", "正版验证开启",
+                "command_block", "禁用",
+                "rcon", "未启用",
+                "whitelist", "开启（强制）",
+                "ops", "2 个: steve, alex",
+                "plugins", "LuckPerms、Grim");
+        String rendered = TemplateRenderer.render(resolved, vars);
+
+        Assertions.assertTrue(rendered.contains("正版验证开启"), "应含在线模式文案: " + rendered);
+        Assertions.assertTrue(rendered.contains("LuckPerms、Grim"), "应含插件列表: " + rendered);
+        Assertions.assertFalse(
+                rendered.contains("{online_mode}") || rendered.contains("{plugins}"), "不得残留字面占位符: " + rendered);
+    }
+
+    @Test
+    public void testLoginRateLimitAlertTemplateResolvesWithRealText() throws Exception {
+        // 安全加固 P2-2：进服限流告警模板必须渲染真实中文文案，而非字面 "{ip}" 等占位符
+        YamlConfiguration cfg = load("templates.yml");
+        String resolved = TemplateRenderer.resolveTemplate("login_rate_limit_alert", cfg, "");
+        Assertions.assertFalse(resolved.isEmpty(), "login_rate_limit_alert 模板缺失");
+
+        var vars = java.util.Map.of(
+                "ip", "1.2.3.4",
+                "player", "alice",
+                "reason", "频率超限（5 次/分钟）");
+        String rendered = TemplateRenderer.render(resolved, vars);
+
+        Assertions.assertTrue(rendered.contains("1.2.3.4"), "应含 IP: " + rendered);
+        Assertions.assertTrue(rendered.contains("alice"), "应含玩家名: " + rendered);
+        Assertions.assertFalse(
+                rendered.contains("{ip}") || rendered.contains("{player}") || rendered.contains("{reason}"),
+                "不得残留字面占位符: " + rendered);
+    }
+
+    @Test
+    public void testExploitBlockedTemplateResolvesWithRealText() throws Exception {
+        // 安全加固 P2-3：漏洞利用拦截模板必须渲染真实中文文案，而非字面 "{player}" 等占位符
+        YamlConfiguration cfg = load("templates.yml");
+        String resolved = TemplateRenderer.resolveTemplate("exploit_blocked", cfg, "");
+        Assertions.assertFalse(resolved.isEmpty(), "exploit_blocked 模板缺失");
+
+        var vars = java.util.Map.of(
+                "player", "alice",
+                "reason", "书页超限（150 页）");
+        String rendered = TemplateRenderer.render(resolved, vars);
+
+        Assertions.assertTrue(rendered.contains("alice"), "应含玩家名: " + rendered);
+        Assertions.assertTrue(rendered.contains("书页超限"), "应含原因: " + rendered);
+        Assertions.assertFalse(
+                rendered.contains("{player}") || rendered.contains("{reason}"), "不得残留字面占位符: " + rendered);
+    }
+
+    @Test
+    public void testIpBlacklistBlockTemplateResolvesWithRealText() throws Exception {
+        // 安全加固 P2-4：封禁命中告警模板必须渲染真实中文文案，而非字面 "{ip}" 等占位符
+        YamlConfiguration cfg = load("templates.yml");
+        String resolved = TemplateRenderer.resolveTemplate("ip_blacklist_block", cfg, "");
+        Assertions.assertFalse(resolved.isEmpty(), "ip_blacklist_block 模板缺失");
+
+        var vars = java.util.Map.of(
+                "player", "alice",
+                "ip", "2001:db8::1",
+                "pattern", "2001:db8::/32");
+        String rendered = TemplateRenderer.render(resolved, vars);
+
+        Assertions.assertTrue(rendered.contains("alice"), "应含玩家名: " + rendered);
+        Assertions.assertTrue(rendered.contains("2001:db8::/32"), "应含命中规则: " + rendered);
+        Assertions.assertFalse(
+                rendered.contains("{player}") || rendered.contains("{ip}") || rendered.contains("{pattern}"),
+                "不得残留字面占位符: " + rendered);
+    }
 }

@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 
 public interface WhitelistService {
     List<String> buildWhitelistLines(Server server);
@@ -16,11 +17,18 @@ public interface WhitelistService {
 
     String removePlayers(Server server, Set<String> userNames);
 
-    static WhitelistService defaultImpl() {
-        return new DefaultWhitelistService();
+    static WhitelistService defaultImpl(JavaPlugin plugin) {
+        return new DefaultWhitelistService(plugin);
     }
 
     final class DefaultWhitelistService implements WhitelistService {
+        /** 用于把踢人投递到玩家所属 region 线程（Folia），Paper 上无副作用。 */
+        private final JavaPlugin plugin;
+
+        DefaultWhitelistService(JavaPlugin plugin) {
+            this.plugin = plugin;
+        }
+
         @Override
         public List<String> buildWhitelistLines(Server server) {
             ArrayList<OfflinePlayer> whiteListPlayers = new ArrayList<>(server.getWhitelistedPlayers());
@@ -57,7 +65,7 @@ public interface WhitelistService {
                     p.setWhitelisted(false);
                     Player onlinePlayer = server.getPlayer(p.getUniqueId());
                     if (onlinePlayer != null) {
-                        onlinePlayer.kick();
+                        kickInPlayerRegion(onlinePlayer);
                     }
                 }
             }
@@ -102,7 +110,7 @@ public interface WhitelistService {
                     player.setWhitelisted(false);
                     Player onlinePlayer = server.getPlayer(player.getUniqueId());
                     if (onlinePlayer != null) {
-                        onlinePlayer.kick();
+                        kickInPlayerRegion(onlinePlayer);
                     }
                 }
             }
@@ -125,6 +133,15 @@ public interface WhitelistService {
                         notRemoved.stream().sorted().map(name -> "✘ " + name).collect(Collectors.joining("\n")));
             }
             return message.toString();
+        }
+
+        /**
+         * Folia：踢人必须投递到玩家所在 region 线程，直接调用会抛「not the correct region」异常。
+         * 经 {@link Player#getScheduler()} 把 {@code kick()} 放到玩家自己的 region 执行；
+         * Paper 上等价于主线程下 tick 执行，语义不变。
+         */
+        private void kickInPlayerRegion(Player onlinePlayer) {
+            onlinePlayer.getScheduler().run(plugin, t -> onlinePlayer.kick(), () -> {});
         }
     }
 }

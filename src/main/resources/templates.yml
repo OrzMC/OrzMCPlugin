@@ -28,6 +28,11 @@ templates:
     server_stop: PLAIN
     whitelist_block: PLAIN
     whitelist_toggle_alert: PLAIN
+    command_guard_blocked: PLAIN
+    security_audit: PLAIN
+    login_rate_limit_alert: PLAIN
+    exploit_blocked: PLAIN
+    ip_blacklist_block: PLAIN
     maintenance_backup_stage: CODE_BLOCK
     maintenance_backup_done: CODE_BLOCK
     maintenance_backup_error: CODE_BLOCK
@@ -77,6 +82,11 @@ templates:
   server_stop: "{message}"
   whitelist_block: "{message}"
   whitelist_toggle_alert: "{message}"
+  command_guard_blocked: "⚠ 高危命令已被拦截\n命令: {command}\n来源: {source} | 发送者: {sender}\n原因: {reason}"
+  security_audit: "🛡 安全自检报告\n在线模式: {online_mode}\n命令方块: {command_block}\nRCON: {rcon}\n白名单: {whitelist}\nOP: {ops}\n关键插件: {plugins}"
+  login_rate_limit_alert: "⚠ 登录限流\nIP: {ip}\n玩家: {player}\n原因: {reason}"
+  exploit_blocked: "⚠ 漏洞利用拦截\n玩家: {player}\n原因: {reason}"
+  ip_blacklist_block: "⚠ IP 黑名单拦截\n玩家: {player}\nIP: {ip}\n命中规则: {pattern}"
   player_join: "{name} 上线\n------当前在线({online_count}/{max_count})------\n{online_list}"
   player_quit: "{name} 下线\n------当前在线({online_count}/{max_count})------\n{online_list}"
   player_kick: "{name} 被踢\n------当前在线({online_count}/{max_count})------\n{online_list}"

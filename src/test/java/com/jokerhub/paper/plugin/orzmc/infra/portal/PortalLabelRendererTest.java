@@ -5,10 +5,12 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.WorldProvider;
+import com.jokerhub.paper.plugin.orzmc.infra.server.RegionSchedulerProvider;
 import java.util.List;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Axis;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -18,6 +20,7 @@ import org.bukkit.block.data.type.WallSign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,7 @@ class PortalLabelRendererTest {
     private WorldProvider worldProvider;
     private World world;
     private Logger logger;
+    private RegionSchedulerProvider provider;
     private PortalLabelRenderer renderer;
 
     @BeforeEach
@@ -34,7 +38,9 @@ class PortalLabelRendererTest {
         worldProvider = mock(WorldProvider.class);
         world = mock(World.class);
         logger = mock(Logger.class);
-        renderer = new PortalLabelRenderer(worldProvider, logger);
+        // 默认同步直跑（不投递）：让既有断言在任务体内即时执行；投递目标用 captureProvider 单独验证
+        provider = (w, cx, cz, task) -> task.run();
+        renderer = new PortalLabelRenderer(worldProvider, logger, provider);
 
         when(worldProvider.getWorld("world")).thenReturn(world);
     }
@@ -89,8 +95,14 @@ class PortalLabelRendererTest {
     void clearLabels_removesMatchingArmorStands() {
         ArmorStand matchingStand = mock(ArmorStand.class);
         when(matchingStand.customName()).thenReturn(Component.text("跨服传送 target:25565"));
-        when(world.getNearbyEntities(any(Location.class), anyDouble(), anyDouble(), anyDouble()))
-                .thenReturn(List.of(matchingStand));
+        when(matchingStand.getLocation()).thenReturn(new Location(world, 100.5, 65.9, 200.5));
+
+        // Folia：标签清理走 chunk.getEntities()，标签在 chunk(6,12) 内
+        when(world.isChunkLoaded(anyInt(), anyInt())).thenReturn(true);
+        Chunk standChunk = mock(Chunk.class);
+        when(standChunk.getEntities()).thenReturn(new Entity[] {matchingStand});
+        when(world.getChunkAt(anyInt(), anyInt())).thenReturn(mock(Chunk.class));
+        when(world.getChunkAt(6, 12)).thenReturn(standChunk);
 
         renderer.clearLabels("world", 100, 64, 200, "target:25565");
 
@@ -101,11 +113,16 @@ class PortalLabelRendererTest {
     void clearLabels_removesOnlyMatchingStands() {
         ArmorStand matching = mock(ArmorStand.class);
         when(matching.customName()).thenReturn(Component.text("target:25565"));
+        when(matching.getLocation()).thenReturn(new Location(world, 100.5, 65.9, 200.5));
         ArmorStand nonMatching = mock(ArmorStand.class);
         when(nonMatching.customName()).thenReturn(Component.text("other_label"));
+        when(nonMatching.getLocation()).thenReturn(new Location(world, 100.5, 65.9, 200.5));
 
-        when(world.getNearbyEntities(any(Location.class), anyDouble(), anyDouble(), anyDouble()))
-                .thenReturn(List.of(matching, nonMatching));
+        when(world.isChunkLoaded(anyInt(), anyInt())).thenReturn(true);
+        Chunk standChunk = mock(Chunk.class);
+        when(standChunk.getEntities()).thenReturn(new Entity[] {matching, nonMatching});
+        when(world.getChunkAt(anyInt(), anyInt())).thenReturn(mock(Chunk.class));
+        when(world.getChunkAt(6, 12)).thenReturn(standChunk);
 
         renderer.clearLabels("world", 100, 64, 200, "target:25565");
 
@@ -154,8 +171,13 @@ class PortalLabelRendererTest {
     void clearNearbyArmorStands_removesMatchingStands() {
         ArmorStand matching = mock(ArmorStand.class);
         when(matching.customName()).thenReturn(Component.text("跨服传送 target:25565"));
-        when(world.getNearbyEntities(any(Location.class), anyDouble(), anyDouble(), anyDouble()))
-                .thenReturn(List.of(matching));
+        when(matching.getLocation()).thenReturn(new Location(world, 100.5, 66.0, 200.5));
+
+        when(world.isChunkLoaded(anyInt(), anyInt())).thenReturn(true);
+        Chunk standChunk = mock(Chunk.class);
+        when(standChunk.getEntities()).thenReturn(new Entity[] {matching});
+        when(world.getChunkAt(anyInt(), anyInt())).thenReturn(mock(Chunk.class));
+        when(world.getChunkAt(6, 12)).thenReturn(standChunk);
 
         Location center = new Location(world, 100, 64, 200);
         renderer.clearNearbyArmorStands(world, center, 3.0, "target:25565");

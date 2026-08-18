@@ -11,9 +11,11 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 
 > 🌐 **English** | [简体中文](./README.zh-CN.md)
 > 
-> This plugin is built for [PaperMC](https://papermc.io/) servers. Since the
-> `PaperAPI` is compatible with the `BukkitAPI` and `SpigotAPI`, it is also
-> friendly to developers with Bukkit and Spigot plugin development experience.
+> This plugin is built for [PaperMC](https://papermc.io/) servers, and runs on
+> [Folia](https://papermc.io/software/folia) as well (declared via
+> `folia-supported: true`). Since the `PaperAPI` is compatible with the
+> `BukkitAPI` and `SpigotAPI`, it is also friendly to developers with Bukkit and
+> Spigot plugin development experience.
 >
 > It currently runs on my [private server](https://orzmc.jokerhub.cn) to assist
 > with administration, and is published on [Hangar](https://hangar.papermc.io/OrzMC/OrzMC)
@@ -41,9 +43,14 @@ For the full feature list, see [docs/features.md](./docs/features.md).
 ## Installation
 
 Download the plugin, drop it into the `plugins/` directory of your PaperMC
-server, and start the server. The plugin creates a data directory with the same
-name on first run. During operation, configuration is loaded into memory and
-written back to the config files when the server stops.
+(or Folia) server, and start the server. The plugin creates a data directory
+with the same name on first run. During operation, configuration is loaded into
+memory and written back to the config files when the server stops.
+
+> **Folia**: the plugin declares `folia-supported: true` and runs on both
+> Paper and Folia with the same JAR. A CI `folia-smoke` job boots a real Folia
+> server on every PR to catch region-thread regressions that single-threaded
+> unit/integration tests cannot.
 
 > **Optional dependency**: [LuckPerms](https://luckperms.net/) (v5.5+) enables
 > the rank & review permission system. Without it the plugin runs normally but

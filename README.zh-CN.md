@@ -7,10 +7,12 @@
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
-通过 EasyBot 统一接入多平台机器人的 Paper 服务器管理插件
+通过 EasyBot 统一接入多平台机器人的 Paper / Folia 服务器管理插件
 > 🌐 [English](./README.md) | **简体中文**
 >
-> 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，由于
+> 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，同时支持
+> [Folia](https://papermc.io/software/folia)（已在 `paper-plugin.yml` 声明
+> `folia-supported: true`，同一 JAR 双运行时兼容）。由于
 > `PaperAPI`兼容`BukkitAPI`和`SpigotAPI`，
 > 所以插件开发对有 Bukkit 和 Spigot 插件开发经验的开发者也比较友好
 >
@@ -36,7 +38,9 @@
 详情可阅读：[插件全部功能](./docs/features.md)
 
 ## 安装插件
-下载插件后，放到PaperMC服务端插件目录`plugins/`下，启动服务端后，插件会创建相同名称的数据目录。本插件在运行期间，配置被加载到内存中，服务端停止时会写回配置文件。
+下载插件后，放到 PaperMC（或 Folia）服务端插件目录`plugins/`下，启动服务端后，插件会创建相同名称的数据目录。本插件在运行期间，配置被加载到内存中，服务端停止时会写回配置文件。
+
+> **Folia**：插件声明 `folia-supported: true`，同一 JAR 同时兼容 Paper 与 Folia。CI 的 `folia-smoke` job 会在每次 PR 真实启动 Folia 服务端，兜底单线程单测/集成测试测不出的 region 线程回归。
 
 > **可选依赖**：[LuckPerms](https://luckperms.net/)（v5.5+）用于启用权限管理系统（Rank & Review）。未安装时插件正常运行，仅权限功能不可用；已安装时启动自动创建 track `rank` 与缺失权限组，**无需手动配置 LuckPerms**。
 

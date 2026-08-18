@@ -3,9 +3,13 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ChatConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ExploitHardeningConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.LoginRateLimitConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PlayerNotifyConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
@@ -73,6 +77,30 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
     public IpWhitelist ipWhitelist() {
         ConfigurationSection section = sectionOrLegacy("config", "geoip", "ip_whitelist.yml");
         return IpWhitelist.from(section);
+    }
+
+    @Override
+    public SecurityGuardConfig securityGuard() {
+        ConfigurationSection section = sectionOrLegacy("config", "guard", "guard.yml");
+        return SecurityGuardConfig.from(section);
+    }
+
+    @Override
+    public ChatConfig chat() {
+        ConfigurationSection section = sectionOrLegacy("config", "chat", "chat.yml");
+        return ChatConfig.from(section);
+    }
+
+    @Override
+    public LoginRateLimitConfig loginRateLimit() {
+        ConfigurationSection section = sectionOrLegacy("config", "login_rate_limit", "login_rate_limit.yml");
+        return LoginRateLimitConfig.from(section);
+    }
+
+    @Override
+    public ExploitHardeningConfig exploitHardening() {
+        ConfigurationSection section = sectionOrLegacy("config", "exploit_hardening", "exploit_hardening.yml");
+        return ExploitHardeningConfig.from(section);
     }
 
     @Override

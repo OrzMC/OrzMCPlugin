@@ -3,6 +3,9 @@ import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
 import org.gradle.testing.jacoco.tasks.JacocoReport
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
+import java.net.URI
+import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 
 buildscript {
     repositories {
@@ -115,6 +118,26 @@ fun latestCommitMessage(): String {
         .getOrElse { "OrzMC ${project.version} build" }
 }
 
+/** 轮询日志文件直到命中 pattern，返回已等待毫秒数；超时返回 -1。 */
+private fun waitForLog(logFile: File, pattern: Regex, timeoutMs: Long): Long {
+    val start = System.nanoTime()
+    while ((System.nanoTime() - start) < timeoutMs * 1_000_000L) {
+        if (logFile.exists() && pattern.containsMatchIn(logFile.readText(Charsets.UTF_8))) {
+            return (System.nanoTime() - start) / 1_000_000L
+        }
+        Thread.sleep(250)
+    }
+    return -1
+}
+
+/** 读取日志尾部若干行，用于失败诊断。 */
+private fun logTail(logFile: File, lines: Int = 40): String {
+    if (!logFile.exists()) {
+        return "(smoke.log 不存在)"
+    }
+    return logFile.readText(Charsets.UTF_8).split("\n").takeLast(lines).joinToString("\n")
+}
+
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
 val githubRefType: String? = System.getenv("GITHUB_REF_TYPE")
 val githubEventName: String? = System.getenv("GITHUB_EVENT_NAME")
@@ -183,6 +206,10 @@ modrinth {
             .split(",").map { it.trim() }
     )
     loaders.add("paper")
+    // Folia 运行时与 Paper 共用同一 shadowJar（paper-plugin.yml 声明 folia-supported），
+    // Modrinth 单独声明 loader 让 Folia 服务器玩家可见。
+    // 注：Hangar 无 FOLIA 平台（仅 PAPER/VELOCITY/WATERFALL），兼容性由 PAPER 平台条目承载。
+    loaders.add("folia")
 
     // 同步 README.md 到 Modrinth 项目主页
     syncBodyFrom.set(project.file("README.md").readText())
@@ -227,6 +254,131 @@ tasks {
         // 以离线模式启动服务端
         args("--nojline", "--nogui", "--online-mode=false")
         dependsOn(agreeEula)
+    }
+    // ---- Folia：runFolia（run-paper 3.1.0） + foliaSmoke 无头冒烟 ----
+    val agreeFoliaEula = register("agreeFoliaEula") {
+        doLast {
+            val runDir = file("run-folia")
+            if (!runDir.exists()) {
+                runDir.mkdirs()
+            }
+            file("$runDir/eula.txt").writeText("eula=true\n")
+        }
+    }
+    runPaper.folia.registerTask {
+        // runDirectory 隔离到 run-folia/，避免 Folia 尝试加载 run/plugins 下
+        // Paper 专属的 Vault/EssentialsX 等不兼容插件；shadowJar 由 run-paper 自动检测加入
+        minecraftVersion(debugServerVersion)
+        args("--nojline", "--nogui", "--online-mode=false")
+        runDirectory.set(layout.projectDirectory.dir("run-folia"))
+        dependsOn(agreeFoliaEula)
+    }
+
+    // foliaSmoke：真实 Folia 无头冒烟（评估文档 D8）。下载与启动拆成两个任务：
+    // downloadFoliaJar 有缓存（build/folia-smoke/），foliaSmoke 每次执行都真实启动不跳过。
+    // 注意：不能嵌套调用 gradlew 下载/启动（会死锁在项目锁上），故自行解析 Fill API v3 + 直接 java -jar。
+    val foliaSmokeJar = layout.buildDirectory.file("folia-smoke/folia-$debugServerVersion.jar")
+    val foliaSmokeMarker = layout.buildDirectory.file("folia-smoke/.folia-$debugServerVersion.ok")
+    register("downloadFoliaJar") {
+        group = "verification"
+        description = "下载 Folia 服务端 jar（Paper Fill API v3，SnakeYAML 解析 JSON 响应）"
+        inputs.property("foliaVersion", debugServerVersion)
+        outputs.file(foliaSmokeJar)
+        // 下载成功且 SHA256 通过才写标记文件；中途被杀留下的残缺 jar 因标记缺失会被判 out-of-date 重下
+        outputs.file(foliaSmokeMarker)
+        doLast {
+            val jarFile = foliaSmokeJar.get().asFile
+            val apiUrl = "https://fill.papermc.io/v3/projects/folia/versions/$debugServerVersion/builds/latest"
+            // Fill API 返回 JSON，而 JSON ⊂ YAML，直接复用 buildscript 已有的 SnakeYAML 解析
+            val response = URI(apiUrl).toURL().openStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val data = Yaml().load(response) as Map<*, *>
+            val serverDefault = (data["downloads"] as Map<*, *>)["server:default"] as Map<*, *>
+            val downloadUrl = serverDefault["url"] as String
+            val expectedSha = (serverDefault["checksums"] as Map<*, *>)["sha256"] as String
+            jarFile.parentFile.mkdirs()
+            val conn = URI(downloadUrl).toURL().openConnection()
+            conn.setRequestProperty("User-Agent", "OrzMC/folia-smoke")
+            conn.connect()
+            val digest = MessageDigest.getInstance("SHA-256")
+            conn.getInputStream().use { input ->
+                jarFile.outputStream().use { out ->
+                    val buf = ByteArray(128 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        digest.update(buf, 0, n)
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
+            val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!actualSha.equals(expectedSha, ignoreCase = true)) {
+                jarFile.delete()
+                throw GradleException("Folia jar SHA256 校验失败: expected=$expectedSha actual=$actualSha")
+            }
+            foliaSmokeMarker.get().asFile.writeText("sha256=$actualSha\n")
+            logger.lifecycle("已下载 Folia $debugServerVersion → ${jarFile.absolutePath}")
+        }
+    }
+    register("foliaSmoke") {
+        group = "verification"
+        description = "真实 Folia 无头冒烟：启动服务端 → 校验 OrzMC 加载 → stop → 断言干净退出"
+        dependsOn("downloadFoliaJar", project.tasks.shadowJar)
+        outputs.upToDateWhen { false } // 每次执行都真实启动，不因缓存跳过
+        // 配置期解析（避免 doLast 内 Task.project 的执行期弃用告警 / 配置缓存不兼容）
+        val runDir = project.layout.projectDirectory.dir("run-folia-smoke").asFile
+        val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+        val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+        doLast {
+            val serverJar = foliaSmokeJar.get().asFile
+            runDir.mkdirs()
+            File(runDir, "eula.txt").writeText("eula=true\n")
+            val pluginsDir = File(runDir, "plugins").apply { mkdirs() }
+            shadowJarFile.copyTo(File(pluginsDir, "OrzMC.jar"), overwrite = true)
+            // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
+            // 故在隔离的 run-folia-smoke/ 内放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
+            val orzmcDataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
+            File(orzmcDataDir, "config.yml").writeText("guard:\n  blocked_commands: []\n")
+
+            val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
+            // 用 Java 25 toolchain 启动（Folia 26.2 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
+            val cmd = listOf(
+                javaBin, "-Xmx2G", "-Ddisable.watchdog=true",
+                "-jar", serverJar.absolutePath,
+                "--nogui", "--nojline", "--online-mode=false", "--port", "25580"
+            )
+            logger.lifecycle("启动 Folia 冒烟服务器: ${cmd.joinToString(" ")}")
+            val proc = ProcessBuilder(cmd)
+                .directory(runDir)
+                .redirectErrorStream(true)
+                .redirectOutput(logFile)
+                .start()
+
+            val startedMs = waitForLog(logFile, Regex("Done \\(.*\\)"), 240_000)
+            if (startedMs < 0) {
+                proc.destroyForcibly()
+                proc.waitFor(30, TimeUnit.SECONDS)
+                throw GradleException("Folia 服务器 240s 内未完成启动。日志尾部:\n${logTail(logFile)}")
+            }
+            logger.lifecycle("Folia 已启动（${startedMs}ms）。校验 OrzMC 加载...")
+            // 插件加载后日志会出现 [OrzMC] 前缀行；plugins 命令响应列表也含 OrzMC
+            if (waitForLog(logFile, Regex("OrzMC"), 15_000) < 0) {
+                proc.destroyForcibly()
+                proc.waitFor(30, TimeUnit.SECONDS)
+                throw GradleException("OrzMC 插件未加载。日志尾部:\n${logTail(logFile)}")
+            }
+            logger.lifecycle("OrzMC 已加载。发送 stop...")
+            proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
+            proc.outputStream.flush()
+            if (!proc.waitFor(90, TimeUnit.SECONDS)) {
+                proc.destroyForcibly()
+                throw GradleException("Folia 在 stop 后 90s 内未退出。日志尾部:\n${logTail(logFile)}")
+            }
+            if (proc.exitValue() != 0) {
+                throw GradleException("Folia 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
+            }
+            logger.lifecycle("Folia 冒烟通过：干净退出（exit 0）")
+        }
     }
     jar {
         enabled = false

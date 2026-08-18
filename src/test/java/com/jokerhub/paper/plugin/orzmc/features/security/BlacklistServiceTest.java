@@ -76,6 +76,82 @@ class BlacklistServiceTest {
         assertEquals(expected, service.isBlocked(ip));
     }
 
+    // ---- IPv6 精确匹配（文本形式规范化）----
+
+    @Test
+    void exactMatch_ipv6_canonicalFormsEqual() {
+        setupPatterns("2001:db8::1");
+        assertTrue(service.isBlocked("2001:db8::1"));
+        assertTrue(service.isBlocked("2001:0db8:0:0:0:0:0:1"));
+    }
+
+    @Test
+    void exactMatch_ipv6_allowsDifferent() {
+        setupPatterns("2001:db8::1");
+        assertFalse(service.isBlocked("2001:db8::2"));
+    }
+
+    // ---- IPv6 CIDR ----
+
+    @ParameterizedTest
+    @CsvSource({
+        "2001:db8::/32,     2001:db8:1::5,   true",
+        "2001:db8::/32,     2001:db9::1,     false",
+        "fd00::/8,          fd12:3456::1,    true",
+        "fd00::/8,          2001:db8::1,     false",
+        "::/0,              ::1,             true",
+        "::1/128,           ::1,             true",
+        "::1/128,           ::2,             false",
+    })
+    void cidrMatch_ipv6(String pattern, String ip, boolean expected) {
+        setupPatterns(pattern);
+        assertEquals(expected, service.isBlocked(ip));
+    }
+
+    // ---- IPv4 / IPv6 族不匹配 ----
+
+    @Test
+    void cidrMatch_v4PatternVsV6Ip_notBlocked() {
+        setupPatterns("10.0.0.0/8");
+        assertFalse(service.isBlocked("2001:db8::1"));
+    }
+
+    @Test
+    void cidrMatch_v6PatternVsV4Ip_notBlocked() {
+        setupPatterns("2001:db8::/32");
+        assertFalse(service.isBlocked("10.0.0.1"));
+    }
+
+    // ---- 前缀越界 ----
+
+    @ParameterizedTest
+    @CsvSource({
+        "2001:db8::/129,  2001:db8::1,   false",
+        "2001:db8::/-1,   2001:db8::1,   false",
+    })
+    void cidrMatch_invalidPrefix_notBlocked(String pattern, String ip, boolean expected) {
+        setupPatterns(pattern);
+        assertEquals(expected, service.isBlocked(ip));
+    }
+
+    // ---- matchedPattern（P2-4 封禁告警需命中规则）----
+
+    @Test
+    void matchedPattern_returnsHitPattern() {
+        setupPatterns("1.2.3.4", "10.0.0.0/8", "2001:db8::/32");
+        assertEquals("10.0.0.0/8", service.matchedPattern("10.1.2.3"));
+        assertEquals("2001:db8::/32", service.matchedPattern("2001:db8:abcd::5"));
+        assertEquals("1.2.3.4", service.matchedPattern("1.2.3.4"));
+    }
+
+    @Test
+    void matchedPattern_noHit_returnsNull() {
+        setupPatterns("1.2.3.4");
+        assertNull(service.matchedPattern("5.6.7.8"));
+        assertNull(service.matchedPattern(""));
+        assertNull(service.matchedPattern(null));
+    }
+
     // ---- blacklist is empty by default ----
 
     @Test

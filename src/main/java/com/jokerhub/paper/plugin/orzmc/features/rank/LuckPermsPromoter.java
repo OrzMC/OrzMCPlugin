@@ -289,7 +289,10 @@ public final class LuckPermsPromoter implements RankPromoter {
 
     /** 在主线程执行 LP 变更（异步线程时经 scheduler 回主线程）。 */
     private <T> T runSync(Supplier<T> action) {
-        if (Bukkit.isPrimaryThread() || scheduler == null) {
+        // Paper 主线程与 Folia global region 线程都是「同步调度线程」，直接执行；
+        // 异步线程（LP loadUser 等）上则回调度器执行，避免 self-schedule + join 死锁。
+        // （isGlobalTickThread 在 Paper 上等价于主线程判定，Folia 上判定 global region 线程）
+        if (Bukkit.isGlobalTickThread() || scheduler == null) {
             return action.get();
         }
         CompletableFuture<T> done = new CompletableFuture<>();

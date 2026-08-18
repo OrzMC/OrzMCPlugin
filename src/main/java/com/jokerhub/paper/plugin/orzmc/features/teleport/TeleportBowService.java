@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
 import com.jokerhub.paper.plugin.orzmc.infra.core.OrzConstants;
+import com.jokerhub.paper.plugin.orzmc.infra.server.BukkitRegionSchedulerProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
@@ -19,13 +20,16 @@ public final class TeleportBowService {
     private final OrzTextStyles styles;
     private final TeleportBowTexts texts;
     private final NamespacedKey keyTpBow;
-    private final ForceLoadedChunkLease chunkLease = new ForceLoadedChunkLease();
+    private final ForceLoadedChunkLease chunkLease;
 
     public TeleportBowService(ServerFacade server, OrzTextStyles styles) {
         this.server = server;
         this.styles = styles;
         this.texts = new TeleportBowTexts(styles);
         this.keyTpBow = server.key(OrzConstants.TPBOW_KEY);
+        // Folia：force-load 状态读写是全局状态（global region 线程），unloadChunk 走 region 调度
+        this.chunkLease =
+                new ForceLoadedChunkLease(new BukkitRegionSchedulerProvider(server.plugin()), server::runSync);
     }
 
     public TextComponent prefix() {
@@ -220,8 +224,24 @@ public final class TeleportBowService {
             player.sendMessage(texts.logText("目标位置不可站立!").color(styles.colorError()));
             return;
         }
-        player.teleport(safe);
-        player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_CAT_PURR, 1.0F, 1.0F);
-        player.sendMessage(texts.logText("传送完成!").color(styles.colorSuccess()));
+        teleportAndFeedback(player, safe);
+    }
+
+    /**
+     * Folia：跨 region 传送必须用异步 API；完成回调把音效/提示投递到玩家所属 region 线程。
+     * Paper 上 teleportAsync 在主线程完成、getScheduler() 等价于主线程执行，语义不变。
+     * 包私有便于测试直接验证投递目标。
+     */
+    void teleportAndFeedback(Player player, org.bukkit.Location safe) {
+        player.teleportAsync(safe)
+                .thenRun(() -> player.getScheduler()
+                        .run(
+                                server.plugin(),
+                                t -> {
+                                    player.playSound(
+                                            player.getLocation(), org.bukkit.Sound.ENTITY_CAT_PURR, 1.0F, 1.0F);
+                                    player.sendMessage(texts.logText("传送完成!").color(styles.colorSuccess()));
+                                },
+                                () -> {}));
     }
 }

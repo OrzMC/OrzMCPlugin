@@ -71,7 +71,7 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
 
     @Test
     void buildMaintenanceMotd_containsMaintenanceWarn() {
-        MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护中请稍后");
+        MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护中请稍后", 0L);
         BotConfig bot = new BotConfig("$", null, null);
         when(configs.maintenance()).thenReturn(maint);
         when(configs.bot()).thenReturn(bot);
@@ -86,7 +86,7 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
 
     @Test
     void buildMaintenanceMotd_withDiscord() {
-        MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护公告");
+        MaintenanceConfig maint = new MaintenanceConfig(true, 300L, 5, "维护公告", 0L);
         BotConfig bot = new BotConfig("$", "https://discord.gg/test", null);
         when(configs.maintenance()).thenReturn(maint);
         when(configs.bot()).thenReturn(bot);

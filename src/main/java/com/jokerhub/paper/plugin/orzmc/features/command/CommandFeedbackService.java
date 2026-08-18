@@ -23,4 +23,8 @@ public final class CommandFeedbackService {
     public TextComponent portNumberRequiredTip() {
         return Component.text("端口需为数字");
     }
+
+    public TextComponent securityBlockedTip(String reason) {
+        return Component.text(reason);
+    }
 }

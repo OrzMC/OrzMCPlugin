@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.util.HashMap;
+import java.util.logging.Logger;
 import org.bukkit.Axis;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -22,6 +23,7 @@ class PortalBuilderTest {
     private Player player;
     private World world;
     private HashMap<String, String> interiorTargets;
+    private Logger logger;
     private PortalBuilder builder;
 
     @BeforeEach
@@ -29,7 +31,8 @@ class PortalBuilderTest {
         player = mock(Player.class);
         world = mock(World.class);
         interiorTargets = new HashMap<>();
-        builder = new PortalBuilder(interiorTargets);
+        logger = mock(Logger.class);
+        builder = new PortalBuilder(interiorTargets, logger);
 
         when(player.getWorld()).thenReturn(world);
         when(world.getMaxHeight()).thenReturn(320);
@@ -143,6 +146,28 @@ class PortalBuilderTest {
 
         assertNotNull(result);
         assertTrue(result.cy() > 60, "Should find space above blocked y=60");
+    }
+
+    @Test
+    void build_footprintCrossesChunkBoundary_logsWarning() {
+        // 朝东（轴 X）：z∈[baseZ-1, baseZ+4]=[13,18] 跨 chunk(0) 与 chunk(1) → 一期降级 warning
+        mockLocation(new Vector(1, 0, 0), 100, 64, 14);
+        mockBlocks(Material.AIR);
+
+        builder.build(player, "warn:25565");
+
+        verify(logger).warning(contains("跨"));
+    }
+
+    @Test
+    void build_singleChunkFootprint_noWarning() {
+        // 朝东（轴 X）：z∈[19,24] 落在同一个 chunk → 无跨区块 warning
+        mockLocation(new Vector(1, 0, 0), 100, 64, 20);
+        mockBlocks(Material.AIR);
+
+        builder.build(player, "ok:25565");
+
+        verify(logger, never()).warning(anyString());
     }
 
     private void mockBlocks(Material type) {

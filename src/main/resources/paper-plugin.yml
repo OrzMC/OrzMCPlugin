@@ -7,7 +7,7 @@ authors: [ wangzhizhou ]
 contributors: [ wangzhizhou ]
 website: https://orzmc.jokerhub.cn
 api-version: '26.1.2'
-folia-supported: false
+folia-supported: true
 
 # LuckPerms 软依赖（Paper 26 新格式）：确保 OrzMC 在 LP 之后加载，
 # 且 LP 的类加载器对 OrzMC 可见（LP API 类由其插件提供）；LP 未安装时功能降级

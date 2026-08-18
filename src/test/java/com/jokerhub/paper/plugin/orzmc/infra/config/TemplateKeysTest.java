@@ -55,5 +55,10 @@ class TemplateKeysTest {
     void securityKeys_present() {
         assertEquals("geoip_block", TemplateKeys.GEOIP_BLOCK);
         assertEquals("whitelist_block", TemplateKeys.WHITELIST_BLOCK);
+        assertEquals("command_guard_blocked", TemplateKeys.COMMAND_GUARD_BLOCKED);
+        assertEquals("security_audit", TemplateKeys.SECURITY_AUDIT);
+        assertEquals("login_rate_limit_alert", TemplateKeys.LOGIN_RATE_LIMIT_ALERT);
+        assertEquals("exploit_blocked", TemplateKeys.EXPLOIT_BLOCKED);
+        assertEquals("ip_blacklist_block", TemplateKeys.IP_BLACKLIST_BLOCK);
     }
 }

@@ -79,8 +79,13 @@ class NotifierTest extends ServiceTestBase {
         notifier.routeEvent("exception_alert", env);
         notifier.routeEvent("maintenance_backup_error", env);
         notifier.routeEvent("maintenance_optimize_error", env);
+        notifier.routeEvent("command_guard_blocked", env);
+        notifier.routeEvent("security_audit", env);
+        notifier.routeEvent("login_rate_limit_alert", env);
+        notifier.routeEvent("exploit_blocked", env);
+        notifier.routeEvent("ip_blacklist_block", env);
 
-        verify(botMessageService, times(3))
+        verify(botMessageService, times(8))
                 .send(argThat(message -> message.targetType() == MessageEnvelope.TargetType.PRIVATE));
     }
 

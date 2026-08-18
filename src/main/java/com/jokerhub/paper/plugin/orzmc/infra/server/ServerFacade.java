@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.server;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -40,20 +41,24 @@ public final class ServerFacade implements ServerAccess, ServerLogger, ServerSch
         return new NamespacedKey(plugin, value);
     }
 
+    // Folia 兼容调度器（Paper 与 Folia 单一代码路径）：
+    // - Paper 上 GlobalRegionScheduler 即主线程执行，tick 语义与 BukkitScheduler 一致；
+    // - Folia 上 removed 的 BukkitScheduler 被此 API 取代，runSync 落在全局区域线程（≈主线程）。
     public void runSync(Runnable task) {
-        server().getScheduler().runTask(plugin, task);
+        server().getGlobalRegionScheduler().execute(plugin, task);
     }
 
     public void runAsync(Runnable task) {
-        server().getScheduler().runTaskAsynchronously(plugin, task);
+        server().getAsyncScheduler().runNow(plugin, ignored -> task.run());
     }
 
     public void runLater(Runnable task, long delayTicks) {
-        server().getScheduler().runTaskLater(plugin, task, delayTicks);
+        server().getGlobalRegionScheduler().runDelayed(plugin, ignored -> task.run(), delayTicks);
     }
 
-    public org.bukkit.scheduler.BukkitTask runTaskTimer(Runnable task, long delayTicks, long periodTicks) {
-        return server().getScheduler().runTaskTimer(plugin, task, delayTicks, periodTicks);
+    public ScheduledTask runTaskTimer(Runnable task, long delayTicks, long periodTicks) {
+        return server().getGlobalRegionScheduler()
+                .runAtFixedRate(plugin, ignored -> task.run(), delayTicks, periodTicks);
     }
 
     public void executeConsoleCommands(Runnable after, String... consoleCmds) {

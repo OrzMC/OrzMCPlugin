@@ -11,7 +11,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.CoordFormatter;
 import io.papermc.paper.event.block.BlockPreDispenseEvent;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -60,8 +59,15 @@ public final class TntEventService {
     private final OrzTextStyles styles;
     private final Notifier notifier;
     private final ServerScheduler scheduler;
-    /** 突发聚合状态：key=world|区域|消息类型 → 批次计数/首事件坐标。仅主线程访问（Bukkit 事件与 runLater 均同步）。 */
-    private final Map<String, PendingAlert> pendingAlerts = new HashMap<>();
+    /**
+     * 突发聚合状态：key=world|区域|消息类型 → 批次计数/首事件坐标。
+     *
+     * <p>Paper：事件与 runLater 均同步，单线程访问。Folia：爆炸/引燃事件在爆炸所在 chunk 的
+     * region 线程触发，而聚合区域 128×128×64 方块跨越多个 chunk——不同 region 可并发命中同一 key，
+     * 故用 {@code ConcurrentHashMap} + {@link #aggregateNotify} 内的 {@code compute} 原子化建表/计数，
+     * 避免 get-then-put 竞态丢计数或建多个批次。</p>
+     */
+    private final Map<String, PendingAlert> pendingAlerts = new ConcurrentHashMap<>();
 
     public TntEventService(
             TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier, ServerScheduler scheduler) {
@@ -182,20 +188,26 @@ public final class TntEventService {
      */
     private void aggregateNotify(Location location, String message, String blockType, boolean explosionPrefix) {
         String key = aggregateKey(location, message);
-        PendingAlert alert = pendingAlerts.get(key);
-        if (alert == null) {
-            alert = new PendingAlert();
-            alert.epicenter = location;
-            alert.message = message;
-            alert.blockType = blockType;
-            alert.explosionPrefix = explosionPrefix;
-            long windowMs = currentPolicy().getNotifyAggregateMs();
-            long ticks = Math.max(1, windowMs / 50);
-            scheduler.runLater(() -> flushTail(key), ticks);
-            // 尾部调度成功后才入表：中途抛异常不留孤儿条目，避免该 key 永久静默且 map 无界增长
-            pendingAlerts.put(key, alert);
-        }
-        alert.count++;
+        // compute 原子化建表/计数：Folia 下不同 region 并发命中同一 key 时，
+        // 首次创建（含调度窗口尾部冲刷）或累计计数均只执行一次，不丢计数。
+        pendingAlerts.compute(key, (k, existing) -> {
+            if (existing == null) {
+                PendingAlert created = new PendingAlert();
+                created.epicenter = location;
+                created.message = message;
+                created.blockType = blockType;
+                created.explosionPrefix = explosionPrefix;
+                created.count = 1;
+                // 调度在 compute 返回（入表可见）之前完成：中途抛异常不落表，
+                // 不留「无调度冲刷的孤儿条目」，避免该 key 永久静默且 map 无界增长。
+                long windowMs = currentPolicy().getNotifyAggregateMs();
+                long ticks = Math.max(1, windowMs / 50);
+                scheduler.runLater(() -> flushTail(key), ticks);
+                return created;
+            }
+            existing.count++;
+            return existing;
+        });
     }
 
     /** 窗口尾部冲刷：批次内事件统一补发一条（多事件带 ×N，单发不带次数）。 */
@@ -272,7 +284,7 @@ public final class TntEventService {
         return world + "|" + rx + "|" + ry + "|" + rz + "|" + message;
     }
 
-    /** 一批待聚合的 TNT/爆炸告警。仅主线程访问。 */
+    /** 一批待聚合的 TNT/爆炸告警。字段仅在 {@code pendingAlerts.compute} 的映射函数内读写（按 key 串行）。 */
     private static final class PendingAlert {
         int count;
 
