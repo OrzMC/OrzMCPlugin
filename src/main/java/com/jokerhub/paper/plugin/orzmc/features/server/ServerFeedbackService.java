@@ -29,7 +29,7 @@ public final class ServerFeedbackService {
         String minecraftVersion = server.server().getMinecraftVersion();
         String[] parts = {"Minecraft", minecraftVersion, onlineMode};
         StringBuilder stringBuilder = new StringBuilder(String.join(" ", parts)).append("\n");
-        stringBuilder.append("------").append("\n");
+        stringBuilder.append("---------------------------------").append("\n");
         switch (event.getType()) {
             case STARTUP -> stringBuilder.append("启动完成");
             case RELOAD -> stringBuilder.append("重启完成");

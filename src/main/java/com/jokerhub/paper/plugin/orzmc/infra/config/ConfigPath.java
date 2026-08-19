@@ -70,7 +70,7 @@ public final class ConfigPath {
         reg(map, "config", "player_notify.enabled_kick", Boolean.class, true, "被踢消息通知开关");
         reg(map, "config", "player_notify.window_ms", Long.class, 3000L, "上下线通知聚合窗口(毫秒)");
         reg(map, "config", "player_notify.max_list_items", Integer.class, 6, "聚合摘要最多列出的玩家数");
-        reg(map, "config", "player_notify.include_online_list", Boolean.class, false, "聚合摘要是否附带在线列表");
+
         // command policies (config.yml)
         reg(map, "config", "command_policies.tpbow.cooldown_secs", Integer.class, 3, "传送弓冷却(秒)");
         reg(map, "config", "command_policies.tpbow.admin_only", Boolean.class, false, "传送弓仅管理员可用");

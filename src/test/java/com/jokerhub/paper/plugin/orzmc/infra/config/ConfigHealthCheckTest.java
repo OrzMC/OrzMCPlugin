@@ -82,7 +82,6 @@ class ConfigHealthCheckTest {
         config.getConfigurationSection("player_notify").set("enabled_kick", true);
         config.getConfigurationSection("player_notify").set("window_ms", 3000L);
         config.getConfigurationSection("player_notify").set("max_list_items", 6);
-        config.getConfigurationSection("player_notify").set("include_online_list", false);
     }
 
     private void addFullValidConfig_geoip() {
@@ -609,7 +608,6 @@ class ConfigHealthCheckTest {
     void playerNotifyWrongToggleTypes_reportIssue() {
         addFullValidConfig_playerNotify();
         config.getConfigurationSection("player_notify").set("enabled_join", "yes");
-        config.getConfigurationSection("player_notify").set("include_online_list", 1);
         addFullValidConfig_whitelist();
         addFullValidConfig_maintenance();
         addFullValidConfig_tnt();
@@ -619,7 +617,6 @@ class ConfigHealthCheckTest {
         addMinimalValidConfig_templates();
         List<String> issues = runValidate();
         assertTrue(issues.contains("类型错误: player_notify.enabled_join 需为布尔值"));
-        assertTrue(issues.contains("类型错误: player_notify.include_online_list 需为布尔值"));
     }
 
     @Test

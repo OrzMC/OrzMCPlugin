@@ -39,10 +39,10 @@ class TemplateServiceTest {
     void playerDigest_returnsMessageEnvelope() {
         YamlConfiguration cfg = new YamlConfiguration();
         Templates templates = Templates.from(cfg);
-        MessageEnvelope result =
-                TemplateService.renderEvent("player_digest", cfg, templates, Map.of("join_summary", "🟢 +2 上线：A、B\n"));
+        MessageEnvelope result = TemplateService.renderEvent(
+                "player_digest", cfg, templates, Map.of("join_summary", "🥰 上线(2)：\nA 生存模式\nB 生存模式\n"));
         assertNotNull(result);
-        assertTrue(result.message().contains("🟢 +2 上线：A、B"), "摘要模板应渲染 join_summary: " + result.message());
+        assertTrue(result.message().contains("🥰 上线(2)："), "摘要模板应渲染 join_summary: " + result.message());
     }
 
     @Test

@@ -35,6 +35,16 @@ hs_err_pid*
 # temporary files which can be created if a process still has a handle open of a deleted file
 .fuse_hidden*
 
+# AI agent 工具本地缓存（规则/指引文件保留）
+.claude/settings.local.json
+.claude/commands/
+.gemini/
+.codex/
+.cursor/tmp/
+.cursor/settings.json
+.clinerules.local
+!.cursor/rules/
+
 # KDE directory preferences
 .directory
 

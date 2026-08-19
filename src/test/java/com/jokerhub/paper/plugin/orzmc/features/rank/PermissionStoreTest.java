@@ -234,4 +234,52 @@ class PermissionStoreTest {
         }
         assertEquals(9, store.listByApplicant(applicant).size());
     }
+
+    // ---- 并发写盘（L1：共享 FileConfiguration 无同步 → 丢更新/损坏 YAML）----
+
+    @Test
+    void concurrentSaves_noLostUpdates() throws Exception {
+        // 回归（L1）：approve 在 global 线程写、submit/cancel/reject 在 region 线程写——
+        // save 锁跨线程串行化 write+save 临界区，所有并发写入都必须可读回、不抛异常
+        UUID applicant = UUID.randomUUID();
+        int threads = 8;
+        int perThread = 20;
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(threads);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        try {
+            for (int t = 0; t < threads; t++) {
+                final int base = t;
+                pool.submit(() -> {
+                    ready.countDown();
+                    go.await();
+                    for (int i = 0; i < perThread; i++) {
+                        ReviewRequest r = new ReviewRequest(
+                                "c" + base + "-" + i,
+                                "builder-promotion",
+                                applicant,
+                                Map.of("target-group", "builder"),
+                                ReviewRequest.Status.PENDING,
+                                base * 100_000L + i,
+                                0L,
+                                null);
+                        store.save(r);
+                    }
+                    return null;
+                });
+            }
+            ready.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            go.countDown();
+        } finally {
+            pool.shutdown();
+            assertTrue(pool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS), "并发 save 应在超时前全部完成");
+        }
+
+        // 每个线程的每条写入都可读回（无丢更新）
+        for (int t = 0; t < threads; t++) {
+            for (int i = 0; i < perThread; i++) {
+                assertTrue(store.findById("c" + t + "-" + i).isPresent(), "并发写入不应丢失: c" + t + "-" + i);
+            }
+        }
+    }
 }

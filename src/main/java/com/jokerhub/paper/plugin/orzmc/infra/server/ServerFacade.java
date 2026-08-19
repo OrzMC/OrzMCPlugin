@@ -53,7 +53,10 @@ public final class ServerFacade implements ServerAccess, ServerLogger, ServerSch
     }
 
     public void runLater(Runnable task, long delayTicks) {
-        server().getGlobalRegionScheduler().runDelayed(plugin, ignored -> task.run(), delayTicks);
+        // 钳位 delay ≥ 1：Folia FoliaGlobalRegionScheduler.runDelayed 要求 delay > 0
+        // （Paper 允许 0 = 下一 tick；Folia 抛 IllegalArgumentException —— BUG-E2E-001）
+        long safeDelay = Math.max(1, delayTicks);
+        server().getGlobalRegionScheduler().runDelayed(plugin, ignored -> task.run(), safeDelay);
     }
 
     public ScheduledTask runTaskTimer(Runnable task, long delayTicks, long periodTicks) {

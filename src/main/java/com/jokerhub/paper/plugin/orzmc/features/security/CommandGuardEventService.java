@@ -5,6 +5,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TemplateKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -35,6 +36,8 @@ public final class CommandGuardEventService {
     private final CommandFeedbackService feedback;
     private final CommandAuditService audit;
     private final Logger logger;
+    private final ThrottledNotifier logThrottle;
+    private final ThrottledNotifier notifyThrottle;
 
     public CommandGuardEventService(
             CommandGuardService guard,
@@ -43,12 +46,27 @@ public final class CommandGuardEventService {
             CommandFeedbackService feedback,
             CommandAuditService audit,
             Logger logger) {
+        this(guard, configs, notifier, feedback, audit, logger, new ThrottledNotifier(), new ThrottledNotifier());
+    }
+
+    /** 测试/装配用：显式注入限频器。 */
+    public CommandGuardEventService(
+            CommandGuardService guard,
+            TypedConfigProvider configs,
+            Notifier notifier,
+            CommandFeedbackService feedback,
+            CommandAuditService audit,
+            Logger logger,
+            ThrottledNotifier logThrottle,
+            ThrottledNotifier notifyThrottle) {
         this.guard = guard;
         this.configs = configs;
         this.notifier = notifier;
         this.feedback = feedback;
         this.audit = audit;
         this.logger = logger;
+        this.logThrottle = logThrottle;
+        this.notifyThrottle = notifyThrottle;
     }
 
     /** 玩家聊天栏命令（含前导 /）。 */
@@ -74,9 +92,17 @@ public final class CommandGuardEventService {
             }
             case WARN -> {
                 audit.record(auditSource(sender), sender.getName(), commandLine, false);
-                logger.warning("[OrzMC] 危险命令放行（未限定目标选择器）: "
-                        + commandLine
-                        + "（来源: " + sourceLabel(sender) + "，发送者: " + sender.getName() + "）");
+                // 日志节流：命令方块循环注入等高频来源 5 秒最多 1 条 warning（防日志刷屏），
+                // 其余降级为 fine；审计记录不受影响（audit.record 写文件不刷日志）
+                if (logThrottle.shouldRun("command_guard_warn_log", 5000)) {
+                    logger.warning("[OrzMC] 危险命令放行（未限定目标选择器）: "
+                            + commandLine
+                            + "（来源: " + sourceLabel(sender) + "，发送者: " + sender.getName() + "）");
+                } else {
+                    logger.fine("[OrzMC] 危险命令放行（节流，详见审计）: "
+                            + commandLine
+                            + "（来源: " + sourceLabel(sender) + "，发送者: " + sender.getName() + "）");
+                }
             }
             case ALLOW -> {
                 audit.record(auditSource(sender), sender.getName(), commandLine, false);
@@ -85,6 +111,10 @@ public final class CommandGuardEventService {
     }
 
     private void notifyAdmin(String commandLine, CommandSender sender, String reason) {
+        // 限频：管理员通知 10 秒最多 1 条（防命令方块循环触发 BLOCK 刷爆通知）
+        if (!notifyThrottle.shouldRun("command_guard_block_notify", 10000)) {
+            return;
+        }
         String source = sourceLabel(sender);
         String fallback = "⚠ 高危命令已被拦截\n命令: " + commandLine
                 + "\n来源: " + source

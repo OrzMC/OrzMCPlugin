@@ -159,28 +159,61 @@ public class WorldMaintenanceService {
                                 "duration_human",
                                 formatDuration(durationMs)));
                 callback.accept(done.message());
+                // 聚合提示：chunk 级错误（损坏区块已安全保留）完成后汇总一次
+                long chunkErrors = chunkErrorCount.get();
+                if (chunkErrors > 0) {
+                    String summary = "（" + label + "含 " + chunkErrors + " 个损坏区块，已安全保留原始数据，详见服务器日志）";
+                    server.logger().info(summary);
+                    callback.accept(summary);
+                }
             }
             return Unit.INSTANCE;
         };
     }
 
+    private final java.util.concurrent.atomic.AtomicInteger chunkErrorCount =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+    private final java.util.concurrent.atomic.AtomicBoolean fatalErrorReported =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /** 备份并行度 = CPU 逻辑核数（backup-core 按维度+区域并行扫描/写入，单线程大世界太慢）。 */
+    private static int cpuParallelism() {
+        return Math.max(1, Runtime.getRuntime().availableProcessors());
+    }
+
     private Function1<Object, Unit> errorHandler(String label, Consumer<String> callback) {
         return obj -> {
             server.logger().warning(String.valueOf(obj));
-            long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
-            String errKey = "备份".equals(label) ? "maintenance_backup_error" : "maintenance_optimize_error";
-            MessageEnvelope err = configs.renderEvent(
-                    errKey,
-                    java.util.Map.of(
-                            "label",
-                            label,
-                            "duration_ms",
-                            String.valueOf(durationMs),
-                            "duration_human",
-                            formatDuration(durationMs)));
-            callback.accept(err.message());
-            notifier.event(errKey, err);
-            callback.accept("地图" + label + "失败");
+            String s = String.valueOf(obj);
+            // chunk 级解析/写入错误（unknown compression / ZLIB 截断 / 荒谬长度等损坏区块）：
+            // 修复后由 backup-core 安全跳过或保留原始数据，不视为失败——聚合计数，Done 时汇总提示
+            if (s.contains("Pattern matching failed")
+                    || s.contains("kind=Pattern")
+                    || s.contains("Chunk data unreadable")
+                    || s.contains("corrupted length field")) {
+                chunkErrorCount.incrementAndGet();
+                if (chunkErrorCount.get() == 1) {
+                    callback.accept("发现" + label + "目标包含损坏区块，将安全保留原始数据（不丢失）...");
+                }
+                return Unit.INSTANCE;
+            }
+            // 致命错误（压缩失败/输出失败等）：限频 1 次完整失败通知，避免重复刷屏
+            if (fatalErrorReported.compareAndSet(false, true)) {
+                long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
+                String errKey = "备份".equals(label) ? "maintenance_backup_error" : "maintenance_optimize_error";
+                MessageEnvelope err = configs.renderEvent(
+                        errKey,
+                        java.util.Map.of(
+                                "label",
+                                label,
+                                "duration_ms",
+                                String.valueOf(durationMs),
+                                "duration_human",
+                                formatDuration(durationMs)));
+                callback.accept(err.message());
+                notifier.event(errKey, err);
+                callback.accept("地图" + label + "失败");
+            }
             return Unit.INSTANCE;
         };
     }
@@ -197,7 +230,7 @@ public class WorldMaintenanceService {
             builder.setProgress(new ProgressOptions(100L, 1000L, event -> {
                 progressHandler(label, callback).invoke(event);
             }));
-            builder.setRuntime(new RuntimeOptions(0));
+            builder.setRuntime(new RuntimeOptions(cpuParallelism()));
             builder.setHooks(new Hooks(errorHandler(label, callback), null, null));
             builder.setIo(new IOOptions(fs, mcaIOFactory));
             return Unit.INSTANCE;

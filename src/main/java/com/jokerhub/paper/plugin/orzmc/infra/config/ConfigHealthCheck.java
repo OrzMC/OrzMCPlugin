@@ -118,9 +118,6 @@ public final class ConfigHealthCheck {
         if (window <= 0) issues.add("非法: player_notify.window_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）");
         int maxList = section.getInt("max_list_items", 6);
         if (maxList < 1) issues.add("非法: player_notify.max_list_items 不得小于 1");
-        Object include = section.get("include_online_list");
-        if (include != null && !(include instanceof Boolean))
-            issues.add("类型错误: player_notify.include_online_list 需为布尔值");
     }
 
     private static void validateGeoIpSection(ConfigurationSection section, List<String> issues) {

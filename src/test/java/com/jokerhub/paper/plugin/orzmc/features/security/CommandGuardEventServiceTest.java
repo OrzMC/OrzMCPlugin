@@ -10,6 +10,7 @@ import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TemplateKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -195,5 +196,86 @@ class CommandGuardEventServiceTest {
         verify(audit).record(CommandAuditService.SOURCE_GAME, "steve", "/op steve", false);
         verify(notifier, never()).event(anyString(), any(MessageEnvelope.class));
         verify(logger, never()).warning(anyString());
+    }
+
+    // ---- 节流（BUG-E2E-003）：高频 WARN 日志 5s 限频 + BLOCK 通知 10s 限频 ----
+
+    @Test
+    void warn_highFrequency_throttlesWarningLog() {
+        withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
+        // 限频器：第一条放行，后续全部抑制 → warning 1 条 + fine N 条
+        ThrottledNotifier logThrottle = mock(ThrottledNotifier.class);
+        when(logThrottle.shouldRun("command_guard_warn_log", 5000)).thenReturn(true, false, false);
+        service = new CommandGuardEventService(
+                new CommandGuardService(() -> configs.securityGuard()),
+                configs,
+                notifier,
+                new CommandFeedbackService(),
+                audit,
+                logger,
+                logThrottle,
+                mock(ThrottledNotifier.class));
+        Player player = mock(Player.class);
+        when(player.getName()).thenReturn("steve");
+        PlayerCommandPreprocessEvent event = playerEvent("/kill @e", player);
+
+        service.onPlayerCommand(event);
+        service.onPlayerCommand(event);
+        service.onPlayerCommand(event);
+
+        verify(logger, times(1)).warning(contains("kill @e"));
+        verify(logger, times(2)).fine(contains("节流"));
+        verify(audit, times(3)).record(CommandAuditService.SOURCE_GAME, "steve", "/kill @e", false);
+    }
+
+    @Test
+    void block_notifyThrottled_suppressesAdminNotification() {
+        withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
+        // 限频器抑制 → 拦截照常，但管理员通知被限频跳过
+        ThrottledNotifier notifyThrottle = mock(ThrottledNotifier.class);
+        when(notifyThrottle.shouldRun("command_guard_block_notify", 10000)).thenReturn(false);
+        service = new CommandGuardEventService(
+                new CommandGuardService(() -> configs.securityGuard()),
+                configs,
+                notifier,
+                new CommandFeedbackService(),
+                audit,
+                logger,
+                mock(ThrottledNotifier.class),
+                notifyThrottle);
+        Player player = mock(Player.class);
+        when(player.getName()).thenReturn("steve");
+        PlayerCommandPreprocessEvent event = playerEvent("/op steve", player);
+
+        service.onPlayerCommand(event);
+
+        verify(event).setCancelled(true);
+        verify(player).sendMessage(any(Component.class));
+        verify(notifier, never()).event(anyString(), any(MessageEnvelope.class));
+    }
+
+    @Test
+    void block_notifyThrottlePasses_sendsAdminNotification() {
+        withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
+        ThrottledNotifier notifyThrottle = mock(ThrottledNotifier.class);
+        when(notifyThrottle.shouldRun("command_guard_block_notify", 10000)).thenReturn(true);
+        service = new CommandGuardEventService(
+                new CommandGuardService(() -> configs.securityGuard()),
+                configs,
+                notifier,
+                new CommandFeedbackService(),
+                audit,
+                logger,
+                mock(ThrottledNotifier.class),
+                notifyThrottle);
+        Player player = mock(Player.class);
+        when(player.getName()).thenReturn("steve");
+        PlayerCommandPreprocessEvent event = playerEvent("/op steve", player);
+
+        service.onPlayerCommand(event);
+
+        verify(event).setCancelled(true);
+        verify(player).sendMessage(any(Component.class));
+        verify(notifier).event(eq(TemplateKeys.COMMAND_GUARD_BLOCKED), any(MessageEnvelope.class));
     }
 }

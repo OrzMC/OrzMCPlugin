@@ -3,6 +3,8 @@ package com.jokerhub.paper.plugin.orzmc.features.rank;
 import com.jokerhub.paper.plugin.orzmc.features.review.ReviewNotifier;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 
 /**
  * 玩家权限服务：自动晋升 + 手动升降级 + 当前权限组查询。
@@ -22,6 +24,8 @@ public final class RankService {
 
     /** 默认晋升阈值（小时）。 */
     public static final int DEFAULT_MEMBER_THRESHOLD_HOURS = 10;
+
+    private static final Logger LOGGER = Logger.getLogger("OrzMC.RankService");
 
     private final RankStore store;
     private final RankPromoter promoter;
@@ -60,7 +64,8 @@ public final class RankService {
     /** 检查玩家是否达到自动晋升条件（default→member）。
      *
      * <p>时长从服务器原生 stats 读取（玩家离线也有数据），因此可在任意时刻调用。
-     * 幂等由 LP 保证：已在 member 及以上（track 非首组）不重复晋升。</p>
+     * 幂等由 LP 保证：已在 member 及以上（track 非首组）不重复晋升。
+     * 晋升走 {@link #promoteAsync} 异步执行（LP 操作在非服务器线程），调用线程不阻塞。</p>
      */
     public void checkPromotion(UUID playerId) {
         if (!promoter.isAvailable()) {
@@ -72,7 +77,11 @@ public final class RankService {
         }
         String current = promoter.currentTrackGroup(playerId);
         if (current == null || "default".equals(current)) {
-            promote(playerId);
+            promoteAsync(playerId).whenComplete((to, err) -> {
+                if (err != null) {
+                    LOGGER.warning("自动晋升失败: " + playerId + " - " + err.getMessage());
+                }
+            });
         }
     }
 
@@ -98,47 +107,78 @@ public final class RankService {
     }
 
     /**
-     * 升级一级（LP track 钳位）：default→member→builder→admin。
+     * 升级一级（LP track 钳位）：default→member→builder→admin（同步便捷版）。
+     *
+     * <p><b>仅测试/非服务器调度线程使用</b>；生产路径用 {@link #promoteAsync}——
+     * 服务器调度线程同步等待 LP 异步 future 会自锁超时（Folia LP 适配器行为）。</p>
      *
      * @return 升级后的组名；链顶（admin）或不可用时返回 null
      */
     public String promote(UUID playerId) {
-        if (!promoter.isAvailable()) {
-            return null; // 无 LuckPerms：升级不可用
-        }
-        String to = promoter.promote(playerId);
-        if (to == null) {
-            return null; // 链顶（END_OF_TRACK）或失败
-        }
-        notifyPlayer(playerId, "你的权限已升级：" + groupDisplayName(to) + "。");
-        notifyGroup(
-                "rank_promoted",
-                Map.of(
-                        "player", promoter.playerName(playerId).orElse(playerId.toString()),
-                        "group", groupDisplayName(to)));
-        return to;
+        return promoteAsync(playerId).join();
     }
 
     /**
-     * 降级一级（LP track 钳位）：admin→builder→member→default。
+     * 异步升级一级（LP track 钳位）：default→member→builder→admin。
+     *
+     * <p>LP 操作（loadUser 等待 + 修改 + saveUser 等待）在非服务器线程执行，
+     * 服务器调度线程（global/region）可自由处理 LP future 完成回调，杜绝自锁超时。
+     * 完成后在原线程发双端通知；结果决定审核状态唯一依据（无漂移）。</p>
+     *
+     * @return 完成时给出升级后的组名；链顶（admin）或不可用时为 null
+     */
+    public CompletableFuture<String> promoteAsync(UUID playerId) {
+        if (!promoter.isAvailable()) {
+            return CompletableFuture.completedFuture(null); // 无 LuckPerms：升级不可用
+        }
+        return promoter.promoteAsync(playerId).thenApply(to -> {
+            if (to == null) {
+                return null; // 链顶（END_OF_TRACK）或失败
+            }
+            notifyPlayer(playerId, "你的权限已升级：" + groupDisplayName(to) + "。");
+            notifyGroup(
+                    "rank_promoted",
+                    Map.of(
+                            "player", promoter.playerName(playerId).orElse(playerId.toString()),
+                            "group", groupDisplayName(to)));
+            return to;
+        });
+    }
+
+    /**
+     * 降级一级（LP track 钳位）：admin→builder→member→default（同步便捷版）。
+     *
+     * <p><b>仅测试/非服务器调度线程使用</b>；生产路径用 {@link #demoteAsync}。</p>
      *
      * @return 降级后的组名；链底（default）或不可用时返回 null
      */
     public String demote(UUID playerId) {
+        return demoteAsync(playerId).join();
+    }
+
+    /**
+     * 异步降级一级（LP track 钳位）：admin→builder→member→default。
+     *
+     * <p>线程语义同 {@link #promoteAsync}。</p>
+     *
+     * @return 完成时给出降级后的组名；链底（default）或不可用时为 null
+     */
+    public CompletableFuture<String> demoteAsync(UUID playerId) {
         if (!promoter.isAvailable()) {
-            return null; // 无 LuckPerms：降级不可用
+            return CompletableFuture.completedFuture(null); // 无 LuckPerms：降级不可用
         }
-        String to = promoter.demote(playerId);
-        if (to == null) {
-            return null; // 链底（REMOVED_FROM_FIRST_GROUP / NOT_ON_TRACK）或失败
-        }
-        notifyPlayer(playerId, "你的权限已被降级：" + groupDisplayName(to) + "。");
-        notifyGroup(
-                "rank_demoted",
-                Map.of(
-                        "player", promoter.playerName(playerId).orElse(playerId.toString()),
-                        "group", groupDisplayName(to)));
-        return to;
+        return promoter.demoteAsync(playerId).thenApply(to -> {
+            if (to == null) {
+                return null; // 链底（REMOVED_FROM_FIRST_GROUP / NOT_ON_TRACK）或失败
+            }
+            notifyPlayer(playerId, "你的权限已被降级：" + groupDisplayName(to) + "。");
+            notifyGroup(
+                    "rank_demoted",
+                    Map.of(
+                            "player", promoter.playerName(playerId).orElse(playerId.toString()),
+                            "group", groupDisplayName(to)));
+            return to;
+        });
     }
 
     /** LuckPerms 是否可用（软依赖检测）。 */

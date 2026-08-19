@@ -25,17 +25,18 @@ public record Templates(
         String base = "templates";
         String join = cfg.getString(
                 base + ".player_join",
-                "{name} 上线\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n------当前在线({online_count}/{max_count})------\n{online_list}");
+                "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n🥰 上线：\n{name}");
         String quit = cfg.getString(
                 base + ".player_quit",
-                "{name} 下线\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n------当前在线({online_count}/{max_count})------\n{online_list}");
+                "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n😋 下线：\n{name}");
         String kick = cfg.getString(
                 base + ".player_kick",
-                "{name} 被踢\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n------当前在线({online_count}/{max_count})------\n{online_list}");
+                "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n😂 被踢：\n{name}");
         String digest = cfg.getString(
                 base + ".player_digest",
-                "{join_summary}{quit_summary}{kick_summary}------当前在线({online_count}/{max_count})------{online_list}");
-        String exceptionAlert = cfg.getString(base + ".exception_alert", "异常: {message}\n摘要: {stack_summary}");
+                "🎮 当前玩家({online_count}/{max_count})\n{join_summary}{quit_summary}{kick_summary}");
+        String exceptionAlert =
+                cfg.getString(base + ".exception_alert", "⚠️ 服务器异常\n---------------------------------\n{message}");
         String geoipBlock = cfg.getString(
                 base + ".geoip_block", "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}");
         String tntAlert = cfg.getString(
@@ -53,8 +54,9 @@ public record Templates(
         String moErr = cfg.getString(base + ".maintenance_optimize_error", "地图{label} 失败 用时:{duration_human}");
         String serverLoad = cfg.getString(base + ".server_load", "{message}");
         String serverStop = cfg.getString(base + ".server_stop", "{message}");
-        String whitelistBlock = cfg.getString(base + ".whitelist_block", "{message}");
-        String whitelistToggleAlert = cfg.getString(base + ".whitelist_toggle_alert", "{message}");
+        String whitelistBlock = cfg.getString(base + ".whitelist_block", "🙅🏻‍♂️ {message}");
+        String whitelistToggleAlert = cfg.getString(
+                base + ".whitelist_toggle_alert", "⚠️ 服务器异常\n---------------------------------\n{message}");
         return new Templates(
                 join,
                 quit,

@@ -11,8 +11,8 @@ package com.jokerhub.paper.plugin.orzmc.features.botcommands;
  */
 public final class BotCommandFeedbackService {
 
-    /** 统一分隔线（ASCII 虚线，与其他消息的分隔风格一致）。 */
-    private static final String DIVIDER = "-----------------------------------------";
+    /** 统一分隔线（ASCII 虚线，33 连字符，与群消息统一样式一致）。 */
+    private static final String DIVIDER = "---------------------------------";
 
     public String helpInfo(String promptChar) {
         return "🤖 OrzMC 群指令帮助\n"

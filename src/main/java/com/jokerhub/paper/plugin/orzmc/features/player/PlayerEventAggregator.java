@@ -59,6 +59,9 @@ import org.bukkit.entity.Player;
  */
 public final class PlayerEventAggregator {
 
+    /** 版块分割线（templates.yml 各上下线模板的默认分割线保持一致）。 */
+    private static final String SECTION_DIVIDER = "---------------------------------";
+
     /** Bukkit 调度 tick 时长（毫秒）。 */
     private static final long TICKS_PER_MS = 50L;
 
@@ -207,7 +210,6 @@ public final class PlayerEventAggregator {
         vars.put("name", event.displayLine);
         vars.put("online_count", String.valueOf(onlinePlayers.size()));
         vars.put("max_count", String.valueOf(server.server().getMaxPlayers()));
-        vars.put("online_list", listFormatter.list(onlinePlayers));
         String eventKey =
                 switch (state) {
                     case JOIN -> TemplateKeys.PLAYER_JOIN;
@@ -216,15 +218,14 @@ public final class PlayerEventAggregator {
                 };
         MessageEnvelope envelope = configs.renderEvent(eventKey, vars);
         notifier.event(eventKey, envelope);
-        server.logger().info(envelope.message());
     }
 
-    /** 多发渲染：按状态精确计数，玩家名显示截断（计数不受影响），可选附带在线列表。 */
+    /** 多发渲染：按状态精确计数，玩家名显示截断（计数不受影响）。 */
     private void renderDigest(PendingBatch current) {
         PlayerNotifyConfig cfg = configs.playerNotify();
-        String joinSummary = buildSummary(current.joins, "🟢", "上线", "+", cfg.maxListItems());
-        String quitSummary = buildSummary(current.quits, "🔴", "下线", "-", cfg.maxListItems());
-        String kickSummary = buildSummary(current.kicks, "⛔", "被踢", "-", cfg.maxListItems());
+        String joinSummary = buildSection(current.joins, "🥰", "上线", cfg.maxListItems());
+        String quitSummary = buildSection(current.quits, "😋", "下线", cfg.maxListItems());
+        String kickSummary = buildSection(current.kicks, "😂", "被踢", cfg.maxListItems());
         ArrayList<Player> onlinePlayers = onlinePlayers();
         Map<String, String> vars = new HashMap<>();
         vars.put("join_summary", joinSummary);
@@ -232,34 +233,34 @@ public final class PlayerEventAggregator {
         vars.put("kick_summary", kickSummary);
         vars.put("online_count", String.valueOf(onlinePlayers.size()));
         vars.put("max_count", String.valueOf(server.server().getMaxPlayers()));
-        vars.put("online_list", cfg.includeOnlineList() ? "\n" + listFormatter.list(onlinePlayers) : "");
         MessageEnvelope envelope = configs.renderEvent(TemplateKeys.PLAYER_DIGEST, vars);
         notifier.event(TemplateKeys.PLAYER_DIGEST, envelope);
-        server.logger().info(envelope.message());
     }
 
-    /** 单状态摘要：如 "🟢 +5 上线：A、B、C、D、E\n"；无事件返回空串。 */
-    private static String buildSummary(
-            List<PendingEvent> events, String marker, String action, String sign, int maxListItems) {
+    /**
+     * 单状态版块：分割线 + 版块头（多人带人数）+ 每人一行显示行；无事件返回空串（含分割线一并省略）。
+     * 例（多人）："---------------------------------\n🥰 上线(3)：\nA 生存模式 建造者\nB 生存模式 访客\nC 生存模式 成员\n"
+     * 例（单人）："---------------------------------\n🥰 上线：\nA 生存模式 建造者\n"
+     * 超 maxListItems 时行数截断并追加 "等N人" 行（计数不受影响）。
+     */
+    private static String buildSection(List<PendingEvent> events, String marker, String action, int maxListItems) {
         if (events.isEmpty()) {
             return "";
         }
-        return marker + " " + sign + events.size() + " " + action + "：" + joinNames(events, maxListItems) + "\n";
-    }
-
-    /** 玩家名列表（顿号分隔），超长仅截断显示并追加 "、等N人"（计数不受影响）。 */
-    private static String joinNames(List<PendingEvent> events, int maxListItems) {
-        int shown = Math.min(maxListItems, events.size());
         StringBuilder sb = new StringBuilder();
+        sb.append(SECTION_DIVIDER).append('\n');
+        sb.append(marker).append(' ').append(action);
+        if (events.size() > 1) {
+            sb.append('(').append(events.size()).append(')');
+        }
+        sb.append("：\n");
+        int shown = Math.min(maxListItems, events.size());
         for (int i = 0; i < shown; i++) {
-            if (i > 0) {
-                sb.append("、");
-            }
-            sb.append(events.get(i).name);
+            sb.append(events.get(i).displayLine).append('\n');
         }
         int hidden = events.size() - shown;
         if (hidden > 0) {
-            sb.append("、等").append(hidden).append("人");
+            sb.append("等").append(hidden).append("人\n");
         }
         return sb.toString();
     }

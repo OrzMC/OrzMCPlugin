@@ -3,7 +3,12 @@ package com.jokerhub.paper.plugin.orzmc.features.review;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * 通用审核服务：申请→审核→处理→通知 全流程编排。
@@ -16,6 +21,17 @@ import java.util.UUID;
  * </ul>
  * 审核类型由消费者模块 {@link #register(ReviewType)} 注入，通过后的处理策略
  * 由类型自身携带的 {@link ReviewHandler} 执行。新增审核类型零框架改动。</p>
+ *
+ * <p><b>异步审核（无状态漂移）</b>：审核通过时的授权处理（LP 晋升等）可能等待 LP 的
+ * 异步 future，而 LP future 完成回调调度到服务器同步调度线程执行——因此审核通过路径
+ * 返回 {@link CompletableFuture}，授权期间申请保持 PENDING，授权结果唯一决定最终状态：
+ * 成功 → 回同步调度线程落 APPROVED + 双端通知；失败/异常 → 保持 PENDING + 返回失败提示。
+ * 授权落状态前会重读校验仍 PENDING（并发撤回/处理时取消本次变更），杜绝漂移。</p>
+ *
+ * <p><b>并发审核去重</b>：同一申请以 {@code requestId} 为粒度做 in-flight 占位
+ * （{@link #inflightReviews}），只放行第一个进入者——防止双 approve 并发授权越级晋升、
+ * 以及授权期间被 reject/cancel 造成「状态已变化但 LP 已晋升」的漂移（占位期间
+ * review/cancel 均返回「正在处理中」）。</p>
  */
 public final class ReviewService {
 
@@ -35,14 +51,34 @@ public final class ReviewService {
     private final ReviewStore store;
     private final ReviewNotifier notifier;
     private final PlayerLookup lookup;
+    /** 状态落盘/通知回同步调度线程的执行器（Paper 主线程 / Folia global region 线程）；未注入则内联（单测）。 */
+    private final Executor syncExecutor;
     // LinkedHashMap 保持注册顺序（/apply 帮助列表稳定），synchronizedMap 保证并发安全
     private final Map<String, ReviewType> registry =
             java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>());
+    /**
+     * 进行中的审核占位（requestId 粒度）。
+     *
+     * <p>并发审核去重（M2/M3）：同一申请只放行第一个进入者——并发双 approve 会并发
+     * normalizeSingleGroup + track.promote 导致越级晋升；授权期间被 reject/cancel 会留下
+     * 「状态已变化但 LP 已晋升」的漂移。review/cancel 均以 {@code add(requestId)} 原子占位，
+     * 处理链（含异步授权 + 落状态）完成/异常后移除；占位期间其余调用返回「正在处理中」。</p>
+     */
+    private final Set<String> inflightReviews = ConcurrentHashMap.newKeySet();
 
     public ReviewService(ReviewStore store, ReviewNotifier notifier, PlayerLookup lookup) {
+        this(store, notifier, lookup, Runnable::run);
+    }
+
+    /**
+     * @param syncExecutor 回同步调度线程执行状态落盘 + 通知（审核通过后的最终化）。
+     *     生产传入 {@code serverFacade::runSync}；框架单测可用 {@code Runnable::run} 内联。
+     */
+    public ReviewService(ReviewStore store, ReviewNotifier notifier, PlayerLookup lookup, Executor syncExecutor) {
         this.store = store;
         this.notifier = notifier;
         this.lookup = lookup;
+        this.syncExecutor = syncExecutor != null ? syncExecutor : Runnable::run;
     }
 
     /** 玩家在线则发游戏内消息；通知端口未注入或玩家离线时静默。 */
@@ -118,80 +154,205 @@ public final class ReviewService {
     /**
      * 撤回申请：仅 PENDING 且申请人本人可撤 → CANCELLED 持久化 → 双端通知。
      *
+     * <p>与 {@link #review} 共用 in-flight 占位：授权在途时申请被占位，撤回直接返回
+     * 「正在处理中」，杜绝「撤回落 CANCELLED 但授权已晋升」的漂移（M3）。占位在
+     * 读取/校验/落状态前完成，避免 check-then-act 竞态导致 CANCELLED 覆盖并发审核结果。</p>
+     *
      * @param requestId   申请 id
      * @param applicantId 申请人 UUID（校验归属）
      */
     public Result cancel(String requestId, UUID applicantId) {
-        Optional<ReviewRequest> found = store.findById(requestId);
-        if (found.isEmpty()) {
-            return Result.fail("找不到该申请。");
+        // 先占位（与 review 互斥）：授权在途或并发审核时拒绝，防止撤回与授权结果冲突
+        if (!inflightReviews.add(requestId)) {
+            return Result.fail("该申请正在处理中（管理员审核中），请稍后再试。");
         }
-        ReviewRequest request = found.get();
-        if (!request.applicantId().equals(applicantId)) {
-            return Result.fail("只能撤回自己的申请。");
-        }
-        if (request.status() != ReviewRequest.Status.PENDING) {
-            return Result.fail("该申请已处理，无法撤回。");
-        }
-        // CANCELLED 无审核人，reviewer 置 null（撤回由申请人本人发起，非审核行为）
-        ReviewRequest cancelled = request.reviewed(ReviewRequest.Status.CANCELLED, null);
-        store.save(cancelled);
+        try {
+            Optional<ReviewRequest> found = store.findById(requestId);
+            if (found.isEmpty()) {
+                return Result.fail("找不到该申请。");
+            }
+            ReviewRequest request = found.get();
+            if (!request.applicantId().equals(applicantId)) {
+                return Result.fail("只能撤回自己的申请。");
+            }
+            if (request.status() != ReviewRequest.Status.PENDING) {
+                return Result.fail("该申请已处理，无法撤回。");
+            }
+            // CANCELLED 无审核人，reviewer 置 null（撤回由申请人本人发起，非审核行为）
+            ReviewRequest cancelled = request.reviewed(ReviewRequest.Status.CANCELLED, null);
+            store.save(cancelled);
 
-        String typeName =
-                typeById(request.typeId()).map(ReviewType::displayName).orElse(request.typeId());
-        gameMessage(applicantId, "已撤回「" + typeName + "」申请。");
-        groupEvent(
-                "review_cancelled",
-                Map.of(
-                        "player", lookup.name(applicantId).orElse("?"),
-                        "type", typeName,
-                        "summary",
-                                typeById(request.typeId())
-                                        .map(t -> t.summarize(request.data()))
-                                        .orElse("")));
-        return Result.ok("已撤回申请。", requestId);
+            String typeName =
+                    typeById(request.typeId()).map(ReviewType::displayName).orElse(request.typeId());
+            gameMessage(applicantId, "已撤回「" + typeName + "」申请。");
+            groupEvent(
+                    "review_cancelled",
+                    Map.of(
+                            "player", lookup.name(applicantId).orElse("?"),
+                            "type", typeName,
+                            "summary",
+                                    typeById(request.typeId())
+                                            .map(t -> t.summarize(request.data()))
+                                            .orElse("")));
+            return Result.ok("已撤回申请。", requestId);
+        } finally {
+            inflightReviews.remove(requestId);
+        }
     }
 
     // ---- 管理员侧：审核 ----
 
     /**
-     * 审核申请：仅 PENDING → APPROVED/REJECTED → 通过时执行 handler → 双端通知。
+     * 审核申请：仅 PENDING → APPROVED/REJECTED → 通过时异步执行 handler → 双端通知。
+     *
+     * <p>通过路径返回 {@link CompletableFuture}：授权处理期间申请保持 PENDING，
+     * 授权结果<b>唯一</b>决定最终状态（成功→APPROVED；失败/异常→保持 PENDING），杜绝
+     * 「LP 已晋升但申请仍 PENDING」的状态漂移。落状态前重读校验仍 PENDING。</p>
+     *
+     * <p><b>并发去重（M2）</b>：同一申请以 requestId 为粒度 in-flight 占位，只放行第一个
+     * 进入者——双 approve 并发授权会并发 normalizeSingleGroup + track.promote 造成越级晋升。
+     * 占位在整条处理链（含异步授权 + 落状态）期间保持，其余并发 review/cancel 返回「正在处理中」。</p>
      *
      * @param requestId    申请 id
      * @param approved     通过 or 拒绝
      * @param reviewerName 审核人（群内昵称/游戏名）
      */
-    public Result review(String requestId, boolean approved, String reviewerName) {
+    public CompletableFuture<Result> review(String requestId, boolean approved, String reviewerName) {
+        // 原子占位：失败说明已有并发 review/cancel 在处理，直接拒绝（去重 + 挡住授权期间撤回）
+        if (!inflightReviews.add(requestId)) {
+            return completedFail("该申请正在处理中，请勿重复操作。");
+        }
+        CompletableFuture<Result> result;
+        try {
+            result = doReview(requestId, approved, reviewerName);
+        } catch (Throwable t) {
+            inflightReviews.remove(requestId);
+            throw t;
+        }
+        // 处理链（含异步授权 + 落状态）无论成功/失败/异常均释放占位
+        return result.whenComplete((r, err) -> inflightReviews.remove(requestId));
+    }
+
+    /** {@link #review} 主体（调用方已持有 in-flight 占位）。 */
+    private CompletableFuture<Result> doReview(String requestId, boolean approved, String reviewerName) {
         Optional<ReviewRequest> found = store.findById(requestId);
         if (found.isEmpty()) {
-            return Result.fail("找不到该申请。");
+            return completedFail("找不到该申请。");
         }
         ReviewRequest request = found.get();
         if (request.status() != ReviewRequest.Status.PENDING) {
-            return Result.fail("该申请已处理（" + request.status() + "）。");
+            return completedFail("该申请已处理（" + request.status() + "）。");
         }
         ReviewType type = typeById(request.typeId()).orElse(null);
         if (type == null) {
-            return Result.fail("未知审核类型: " + request.typeId());
+            return completedFail("未知审核类型: " + request.typeId());
         }
 
-        // 先执行 handler（授权等副作用），成功后再落状态；
-        // 失败则状态保持 PENDING，避免「已通过但授权未生效」的不一致
-        if (approved && type.handler() != null) {
-            boolean handled;
+        if (!approved || type.handler() == null) {
+            // 拒绝（或无需授权处理）：直接落状态 + 双端通知
+            return CompletableFuture.completedFuture(
+                    finalizeStatus(request, ReviewRequest.Status.REJECTED, reviewerName, type));
+        }
+
+        // 通过 + 有授权 handler：异步授权（LP 操作在非服务器线程），结果决定最终状态
+        CompletableFuture<Boolean> auth;
+        try {
+            auth = type.handler().onApproved(request.applicantId());
+        } catch (Exception e) {
+            LOGGER.warning("审核通过但授权处理异常，申请保持待审: " + request.id() + " - " + e.getMessage());
+            return completedFail("授权处理失败（" + e.getMessage() + "），请重试或联系管理员。");
+        }
+        if (auth == null) {
+            LOGGER.warning("审核通过但授权处理返回 null future，申请保持待审: " + request.id());
+            return completedFail("授权处理失败（目标可能已在最高等级或 LuckPerms 异常），请重试或联系管理员。");
+        }
+
+        return auth.handle((ok, err) -> {
+                    if (err != null) {
+                        LOGGER.warning("审核通过但授权处理异常，申请保持待审: " + request.id() + " - " + err.getMessage());
+                        return Result.fail("授权处理失败（" + err.getMessage() + "），请重试或联系管理员。");
+                    }
+                    if (!Boolean.TRUE.equals(ok)) {
+                        LOGGER.warning("审核通过但授权处理返回失败（如链顶/LP 异常），申请保持待审: " + request.id());
+                        return Result.fail("授权处理失败（目标可能已在最高等级或 LuckPerms 异常），请重试或联系管理员。");
+                    }
+                    return null; // 授权成功：走最终化
+                })
+                .thenCompose(failResult -> failResult != null
+                        ? CompletableFuture.completedFuture(failResult)
+                        : finalizeApproved(request, reviewerName, type));
+    }
+
+    /**
+     * 玩家撤回自己某类型的待审申请（/apply cancel &lt;type&gt;）。
+     *
+     * @param type        审核类型
+     * @param applicantId 申请人 UUID
+     */
+    public Result cancelForApplicant(ReviewType type, UUID applicantId) {
+        Optional<ReviewRequest> pending = store.pendingFor(type.id(), applicantId);
+        if (pending.isEmpty()) {
+            return Result.fail("你当前没有「" + type.displayName() + "」的待审申请。");
+        }
+        return cancel(pending.get().id(), applicantId);
+    }
+
+    /**
+     * 按玩家名审核（/review approve|reject &lt;name&gt;）。
+     *
+     * <p>该玩家仅一条待审时直接处理；多条待审时提示用类型区分（群指令 $v 按类型定位）。
+     * 异步语义同 {@link #review}。</p>
+     */
+    public CompletableFuture<Result> reviewByApplicantName(String playerName, boolean approved, String reviewerName) {
+        Optional<UUID> applicantId = lookup.resolve(playerName);
+        if (applicantId.isEmpty()) {
+            return completedFail("找不到玩家: " + playerName);
+        }
+        List<ReviewRequest> pending = store.listPending().stream()
+                .filter(r -> r.applicantId().equals(applicantId.get()))
+                .toList();
+        if (pending.isEmpty()) {
+            return completedFail(playerName + " 没有待审核的申请。");
+        }
+        if (pending.size() > 1) {
+            String types = pending.stream()
+                    .map(r -> typeById(r.typeId()).map(ReviewType::displayName).orElse(r.typeId()))
+                    .distinct()
+                    .collect(Collectors.joining("、"));
+            return completedFail(playerName + " 有多条待审申请（" + types + "），请用群指令 $v 按类型处理。");
+        }
+        return review(pending.get(0).id(), approved, reviewerName);
+    }
+
+    /** 审核通过后的最终化：回同步调度线程重校验 + 落 APPROVED + 双端通知（无漂移）。 */
+    private CompletableFuture<Result> finalizeApproved(ReviewRequest request, String reviewerName, ReviewType type) {
+        CompletableFuture<Result> deferred = new CompletableFuture<>();
+        syncExecutor.execute(() -> {
             try {
-                handled = type.handler().onApproved(request.applicantId());
-            } catch (Exception e) {
-                LOGGER.warning("审核通过但授权处理异常，申请保持待审: " + request.id() + " - " + e.getMessage());
-                return Result.fail("授权处理失败（" + e.getMessage() + "），请重试或联系管理员。");
+                // 授权期间申请应保持 PENDING（in-flight 占位已挡住并发撤回/处理）。此处重读校验是
+                // 兜底：仅当存在框架外写路径改动状态时才触发——放弃落状态并强提示（晋升不自动回收）。
+                Optional<ReviewRequest> current = store.findById(request.id());
+                if (current.isEmpty() || current.get().status() != ReviewRequest.Status.PENDING) {
+                    LOGGER.severe("审核通过但落状态时申请已非待审（status="
+                            + (current.isEmpty() ? "已删除" : current.get().status())
+                            + "），保持原状: " + request.id()
+                            + "——本次晋升可能已生效，不会被自动回收，请人工核对 LP 权限。");
+                    deferred.complete(Result.fail("该申请在处理期间状态已变化（可能被并发撤回/处理），" + "本次晋升可能已生效但不会被自动回收，请人工核对。"));
+                    return;
+                }
+                deferred.complete(finalizeStatus(request, ReviewRequest.Status.APPROVED, reviewerName, type));
+            } catch (Throwable t) {
+                LOGGER.warning("审核通过后落状态失败，申请保持待审: " + request.id() + " - " + t.getMessage());
+                deferred.complete(Result.fail("授权成功但状态保存失败，请刷新确认后重试。"));
             }
-            if (!handled) {
-                LOGGER.warning("审核通过但授权处理返回失败（如链顶/LP 异常），申请保持待审: " + request.id());
-                return Result.fail("授权处理失败（目标可能已在最高等级或 LuckPerms 异常），请重试或联系管理员。");
-            }
-        }
+        });
+        return deferred;
+    }
 
-        ReviewRequest.Status newStatus = approved ? ReviewRequest.Status.APPROVED : ReviewRequest.Status.REJECTED;
+    /** 落状态（保存 + 双端通知）并生成业务提示；无异常。 */
+    private Result finalizeStatus(
+            ReviewRequest request, ReviewRequest.Status newStatus, String reviewerName, ReviewType type) {
+        boolean approved = newStatus == ReviewRequest.Status.APPROVED;
         store.save(request.reviewed(newStatus, reviewerName));
 
         String playerName = lookup.name(request.applicantId()).orElse("?");
@@ -213,47 +374,11 @@ public final class ReviewService {
                 approved
                         ? "已通过 " + playerName + " 的「" + type.displayName() + "」申请。"
                         : "已拒绝 " + playerName + " 的「" + type.displayName() + "」申请。",
-                requestId);
+                request.id());
     }
 
-    /**
-     * 玩家撤回自己某类型的待审申请（/apply cancel &lt;type&gt;）。
-     *
-     * @param type        审核类型
-     * @param applicantId 申请人 UUID
-     */
-    public Result cancelForApplicant(ReviewType type, UUID applicantId) {
-        Optional<ReviewRequest> pending = store.pendingFor(type.id(), applicantId);
-        if (pending.isEmpty()) {
-            return Result.fail("你当前没有「" + type.displayName() + "」的待审申请。");
-        }
-        return cancel(pending.get().id(), applicantId);
-    }
-
-    /**
-     * 按玩家名审核（/review approve|reject &lt;name&gt;）。
-     *
-     * <p>该玩家仅一条待审时直接处理；多条待审时提示用类型区分（群指令 $v 按类型定位）。</p>
-     */
-    public Result reviewByApplicantName(String playerName, boolean approved, String reviewerName) {
-        Optional<UUID> applicantId = lookup.resolve(playerName);
-        if (applicantId.isEmpty()) {
-            return Result.fail("找不到玩家: " + playerName);
-        }
-        List<ReviewRequest> pending = store.listPending().stream()
-                .filter(r -> r.applicantId().equals(applicantId.get()))
-                .toList();
-        if (pending.isEmpty()) {
-            return Result.fail(playerName + " 没有待审核的申请。");
-        }
-        if (pending.size() > 1) {
-            String types = pending.stream()
-                    .map(r -> typeById(r.typeId()).map(ReviewType::displayName).orElse(r.typeId()))
-                    .distinct()
-                    .collect(java.util.stream.Collectors.joining("、"));
-            return Result.fail(playerName + " 有多条待审申请（" + types + "），请用群指令 $v 按类型处理。");
-        }
-        return review(pending.get(0).id(), approved, reviewerName);
+    private static CompletableFuture<Result> completedFail(String message) {
+        return CompletableFuture.completedFuture(Result.fail(message));
     }
 
     // ---- 查询 ----

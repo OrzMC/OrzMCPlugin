@@ -162,8 +162,11 @@ public final class FeatureModule implements ServiceModule {
                         platform.serverFacade(), platform.configs(), botModule.notifier(), this.listFormatter));
         this.tntEventService = new TntEventService(
                 platform.configs(), platform.textStyles(), botModule.notifier(), platform.serverScheduler());
-        this.whitelistEventService =
-                new WhitelistEventService(platform.configs(), platform.textStyles(), botModule.notifier());
+        this.whitelistEventService = new WhitelistEventService(
+                platform.configs(),
+                platform.textStyles(),
+                botModule.notifier(),
+                platform.throttledNotifier()); // whitelist_block 群通知限频（防刷屏打爆 QQ 频控）
         this.menuEventService = new MenuEventService(platform.textStyles());
         this.teleportBowService = new TeleportBowService(platform.serverFacade(), platform.textStyles());
         this.teleportBowEventService = new TeleportBowEventService(teleportBowService);
@@ -212,7 +215,7 @@ public final class FeatureModule implements ServiceModule {
         // 在线列表格式化注入权限组解析（$l 命令与上下线广播共用，一次注入两处生效）
         this.listFormatter.setRankService(this.rankService);
         this.reviewService = new com.jokerhub.paper.plugin.orzmc.features.review.ReviewService(
-                permissionStore, reviewNotifier, playerLookup);
+                permissionStore, reviewNotifier, playerLookup, platform.serverFacade()::runSync);
         // 注册审核类型 BUILDER_PROMOTION：handler 由 rank 模块注入（LP 授权），框架零 LP 依赖
         this.reviewService.register(new com.jokerhub.paper.plugin.orzmc.features.review.ReviewType(
                 "builder-promotion",
@@ -227,11 +230,11 @@ public final class FeatureModule implements ServiceModule {
                     return data;
                 },
                 playerId -> rankService.currentGroup(playerId).equals("member"),
-                data -> "申请晋升 builder"
+                data -> "申请晋升建造者"
                         + (data.get("reason") == null || data.get("reason").isBlank() ? "" : "：" + data.get("reason")),
-                // 审核通过 = track 升一级（member→builder）；返回 null（链顶/LP 异常）视为授权失败，
-                // 保持 PENDING 不落 APPROVED（避免「已通过但未生效」）
-                playerId -> rankService.promote(playerId) != null));
+                // 审核通过 = track 升一级（member→builder）；异步授权（LP 操作在非服务器线程），
+                // 结果 null/异常 视为授权失败 → 保持 PENDING 不落 APPROVED（避免「已通过但未生效」漂移）
+                playerId -> rankService.promoteAsync(playerId).thenApply(to -> to != null)));
         // ADMIN_PROMOTION：builder→admin（四级流转最后一环；审核通过 = track 升一级）
         this.reviewService.register(new com.jokerhub.paper.plugin.orzmc.features.review.ReviewType(
                 "admin-promotion",
@@ -246,9 +249,9 @@ public final class FeatureModule implements ServiceModule {
                     return data;
                 },
                 playerId -> rankService.currentGroup(playerId).equals("builder"),
-                data -> "申请晋升 admin"
+                data -> "申请晋升管理员"
                         + (data.get("reason") == null || data.get("reason").isBlank() ? "" : "：" + data.get("reason")),
-                playerId -> rankService.promote(playerId) != null));
+                playerId -> rankService.promoteAsync(playerId).thenApply(to -> to != null)));
         this.rankCommandService = new com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService(
                 rankService, reviewService, platform.textStyles());
         this.reviewCommandService = new com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService(
@@ -683,7 +686,8 @@ public final class FeatureModule implements ServiceModule {
                                                 return 1;
                                             }
                                             String name = ctx.getArgument("name", String.class);
-                                            renderReviewResult(sender, reviewCommandService.review(admin, name, true));
+                                            renderReviewResultAsync(
+                                                    sender, reviewCommandService.review(admin, name, true));
                                             return 1;
                                         }))))
                         .then(literal("reject")
@@ -695,7 +699,8 @@ public final class FeatureModule implements ServiceModule {
                                                 return 1;
                                             }
                                             String name = ctx.getArgument("name", String.class);
-                                            renderReviewResult(sender, reviewCommandService.review(admin, name, false));
+                                            renderReviewResultAsync(
+                                                    sender, reviewCommandService.review(admin, name, false));
                                             return 1;
                                         }))))
                         .build(),
@@ -745,6 +750,22 @@ public final class FeatureModule implements ServiceModule {
                 instanceof com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService.Result.Success s) {
             sender.sendMessage(s.message());
         }
+    }
+
+    /** 异步审核结果渲染：授权完成后（回同步调度线程）给命令发起者反馈，命令本身立即返回。 */
+    private void renderReviewResultAsync(
+            CommandSender sender,
+            java.util.concurrent.CompletableFuture<
+                            com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService.Result>
+                    future) {
+        future.whenComplete((result, err) -> {
+            if (err != null) {
+                sender.sendMessage(platform.textStyles()
+                        .error("审核处理异常: " + (err.getMessage() == null ? "未知错误" : err.getMessage())));
+            } else {
+                renderReviewResult(sender, result);
+            }
+        });
     }
 
     private void renderRankResult(
@@ -961,8 +982,10 @@ public final class FeatureModule implements ServiceModule {
             new com.jokerhub.paper.plugin.orzmc.features.rank.LuckPermsBootstrap(
                             net.luckperms.api.LuckPermsProvider.get(), org.bukkit.Bukkit.getLogger())
                     .initialize();
+            // asyncExecutor = 服务器异步调度器：LP 升降级（含 loadUser/saveUser 等待）在
+            // 非服务器线程执行，杜绝「调度线程同步等待 LP future」自锁（Folia LP 适配器行为）
             return new com.jokerhub.paper.plugin.orzmc.features.rank.LuckPermsPromoter(
-                    resolver, platform.serverFacade()::runSync); // 异步链路回主线程执行 LP 变更
+                    resolver, platform.serverFacade()::runSync, platform.serverFacade()::runAsync);
         }
         org.bukkit.Bukkit.getLogger().warning("[OrzMC] 未检测到 LuckPerms，权限管理功能不可用（时长查询/申请记录仍可用）");
         return new com.jokerhub.paper.plugin.orzmc.features.rank.NoopRankPromoter();

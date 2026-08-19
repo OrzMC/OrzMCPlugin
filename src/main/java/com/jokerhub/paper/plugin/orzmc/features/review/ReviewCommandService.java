@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
@@ -92,13 +93,19 @@ public final class ReviewCommandService {
                 : new Result.Failure(styles.error(result.message()));
     }
 
-    /** /review approve|reject &lt;name&gt; — 管理员审核（按玩家名定位待审）。 */
-    public Result review(Player admin, String playerName, boolean approved) {
+    /**
+     * /review approve|reject &lt;name&gt; — 管理员审核（按玩家名定位待审）。
+     *
+     * <p>异步：审核通过时授权处理（LP 晋升）在非服务器线程执行，命令立即返回，
+     * 结果在授权完成后回调（回同步调度线程）。</p>
+     */
+    public CompletableFuture<Result> review(Player admin, String playerName, boolean approved) {
         // 先尝试按玩家名定位该玩家待审（若该玩家唯一待审）；多类型待审时用类型前缀
-        ReviewService.Result result = reviewService.reviewByApplicantName(playerName, approved, admin.getName());
-        return result.success()
-                ? new Result.Success(styles.success(result.message()))
-                : new Result.Failure(styles.error(result.message()));
+        return reviewService
+                .reviewByApplicantName(playerName, approved, admin.getName())
+                .thenApply(result -> result.success()
+                        ? new Result.Success(styles.success(result.message()))
+                        : new Result.Failure(styles.error(result.message())));
     }
 
     private String statusText(ReviewRequest r) {

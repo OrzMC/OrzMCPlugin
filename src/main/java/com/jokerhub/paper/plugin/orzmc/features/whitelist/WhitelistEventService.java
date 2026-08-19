@@ -8,6 +8,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage.WhitelistKickMessageItem;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.List;
 import java.util.Map;
@@ -18,14 +19,21 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 public final class WhitelistEventService {
+    /** whitelist_block 群通知限频周期（毫秒）：被拦尝试是高频噪音（实测 48 次被拦 → 40+ 条消息打爆 QQ 频控 40034100），
+     * 固定周期内最多放行 1 条，窗口内多余丢弃（玩家踢出提示不受影响，仅群通知节流）。 */
+    private static final long WHITELIST_BLOCK_THROTTLE_MS = 5000L;
+
     private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
     private final Notifier notifier;
+    private final ThrottledNotifier throttledNotifier;
 
-    public WhitelistEventService(TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier) {
+    public WhitelistEventService(
+            TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier, ThrottledNotifier throttledNotifier) {
         this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
+        this.throttledNotifier = throttledNotifier;
     }
 
     public void handleVerify(ProfileWhitelistVerifyEvent event) {
@@ -79,13 +87,17 @@ public final class WhitelistEventService {
         }
 
         String playChatGroupMsg = player.getName() + " 尝试加入服务器，被白名单拦截";
-        MessageEnvelope env = configs.renderEvent("whitelist_block", Map.of("message", playChatGroupMsg));
-        notifier.event("whitelist_block", env);
+        // 节流：恶意脚本反复登录会在窗口内高频触发，固定周期内最多发 1 条，防 QQ 主动消息频控被打爆
+        if (throttledNotifier.shouldRun("whitelist_block", WHITELIST_BLOCK_THROTTLE_MS)) {
+            MessageEnvelope env = configs.renderEvent("whitelist_block", Map.of("message", playChatGroupMsg));
+            notifier.event("whitelist_block", env);
+        }
     }
 
     public void handleToggle(WhitelistToggleEvent event) {
         if (isEnableForceWhitelist() && !event.isEnabled()) {
-            String msg = "‼️服务器白名单异常关闭";
+            // 模板已提供「⚠️ 服务器异常 + 分割线」外壳，这里只传具体异常项
+            String msg = "白名单关闭";
             MessageEnvelope env = configs.renderEvent("whitelist_toggle_alert", Map.of("message", msg));
             notifier.event("whitelist_toggle_alert", env);
         }

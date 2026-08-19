@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.whitelist;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -15,12 +16,15 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage.WhitelistKickMessageItem;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
+import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.util.List;
+import java.util.Map;
 import net.kyori.adventure.text.Component;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class WhitelistEventServiceTest extends ServiceTestBase {
 
@@ -34,6 +38,7 @@ class WhitelistEventServiceTest extends ServiceTestBase {
         configs = mock(TypedConfigProvider.class);
         styles = mock(OrzTextStyles.class);
         notifier = mock(Notifier.class);
+        ThrottledNotifier throttledNotifier = new ThrottledNotifier();
 
         WhitelistConfig whitelistCfg = mock(WhitelistConfig.class);
         BotConfig botConfig = mock(BotConfig.class);
@@ -58,7 +63,7 @@ class WhitelistEventServiceTest extends ServiceTestBase {
         when(configs.renderEvent(anyString(), anyMap()))
                 .thenReturn(new MessageEnvelope(TargetType.PUBLIC, "msg", Format.DEFAULT));
 
-        service = new WhitelistEventService(configs, styles, notifier);
+        service = new WhitelistEventService(configs, styles, notifier, throttledNotifier);
     }
 
     @Test
@@ -103,6 +108,24 @@ class WhitelistEventServiceTest extends ServiceTestBase {
     }
 
     @Test
+    void handleVerify_repeatedBlocksWithinWindow_sendsSingleNotification() {
+        // 回归：恶意脚本反复登录被拦（实测 48 次 → 40+ 条消息打爆 QQ 频控），
+        // 限频窗口内只放行 1 条群通知；踢出提示每次都设置不受影响
+        ProfileWhitelistVerifyEvent event = mock(ProfileWhitelistVerifyEvent.class);
+        PlayerProfile profile = mock(PlayerProfile.class);
+        when(event.getPlayerProfile()).thenReturn(profile);
+        when(profile.getName()).thenReturn("Alice");
+        when(event.isWhitelisted()).thenReturn(false);
+
+        service.handleVerify(event);
+        service.handleVerify(event);
+        service.handleVerify(event);
+
+        verify(event, times(3)).kickMessage(any(Component.class));
+        verify(notifier, times(1)).event(eq("whitelist_block"), any(MessageEnvelope.class));
+    }
+
+    @Test
     void handleVerify_noQqGroup_onlyDiscord() {
         WhitelistKickMessage kickMsg = configs.whitelistKickMessage();
         when(kickMsg.qqGroupId()).thenReturn(null);
@@ -143,6 +166,10 @@ class WhitelistEventServiceTest extends ServiceTestBase {
 
         service.handleToggle(event);
 
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> vars = ArgumentCaptor.forClass(Map.class);
+        verify(configs).renderEvent(eq("whitelist_toggle_alert"), vars.capture());
+        assertEquals("白名单关闭", vars.getValue().get("message"));
         verify(notifier).event(eq("whitelist_toggle_alert"), any(MessageEnvelope.class));
     }
 

@@ -19,13 +19,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 /**
  * LuckPermsPromoter 测试（直接 LP API 版）。
  *
  * <p>本类仅在 LP 已启用时由装配层实例化（条件实例化），单测用 mockStatic 模拟 LP API：
  * 验证 promote/demote 的成功路径（含 saveUser 落库）、链顶/链底钳位翻译、
- * currentTrackGroup 最高组判定、isInGroup 查询。Noop 降级路径见 NoopRankPromoterTest。</p>
+ * currentTrackGroup 最高组判定。Noop 降级路径见 NoopRankPromoterTest。</p>
  */
 class LuckPermsPromoterTest {
 
@@ -222,19 +223,95 @@ class LuckPermsPromoterTest {
         assertEquals("builder", promoter.currentTrackGroup(id));
     }
 
+    @Test
+    void currentTrackGroup_onlineCacheHit_doesNotScheduleToSyncThread() {
+        // 回归（读路径优化）：在线玩家走 LP 在线缓存，即使注入 scheduler 也不做 G 往返
+        mockEmptyContext();
+        ServerScheduler scheduler = mock(ServerScheduler.class);
+        LuckPermsPromoter withScheduler = new LuckPermsPromoter(u -> "TestPlayer", scheduler);
+        when(userManager.getUser(id)).thenReturn(user);
+        when(track.getGroups()).thenReturn(java.util.List.of("default", "member", "builder", "admin"));
+        java.util.List<net.luckperms.api.model.group.Group> inherited = java.util.List.of(mockGroup("member"));
+        when(user.getInheritedGroups(any())).thenReturn(inherited);
+
+        assertEquals("member", withScheduler.currentTrackGroup(id));
+        verify(scheduler, never()).runSync(any());
+    }
+
+    @Test
+    void currentTrackGroup_offlineCacheMiss_doesNotScheduleToSyncThread() {
+        // 回归（Folia 线程模型）：离线玩家缓存未命中需 loadUser（LP future 完成回调调度到
+        // 同步调度线程）——绝不能经 runSync 转同步线程执行（同步线程等 LP future 会自锁超时）。
+        // 未注入 asyncExecutor 时内联执行，注入时经其调度；runSync 仅保留给 resolvePlayerId。
+        mockEmptyContext();
+        ServerScheduler scheduler = mock(ServerScheduler.class);
+        doAnswer(invocation -> {
+                    invocation.getArgument(0, Runnable.class).run();
+                    return null;
+                })
+                .when(scheduler)
+                .runSync(any(Runnable.class));
+        LuckPermsPromoter withScheduler = new LuckPermsPromoter(u -> "TestPlayer", scheduler);
+        when(userManager.getUser(id)).thenReturn(null);
+        when(userManager.loadUser(id)).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(user));
+        when(track.getGroups()).thenReturn(java.util.List.of("default", "member", "builder", "admin"));
+        java.util.List<net.luckperms.api.model.group.Group> inherited = java.util.List.of(mockGroup("builder"));
+        when(user.getInheritedGroups(any())).thenReturn(inherited);
+
+        assertEquals("builder", withScheduler.currentTrackGroup(id));
+        verify(scheduler, never()).runSync(any(Runnable.class));
+    }
+
+    @Test
+    void currentTrackGroup_onGlobalTickThread_returnsNullWithoutLoading() {
+        // 回归（Paper 主线程 / Folia global region 线程）：离线缓存未命中 + 同步调度线程
+        // → 同步等 LP future 会自锁（回调排在自己后面），必须降级返回 null、不触发 loadUser
+        mockEmptyContext();
+        when(userManager.getUser(id)).thenReturn(null);
+        bukkitMock.when(org.bukkit.Bukkit::isGlobalTickThread).thenReturn(true);
+
+        assertNull(promoter.currentTrackGroup(id));
+        verify(userManager, never()).loadUser(id);
+    }
+
+    @Test
+    void currentTrackGroup_onRegionTickThread_returnsNullWithoutLoading() {
+        // 回归（Folia region 线程）：Bukkit.isGlobalTickThread() 只判定 global region 线程，
+        // region 线程（命令/事件所在）此前漏判会同步等 LP future，阻塞该区域所有玩家 tick。
+        // isRegionOwnedByCurrentThread() 是 Folia API 独有（paper-api 编译期不可见，反射调用）——
+        // 单测无法构造真实 region 线程，经 mockStatic 覆盖 isRegionTickThread 分支。
+        mockEmptyContext();
+        when(userManager.getUser(id)).thenReturn(null);
+        try (MockedStatic<LuckPermsPromoter> promoterMock =
+                mockStatic(LuckPermsPromoter.class, Mockito.CALLS_REAL_METHODS)) {
+            promoterMock.when(LuckPermsPromoter::isRegionTickThread).thenReturn(true);
+
+            assertNull(promoter.currentTrackGroup(id));
+            verify(userManager, never()).loadUser(id);
+        }
+    }
+
+    @Test
+    void isServerTickThread_paperApi_returnsFalseOnAsyncThread() {
+        // Paper 编译/测试环境：无 Folia region 判定方法 + 非 global tick 线程 → 非服务器调度线程
+        assertFalse(LuckPermsPromoter.isServerTickThread());
+    }
+
+    @Test
+    void promote_schedulerStalled_returnsNullWithoutBlockingForever() {
+        // 回归（Folia 线程模型）：promote 的 LP 操作在非服务器线程执行，绝不依赖 runSync 转同步线程
+        // ——scheduler 停摆也不会阻塞调用线程；LP 调用失败时返回 null 视为失败（不落库、不通知）
+        ServerScheduler stalledScheduler = mock(ServerScheduler.class); // 不执行 runnable → 若走 runSync 会永不完成
+        LuckPermsPromoter withScheduler = new LuckPermsPromoter(u -> "TestPlayer", stalledScheduler);
+
+        assertNull(withScheduler.promote(id));
+        verify(stalledScheduler, never()).runSync(any(Runnable.class));
+    }
+
     private net.luckperms.api.model.group.Group mockGroup(String name) {
         net.luckperms.api.model.group.Group g = mock(net.luckperms.api.model.group.Group.class);
         when(g.getName()).thenReturn(name);
         return g;
-    }
-
-    @Test
-    void isInGroup_memberPresent_returnsTrue() {
-        java.util.List<net.luckperms.api.model.group.Group> inherited = java.util.List.of(mockGroup("member"));
-        when(user.getInheritedGroups(any())).thenReturn(inherited);
-
-        assertTrue(promoter.isInGroup(id, "member"));
-        assertFalse(promoter.isInGroup(id, "admin"));
     }
 
     // ---- 玩家解析 ----

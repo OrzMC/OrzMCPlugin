@@ -41,10 +41,14 @@ public final class ReviewNotifierAdapter implements ReviewNotifier {
         // 用 renderTemplate（按配置键直接读取），不走 renderEvent 白名单事件路由
         String fallback =
                 switch (templateKey) {
-                    case TemplateKeys.REVIEW_SUBMITTED -> "📋 [新申请] {player}：{summary}（$v l 查看）";
-                    case TemplateKeys.REVIEW_CANCELLED -> "↩️ {player} 撤回了申请：{summary}";
-                    case TemplateKeys.REVIEW_APPROVED -> "✅ {player} 的申请已通过（审核人：{reviewer}）：{summary}";
-                    case TemplateKeys.REVIEW_REJECTED -> "❌ {player} 的申请被拒（审核人：{reviewer}）：{summary}";
+                    case TemplateKeys.REVIEW_SUBMITTED ->
+                        "🙋🏻‍♂️ [申请发起] {player}\n---------------------------------\n{summary}";
+                    case TemplateKeys.REVIEW_CANCELLED ->
+                        "↩️ [申请撤回] {player}\n---------------------------------\n{summary}";
+                    case TemplateKeys.REVIEW_APPROVED ->
+                        "✅ [申请通过] {player}\n---------------------------------\n{summary}\n---------------------------------\n审核人：{reviewer}";
+                    case TemplateKeys.REVIEW_REJECTED ->
+                        "❌ [申请拒绝] {player}\n---------------------------------\n{summary}\n---------------------------------\n审核人：{reviewer}";
                     case TemplateKeys.RANK_PROMOTED -> "🎉 {player} 权限已升级为「{group}」";
                     case TemplateKeys.RANK_DEMOTED -> "⬇️ {player} 权限已被降级为「{group}」";
                     default -> "{message}";

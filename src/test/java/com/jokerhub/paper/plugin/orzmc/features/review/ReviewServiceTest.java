@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +53,7 @@ class ReviewServiceTest {
                 },
                 id -> true,
                 data -> "申请晋升 builder" + (data.get("reason") == null ? "" : "：" + data.get("reason")),
-                id -> true);
+                id -> CompletableFuture.completedFuture(true));
         service.register(builderType);
         when(lookup.name(applicant)).thenReturn(Optional.of("TestMember"));
         when(lookup.name(other)).thenReturn(Optional.of("OtherPlayer"));
@@ -92,7 +93,13 @@ class ReviewServiceTest {
     @Test
     void submit_notEligible_rejected() {
         ReviewType restricted = new ReviewType(
-                "builder-promotion", "晋升建造者", "builder", a -> Map.of(), id -> false, d -> "x", id -> false);
+                "builder-promotion",
+                "晋升建造者",
+                "builder",
+                a -> Map.of(),
+                id -> false,
+                d -> "x",
+                id -> CompletableFuture.completedFuture(false));
         service.register(restricted);
 
         var result = service.submit(restricted, applicant, Map.of());
@@ -157,11 +164,11 @@ class ReviewServiceTest {
         ReviewType observable =
                 new ReviewType("builder-promotion", "晋升建造者", "builder", a -> Map.of(), id -> true, d -> "x", id -> {
                     calls[0]++;
-                    return true;
+                    return CompletableFuture.completedFuture(true);
                 });
         service.register(observable);
 
-        var result = service.review("r1", true, "admin");
+        var result = service.review("r1", true, "admin").join();
 
         assertTrue(result.success());
         assertEquals(1, calls[0]);
@@ -175,7 +182,7 @@ class ReviewServiceTest {
     void review_reject_noHandlerAndNotifies() {
         when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
 
-        var result = service.review("r1", false, "admin");
+        var result = service.review("r1", false, "admin").join();
 
         assertTrue(result.success());
         verify(store).save(argThat(r -> r.status() == ReviewRequest.Status.REJECTED));
@@ -189,7 +196,7 @@ class ReviewServiceTest {
                 "r1", "builder-promotion", applicant, Map.of(), ReviewRequest.Status.APPROVED, 1000L, 2000L, "admin");
         when(store.findById("r1")).thenReturn(Optional.of(approved));
 
-        var result = service.review("r1", true, "admin");
+        var result = service.review("r1", true, "admin").join();
 
         assertFalse(result.success());
         verify(store, never()).save(any());
@@ -203,7 +210,7 @@ class ReviewServiceTest {
         when(store.listPending()).thenReturn(List.of(pendingRequest("r1")));
         when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
 
-        var result = service.reviewByApplicantName("TestMember", true, "群管理员");
+        var result = service.reviewByApplicantName("TestMember", true, "群管理员").join();
 
         assertTrue(result.success());
         verify(store).save(argThat(r -> r.status() == ReviewRequest.Status.APPROVED));
@@ -213,7 +220,7 @@ class ReviewServiceTest {
     void reviewByApplicantName_unknownPlayer_rejected() {
         when(lookup.resolve("Nobody")).thenReturn(Optional.empty());
 
-        var result = service.reviewByApplicantName("Nobody", true, "admin");
+        var result = service.reviewByApplicantName("Nobody", true, "admin").join();
 
         assertFalse(result.success());
     }
@@ -234,7 +241,7 @@ class ReviewServiceTest {
                                 0L,
                                 null)));
 
-        var result = service.reviewByApplicantName("TestMember", true, "admin");
+        var result = service.reviewByApplicantName("TestMember", true, "admin").join();
 
         assertFalse(result.success());
         assertTrue(result.message().contains("多条待审"));
@@ -250,7 +257,7 @@ class ReviewServiceTest {
                 });
         service.register(failing);
 
-        var result = service.review("r1", true, "admin");
+        var result = service.review("r1", true, "admin").join();
 
         assertFalse(result.success());
         assertTrue(result.message().contains("授权处理失败"));
@@ -264,10 +271,16 @@ class ReviewServiceTest {
         // handler 静默失败（返回 false，如 promote 返回 null）：同样保持 PENDING，不落 APPROVED
         when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
         ReviewType failing = new ReviewType(
-                "builder-promotion", "晋升建造者", "builder", a -> Map.of(), id -> true, d -> "x", id -> false); // 授权处理返回失败
+                "builder-promotion",
+                "晋升建造者",
+                "builder",
+                a -> Map.of(),
+                id -> true,
+                d -> "x",
+                id -> CompletableFuture.completedFuture(false)); // 授权处理返回失败
         service.register(failing);
 
-        var result = service.review("r1", true, "admin");
+        var result = service.review("r1", true, "admin").join();
 
         assertFalse(result.success());
         assertTrue(result.message().contains("授权处理失败"));
@@ -279,14 +292,106 @@ class ReviewServiceTest {
     void review_handlerReturnsTrue_approvesAndNotifies() {
         when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
         ReviewType okType = new ReviewType(
-                "builder-promotion", "晋升建造者", "builder", a -> Map.of(), id -> true, d -> "x", id -> true); // 授权成功
+                "builder-promotion",
+                "晋升建造者",
+                "builder",
+                a -> Map.of(),
+                id -> true,
+                d -> "x",
+                id -> CompletableFuture.completedFuture(true)); // 授权成功
         service.register(okType);
         when(lookup.name(applicant)).thenReturn(Optional.of("TestMember"));
 
-        var result = service.review("r1", true, "admin");
+        var result = service.review("r1", true, "admin").join();
 
         assertTrue(result.success());
         verify(store).save(argThat(r -> r.status() == ReviewRequest.Status.APPROVED));
         verify(notifier).groupEvent(eq("review_approved"), anyMap());
+    }
+
+    // ---- 并发审核去重（M2/M3）----
+
+    /** 构造一个授权结果受控的审核类型：handler 返回 {@code pendingAuth}，完成时机由测试决定。 */
+    private ReviewType controllableType(CompletableFuture<Boolean> pendingAuth) {
+        return new ReviewType(
+                "builder-promotion", "晋升建造者", "builder", a -> Map.of(), id -> true, d -> "x", id -> pendingAuth);
+    }
+
+    @Test
+    void review_concurrentDoubleApprove_onlyFirstAuthorizes() {
+        // 回归（M2）：双 approve 并发 → 仅第一个进入者授权 + 落 APPROVED，
+        // 第二个被 in-flight 占位拒绝（不会并发 normalizeSingleGroup + track.promote 越级）
+        when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
+        CompletableFuture<Boolean> pendingAuth = new CompletableFuture<>();
+        final int[] calls = {0};
+        ReviewType controllable =
+                new ReviewType("builder-promotion", "晋升建造者", "builder", a -> Map.of(), id -> true, d -> "x", id -> {
+                    calls[0]++;
+                    return pendingAuth;
+                });
+        service.register(controllable);
+
+        var first = service.review("r1", true, "admin1");
+        var second = service.review("r1", true, "admin2");
+
+        assertFalse(second.join().success(), "第二个并发 approve 应被拒绝");
+        assertTrue(second.join().message().contains("正在处理中"));
+        assertEquals(1, calls[0], "并发双 approve 只应触发一次授权");
+
+        pendingAuth.complete(true);
+        var firstResult = first.join();
+        assertTrue(firstResult.success());
+        verify(store).save(argThat(r -> r.status() == ReviewRequest.Status.APPROVED));
+    }
+
+    @Test
+    void cancel_duringApprovalInflight_isRejected() {
+        // 回归（M3）：授权在途时撤回被 in-flight 占位拒绝，防止「状态 CANCELLED 但 LP 已晋升」漂移
+        when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
+        CompletableFuture<Boolean> pendingAuth = new CompletableFuture<>();
+        service.register(controllableType(pendingAuth));
+
+        var reviewFuture = service.review("r1", true, "admin1"); // 授权在途
+        var cancelResult = service.cancel("r1", applicant);
+
+        assertFalse(cancelResult.success());
+        assertTrue(cancelResult.message().contains("正在处理中"));
+        verify(store, never()).save(argThat(r -> r.status() == ReviewRequest.Status.CANCELLED));
+
+        // 授权完成后正常落 APPROVED，撤回始终未生效
+        pendingAuth.complete(true);
+        assertTrue(reviewFuture.join().success());
+    }
+
+    @Test
+    void review_rejectDuringApprovalInflight_isRejected() {
+        // 回归（M3）：授权在途时并发 reject 被拒绝，防止「状态 REJECTED 但 LP 已晋升」漂移
+        when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
+        CompletableFuture<Boolean> pendingAuth = new CompletableFuture<>();
+        service.register(controllableType(pendingAuth));
+
+        service.review("r1", true, "admin1"); // 授权在途
+        var rejectResult = service.review("r1", false, "admin2");
+
+        assertFalse(rejectResult.join().success());
+        assertTrue(rejectResult.join().message().contains("正在处理中"));
+        verify(store, never()).save(argThat(r -> r.status() == ReviewRequest.Status.REJECTED));
+    }
+
+    @Test
+    void review_inflightClaimReleasedAfterCompletion() {
+        // in-flight 占位随处理链完成而释放：完成前被去重，完成后可再次进入处理
+        when(store.findById("r1")).thenReturn(Optional.of(pendingRequest("r1")));
+        CompletableFuture<Boolean> pendingAuth = new CompletableFuture<>();
+        service.register(controllableType(pendingAuth));
+
+        var first = service.review("r1", true, "admin1");
+        assertFalse(service.review("r1", true, "admin2").join().success(), "在途期间应被去重");
+
+        pendingAuth.complete(true);
+        assertTrue(first.join().success());
+
+        // 占位已释放：再次审核不再被 in-flight 拒绝（mock store 状态未变，故走到处理分支）
+        assertTrue(service.review("r1", false, "admin3").join().success());
     }
 }

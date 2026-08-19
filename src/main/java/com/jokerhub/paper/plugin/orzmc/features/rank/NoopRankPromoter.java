@@ -19,11 +19,6 @@ public final class NoopRankPromoter implements RankPromoter {
     }
 
     @Override
-    public boolean isInGroup(UUID playerId, String groupName) {
-        return false;
-    }
-
-    @Override
     public String currentTrackGroup(UUID playerId) {
         return null;
     }

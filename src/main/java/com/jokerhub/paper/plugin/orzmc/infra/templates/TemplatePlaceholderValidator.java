@@ -110,14 +110,17 @@ public final class TemplatePlaceholderValidator {
                 "coord_unit",
                 "role",
                 "online_count",
-                "max_count",
-                "online_list");
+                "max_count");
         m.put("player_join", playerVars);
         m.put("player_quit", playerVars);
         m.put("player_kick", playerVars);
-        m.put(
-                "player_digest",
-                Set.of("join_summary", "quit_summary", "kick_summary", "online_count", "max_count", "online_list"));
+        m.put("player_digest", Set.of("join_summary", "quit_summary", "kick_summary", "online_count", "max_count"));
+        m.put("review_submitted", Set.of("player", "type", "summary"));
+        m.put("review_cancelled", Set.of("player", "type", "summary"));
+        m.put("review_approved", Set.of("player", "type", "summary", "reviewer"));
+        m.put("review_rejected", Set.of("player", "type", "summary", "reviewer"));
+        m.put("rank_promoted", Set.of("player", "group"));
+        m.put("rank_demoted", Set.of("player", "group"));
         m.put("exception_alert", Set.of("message", "stack_summary"));
         m.put("geoip_block", Set.of("name", "ip", "country_code", "allow_list", "address_info"));
         m.put(

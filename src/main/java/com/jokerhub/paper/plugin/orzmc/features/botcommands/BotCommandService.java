@@ -439,33 +439,41 @@ public final class BotCommandService implements BotInboundHandler {
             return;
         }
         final var id = playerId;
-        var done = new java.util.concurrent.CompletableFuture<String>();
-        server.runSync(() -> {
-            try {
-                done.complete(upgrade ? rankService.promote(id) : rankService.demote(id));
-            } catch (Throwable t) {
-                done.completeExceptionally(t);
+        // 异步升降级：LP 操作（loadUser/saveUser 等待）在非服务器线程执行，绝不 runSync+join
+        // （服务器调度线程同步等待 LP future 会自锁超时，Folia LP 适配器行为）
+        java.util.concurrent.CompletableFuture<String> future =
+                upgrade ? rankService.promoteAsync(id) : rankService.demoteAsync(id);
+        future.whenComplete((target, err) -> {
+            if (err != null) {
+                emit(
+                        callback,
+                        "command_review_error",
+                        Map.of("message", playerName + " 权限操作异常（详见服务器日志）。"),
+                        playerName + " 权限操作异常（详见服务器日志）。");
+                return;
+            }
+            if (target == null) {
+                emit(
+                        callback,
+                        "command_review_error",
+                        Map.of(
+                                "message",
+                                playerName
+                                        + (upgrade
+                                                ? " 无法升级：已达最高等级或权限数据异常（详见服务器日志）。"
+                                                : " 无法降级：已达最低等级或权限数据异常（详见服务器日志）。")),
+                        playerName + (upgrade ? " 无法升级：已达最高等级或权限数据异常（详见服务器日志）。" : " 无法降级：已达最低等级或权限数据异常（详见服务器日志）。"));
+            } else {
+                emit(
+                        callback,
+                        "command_review_result",
+                        Map.of(
+                                "message",
+                                "已将 " + playerName + (upgrade ? " 升级为" : " 降级为") + RankService.groupDisplayName(target)
+                                        + "。"),
+                        "已将 " + playerName + (upgrade ? " 升级为" : " 降级为") + RankService.groupDisplayName(target) + "。");
             }
         });
-        String target = done.join();
-        if (target == null) {
-            emit(
-                    callback,
-                    "command_review_error",
-                    Map.of(
-                            "message",
-                            playerName + (upgrade ? " 无法升级：已达最高等级或权限数据异常（详见服务器日志）。" : " 无法降级：已达最低等级或权限数据异常（详见服务器日志）。")),
-                    playerName + (upgrade ? " 无法升级：已达最高等级或权限数据异常（详见服务器日志）。" : " 无法降级：已达最低等级或权限数据异常（详见服务器日志）。"));
-        } else {
-            emit(
-                    callback,
-                    "command_review_result",
-                    Map.of(
-                            "message",
-                            "已将 " + playerName + (upgrade ? " 升级为" : " 降级为") + RankService.groupDisplayName(target)
-                                    + "。"),
-                    "已将 " + playerName + (upgrade ? " 升级为" : " 降级为") + RankService.groupDisplayName(target) + "。");
-        }
     }
 
     // ---- Review command ($v l|y|n) ----
@@ -508,7 +516,9 @@ public final class BotCommandService implements BotInboundHandler {
             String typeName =
                     reviewService.typeById(r.typeId()).map(t -> t.displayName()).orElse(r.typeId());
             String playerName = playerNameOf(r);
-            String group = rankService == null ? "" : "（当前组：" + rankService.currentGroup(r.applicantId()) + "）";
+            String group = rankService == null
+                    ? ""
+                    : "（当前组：" + RankService.groupDisplayName(rankService.currentGroup(r.applicantId())) + "）";
             String summary = reviewService
                     .typeById(r.typeId())
                     .map(t -> t.summarize(r.data()))
@@ -538,36 +548,47 @@ public final class BotCommandService implements BotInboundHandler {
         String first = parts[0];
         String second = parts.length > 1 ? parts[1].trim() : "";
 
-        // 群指令走异步线程（WebSocket/orzdebug），审核执行 + 状态落盘必须回主线程，
-        // 否则 Bukkit 配置保存可能不生效
-        final ReviewService.Result reviewResult;
+        // 定位 + 发起审核在同步调度线程执行（Bukkit.getOfflinePlayer 需全局线程），
+        // 但不 join 等待——审核通过时的授权（LP 晋升）在非服务器线程执行，结果经 CF
+        // 回调发出（落状态回同步线程）。服务器调度线程绝不同步等待 LP future（自锁超时）。
         final boolean byType = reviewService.typeById(first).isPresent() && !second.isBlank();
         final String playerOrType = first;
         final String playerName = second;
-        var done = new java.util.concurrent.CompletableFuture<
-                com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result>();
         server.runSync(() -> {
             try {
+                java.util.concurrent.CompletableFuture<
+                                com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result>
+                        future;
                 if (byType) {
                     var request = reviewService.pendingFor(playerOrType, playerName);
                     if (request.isEmpty()) {
-                        done.complete(ReviewService.Result.fail("找不到待审申请: " + rest));
+                        future = java.util.concurrent.CompletableFuture.completedFuture(
+                                ReviewService.Result.fail("找不到待审申请: " + rest));
                     } else {
-                        done.complete(reviewService.review(request.get().id(), approved, reviewer));
+                        future = reviewService.review(request.get().id(), approved, reviewer);
                     }
                 } else {
-                    done.complete(reviewService.reviewByApplicantName(playerOrType, approved, reviewer));
+                    future = reviewService.reviewByApplicantName(playerOrType, approved, reviewer);
                 }
+                future.whenComplete((result, err) -> {
+                    if (err != null) {
+                        result = ReviewService.Result.fail(
+                                "审核处理异常: " + (err.getMessage() == null ? "未知错误" : err.getMessage()));
+                    }
+                    emit(
+                            callback,
+                            result.success() ? "command_review_result" : "command_review_error",
+                            Map.of("message", result.message()),
+                            result.message());
+                });
             } catch (Throwable t) {
-                done.completeExceptionally(t);
+                emit(
+                        callback,
+                        "command_review_error",
+                        Map.of("message", "审核处理异常: " + (t.getMessage() == null ? "未知错误" : t.getMessage())),
+                        "审核处理异常: " + (t.getMessage() == null ? "未知错误" : t.getMessage()));
             }
         });
-        var result = done.join();
-        emit(
-                callback,
-                result.success() ? "command_review_result" : "command_review_error",
-                Map.of("message", result.message()),
-                result.message());
     }
 
     private String playerNameOf(com.jokerhub.paper.plugin.orzmc.features.review.ReviewRequest r) {

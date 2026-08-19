@@ -404,7 +404,8 @@ class BotCommandServiceTest {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
         service.setReviewService(reviewService);
         when(reviewService.reviewByApplicantName(eq("TestMember"), eq(true), anyString()))
-                .thenReturn(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1"));
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+                        com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1")));
 
         service.parse("$v y TestMember", true, callback);
         verify(reviewService).reviewByApplicantName("TestMember", true, "群管理员");
@@ -416,7 +417,8 @@ class BotCommandServiceTest {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
         service.setReviewService(reviewService);
         when(reviewService.reviewByApplicantName(eq("TestMember"), eq(true), anyString()))
-                .thenReturn(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1"));
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+                        com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1")));
 
         // 网关透传发送者身份 → 审核人记真实昵称（非硬编码「群管理员」）
         service.parse("$v y TestMember", true, "老板", callback);
@@ -429,7 +431,8 @@ class BotCommandServiceTest {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
         service.setReviewService(reviewService);
         when(reviewService.reviewByApplicantName(eq("TestMember"), eq(false), anyString()))
-                .thenReturn(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已拒绝", "r1"));
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+                        com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已拒绝", "r1")));
 
         service.parse("$v n TestMember", true, callback);
         verify(reviewService).reviewByApplicantName("TestMember", false, "群管理员");
@@ -483,7 +486,8 @@ class BotCommandServiceTest {
         when(request.id()).thenReturn("req-1");
         when(reviewService.pendingFor("builder-promotion", "TestMember")).thenReturn(java.util.Optional.of(request));
         when(reviewService.review(eq("req-1"), eq(true), anyString()))
-                .thenReturn(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1"));
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+                        com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1")));
 
         service.parse("$v y builder-promotion TestMember", true, callback);
         verify(reviewService).review(anyString(), eq(true), eq("群管理员"));
@@ -496,10 +500,11 @@ class BotCommandServiceTest {
         service.setRankService(rankService);
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
         when(rankService.resolvePlayerId("TestMember")).thenReturn(java.util.UUID.randomUUID());
-        when(rankService.demote(any(java.util.UUID.class))).thenReturn("member");
+        when(rankService.demoteAsync(any(java.util.UUID.class)))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture("member"));
 
         service.parse("$p d TestMember", true, callback);
-        verify(rankService).demote(any(java.util.UUID.class));
+        verify(rankService).demoteAsync(any(java.util.UUID.class));
         verify(callback, atLeastOnce()).accept(any(MessageEnvelope.class));
     }
 
@@ -509,10 +514,11 @@ class BotCommandServiceTest {
         service.setRankService(rankService);
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
         when(rankService.resolvePlayerId("TestMember")).thenReturn(java.util.UUID.randomUUID());
-        when(rankService.promote(any(java.util.UUID.class))).thenReturn("builder");
+        when(rankService.promoteAsync(any(java.util.UUID.class)))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture("builder"));
 
         service.parse("$p u TestMember", true, callback);
-        verify(rankService).promote(any(java.util.UUID.class));
+        verify(rankService).promoteAsync(any(java.util.UUID.class));
         verify(callback, atLeastOnce()).accept(any(MessageEnvelope.class));
     }
 
@@ -522,10 +528,11 @@ class BotCommandServiceTest {
         service.setRankService(rankService);
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
         when(rankService.resolvePlayerId("TestPlayer")).thenReturn(java.util.UUID.randomUUID());
-        when(rankService.demote(any(java.util.UUID.class))).thenReturn(null); // 链底 no-op
+        when(rankService.demoteAsync(any(java.util.UUID.class)))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null)); // 链底 no-op
 
         service.parse("$p d TestPlayer", true, callback);
-        verify(rankService).demote(any(java.util.UUID.class));
+        verify(rankService).demoteAsync(any(java.util.UUID.class));
         verify(callback, atLeastOnce()).accept(any(MessageEnvelope.class));
     }
 
@@ -536,7 +543,7 @@ class BotCommandServiceTest {
         when(rankService.resolvePlayerId("Nobody")).thenReturn(null);
 
         service.parse("$p d Nobody", true, callback);
-        verify(rankService, never()).demote(any(java.util.UUID.class));
+        verify(rankService, never()).demoteAsync(any(java.util.UUID.class));
         verify(callback, atLeastOnce()).accept(any(MessageEnvelope.class));
     }
 
@@ -546,7 +553,7 @@ class BotCommandServiceTest {
         service.setRankService(rankService);
 
         service.parse("$p d TestMember", false, callback);
-        verify(rankService, never()).demote(any(java.util.UUID.class));
+        verify(rankService, never()).demoteAsync(any(java.util.UUID.class));
         verify(callback, atLeastOnce()).accept(any(MessageEnvelope.class));
     }
 

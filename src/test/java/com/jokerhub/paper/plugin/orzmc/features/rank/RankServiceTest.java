@@ -44,7 +44,7 @@ class RankServiceTest {
 
         service.checkPromotion(id);
 
-        verify(promoter, never()).promote(any());
+        verify(promoter, never()).promoteAsync(any());
     }
 
     @Test
@@ -53,11 +53,11 @@ class RankServiceTest {
         when(promoter.isAvailable()).thenReturn(true);
         when(store.getPlaytimeMinutes(id)).thenReturn(600L); // 10h
         when(promoter.currentTrackGroup(id)).thenReturn("default");
-        when(promoter.promote(id)).thenReturn("member");
+        when(promoter.promoteAsync(id)).thenReturn(java.util.concurrent.CompletableFuture.completedFuture("member"));
 
         service.checkPromotion(id);
 
-        verify(promoter).promote(id);
+        verify(promoter).promoteAsync(id);
     }
 
     @Test
@@ -69,7 +69,7 @@ class RankServiceTest {
 
         service.checkPromotion(id);
 
-        verify(promoter, never()).promote(any());
+        verify(promoter, never()).promoteAsync(any());
     }
 
     @Test
@@ -80,7 +80,7 @@ class RankServiceTest {
 
         service.checkPromotion(id);
 
-        verify(promoter, never()).promote(any());
+        verify(promoter, never()).promoteAsync(any());
     }
 
     // ---- 当前权限组（LP 优先，无 LP 回退）----
@@ -118,7 +118,7 @@ class RankServiceTest {
     void promote_success_returnsTargetGroupAndNotifies() {
         UUID id = UUID.randomUUID();
         when(promoter.isAvailable()).thenReturn(true);
-        when(promoter.promote(id)).thenReturn("builder");
+        when(promoter.promoteAsync(id)).thenReturn(java.util.concurrent.CompletableFuture.completedFuture("builder"));
         when(promoter.playerName(id)).thenReturn(Optional.of("TestMember"));
 
         String target = service.promote(id);
@@ -132,7 +132,8 @@ class RankServiceTest {
     void promote_atTop_endOfTrack_returnsNull() {
         UUID id = UUID.randomUUID();
         when(promoter.isAvailable()).thenReturn(true);
-        when(promoter.promote(id)).thenReturn(null); // END_OF_TRACK
+        when(promoter.promoteAsync(id))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null)); // END_OF_TRACK
 
         String target = service.promote(id);
 
@@ -149,7 +150,7 @@ class RankServiceTest {
         String target = service.promote(id);
 
         assertNull(target);
-        verify(promoter, never()).promote(any());
+        verify(promoter, never()).promoteAsync(any());
     }
 
     // ---- 降级（LP track 钳位）----
@@ -158,7 +159,7 @@ class RankServiceTest {
     void demote_success_returnsTargetGroupAndNotifies() {
         UUID id = UUID.randomUUID();
         when(promoter.isAvailable()).thenReturn(true);
-        when(promoter.demote(id)).thenReturn("member");
+        when(promoter.demoteAsync(id)).thenReturn(java.util.concurrent.CompletableFuture.completedFuture("member"));
         when(promoter.playerName(id)).thenReturn(Optional.of("TestMember"));
 
         String target = service.demote(id);
@@ -172,7 +173,7 @@ class RankServiceTest {
     void demote_atBottom_removedFromFirstGroup_returnsNull() {
         UUID id = UUID.randomUUID();
         when(promoter.isAvailable()).thenReturn(true);
-        when(promoter.demote(id)).thenReturn(null); // REMOVED_FROM_FIRST_GROUP / NOT_ON_TRACK
+        when(promoter.demoteAsync(id)).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null)); // 链底
 
         String target = service.demote(id);
 
@@ -189,7 +190,7 @@ class RankServiceTest {
         String target = service.demote(id);
 
         assertNull(target);
-        verify(promoter, never()).demote(any());
+        verify(promoter, never()).demoteAsync(any());
     }
 
     // ---- 阈值配置 ----

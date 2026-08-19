@@ -4,9 +4,11 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerAccess;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.TemplateKeys;
+import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 
 public final class Notifier {
+    private static final Logger LOGGER = Logger.getLogger("OrzMC.Notifier");
     private final ServerAccess server;
     private final BotMessageService botMessageService;
     private NotifierSink sink;
@@ -58,5 +60,10 @@ public final class Notifier {
                     default -> MessageEnvelope.TargetType.PUBLIC;
                 };
         botMessageService.send(envelope.withTargetType(target));
+        // 群消息统一日志：所有通知类型（白名单拦截/IP黑名单/上下线/审核/异常等）渲染后的
+        // 消息都记入服务器日志——E2E 断言 + 排查投递问题的一手证据（避免依赖 EasyBot API）。
+        // ⏎ 转义换行：JUL→log4j 桥接只输出消息首行，转义后单行完整可读、E2E 好断言。
+        // 发送本身已节流（whitelist_block 等高频类型有 ThrottledNotifier），日志跟随节流不会刷屏。
+        LOGGER.info("[群消息:" + key + "] " + envelope.message().replace("\n", " ⏎ "));
     }
 }

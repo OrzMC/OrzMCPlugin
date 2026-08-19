@@ -20,6 +20,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -31,6 +32,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.util.Vector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -307,5 +309,129 @@ class TeleportBowServiceTest extends ServiceTestBase {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Consumer<ScheduledTask>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(entityScheduler).run(eq(plugin), captor.capture(), any(Runnable.class));
+    }
+
+    // ===== 补测（2026-08-19，TeleportBowService 45.9% → 目标 70%+）=====
+
+    @Test
+    void handleArrowHit_outOfBounds_sendsHeightMessage() {
+        // y 超出世界高度 → withinWorldBounds false → 「目标高度不合法」
+        Arrow arrow = mock(Arrow.class);
+        Player player = mock(Player.class);
+        Location arrowLoc = mock(Location.class);
+        World w = mock(World.class);
+        Vector dir = mock(Vector.class);
+
+        when(arrow.isInWater()).thenReturn(false);
+        when(arrow.isInLava()).thenReturn(false);
+        when(arrow.getLocation()).thenReturn(arrowLoc);
+        when(arrow.getVelocity()).thenReturn(dir);
+        when(arrowLoc.getWorld()).thenReturn(w);
+        when(arrowLoc.getBlockX()).thenReturn(10);
+        when(arrowLoc.getBlockY()).thenReturn(400); // 远超世界高度
+        when(arrowLoc.getBlockZ()).thenReturn(20);
+        when(w.getMinHeight()).thenReturn(-64);
+        when(w.getMaxHeight()).thenReturn(320);
+        when(player.getWorld()).thenReturn(w);
+
+        service.handleArrowHit(arrow, player);
+
+        ArgumentCaptor<Component> captor = ArgumentCaptor.captor();
+        verify(player).sendMessage(captor.capture());
+        assertTrue(PlainTextComponentSerializer.plainText()
+                .serialize(captor.getValue())
+                .contains("高度不合法"));
+        verify(player, never()).teleportAsync(any());
+    }
+
+    @Test
+    void handleArrowHit_noStandable_sendsNotStandableMessage() {
+        // 所有候选方块均不可站立 → findNearestSafe null → 「目标位置不可站立」
+        Arrow arrow = mock(Arrow.class);
+        Player player = mock(Player.class);
+        Location arrowLoc = mock(Location.class);
+        World w = mock(World.class);
+        Vector dir = new Vector(0, 0, -1); // 真实 Vector（mock 的 clone() 返回 null）
+        Block solid = mock(Block.class); // 脚/头/地面全实心 → 不可站立
+
+        when(arrow.isInWater()).thenReturn(false);
+        when(arrow.isInLava()).thenReturn(false);
+        when(arrow.getLocation()).thenReturn(arrowLoc);
+        when(arrow.getVelocity()).thenReturn(dir);
+        when(arrowLoc.getWorld()).thenReturn(w);
+        when(arrowLoc.getBlockX()).thenReturn(10);
+        when(arrowLoc.getBlockY()).thenReturn(64);
+        when(arrowLoc.getBlockZ()).thenReturn(20);
+        when(w.getMinHeight()).thenReturn(-64);
+        when(w.getMaxHeight()).thenReturn(320);
+        when(w.getBlockAt(anyInt(), anyInt(), anyInt())).thenReturn(solid);
+        when(w.getBlockAt(any(Location.class))).thenReturn(solid); // 兼容 getBlockAt(Location) 重载
+        when(solid.getType()).thenReturn(Material.STONE); // 非空气 → isStandable false
+        when(solid.getRelative(anyInt(), anyInt(), anyInt())).thenReturn(solid);
+        when(player.getWorld()).thenReturn(w);
+
+        service.handleArrowHit(arrow, player);
+
+        ArgumentCaptor<Component> captor = ArgumentCaptor.captor();
+        verify(player).sendMessage(captor.capture());
+        assertTrue(PlainTextComponentSerializer.plainText()
+                .serialize(captor.getValue())
+                .contains("不可站立"));
+        verify(player, never()).teleportAsync(any());
+    }
+
+    @Test
+    void handleArrowHit_standableButDangerousGround_returnsNotStandable() {
+        // 地面是危险方块（岩浆/火等）→ DANGEROUS 分支（不依赖 Material 注册表，可单测）
+        Arrow arrow = mock(Arrow.class);
+        Player player = mock(Player.class);
+        Location arrowLoc = mock(Location.class);
+        World w = mock(World.class);
+        Vector dir = new Vector(0, 0, -1);
+        Block foot = mock(Block.class);
+        Block head = mock(Block.class);
+        Block lava = mock(Block.class);
+
+        when(arrow.isInWater()).thenReturn(false);
+        when(arrow.isInLava()).thenReturn(false);
+        when(arrow.getLocation()).thenReturn(arrowLoc);
+        when(arrow.getVelocity()).thenReturn(dir);
+        when(arrowLoc.getWorld()).thenReturn(w);
+        when(arrowLoc.getBlockX()).thenReturn(10);
+        when(arrowLoc.getBlockY()).thenReturn(64);
+        when(arrowLoc.getBlockZ()).thenReturn(20);
+        when(w.getMinHeight()).thenReturn(-64);
+        when(w.getMaxHeight()).thenReturn(320);
+        when(w.getBlockAt(anyInt(), anyInt(), anyInt())).thenAnswer(inv -> {
+            int x = inv.getArgument(0);
+            int y = inv.getArgument(1);
+            int z = inv.getArgument(2);
+            if (x == 10 && y == 64 && z == 20) return foot;
+            if (x == 10 && y == 65 && z == 20) return head;
+            return lava;
+        });
+        when(w.getBlockAt(any(Location.class))).thenAnswer(inv -> {
+            org.bukkit.Location l = inv.getArgument(0);
+            if (l.getBlockX() == 10 && l.getBlockY() == 64 && l.getBlockZ() == 20) return foot;
+            if (l.getBlockX() == 10 && l.getBlockY() == 65 && l.getBlockZ() == 20) return head;
+            return lava;
+        });
+        when(foot.getType()).thenReturn(Material.AIR);
+        when(foot.getRelative(0, 1, 0)).thenReturn(head);
+        when(foot.getRelative(0, -1, 0)).thenReturn(lava);
+        when(head.getType()).thenReturn(Material.AIR);
+        when(lava.getType()).thenReturn(Material.LAVA); // DANGEROUS 列表命中
+        when(lava.getRelative(anyInt(), anyInt(), anyInt())).thenReturn(lava);
+        when(head.getRelative(anyInt(), anyInt(), anyInt())).thenReturn(lava);
+        when(player.getWorld()).thenReturn(w);
+
+        service.handleArrowHit(arrow, player);
+
+        ArgumentCaptor<Component> captor = ArgumentCaptor.captor();
+        verify(player).sendMessage(captor.capture());
+        assertTrue(PlainTextComponentSerializer.plainText()
+                .serialize(captor.getValue())
+                .contains("不可站立"));
+        verify(player, never()).teleportAsync(any());
     }
 }

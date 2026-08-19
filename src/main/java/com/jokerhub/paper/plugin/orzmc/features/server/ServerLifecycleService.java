@@ -18,7 +18,14 @@ public final class ServerLifecycleService {
 
     public void notifyServerStop() {
         String minecraftVersion = server.server().getMinecraftVersion();
-        String msg = "Minecraft " + minecraftVersion + "\n" + "------" + "\n" + "服务停止" + "\n\n" + "停止状态无法响应命令消息";
+        String msg = "Minecraft "
+                + minecraftVersion
+                + "\n"
+                + "---------------------------------"
+                + "\n"
+                + "服务停止"
+                + "\n\n"
+                + "停止状态无法响应命令消息";
         MessageEnvelope env = configs.renderEvent("server_stop", java.util.Map.of("message", msg));
         notifier.event("server_stop", env);
     }

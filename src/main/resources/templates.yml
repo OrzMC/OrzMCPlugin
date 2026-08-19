@@ -6,7 +6,7 @@ config-version: 2
 templates:
   format:
     tnt_alert: CODE_BLOCK
-    exception_alert: CODE_BLOCK
+    exception_alert: PLAIN
     geoip_block: CODE_BLOCK
     command_output: CODE_BLOCK
     command_help: CODE_BLOCK
@@ -67,10 +67,10 @@ templates:
   command_backup: "{message}"
   command_optimize: "{message}"
   command_optimize_disabled: "{message}"
-  review_submitted: "📋 [新申请] {player}：{summary}（$v l 查看）"
-  review_cancelled: "↩️ {player} 撤回了申请：{summary}"
-  review_approved: "✅ {player} 的申请已通过（审核人：{reviewer}）：{summary}"
-  review_rejected: "❌ {player} 的申请被拒（审核人：{reviewer}）：{summary}"
+  review_submitted: "🙋🏻‍♂️ [申请发起] {player}\n---------------------------------\n{summary}"
+  review_cancelled: "↩️ [申请撤回] {player}\n---------------------------------\n{summary}"
+  review_approved: "✅ [申请通过] {player}\n---------------------------------\n{summary}\n---------------------------------\n审核人：{reviewer}"
+  review_rejected: "❌ [申请拒绝] {player}\n---------------------------------\n{summary}\n---------------------------------\n审核人：{reviewer}"
   rank_promoted: "🎉 {player} 权限已升级为「{group}」"
   rank_demoted: "⬇️ {player} 权限已被降级为「{group}」"
   rank_status: "{message}"
@@ -80,18 +80,19 @@ templates:
   command_review_error: "{message}"
   server_load: "{message}"
   server_stop: "{message}"
-  whitelist_block: "{message}"
-  whitelist_toggle_alert: "{message}"
+  whitelist_block: "🙅🏻‍♂️ {message}"
+  whitelist_toggle_alert: "⚠️ 服务器异常\n---------------------------------\n{message}"
   command_guard_blocked: "⚠ 高危命令已被拦截\n命令: {command}\n来源: {source} | 发送者: {sender}\n原因: {reason}"
   security_audit: "🛡 安全自检报告\n在线模式: {online_mode}\n命令方块: {command_block}\nRCON: {rcon}\n白名单: {whitelist}\nOP: {ops}\n关键插件: {plugins}"
   login_rate_limit_alert: "⚠ 登录限流\nIP: {ip}\n玩家: {player}\n原因: {reason}"
   exploit_blocked: "⚠ 漏洞利用拦截\n玩家: {player}\n原因: {reason}"
   ip_blacklist_block: "⚠ IP 黑名单拦截\n玩家: {player}\nIP: {ip}\n命中规则: {pattern}"
-  player_join: "{name} 上线\n------当前在线({online_count}/{max_count})------\n{online_list}"
-  player_quit: "{name} 下线\n------当前在线({online_count}/{max_count})------\n{online_list}"
-  player_kick: "{name} 被踢\n------当前在线({online_count}/{max_count})------\n{online_list}"
-  player_digest: "{join_summary}{quit_summary}{kick_summary}------当前在线({online_count}/{max_count})------{online_list}"
-  exception_alert: "异常: {message}\n摘要: {stack_summary}"
+  player_join: "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n🥰 上线：\n{name}"
+  player_quit: "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n😋 下线：\n{name}"
+  player_kick: "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n😂 被踢：\n{name}"
+  player_digest: "🎮 当前玩家({online_count}/{max_count})\n{join_summary}{quit_summary}{kick_summary}"
+  # 群消息不再附堆栈摘要（{stack_summary} 仍保留在白名单供自定义模板使用）
+  exception_alert: "⚠️ 服务器异常\n---------------------------------\n{message}"
   geoip_block: "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}"
   tnt_alert: "{msg}\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n触发:{actor} 方块:{block_type}"
   maintenance_backup_stage: "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}"

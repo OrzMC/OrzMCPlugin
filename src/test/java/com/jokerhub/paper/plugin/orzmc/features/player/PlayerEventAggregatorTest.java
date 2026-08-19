@@ -61,7 +61,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
     @BeforeEach
     void setUp() {
         formatter = new OnlineListFormatter();
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6));
         when(server.server()).thenReturn(bukkitServer);
         when(server.logger()).thenReturn(logger);
         when(configs.renderEvent(anyString(), anyMap())).thenReturn(MessageEnvelope.publicMessage("ok"));
@@ -125,7 +125,6 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         assertTrue(v.get("name").startsWith("Alice"), "got: " + v.get("name"));
         assertEquals("1", v.get("online_count"));
         assertEquals("100", v.get("max_count"));
-        assertTrue(v.get("online_list").contains("Alice"), "got: " + v.get("online_list"));
     }
 
     @Test
@@ -145,9 +144,6 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         verify(configs).renderEvent(eq("player_quit"), vars.capture());
         Map<String, String> v = vars.getValue();
         assertEquals("1", v.get("online_count"), "应取冲刷时刻实时在线数，不重复减 1");
-        String onlineList = v.get("online_list");
-        assertFalse(onlineList.contains("Alice"), "当事人不应出现在在线列表, got: " + onlineList);
-        assertTrue(onlineList.contains("Bob"), "got: " + onlineList);
     }
 
     @Test
@@ -165,8 +161,8 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
     }
 
     @Test
-    void enqueue_singleJoin_withRankService_includesGroupInList() {
-        // 在线列表格式与权限组注入走真实 OnlineListFormatter（缺组名回归保护）
+    void enqueue_digest_withRankService_sectionLinesIncludeGroupDisplay() {
+        // 版块玩家行格式与权限组注入走真实 OnlineListFormatter（缺组名回归保护）
         RankService rankService = mock(RankService.class);
         OnlineListFormatter formatterWithRank = new OnlineListFormatter();
         formatterWithRank.setRankService(rankService);
@@ -183,19 +179,18 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
         doReturn(List.of(p1, p2)).when(bukkitServer).getOnlinePlayers();
         when(bukkitServer.getMaxPlayers()).thenReturn(100);
-        when(configs.renderEvent(eq("player_join"), anyMap())).thenReturn(MessageEnvelope.publicMessage("ok"));
+        when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));
 
         aggregator.enqueue(p1, PlayerEventService.PlayerState.JOIN);
+        aggregator.enqueue(p2, PlayerEventService.PlayerState.JOIN);
         runTail();
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> vars = ArgumentCaptor.forClass(Map.class);
-        verify(configs).renderEvent(eq("player_join"), vars.capture());
-        String onlineList = vars.getValue().get("online_list");
-        assertTrue(onlineList.contains("Alice"), "got: " + onlineList);
-        assertTrue(onlineList.contains("管理员"), "Alice 应显示权限组 管理员, got: " + onlineList);
-        assertTrue(onlineList.contains("Bob"), "got: " + onlineList);
-        assertTrue(onlineList.contains("建造者"), "Bob 应显示权限组 建造者, got: " + onlineList);
+        verify(configs).renderEvent(eq("player_digest"), vars.capture());
+        String joinSummary = vars.getValue().get("join_summary");
+        assertTrue(joinSummary.contains("Alice 生存模式 管理员"), "got: " + joinSummary);
+        assertTrue(joinSummary.contains("Bob 生存模式 建造者"), "got: " + joinSummary);
     }
 
     @Test
@@ -240,17 +235,24 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         verify(configs).renderEvent(eq("player_digest"), vars.capture());
         verify(notifier).event(eq("player_digest"), any(MessageEnvelope.class));
         Map<String, String> v = vars.getValue();
-        assertTrue(v.get("join_summary").startsWith("🟢 +2 上线"), "got: " + v.get("join_summary"));
+        // 版块式摘要：分割线开头（恰好 33 连字符 + 换行）+ 版块头（多人带人数）+ 每人一行；空版块连分割线一并省略
+        assertTrue(
+                v.get("join_summary").startsWith("---------------------------------\n"),
+                "got: " + v.get("join_summary"));
+        assertTrue(v.get("join_summary").contains("🥰 上线(2)："), "got: " + v.get("join_summary"));
         assertTrue(v.get("join_summary").contains("Alice"), "got: " + v.get("join_summary"));
         assertTrue(v.get("join_summary").contains("Bob"), "got: " + v.get("join_summary"));
-        assertTrue(v.get("quit_summary").startsWith("🔴 -1 下线"), "got: " + v.get("quit_summary"));
-        assertEquals("", v.get("kick_summary"));
+        assertTrue(
+                v.get("quit_summary").startsWith("---------------------------------\n"),
+                "got: " + v.get("quit_summary"));
+        assertTrue(v.get("quit_summary").contains("😋 下线："), "单人版块不显示人数, got: " + v.get("quit_summary"));
+        assertEquals("", v.get("kick_summary"), "空版块整段（含分割线）省略");
         assertEquals("3", v.get("online_count"));
     }
 
     @Test
     void enqueue_manyEvents_truncatesNamesOnlyCountExact() {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6));
         doReturn(List.of()).when(bukkitServer).getOnlinePlayers();
         when(bukkitServer.getMaxPlayers()).thenReturn(100);
         when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));
@@ -265,49 +267,10 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         verify(configs).renderEvent(eq("player_digest"), vars.capture());
         String joinSummary = vars.getValue().get("join_summary");
         // 计数精确（+10），名称仅显示前 6 个并截断
-        assertTrue(joinSummary.startsWith("🟢 +10 上线"), "got: " + joinSummary);
+        assertTrue(joinSummary.contains("🥰 上线(10)："), "got: " + joinSummary);
         assertTrue(joinSummary.contains("P0") && joinSummary.contains("P5"), "got: " + joinSummary);
         assertFalse(joinSummary.contains("P6"), "P6 应被截断: " + joinSummary);
         assertTrue(joinSummary.contains("等4人"), "got: " + joinSummary);
-    }
-
-    @Test
-    void enqueue_digestIncludeOnlineList_attachesList() {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6, true));
-        Player a = mockPlayer("Alice");
-        Player b = mockPlayer("Bob");
-        doReturn(List.of(a, b)).when(bukkitServer).getOnlinePlayers();
-        when(bukkitServer.getMaxPlayers()).thenReturn(100);
-        when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));
-
-        aggregator.enqueue(a, PlayerEventService.PlayerState.JOIN);
-        aggregator.enqueue(b, PlayerEventService.PlayerState.JOIN);
-        runTail();
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, String>> vars = ArgumentCaptor.forClass(Map.class);
-        verify(configs).renderEvent(eq("player_digest"), vars.capture());
-        String onlineList = vars.getValue().get("online_list");
-        assertTrue(onlineList.startsWith("\n"), "应带换行前缀: " + onlineList);
-        assertTrue(onlineList.contains("Alice") && onlineList.contains("Bob"), "got: " + onlineList);
-    }
-
-    @Test
-    void enqueue_digestIncludeOnlineList_false_omitsList() {
-        // 默认 includeOnlineList=false：摘要不含在线列表
-        Player a = mockPlayer("Alice");
-        doReturn(List.of(a)).when(bukkitServer).getOnlinePlayers();
-        when(bukkitServer.getMaxPlayers()).thenReturn(100);
-        when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));
-
-        aggregator.enqueue(a, PlayerEventService.PlayerState.JOIN);
-        aggregator.enqueue(mockPlayer("Bob"), PlayerEventService.PlayerState.QUIT);
-        runTail();
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, String>> vars = ArgumentCaptor.forClass(Map.class);
-        verify(configs).renderEvent(eq("player_digest"), vars.capture());
-        assertEquals("", vars.getValue().get("online_list"));
     }
 
     // ---- 限流上界与窗口行为 ----
@@ -324,7 +287,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
     @Test
     void enqueue_windowMs_convertsToTicks() {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 5000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 5000L, 6));
 
         aggregator.enqueue(mockPlayer("A"), PlayerEventService.PlayerState.JOIN);
 
@@ -338,7 +301,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         runTail();
 
         // 热重载：新窗口 5000ms → 100 ticks，不重建 service
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 5000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 5000L, 6));
         aggregator.enqueue(mockPlayer("B"), PlayerEventService.PlayerState.JOIN);
 
         verify(server).runLater(any(Runnable.class), eq(100L));
@@ -346,7 +309,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
     @Test
     void enqueue_disabledState_suppressed() {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6));
 
         aggregator.enqueue(mockPlayer("Alice"), PlayerEventService.PlayerState.JOIN);
 
@@ -361,7 +324,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         aggregator.enqueue(mockPlayer("A"), PlayerEventService.PlayerState.JOIN);
         aggregator.enqueue(mockPlayer("B"), PlayerEventService.PlayerState.JOIN);
         // 窗口内管理员关闭上线通知 → 挂起批次不再发送
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6));
 
         runTail();
 
@@ -375,7 +338,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         aggregator.enqueue(mockPlayer("A"), PlayerEventService.PlayerState.JOIN);
         aggregator.enqueue(b, PlayerEventService.PlayerState.QUIT);
         // 上线被关闭后，窗口内剩余 1 条 QUIT → 走单条模板而非摘要
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6));
         doReturn(List.of(b)).when(bukkitServer).getOnlinePlayers();
         when(bukkitServer.getMaxPlayers()).thenReturn(100);
         when(configs.renderEvent(eq("player_quit"), anyMap())).thenReturn(MessageEnvelope.publicMessage("quit"));
@@ -423,8 +386,8 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         ArgumentCaptor<Map<String, String>> vars = ArgumentCaptor.forClass(Map.class);
         verify(configs).renderEvent(eq("player_digest"), vars.capture());
         Map<String, String> v = vars.getValue();
-        assertTrue(v.get("kick_summary").startsWith("⛔ -1 被踢"), "got: " + v.get("kick_summary"));
-        assertTrue(v.get("quit_summary").startsWith("🔴 -1 下线"), "got: " + v.get("quit_summary"));
+        assertTrue(v.get("kick_summary").contains("😂 被踢："), "got: " + v.get("kick_summary"));
+        assertTrue(v.get("quit_summary").contains("😋 下线："), "got: " + v.get("quit_summary"));
     }
 
     // ---- 禁用/重载同步冲刷：不走调度器，避免尾部任务被取消导致整窗丢失 ----
@@ -500,7 +463,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
     @Test
     void concurrentEnqueue_serializedIntoOneBatch_exactCounts() throws Exception {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6, false));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6));
         doReturn(List.of()).when(bukkitServer).getOnlinePlayers();
         when(bukkitServer.getMaxPlayers()).thenReturn(100);
         when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));
@@ -534,7 +497,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         ArgumentCaptor<Map<String, String>> vars = ArgumentCaptor.forClass(Map.class);
         verify(configs).renderEvent(eq("player_digest"), vars.capture());
         assertTrue(
-                vars.getValue().get("join_summary").startsWith("🟢 +" + threads + " 上线"),
+                vars.getValue().get("join_summary").contains("🥰 上线(" + threads + ")："),
                 "got: " + vars.getValue().get("join_summary"));
     }
 }

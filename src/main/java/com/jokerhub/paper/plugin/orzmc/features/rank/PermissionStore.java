@@ -52,6 +52,16 @@ public final class PermissionStore implements RankStore, ReviewStore {
      */
     private static final int MAX_HISTORY_PER_PLAYER = 10;
 
+    /**
+     * 审核记录写盘锁。
+     *
+     * <p>approve 最终化在 global 线程写，reject/cancel/submit 在 region 线程写——共享的
+     * FileConfiguration（cfg.set + createSection + trimHistory 遍历）无同步会丢更新或
+     * ConcurrentModificationException，saveConfig 并发写同一文件可能损坏 YAML。
+     * 锁覆盖 writeRequest + trimHistory + saveConfig 整个临界区，跨线程串行化。</p>
+     */
+    private final Object saveLock = new Object();
+
     private final ConfigService configService;
 
     public PermissionStore(ConfigService configService) {
@@ -78,10 +88,13 @@ public final class PermissionStore implements RankStore, ReviewStore {
 
     @Override
     public void save(ReviewRequest request) {
-        FileConfiguration cfg = configService.getConfig(FILE);
-        writeRequest(cfg, request);
-        trimHistory(cfg, request.applicantId());
-        configService.saveConfig(FILE);
+        // 跨线程串行化 write+save 临界区（global 线程 finalize / region 线程 submit/cancel/reject 并发）
+        synchronized (saveLock) {
+            FileConfiguration cfg = configService.getConfig(FILE);
+            writeRequest(cfg, request);
+            trimHistory(cfg, request.applicantId());
+            configService.saveConfig(FILE);
+        }
     }
 
     @Override

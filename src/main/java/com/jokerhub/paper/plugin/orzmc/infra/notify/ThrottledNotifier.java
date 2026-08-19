@@ -20,14 +20,18 @@ public final class ThrottledNotifier {
 
     private boolean shouldRun(String key, long periodMs, long ttlMs) {
         long now = System.currentTimeMillis();
-        Long prev = last.get(key);
-        if (prev == null || now - prev >= periodMs) {
-            last.put(key, now);
-            maybeCleanup(now, ttlMs);
-            return true;
-        }
+        // 判定的依据用 compute 的返回值而非外部 boolean[]：ConcurrentHashMap.compute 在 CAS
+        // 重试时可能多次调用 remapping 函数，外部副作用数组会被「先置 true、最终未更新」污染
+        // （假放行）。stamp 装箱一次，remapping 返回 stamp ⇔ 本次确实放行（引用相等判定）。
+        Long stamp = now;
+        Long result = last.compute(key, (k, prev) -> {
+            if (prev == null || now - prev >= periodMs) {
+                return stamp; // 放行：写回本次时间戳
+            }
+            return prev; // 窗口内：保持原时间戳，不放行
+        });
         maybeCleanup(now, ttlMs);
-        return false;
+        return result == stamp;
     }
 
     private void maybeCleanup(long now, long ttlMs) {

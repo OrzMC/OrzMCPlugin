@@ -52,6 +52,8 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
         assertTrue(msg.contains("正版服"));
         assertTrue(msg.contains("启动完成"));
         assertTrue(msg.contains("$h"));
+        // 分割线统一 33 连字符（群消息统一样式防回归）
+        assertTrue(msg.contains("\n---------------------------------\n"), "启动消息分割线应为 33 连字符: " + msg);
     }
 
     @Test
@@ -67,6 +69,7 @@ class ServerFeedbackServiceTest extends ServiceTestBase {
         assertTrue(msg.contains("离线服"));
         assertTrue(msg.contains("重启完成"));
         assertTrue(msg.contains("!h"));
+        assertTrue(msg.contains("\n---------------------------------\n"), "重启消息分割线应为 33 连字符: " + msg);
     }
 
     @Test

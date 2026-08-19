@@ -43,7 +43,7 @@ public final class Paginator {
                                 Logger.getGlobal().log(Level.SEVERE, "Paginator 延迟任务异常", e);
                             }
                         },
-                        i * (delayTicks <= 0 ? 5L : delayTicks));
+                        Math.max(1L, (long) i * (delayTicks <= 0 ? 5L : delayTicks)));
             }
         }
     }
@@ -78,7 +78,7 @@ public final class Paginator {
                                 Logger.getGlobal().log(Level.SEVERE, "Paginator paginatePages 延迟任务异常", e);
                             }
                         },
-                        i * (delayTicks <= 0 ? 5L : delayTicks));
+                        Math.max(1L, (long) i * (delayTicks <= 0 ? 5L : delayTicks)));
             }
         }
     }

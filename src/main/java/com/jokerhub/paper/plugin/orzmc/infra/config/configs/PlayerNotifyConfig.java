@@ -10,16 +10,11 @@ import org.bukkit.configuration.ConfigurationSection;
  * 各类型开关为显式配置项：关闭后该类型事件不再产生通知（配置性忽略，非运行时丢消息）。</p>
  */
 public record PlayerNotifyConfig(
-        boolean enabledJoin,
-        boolean enabledQuit,
-        boolean enabledKick,
-        long windowMs,
-        int maxListItems,
-        boolean includeOnlineList) {
+        boolean enabledJoin, boolean enabledQuit, boolean enabledKick, long windowMs, int maxListItems) {
 
     public static PlayerNotifyConfig from(ConfigurationSection cfg) {
         if (cfg == null) {
-            return new PlayerNotifyConfig(true, true, true, 3000L, 6, false);
+            return new PlayerNotifyConfig(true, true, true, 3000L, 6);
         }
         long windowMs = cfg.getLong("window_ms", 3000L);
         if (windowMs <= 0) {
@@ -35,7 +30,6 @@ public record PlayerNotifyConfig(
                 cfg.getBoolean("enabled_quit", true),
                 cfg.getBoolean("enabled_kick", true),
                 windowMs,
-                maxListItems,
-                cfg.getBoolean("include_online_list", false));
+                maxListItems);
     }
 }

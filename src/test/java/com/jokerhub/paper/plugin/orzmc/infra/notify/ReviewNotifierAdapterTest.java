@@ -50,6 +50,43 @@ class ReviewNotifierAdapterTest {
     }
 
     @Test
+    void groupEvent_reviewSubmitted_rendersNewBlockStyle() {
+        adapter.groupEvent(
+                "review_submitted", Map.of("player", "StyleApp", "type", "晋升建造者", "summary", "申请晋升建造者：想用WorldEdit"));
+
+        // fallback 是模板字面（{player} 占位符），断言新样式外壳而非已替换的玩家名
+        verify(configs).renderTemplate(eq("review_submitted"), anyMap(), contains("🙋🏻‍♂️ [申请发起] {player}"));
+    }
+
+    @Test
+    void groupEvent_reviewCancelled_rendersNewBlockStyle() {
+        adapter.groupEvent(
+                "review_cancelled", Map.of("player", "StyleApp", "type", "晋升建造者", "summary", "申请晋升 builder：样式测试申请-撤回"));
+
+        verify(configs).renderTemplate(eq("review_cancelled"), anyMap(), contains("↩️ [申请撤回] {player}"));
+    }
+
+    @Test
+    void groupEvent_reviewApproved_rendersNewBlockStyleWithReviewer() {
+        adapter.groupEvent(
+                "review_approved",
+                Map.of("player", "StyleApp", "type", "晋升建造者", "summary", "申请晋升建造者：异步修复验证", "reviewer", "StyleAdm"));
+
+        verify(configs).renderTemplate(eq("review_approved"), anyMap(), contains("✅ [申请通过] {player}"));
+        verify(configs).renderTemplate(eq("review_approved"), anyMap(), contains("审核人：{reviewer}"));
+    }
+
+    @Test
+    void groupEvent_reviewRejected_rendersNewBlockStyleWithReviewer() {
+        adapter.groupEvent(
+                "review_rejected",
+                Map.of("player", "StyleApp", "type", "晋升建造者", "summary", "申请晋升建造者：样式测试申请-通过", "reviewer", "StyleAdm"));
+
+        verify(configs).renderTemplate(eq("review_rejected"), anyMap(), contains("❌ [申请拒绝] {player}"));
+        verify(configs).renderTemplate(eq("review_rejected"), anyMap(), contains("审核人：{reviewer}"));
+    }
+
+    @Test
     void groupEvent_unknownKey_fallsBackToPlaceholder() {
         // 未登记的键仍走 default "{message}"（既有行为，不回归）
         adapter.groupEvent("unknown_event", Map.of());

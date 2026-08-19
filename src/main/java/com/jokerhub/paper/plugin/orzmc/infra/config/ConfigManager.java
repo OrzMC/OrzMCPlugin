@@ -54,7 +54,11 @@ public class ConfigManager {
         return configs.get(name);
     }
 
-    public boolean saveConfig(String name) {
+    /**
+     * 落盘配置文件。synchronized 串行化共享 FileConfiguration 的并发写：
+     * global/region 线程并发 save 同一文件会交叠写损坏 YAML 或丢更新（PermissionStore.save 场景）。
+     */
+    public synchronized boolean saveConfig(String name) {
         if (!configs.containsKey(name) || !configFiles.containsKey(name)) {
             return false;
         }

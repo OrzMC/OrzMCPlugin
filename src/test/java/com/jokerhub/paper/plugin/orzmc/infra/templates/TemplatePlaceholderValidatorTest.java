@@ -46,7 +46,7 @@ class TemplatePlaceholderValidatorTest {
         FileConfiguration cfg = mock(FileConfiguration.class);
         when(cfg.getString(anyString(), anyString())).thenReturn("");
         when(cfg.getString(eq("templates.player_digest"), anyString()))
-                .thenReturn("{join_summary}{quit_summary}{kick_summary}{online_count}{max_count}{online_list}");
+                .thenReturn("{join_summary}{quit_summary}{kick_summary}{online_count}{max_count}");
         when(cfg.get(anyString())).thenReturn(null);
         when(cfg.contains(anyString())).thenReturn(false);
 

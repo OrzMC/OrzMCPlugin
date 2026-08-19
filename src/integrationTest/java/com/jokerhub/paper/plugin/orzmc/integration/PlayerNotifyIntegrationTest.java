@@ -82,8 +82,8 @@ public class PlayerNotifyIntegrationTest {
         Assertions.assertEquals(List.of("player_join"), sink.keys, "单发应复用 player_join 模板");
         String msg = sink.lastEnvelope().message();
         Assertions.assertTrue(msg.contains("e2e_0"), "消息应含玩家名: " + msg);
-        Assertions.assertTrue(msg.contains(" 上线"), "应为单条上线模板: " + msg);
-        Assertions.assertTrue(msg.contains("当前在线(1/"), "冲刷时刻在线数为 1: " + msg);
+        Assertions.assertTrue(msg.contains("🥰 上线"), "应为单条上线模板: " + msg);
+        Assertions.assertTrue(msg.contains("当前玩家(1/"), "冲刷时刻在线数为 1: " + msg);
     }
 
     @Test
@@ -95,8 +95,8 @@ public class PlayerNotifyIntegrationTest {
         flushWindow(); // 窗口2
         Assertions.assertEquals(List.of("player_quit"), sink.keys);
         String msg = sink.lastEnvelope().message();
-        Assertions.assertTrue(msg.contains(" 下线"), "应为单条下线模板: " + msg);
-        Assertions.assertTrue(msg.contains("当前在线(0/"), "冲刷时刻当事人已离线，不应重复减 1: " + msg);
+        Assertions.assertTrue(msg.contains("😋 下线"), "应为单条下线模板: " + msg);
+        Assertions.assertTrue(msg.contains("当前玩家(0/"), "冲刷时刻当事人已离线，不应重复减 1: " + msg);
     }
 
     // ---- 多发：窗口内多条事件，合并为一条摘要，计数精确 ----
@@ -109,9 +109,9 @@ public class PlayerNotifyIntegrationTest {
         flushWindow();
         Assertions.assertEquals(List.of("player_digest"), sink.keys, "窗口内 6 条事件应合并为 1 条摘要");
         String msg = sink.lastEnvelope().message();
-        Assertions.assertTrue(msg.contains("🟢 +6 上线"), "摘要计数应精确: " + msg);
+        Assertions.assertTrue(msg.contains("🥰 上线(6)："), "摘要计数应精确: " + msg);
         Assertions.assertTrue(msg.contains("e2e_0") && msg.contains("e2e_5"), "应列出玩家名: " + msg);
-        Assertions.assertTrue(msg.contains("当前在线(6/"), "冲刷时刻 6 人在线: " + msg);
+        Assertions.assertTrue(msg.contains("当前玩家(6/"), "冲刷时刻 6 人在线: " + msg);
     }
 
     @Test
@@ -123,10 +123,10 @@ public class PlayerNotifyIntegrationTest {
         kick(p2);
         flushWindow();
         String msg = sink.lastEnvelope().message();
-        Assertions.assertTrue(msg.contains("🟢 +3 上线"), "3 人都在窗口内上线，摘要应 +3: " + msg);
-        Assertions.assertTrue(msg.contains("🔴 -1 下线"), "got: " + msg);
-        Assertions.assertTrue(msg.contains("⛔ -1 被踢"), "got: " + msg);
-        Assertions.assertTrue(msg.contains("当前在线(1/"), "3 加入 -1 退出 -1 被踢 = 剩 1: " + msg);
+        Assertions.assertTrue(msg.contains("🥰 上线(3)："), "3 人都在窗口内上线，摘要应 (3): " + msg);
+        Assertions.assertTrue(msg.contains("😋 下线："), "单人版块不显示人数, got: " + msg);
+        Assertions.assertTrue(msg.contains("😂 被踢："), "单人版块不显示人数, got: " + msg);
+        Assertions.assertTrue(msg.contains("当前玩家(1/"), "3 加入 -1 退出 -1 被踢 = 剩 1: " + msg);
     }
 
     @Test
@@ -137,7 +137,7 @@ public class PlayerNotifyIntegrationTest {
         }
         flushWindow();
         String msg = sink.lastEnvelope().message();
-        Assertions.assertTrue(msg.contains("🟢 +10 上线"), "计数应精确 +10: " + msg);
+        Assertions.assertTrue(msg.contains("🥰 上线(10)："), "计数应精确 (10): " + msg);
         Assertions.assertTrue(msg.contains("等4人"), "超出 max_list_items 应显示 等4人: " + msg);
     }
 
@@ -192,9 +192,9 @@ public class PlayerNotifyIntegrationTest {
                     case "player_quit" -> t.quit++;
                     case "player_kick" -> t.kick++;
                     case "player_digest" -> {
-                        t.join += count(msg, "🟢 \\+(\\d+) 上线");
-                        t.quit += count(msg, "🔴 -(\\d+) 下线");
-                        t.kick += count(msg, "⛔ -(\\d+) 被踢");
+                        t.join += count(msg, "🥰 上线(?:\\((\\d+)\\))?：");
+                        t.quit += count(msg, "😋 下线(?:\\((\\d+)\\))?：");
+                        t.kick += count(msg, "😂 被踢(?:\\((\\d+)\\))?：");
                     }
                     default -> {
                         // 未知事件键不参与对账
@@ -208,7 +208,9 @@ public class PlayerNotifyIntegrationTest {
             Matcher m = Pattern.compile(regex).matcher(text);
             int sum = 0;
             while (m.find()) {
-                sum += Integer.parseInt(m.group(1));
+                String g = m.group(1);
+                // 版块头单人时不显示人数括号 → 计 1；多人时取括号内数字
+                sum += (g == null || g.isEmpty()) ? 1 : Integer.parseInt(g);
             }
             return sum;
         }

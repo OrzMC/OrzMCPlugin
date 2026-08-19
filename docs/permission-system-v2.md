@@ -169,17 +169,17 @@ permission.yml
 
 | 环节 | 触发方 | 群通知（模板键） | 玩家侧 |
 |:--|:--|:--|:--|
-| 提交申请 | 玩家 `/apply` | 📋 `review_submitted` | 游戏内「已提交，等待审核」 |
+| 提交申请 | 玩家 `/apply` | 🙋🏻‍♂️ `review_submitted` | 游戏内「已提交，等待审核」 |
 | 撤回申请 | 玩家 `/apply cancel` | ↩️ `review_cancelled` | 游戏内「已撤回」 |
 | 通过申请 | 管理员 `$v y` / `/review approve` | ✅ `review_approved` | 游戏内「已通过」+ 群兜底 |
 | 拒绝申请 | 管理员 `$v n` / `/review reject` | ❌ `review_rejected` | 游戏内「被拒（原因）」+ 群兜底 |
 
 | 模板键 | 内容示例 |
 |:--|:--|
-| `review_submitted` | `📋 [新申请] TestMember：申请晋升builder（$v l 查看）` |
-| `review_cancelled` | `↩️ TestMember 撤回了申请：申请晋升builder` |
-| `review_approved` | `✅ TestMember 的申请已通过（审核人：管理员）：申请晋升builder` |
-| `review_rejected` | `❌ TestMember 的申请被拒（审核人：管理员）：申请晋升builder` |
+| `review_submitted` | `🙋🏻‍♂️ [申请发起] TestMember` + 分割线 + `申请晋升builder：理由` |
+| `review_cancelled` | `↩️ [申请撤回] TestMember` + 分割线 + `申请晋升builder：理由` |
+| `review_approved` | `✅ [申请通过] TestMember` + 分割线 + `申请晋升builder：理由` + 分割线 + `审核人：管理员` |
+| `review_rejected` | `❌ [申请拒绝] TestMember` + 分割线 + `申请晋升builder：理由` + 分割线 + `审核人：管理员` |
 | `rank_promoted` | `🎉 TestMember 权限已升级为「建造者」` |
 | `rank_demoted` | `⬇️ TestMember 权限已被降级为「成员」` |
 | `rank_status` | 保留键（`{message}` 透传；当前 `/rank` 文案由 RankCommandService 直生成，未走模板） |
@@ -203,7 +203,7 @@ permission.yml
 ```
 玩家 /apply builder [理由]
   → 预检 → permission.yml (PENDING)
-  → 游戏内「已提交」 → 群 📋 review_submitted
+  → 游戏内「已提交」 → 群 🙋🏻‍♂️ review_submitted
         ↓
 玩家 /apply cancel → CANCELLED → 游戏内「已撤回」 → 群 ↩️ review_cancelled
         ↓

@@ -16,7 +16,6 @@ class PlayerNotifyConfigTest {
         assertTrue(config.enabledKick());
         assertEquals(3000L, config.windowMs());
         assertEquals(6, config.maxListItems());
-        assertFalse(config.includeOnlineList());
     }
 
     @Test
@@ -34,7 +33,6 @@ class PlayerNotifyConfigTest {
         assertTrue(config.enabledKick());
         assertEquals(3000L, config.windowMs());
         assertEquals(6, config.maxListItems());
-        assertFalse(config.includeOnlineList());
     }
 
     @Test
@@ -66,7 +64,6 @@ class PlayerNotifyConfigTest {
         when(cfg.getBoolean("enabled_kick", true)).thenReturn(false);
         when(cfg.getLong("window_ms", 3000L)).thenReturn(5000L);
         when(cfg.getInt("max_list_items", 6)).thenReturn(10);
-        when(cfg.getBoolean("include_online_list", false)).thenReturn(true);
 
         PlayerNotifyConfig config = PlayerNotifyConfig.from(cfg);
         assertFalse(config.enabledJoin());
@@ -74,6 +71,5 @@ class PlayerNotifyConfigTest {
         assertFalse(config.enabledKick());
         assertEquals(5000L, config.windowMs());
         assertEquals(10, config.maxListItems());
-        assertTrue(config.includeOnlineList());
     }
 }

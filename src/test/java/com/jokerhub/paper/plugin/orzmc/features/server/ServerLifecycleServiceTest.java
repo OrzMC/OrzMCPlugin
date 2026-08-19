@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.server;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -41,6 +42,14 @@ class ServerLifecycleServiceTest extends ServiceTestBase {
 
         service.notifyServerStop();
 
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.Map<String, String>> vars =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs).renderEvent(eq("server_stop"), vars.capture());
+        // 分割线统一 33 连字符（群消息统一样式防回归）
+        assertTrue(
+                vars.getValue().get("message").contains("\n---------------------------------\n"),
+                "停止消息分割线应为 33 连字符: " + vars.getValue().get("message"));
         verify(notifier).event(eq("server_stop"), any(MessageEnvelope.class));
     }
 }

@@ -46,11 +46,6 @@ class NoopRankPromoterTest {
     }
 
     @Test
-    void isInGroup_returnsFalse() {
-        assertFalse(promoter.isInGroup(id, "admin"));
-    }
-
-    @Test
     void currentTrackGroup_returnsNull() {
         assertNull(promoter.currentTrackGroup(id));
     }
