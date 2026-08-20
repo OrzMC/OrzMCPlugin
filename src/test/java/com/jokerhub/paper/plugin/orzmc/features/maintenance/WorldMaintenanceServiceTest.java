@@ -81,7 +81,13 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         org.bukkit.World worldMock = mock(org.bukkit.World.class);
         File worldFolder = new File(worldDir, "world");
         worldFolder.mkdirs();
-        when(worldMock.getWorldFolder()).thenReturn(worldFolder);
+        // 26.1+ 布局下 getWorldFolder()/getWorldPath() 返回维度数据目录（非世界根）——
+        // #215 回归正是被它误导；mock 保持该形状以守住回归防护（旧实现会因此把
+        // input 选成维度目录，本修复后仍返回世界根）
+        File dimensionFolder = new File(worldFolder, "dimensions/minecraft/overworld");
+        dimensionFolder.mkdirs();
+        when(worldMock.getWorldFolder()).thenReturn(dimensionFolder);
+        when(worldMock.getWorldPath()).thenReturn(dimensionFolder.toPath());
         when(bukkitServer.getWorlds()).thenReturn(List.of(worldMock));
 
         service = new WorldMaintenanceService(server, configs, mock(OrzTextStyles.class), mock(Notifier.class));
@@ -251,13 +257,20 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
     public void backup_createsDirAndReportsProgress() {
         AtomicBoolean sawStartMsg = new AtomicBoolean(false);
         AtomicBoolean sawDirMsg = new AtomicBoolean(false);
+        AtomicBoolean inputIsWorldRoot = new AtomicBoolean(false);
         service.backup(300L, 5, msg -> {
-            if (msg.contains("服务器地图目录")) sawStartMsg.set(true);
+            if (msg.contains("服务器地图目录")) {
+                sawStartMsg.set(true);
+                // 世界根 = worldContainer/level-name（默认 world/），而非 26.1+ 的维度数据目录
+                inputIsWorldRoot.set(
+                        msg.contains(new File(worldDir, "world").getAbsolutePath()) && !msg.contains("dimensions"));
+            }
             if (msg.contains("地图备份目录")) sawDirMsg.set(true);
         });
 
         Assertions.assertTrue(sawStartMsg.get(), "应报告服务器地图目录");
         Assertions.assertTrue(sawDirMsg.get(), "应报告地图备份目录");
+        Assertions.assertTrue(inputIsWorldRoot.get(), "input 应为 worldContainer/level-name 世界根目录");
         Assertions.assertFalse(service.isRunning());
         // 备份目录应被创建（服务器核心根目录下，非插件数据目录）
         File backupDir = new File(worldDir, "backup");
@@ -265,6 +278,113 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         // 备份 zip 应落盘 backup/（0.3.x zipOutput 模式空世界也产出 22B 最小 zip，backup-core 直接写入 backup/）
         File[] zips = backupDir.listFiles(f -> f.isFile() && f.getName().endsWith(".zip"));
         Assertions.assertTrue(zips != null && zips.length >= 1, "备份 zip 应落盘 backup/ 目录");
+    }
+
+    @Test
+    public void backup_usesCustomLevelNameFromProperties() throws Exception {
+        // server.properties 自定义 level-name → 世界根取 worldContainer/custom_world
+        File customWorld = new File(worldDir, "custom_world");
+        customWorld.mkdirs();
+        File props = new File(worldDir, "server.properties");
+        try (FileOutputStream fos = new FileOutputStream(props)) {
+            fos.write("level-name=custom_world\n".getBytes());
+        }
+        AtomicBoolean inputIsCustom = new AtomicBoolean(false);
+        service.backup(300L, 5, msg -> {
+            if (msg.contains("服务器地图目录")) {
+                inputIsCustom.set(msg.contains(customWorld.getAbsolutePath()));
+            }
+        });
+        Assertions.assertTrue(inputIsCustom.get(), "自定义 level-name 时 input 应为 worldContainer/custom_world");
+    }
+
+    @Test
+    public void backup_fallsBackToDefaultWorldWhenLevelRootMissing() throws Exception {
+        // level-name 目录不存在（如 server.properties 指向未生成的目录）→ 回退 worldContainer/world
+        File props = new File(worldDir, "server.properties");
+        try (FileOutputStream fos = new FileOutputStream(props)) {
+            fos.write("level-name=ghost_world\n".getBytes());
+        }
+        AtomicBoolean inputIsFallback = new AtomicBoolean(false);
+        service.backup(300L, 5, msg -> {
+            if (msg.contains("服务器地图目录")) {
+                inputIsFallback.set(msg.contains(new File(worldDir, "world").getAbsolutePath()));
+            }
+        });
+        Assertions.assertTrue(inputIsFallback.get(), "level-name 目录缺失应回退 worldContainer/world");
+    }
+
+    @Test
+    public void backup_fallsBackOnCorruptProperties() throws Exception {
+        // 非法 Unicode 转义序列 → Properties.load 抛 IllegalArgumentException → 回退默认 world
+        File props = new File(worldDir, "server.properties");
+        String backslash = "\\";
+        try (FileOutputStream fos = new FileOutputStream(props)) {
+            fos.write(("level-name=" + backslash + "uZZZZ\n").getBytes());
+        }
+        AtomicBoolean inputIsWorld = new AtomicBoolean(false);
+        service.backup(300L, 5, msg -> {
+            if (msg.contains("服务器地图目录")) {
+                inputIsWorld.set(msg.contains(new File(worldDir, "world").getAbsolutePath()));
+            }
+        });
+        Assertions.assertTrue(inputIsWorld.get(), "损坏 server.properties 应回退默认 world");
+    }
+
+    @Test
+    public void backup_blankLevelNameFallsBackToDefault() throws Exception {
+        // level-name 空白值 → 回退默认 world
+        File props = new File(worldDir, "server.properties");
+        try (FileOutputStream fos = new FileOutputStream(props)) {
+            fos.write("level-name=   \n".getBytes());
+        }
+        AtomicBoolean inputIsWorld = new AtomicBoolean(false);
+        service.backup(300L, 5, msg -> {
+            if (msg.contains("服务器地图目录")) {
+                inputIsWorld.set(msg.contains(new File(worldDir, "world").getAbsolutePath()));
+            }
+        });
+        Assertions.assertTrue(inputIsWorld.get(), "空白 level-name 应回退默认 world");
+    }
+
+    @Test
+    public void backup_rejectsPathTraversalLevelName() throws Exception {
+        // level-name 含路径分隔符 → 视为非法回退默认 world（防越出容器/撞入备份目录）
+        File props = new File(worldDir, "server.properties");
+        try (FileOutputStream fos = new FileOutputStream(props)) {
+            fos.write("level-name=../evil\n".getBytes());
+        }
+        AtomicBoolean inputIsWorld = new AtomicBoolean(false);
+        service.backup(300L, 5, msg -> {
+            if (msg.contains("服务器地图目录")) {
+                inputIsWorld.set(msg.contains(new File(worldDir, "world").getAbsolutePath()));
+            }
+        });
+        Assertions.assertTrue(inputIsWorld.get(), "含路径分隔符的 level-name 应拒绝并回退默认 world");
+    }
+
+    @Test
+    public void backup_reportsFailureWhenNoWorldRootExists() throws Exception {
+        // level-name 与默认 world/ 目录都不存在：不应回退到 worldContainer（会撞 0.3.x
+        // 重叠校验/把整个服务器目录扫入备份），而是交给 backup-core 明确报备份失败
+        try (var stream = Files.walk(new File(worldDir, "world").toPath())) {
+            stream.sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> p.toFile().delete());
+        }
+        File props = new File(worldDir, "server.properties");
+        try (FileOutputStream fos = new FileOutputStream(props)) {
+            fos.write("level-name=ghost_world\n".getBytes());
+        }
+        AtomicBoolean sawFail = new AtomicBoolean(false);
+        AtomicBoolean inputIsContainer = new AtomicBoolean(false);
+        service.backup(300L, 5, msg -> {
+            if (msg.contains("服务器地图目录")) {
+                inputIsContainer.set(!msg.trim().endsWith("/world"));
+            }
+            if (msg.contains("备份失败")) sawFail.set(true);
+        });
+        Assertions.assertTrue(sawFail.get(), "无世界根时应明确报备份失败");
+        Assertions.assertFalse(inputIsContainer.get(), "不应把 worldContainer 本身当作 input");
     }
 
     @Test

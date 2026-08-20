@@ -304,30 +304,46 @@ public class WorldMaintenanceService {
                 null);
     }
 
-    /** 世界目录（尊重服务器 level-name 配置；极端情况下回退 worldContainer/world）。
-     *  优先选择含 dimensions/ 或 region/ 的真实世界目录（26.2 结构下各维度均在 world/ 内），
-     *  避免 getWorlds() 顺序把非主世界排前导致漏备。 */
+    /** 世界根目录（备份/优化 input）：以 worldContainer 为基准解析 level-name 世界目录
+     *  （server.properties 配置，默认 world/）。
+     *  ⚠️ 26.1+ 布局下 World#getWorldFolder()/getWorldPath() 返回的是维度数据目录
+     *  （world/dimensions/minecraft/overworld）而非世界根——直接用作 input 会漏备
+     *  level.dat/players/世界级 data/下界/末地（#215 回归）；改回 1.0.17 的
+     *  getWorldContainer 系 API 定位世界根。backup/ 与它是兄弟路径，
+     *  天然满足 backup-core 0.3.x 的 input/output 不重叠校验。 */
     private File worldFolder() {
-        java.util.List<org.bukkit.World> worlds = server.server().getWorlds();
-        if (worlds != null && !worlds.isEmpty()) {
-            for (org.bukkit.World w : worlds) {
-                File folder = w.getWorldFolder();
-                if (folder != null
-                        && folder.isDirectory()
-                        && (new File(folder, "dimensions").isDirectory() || new File(folder, "region").isDirectory())) {
-                    return folder;
+        File container = server.server().getWorldContainer();
+        File levelRoot = new File(container, levelNameFromProperties(container));
+        if (levelRoot.isDirectory()) {
+            return levelRoot;
+        }
+        // level-name 目录缺失：回退默认 world/；仍不存在时交给 backup-core 明确报错——
+        // 不能回退 container 本身：backup/ 嵌套其内会触发 0.3.x 重叠校验拒绝，
+        // 或把 plugins/logs/历史 zip 全部扫入备份。
+        return new File(container, "world");
+    }
+
+    /** 读取 server.properties 的 level-name（尊重自定义世界目录名），缺失/解析失败回退默认 "world"。 */
+    private static String levelNameFromProperties(File container) {
+        File props = new File(container, "server.properties");
+        if (props.isFile()) {
+            try (java.io.InputStream in = new java.io.FileInputStream(props)) {
+                java.util.Properties p = new java.util.Properties();
+                p.load(in);
+                String name = p.getProperty("level-name");
+                if (name != null && !name.isBlank() && isValidLevelName(name)) {
+                    return name.trim();
                 }
-            }
-            File first = worlds.get(0).getWorldFolder();
-            if (first != null && first.isDirectory()) {
-                return first;
+            } catch (Exception e) {
+                // 解析失败（含非法 Unicode 转义序列导致的 IllegalArgumentException）回退默认值，备份不因此中断
             }
         }
-        File fallback = new File(server.server().getWorldContainer(), "world");
-        if (fallback.isDirectory()) {
-            return fallback;
-        }
-        return server.server().getWorldContainer();
+        return "world";
+    }
+
+    /** level-name 只允许目录名（Minecraft 本身不允许路径分隔符），拒绝越出容器/撞入备份目录。 */
+    private static boolean isValidLevelName(String name) {
+        return !name.contains("/") && !name.contains("\\") && !name.contains("..") && !name.equals(".");
     }
 
     /** backup/ 下最新 zip 的 mtime（无 zip 为 0）。备份成功判定：备份后出现 mtime 更新的 zip。 */
