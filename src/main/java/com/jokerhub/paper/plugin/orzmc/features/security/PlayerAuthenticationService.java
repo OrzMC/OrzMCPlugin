@@ -54,7 +54,8 @@ public final class PlayerAuthenticationService {
                     return;
                 }
             } catch (Exception e) {
-                // 尝试下一个包名
+                // 尝试下一个包名（LoginSecurity 未安装或 API 不匹配属预期；debug 记录便于排障）
+                LOGGER.fine("LoginSecurity API 探测失败（包名 " + pkg + "）: " + e.getMessage());
             }
         }
     }

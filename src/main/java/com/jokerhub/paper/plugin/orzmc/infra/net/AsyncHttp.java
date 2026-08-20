@@ -124,4 +124,22 @@ public final class AsyncHttp {
         if (left > Long.MAX_VALUE / right) return Long.MAX_VALUE;
         return left * right;
     }
+
+    /**
+     * 关闭所有缓存的 {@link HttpClient}（插件卸载/重载时回收其线程池，防泄漏）。
+     *
+     * <p>幂等：关闭后 {@code CLIENTS} 置空，下次请求经 {@link #client} 的 {@code computeIfAbsent}
+     * 重建新客户端。</p>
+     */
+    public static void shutdown() {
+        for (HttpClient client : CLIENTS.values()) {
+            client.close();
+        }
+        CLIENTS.clear();
+    }
+
+    /** 当前缓存的 HttpClient 数量（测试用：验证 shutdown 清空缓存）。 */
+    static int clientCount() {
+        return CLIENTS.size();
+    }
 }

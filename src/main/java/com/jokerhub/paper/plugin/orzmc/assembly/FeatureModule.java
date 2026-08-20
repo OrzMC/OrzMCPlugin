@@ -1,8 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.assembly;
 
-import static io.papermc.paper.command.brigadier.Commands.argument;
-import static io.papermc.paper.command.brigadier.Commands.literal;
-
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzConfigCommand;
 import com.jokerhub.paper.plugin.orzmc.events.OrzBowShootEvent;
@@ -22,10 +19,6 @@ import com.jokerhub.paper.plugin.orzmc.events.OrzWhiteListEvent;
 import com.jokerhub.paper.plugin.orzmc.features.chat.ChatSpamFilterEventService;
 import com.jokerhub.paper.plugin.orzmc.features.chat.ChatSpamFilterService;
 import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
-import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterceptor;
-import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
-import com.jokerhub.paper.plugin.orzmc.features.command.binding.CooldownInterceptor;
-import com.jokerhub.paper.plugin.orzmc.features.command.binding.PlayerOnlyInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuEventService;
@@ -51,30 +44,9 @@ import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowService;
 import com.jokerhub.paper.plugin.orzmc.features.tnt.TntEventService;
 import com.jokerhub.paper.plugin.orzmc.features.whitelist.WhitelistEventService;
 import com.jokerhub.paper.plugin.orzmc.infra.binding.EventBinder;
-import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigPath;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
-import com.mojang.brigadier.tree.LiteralCommandNode;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
-import io.papermc.paper.command.brigadier.Commands;
-import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import net.kyori.adventure.text.Component;
 import org.bukkit.GameMode;
-import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 
 /**
@@ -123,13 +95,13 @@ public final class FeatureModule implements ServiceModule {
     private final com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService rankCommandService;
     private final com.jokerhub.paper.plugin.orzmc.features.review.ReviewService reviewService;
     private final com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService reviewCommandService;
-    private com.jokerhub.paper.plugin.orzmc.events.OrzRankEvent rankEventService; // setupEventListeners 中创建
 
     // 模块引用（供事件/命令注册使用）
     private final PlatformModule platform;
     private final BotModule botModule;
     private final MaintenanceModule maintenanceModule;
     private final MainConfig mainConfig;
+    private final FeatureCommandRegistrar commandRegistrar;
 
     public FeatureModule(
             PlatformModule platform,
@@ -216,65 +188,58 @@ public final class FeatureModule implements ServiceModule {
         this.listFormatter.setRankService(this.rankService);
         this.reviewService = new com.jokerhub.paper.plugin.orzmc.features.review.ReviewService(
                 permissionStore, reviewNotifier, playerLookup, platform.serverFacade()::runSync);
-        // 注册审核类型 BUILDER_PROMOTION：handler 由 rank 模块注入（LP 授权），框架零 LP 依赖
-        this.reviewService.register(new com.jokerhub.paper.plugin.orzmc.features.review.ReviewType(
-                "builder-promotion",
-                "晋升建造者",
-                "builder",
-                rawArgs -> {
-                    var data = new java.util.LinkedHashMap<String, String>();
-                    data.put("target-group", "builder");
-                    if (rawArgs != null && !rawArgs.isBlank()) {
-                        data.put("reason", rawArgs);
-                    }
-                    return data;
-                },
-                playerId -> rankService.currentGroup(playerId).equals("member"),
-                data -> "申请晋升建造者"
-                        + (data.get("reason") == null || data.get("reason").isBlank() ? "" : "：" + data.get("reason")),
-                // 审核通过 = track 升一级（member→builder）；异步授权（LP 操作在非服务器线程），
-                // 结果 null/异常 视为授权失败 → 保持 PENDING 不落 APPROVED（避免「已通过但未生效」漂移）
-                playerId -> rankService.promoteAsync(playerId).thenApply(to -> to != null)));
-        // ADMIN_PROMOTION：builder→admin（四级流转最后一环；审核通过 = track 升一级）
-        this.reviewService.register(new com.jokerhub.paper.plugin.orzmc.features.review.ReviewType(
-                "admin-promotion",
-                "晋升管理员",
-                "admin",
-                rawArgs -> {
-                    var data = new java.util.LinkedHashMap<String, String>();
-                    data.put("target-group", "admin");
-                    if (rawArgs != null && !rawArgs.isBlank()) {
-                        data.put("reason", rawArgs);
-                    }
-                    return data;
-                },
-                playerId -> rankService.currentGroup(playerId).equals("builder"),
-                data -> "申请晋升管理员"
-                        + (data.get("reason") == null || data.get("reason").isBlank() ? "" : "：" + data.get("reason")),
-                playerId -> rankService.promoteAsync(playerId).thenApply(to -> to != null)));
+        // 注册审核类型：handler 由 rank 模块注入（LP 授权），框架零 LP 依赖。
+        // 审核通过 = track 升一级；异步授权（LP 操作在非服务器线程），结果 null/异常 视为
+        // 授权失败 → 保持 PENDING 不落 APPROVED（避免「已通过但未生效」漂移）。
+        this.reviewService.register(promotionType("builder-promotion", "晋升建造者", "builder", "member"));
+        this.reviewService.register(promotionType("admin-promotion", "晋升管理员", "admin", "builder"));
         this.rankCommandService = new com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService(
                 rankService, reviewService, platform.textStyles());
         this.reviewCommandService = new com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService(
                 reviewService, platform.textStyles());
-        this.rankEventService = null; // setupEventListeners 中创建
 
         // 保留模块引用（供事件/命令注册使用）
         this.platform = platform;
         this.botModule = botModule;
         this.maintenanceModule = maintenanceModule;
+        this.commandRegistrar = new FeatureCommandRegistrar(
+                platform,
+                botModule,
+                guideService,
+                menuCommandService,
+                teleportBowService,
+                portalCommandService,
+                blacklistService,
+                reviewCommandService,
+                rankCommandService,
+                rankService,
+                orzConfigCommand);
     }
 
-    @Override
-    public void setup() {
-        // 由组合根在 setupAll 中统一触发
+    /** 构造一个「晋升」审核类型（builder-promotion / admin-promotion 共用模板，消除重复）。 */
+    private com.jokerhub.paper.plugin.orzmc.features.review.ReviewType promotionType(
+            String id, String name, String targetGroup, String fromGroup) {
+        return new com.jokerhub.paper.plugin.orzmc.features.review.ReviewType(
+                id,
+                name,
+                targetGroup,
+                rawArgs -> {
+                    var data = new java.util.LinkedHashMap<String, String>();
+                    data.put("target-group", targetGroup);
+                    if (rawArgs != null && !rawArgs.isBlank()) {
+                        data.put("reason", rawArgs);
+                    }
+                    return data;
+                },
+                playerId -> rankService.currentGroup(playerId).equals(fromGroup),
+                data -> "申请" + name
+                        + (data.get("reason") == null || data.get("reason").isBlank() ? "" : "：" + data.get("reason")),
+                playerId -> rankService.promoteAsync(playerId).thenApply(to -> to != null));
     }
 
     // --- Event Listener Registration ---
 
     public void setupEventListeners(OrzMC plugin) {
-        // $v 群指令依赖的审核/权限服务（BotCommandService 早于 FeatureModule 创建，这里补注入）
-        botModule.botCommandService().setReviewService(reviewService);
-        botModule.botCommandService().setRankService(rankService);
         Listener[] eventListeners = new Listener[] {
             new OrzBowShootEvent(plugin, teleportBowEventService),
             new OrzPlayerEvent(
@@ -305,7 +270,7 @@ public final class FeatureModule implements ServiceModule {
             new OrzWhiteListEvent(plugin, whitelistEventService),
             new OrzDebugEvent(plugin, botModule.botInboundHandler()),
             new OrzPortalEvent(plugin, portalEventService),
-            this.rankEventService = new com.jokerhub.paper.plugin.orzmc.events.OrzRankEvent(plugin, rankService)
+            new com.jokerhub.paper.plugin.orzmc.events.OrzRankEvent(plugin, rankService)
         };
         EventBinder.bind(plugin, Arrays.asList(eventListeners));
     }
@@ -313,619 +278,7 @@ public final class FeatureModule implements ServiceModule {
     // --- Command Registration ---
 
     public void setupCommandHandlers(OrzMC plugin) {
-        // ---- Register commands via Paper lifecycle COMMANDS event ----
-        // Using direct Brigadier LiteralCommandNode (not BasicCommand wrapper)
-        // so that:
-        // 1. No-arg commands show as /<name> (no auto-generated [args] in help)
-        // 2. Subcommand commands show proper argument structure in help
-        // 3. Tab completion suggests subcommand names naturally
-        plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
-            Commands commands = event.registrar();
-
-            // Re-read command policies on each fire (supports reload)
-            ConfigurationSection cmdSection =
-                    platform.configService().getConfig("config").getConfigurationSection("command_policies");
-            if (cmdSection == null) {
-                FileConfiguration legacy = platform.configService().loadFile("commands.yml");
-                cmdSection = legacy != null ? legacy.getConfigurationSection("commands") : null;
-            }
-            CommandPolicies cp = CommandPolicies.from(cmdSection);
-
-            // ---- No-argument commands (clean literals, no [args] in help) ----
-            registerSimple(
-                    commands,
-                    "guide",
-                    "获取新手教程，更快的熟悉服务器",
-                    List.of(),
-                    cp,
-                    false,
-                    sender -> guideService.openGuide((Player) sender));
-            registerSimple(
-                    commands,
-                    "menu",
-                    "菜单展示",
-                    List.of(),
-                    cp,
-                    false,
-                    sender -> menuCommandService.handle((Player) sender));
-            registerSimple(
-                    commands,
-                    "tpbow",
-                    "传送弓，射出的箭落地时会把自己传送到箭落地的位置",
-                    List.of("tpb"),
-                    cp,
-                    false,
-                    sender -> teleportBowService.giveAndEquip((Player) sender));
-            // ---- Bot 健康状态：/bot 显示最简状态，/bot http、/bot ws 查看详情 ----
-            registerBotStatus(commands, cp);
-
-            // ---- Portal: /portal [remove] <host> [port] ----
-            registerPortal(commands, cp);
-
-            // ---- Blacklist: /blacklist list|add|remove <pattern> ----
-            registerBlacklist(commands, cp);
-
-            // ---- Rank: /apply（申请）/ /review（审核）/ /rank（查询）----
-            registerRank(commands, cp);
-
-            // ---- Config: /config list|get|set|reset|dump|reload ----
-            registerConfig(commands, cp);
-
-            // ---- Debug: /orzdebug <bot-command> 模拟群里用户发 Bot 命令 ----
-            // 注：Paper 26 中 Brigadier 命令不触发 ServerCommandEvent，OrzDebugEvent
-            // 监听器收不到事件，因此直接在此处调用 BotInboundHandler 完成模拟。
-            // 安全：仅 OP/orzmc.admin 可用（AdminOnlyInterceptor），控制台始终放行。
-            // 非管理员在 Tab 补全中不可见，直接输入会被 Brigadier 拒绝（requires 拦截）。
-            List<CommandInterceptor> debugInterceptors = adminInterceptors("orzdebug");
-            Predicate<CommandSourceStack> debugRequires = requirement(debugInterceptors);
-            commands.register(
-                    literal("orzdebug")
-                            .requires(debugRequires)
-                            .then(argument("cmd", StringArgumentType.greedyString())
-                                    .executes(guardedExec("orzdebug", debugInterceptors, ctx -> {
-                                        String cmd = ctx.getArgument("cmd", String.class);
-                                        ctx.getSource().getSender().sendMessage("debug 已受理（模拟 Bot 入站命令）");
-                                        var inbound = botModule.botInboundHandler();
-                                        platform.serverFacade().runAsync(() -> {
-                                            try {
-                                                inbound.handleMessage(cmd, true, "控制台", env -> {
-                                                    if (env != null) {
-                                                        plugin.getLogger().info("cmd debug: \n" + env.message());
-                                                    }
-                                                });
-                                            } catch (Exception e) {
-                                                plugin.getLogger()
-                                                        .log(java.util.logging.Level.SEVERE, "debug 命令异步执行异常", e);
-                                            }
-                                        });
-                                        return 1;
-                                    })))
-                            .executes(guardedExec("orzdebug", debugInterceptors, ctx -> {
-                                ctx.getSource().getSender().sendMessage("用法: /orzdebug <Bot命令>");
-                                return 1;
-                            }))
-                            .build(),
-                    "模拟群里用户发 Bot 命令（调试用）",
-                    List.of());
-        });
-    }
-
-    // ================================================================
-    // Brigadier command builders
-    // ================================================================
-
-    /**
-     * Register a simple no-argument command as a clean literal (no Brigadier args).
-     * The interceptor chain (PlayerOnly, AdminOnly, Cooldown) is applied via
-     * {@link #requirement(List)} and {@link #guardedExec(String, List, Command)}.
-     */
-    private void registerSimple(
-            Commands commands,
-            String name,
-            String description,
-            List<String> aliases,
-            CommandPolicies cp,
-            boolean skipPlayerOnly,
-            Consumer<CommandSender> action) {
-        List<CommandInterceptor> interceptors = commandInterceptors(name, cp, skipPlayerOnly);
-        commands.register(
-                literal(name)
-                        .requires(requirement(interceptors))
-                        .executes(guardedExec(name, interceptors, ctx -> {
-                            action.accept(ctx.getSource().getSender());
-                            return 1;
-                        }))
-                        .build(),
-                description,
-                aliases);
-    }
-
-    /** Bot 健康状态：/bot 显示 enabled/http/websocket 三个彩色状态词，/bot http、/bot ws 查看对应详情。 */
-    private void registerBotStatus(Commands commands, CommandPolicies cp) {
-        List<CommandInterceptor> rootInterceptors = commandInterceptors("bot", cp, true);
-        // 详情子命令由点击触发，不套用冷却，避免紧跟 /bot 后点击被冷却拦截
-        CommandPolicy botPolicy = cp.policies().getOrDefault("bot", new CommandPolicy(0, false));
-        List<CommandInterceptor> detailInterceptors = List.of(new AdminOnlyInterceptor(botPolicy.adminOnly()));
-        Predicate<CommandSourceStack> req = requirement(rootInterceptors);
-        commands.register(
-                literal("bot")
-                        .requires(req)
-                        .executes(guardedExec("bot", rootInterceptors, ctx -> {
-                            botModule.botMessageService().tryReconnectIfDisconnected();
-                            ctx.getSource()
-                                    .getSender()
-                                    .sendMessage(botModule.botStatusService().buildMinimalMessage());
-                            return 1;
-                        }))
-                        .then(literal("http").executes(guardedExec("bot", detailInterceptors, ctx -> {
-                            ctx.getSource()
-                                    .getSender()
-                                    .sendMessage(botModule.botStatusService().buildHttpDetail());
-                            return 1;
-                        })))
-                        .then(literal("ws").executes(guardedExec("bot", detailInterceptors, ctx -> {
-                            ctx.getSource()
-                                    .getSender()
-                                    .sendMessage(botModule.botStatusService().buildWsDetail());
-                            return 1;
-                        })))
-                        .build(),
-                "查看机器人健康状态",
-                List.of());
-    }
-
-    /** Portal: /portal [remove] <host> [port] */
-    private void registerPortal(Commands commands, CommandPolicies cp) {
-        List<CommandInterceptor> interceptors = commandInterceptors("portal", cp, false);
-        Predicate<CommandSourceStack> req = requirement(interceptors);
-        OrzTextStyles styles = platform.textStyles();
-        PortalCommandService svc = portalCommandService;
-
-        // /portal remove <host> [port]
-        Command<CommandSourceStack> removeExec = guardedExec("portal", interceptors, ctx -> {
-            String target = ctx.getArgument("target", String.class);
-            return handlePortal(svc, ctx.getSource(), "remove " + target, styles);
-        });
-
-        // /portal <host> [port]
-        Command<CommandSourceStack> createExec = guardedExec("portal", interceptors, ctx -> {
-            String target = ctx.getArgument("target", String.class);
-            return handlePortal(svc, ctx.getSource(), target, styles);
-        });
-
-        // /portal (no args → show usage)
-        Command<CommandSourceStack> usageExec = guardedExec("portal", interceptors, ctx -> {
-            ctx.getSource()
-                    .getSender()
-                    .sendMessage(styles.info("用法: /portal <host> [port] 或 /portal remove <host> [port]"));
-            return 1;
-        });
-
-        commands.register(
-                literal("portal")
-                        .requires(req)
-                        .then(literal("remove")
-                                .then(argument("target", StringArgumentType.greedyString())
-                                        .executes(removeExec)))
-                        .then(argument("target", StringArgumentType.greedyString())
-                                .executes(createExec))
-                        .executes(usageExec)
-                        .build(),
-                "创建或移除传送门",
-                List.of());
-    }
-
-    private static int handlePortal(
-            PortalCommandService svc, CommandSourceStack source, String argsStr, OrzTextStyles styles) {
-        CommandSender sender = source.getSender();
-        if (!(sender instanceof Player p)) {
-            sender.sendMessage(svc.requirePlayerTip());
-            return 1;
-        }
-        String[] args = argsStr.split(" ");
-        PortalCommandService.Result result = svc.handle(p, args);
-        if (result instanceof PortalCommandService.Result.Success s) {
-            p.sendMessage(s.message());
-        } else if (result instanceof PortalCommandService.Result.Failure f) {
-            p.sendMessage(f.message());
-        }
-        return 1;
-    }
-
-    /** Blacklist: /blacklist list|add|remove <pattern> */
-    private void registerBlacklist(Commands commands, CommandPolicies cp) {
-        List<CommandInterceptor> interceptors = adminInterceptors("blacklist");
-        Predicate<CommandSourceStack> req = requirement(interceptors);
-        BlacklistService svc = blacklistService;
-        OrzTextStyles styles = platform.textStyles();
-
-        commands.register(
-                literal("blacklist")
-                        .requires(req)
-                        .then(literal("list").executes(guardedExec("blacklist", interceptors, ctx -> {
-                            listBlacklist(ctx.getSource().getSender(), svc, styles);
-                            return 1;
-                        })))
-                        .then(literal("add")
-                                .then(argument("pattern", StringArgumentType.greedyString())
-                                        .executes(guardedExec("blacklist", interceptors, ctx -> {
-                                            String pattern = ctx.getArgument("pattern", String.class);
-                                            svc.add(pattern);
-                                            ctx.getSource()
-                                                    .getSender()
-                                                    .sendMessage(styles.success("已添加黑名单: " + pattern));
-                                            return 1;
-                                        }))))
-                        .then(literal("remove")
-                                .then(argument("pattern", StringArgumentType.greedyString())
-                                        .executes(guardedExec("blacklist", interceptors, ctx -> {
-                                            String pattern = ctx.getArgument("pattern", String.class);
-                                            svc.remove(pattern);
-                                            ctx.getSource()
-                                                    .getSender()
-                                                    .sendMessage(styles.success("已从黑名单移除: " + pattern));
-                                            return 1;
-                                        }))))
-                        // Shorthand: /blacklist <pattern> → add
-                        .then(argument("input", StringArgumentType.greedyString())
-                                .executes(guardedExec("blacklist", interceptors, ctx -> {
-                                    String input = ctx.getArgument("input", String.class);
-                                    if (input.startsWith("-")) {
-                                        svc.remove(input.substring(1));
-                                        ctx.getSource()
-                                                .getSender()
-                                                .sendMessage(styles.success("已从黑名单移除: " + input.substring(1)));
-                                    } else {
-                                        svc.add(input);
-                                        ctx.getSource().getSender().sendMessage(styles.success("已添加黑名单: " + input));
-                                    }
-                                    return 1;
-                                })))
-                        .executes(guardedExec("blacklist", interceptors, ctx -> {
-                            listBlacklist(ctx.getSource().getSender(), svc, styles);
-                            return 1;
-                        }))
-                        .build(),
-                "IP黑名单管理",
-                List.of("bl"));
-    }
-
-    /**
-     * 通用审核命令注册：
-     * <ul>
-     *   <li>/apply — 列出可申请类型（注册表驱动）</li>
-     *   <li>/apply &lt;type&gt; [理由] — 提交申请</li>
-     *   <li>/apply status — 查看自己的申请及状态</li>
-     *   <li>/apply cancel &lt;type&gt; — 撤回待审申请</li>
-     *   <li>/review approve|reject &lt;name&gt; — 管理员审核（替代 /rank approve|reject）</li>
-     *   <li>/rank — 查自己（当前组 + 时长/进度 + 下一步可申请）</li>
-     *   <li>/rank &lt;玩家&gt; — admin 查指定玩家</li>
-     * </ul>
-     */
-    private void registerRank(Commands commands, CommandPolicies cp) {
-        OrzTextStyles styles = platform.textStyles();
-
-        // ---- /apply 通用申请命令 ----
-        List<CommandInterceptor> applyInterceptors = commandInterceptors("apply", cp, false);
-        commands.register(
-                literal("apply")
-                        .requires(requirement(applyInterceptors))
-                        // /apply — 列出可申请类型
-                        .executes(guardedExec("apply", applyInterceptors, ctx -> {
-                            var sender = ctx.getSource().getSender();
-                            if (!(sender instanceof org.bukkit.entity.Player player)) {
-                                sender.sendMessage(styles.error("仅玩家可用"));
-                                return 1;
-                            }
-                            renderReviewResult(sender, reviewCommandService.listTypes(player));
-                            return 1;
-                        }))
-                        // /apply status — 查看自己的申请
-                        .then(literal("status").executes(guardedExec("apply", applyInterceptors, ctx -> {
-                            var sender = ctx.getSource().getSender();
-                            if (!(sender instanceof org.bukkit.entity.Player player)) {
-                                sender.sendMessage(styles.error("仅玩家可用"));
-                                return 1;
-                            }
-                            renderReviewResult(sender, reviewCommandService.status(player));
-                            return 1;
-                        })))
-                        // /apply cancel <type> — 撤回待审申请
-                        .then(literal("cancel")
-                                .then(argument("type", StringArgumentType.word())
-                                        .executes(guardedExec("apply", applyInterceptors, ctx -> {
-                                            var sender = ctx.getSource().getSender();
-                                            if (!(sender instanceof org.bukkit.entity.Player player)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
-                                                return 1;
-                                            }
-                                            String type = ctx.getArgument("type", String.class);
-                                            renderReviewResult(sender, reviewCommandService.cancel(player, type));
-                                            return 1;
-                                        }))))
-                        // /apply <type> [理由] — 提交申请
-                        .then(argument("type", StringArgumentType.word())
-                                .executes(guardedExec("apply", applyInterceptors, ctx -> {
-                                    var sender = ctx.getSource().getSender();
-                                    if (!(sender instanceof org.bukkit.entity.Player player)) {
-                                        sender.sendMessage(styles.error("仅玩家可用"));
-                                        return 1;
-                                    }
-                                    String type = ctx.getArgument("type", String.class);
-                                    renderReviewResult(sender, reviewCommandService.apply(player, type, ""));
-                                    return 1;
-                                }))
-                                .then(argument("reason", StringArgumentType.greedyString())
-                                        .executes(guardedExec("apply", applyInterceptors, ctx -> {
-                                            var sender = ctx.getSource().getSender();
-                                            if (!(sender instanceof org.bukkit.entity.Player player)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
-                                                return 1;
-                                            }
-                                            String type = ctx.getArgument("type", String.class);
-                                            String reason = ctx.getArgument("reason", String.class);
-                                            renderReviewResult(
-                                                    sender, reviewCommandService.apply(player, type, reason));
-                                            return 1;
-                                        }))))
-                        .build(),
-                "提交/查询/撤回审核申请（如 /apply builder [理由]）",
-                List.of("apply"));
-
-        // ---- /review approve|reject <name> — 管理员审核（替代 /rank approve|reject）----
-        List<CommandInterceptor> adminReviewInterceptors = adminInterceptors("review");
-        commands.register(
-                literal("review")
-                        .requires(requirement(adminReviewInterceptors))
-                        .then(literal("approve")
-                                .then(argument("name", StringArgumentType.greedyString())
-                                        .executes(guardedExec("review", adminReviewInterceptors, ctx -> {
-                                            var sender = ctx.getSource().getSender();
-                                            if (!(sender instanceof org.bukkit.entity.Player admin)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
-                                                return 1;
-                                            }
-                                            String name = ctx.getArgument("name", String.class);
-                                            renderReviewResultAsync(
-                                                    sender, reviewCommandService.review(admin, name, true));
-                                            return 1;
-                                        }))))
-                        .then(literal("reject")
-                                .then(argument("name", StringArgumentType.greedyString())
-                                        .executes(guardedExec("review", adminReviewInterceptors, ctx -> {
-                                            var sender = ctx.getSource().getSender();
-                                            if (!(sender instanceof org.bukkit.entity.Player admin)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
-                                                return 1;
-                                            }
-                                            String name = ctx.getArgument("name", String.class);
-                                            renderReviewResultAsync(
-                                                    sender, reviewCommandService.review(admin, name, false));
-                                            return 1;
-                                        }))))
-                        .build(),
-                "管理员审核申请（/review approve|reject <玩家>）",
-                List.of("review"));
-
-        // ---- /rank — 查询自己 / /rank <玩家> — admin 查指定玩家 ----
-        List<CommandInterceptor> rankInterceptors = commandInterceptors("rank", cp, false);
-        List<CommandInterceptor> adminRankInterceptors = adminInterceptors("rank");
-        commands.register(
-                literal("rank")
-                        .requires(requirement(rankInterceptors))
-                        // /rank <玩家> — admin 查指定玩家
-                        .then(argument("player", StringArgumentType.greedyString())
-                                .requires(requirement(adminRankInterceptors))
-                                .executes(guardedExec("rank", adminRankInterceptors, ctx -> {
-                                    var sender = ctx.getSource().getSender();
-                                    String playerName = ctx.getArgument("player", String.class);
-                                    UUID id = rankService.resolvePlayerId(playerName);
-                                    if (id == null) {
-                                        sender.sendMessage(styles.error("找不到玩家: " + playerName));
-                                        return 1;
-                                    }
-                                    renderRankResult(sender, rankCommandService.statusOf(id));
-                                    return 1;
-                                })))
-                        // /rank — 玩家查自己
-                        .executes(guardedExec("rank", rankInterceptors, ctx -> {
-                            var sender = ctx.getSource().getSender();
-                            if (!(sender instanceof org.bukkit.entity.Player player)) {
-                                sender.sendMessage(styles.error("仅玩家可用"));
-                                return 1;
-                            }
-                            renderRankResult(sender, rankCommandService.status(player));
-                            return 1;
-                        }))
-                        .build(),
-                "查询权限组与晋升进度",
-                List.of("rank"));
-    }
-
-    private void renderReviewResult(
-            CommandSender sender, com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService.Result result) {
-        if (result instanceof com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService.Result.Failure f) {
-            sender.sendMessage(f.message());
-        } else if (result
-                instanceof com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService.Result.Success s) {
-            sender.sendMessage(s.message());
-        }
-    }
-
-    /** 异步审核结果渲染：授权完成后（回同步调度线程）给命令发起者反馈，命令本身立即返回。 */
-    private void renderReviewResultAsync(
-            CommandSender sender,
-            java.util.concurrent.CompletableFuture<
-                            com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService.Result>
-                    future) {
-        future.whenComplete((result, err) -> {
-            if (err != null) {
-                sender.sendMessage(platform.textStyles()
-                        .error("审核处理异常: " + (err.getMessage() == null ? "未知错误" : err.getMessage())));
-            } else {
-                renderReviewResult(sender, result);
-            }
-        });
-    }
-
-    private void renderRankResult(
-            CommandSender sender, com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService.Result result) {
-        if (result instanceof com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService.Result.Failure f) {
-            sender.sendMessage(f.message());
-        } else if (result
-                instanceof com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService.Result.Success s) {
-            sender.sendMessage(s.message());
-        }
-    }
-
-    private static void listBlacklist(CommandSender sender, BlacklistService svc, OrzTextStyles styles) {
-        List<String> patterns = svc.getPatterns();
-        if (patterns.isEmpty()) {
-            sender.sendMessage(styles.info("黑名单为空"));
-        } else {
-            sender.sendMessage(styles.info("当前黑名单:"));
-            for (String p : patterns) {
-                sender.sendMessage(styles.info("  " + p));
-            }
-        }
-    }
-
-    /** Config: /config list|get|set|reset|dump|reload */
-    private void registerConfig(Commands commands, CommandPolicies cp) {
-        List<CommandInterceptor> interceptors = adminInterceptors("config");
-        Predicate<CommandSourceStack> req = requirement(interceptors);
-        OrzConfigCommand cfgCmd = orzConfigCommand;
-        OrzTextStyles styles = platform.textStyles();
-        List<String> configPaths = new ArrayList<>(ConfigPath.all().keySet());
-
-        // Tab suggestion provider for config paths
-        SuggestionProvider<CommandSourceStack> pathSuggestions = (ctx, builder) -> {
-            String prefix = builder.getRemainingLowerCase();
-            for (String path : configPaths) {
-                if (path.toLowerCase().startsWith(prefix)) {
-                    builder.suggest(path);
-                }
-            }
-            return builder.buildFuture();
-        };
-
-        LiteralCommandNode<CommandSourceStack> node = literal("config")
-                .requires(req)
-                .then(literal("list").executes(guardedExec("config", interceptors, ctx -> {
-                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"list"});
-                    return 1;
-                })))
-                .then(literal("get")
-                        .then(argument("path", StringArgumentType.greedyString())
-                                .suggests(pathSuggestions)
-                                .executes(guardedExec("config", interceptors, ctx -> {
-                                    String path = ctx.getArgument("path", String.class);
-                                    cfgCmd.onCommand(
-                                            ctx.getSource().getSender(), null, "config", new String[] {"get", path});
-                                    return 1;
-                                }))))
-                .then(literal("set")
-                        .then(argument("args", StringArgumentType.greedyString())
-                                .suggests(pathSuggestions)
-                                .executes(guardedExec("config", interceptors, ctx -> {
-                                    String rest = ctx.getArgument("args", String.class);
-                                    String[] cmdArgs = ("set " + rest).split(" ");
-                                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", cmdArgs);
-                                    return 1;
-                                }))))
-                .then(literal("reset")
-                        .then(argument("path", StringArgumentType.greedyString())
-                                .suggests(pathSuggestions)
-                                .executes(guardedExec("config", interceptors, ctx -> {
-                                    String path = ctx.getArgument("path", String.class);
-                                    cfgCmd.onCommand(
-                                            ctx.getSource().getSender(), null, "config", new String[] {"reset", path});
-                                    return 1;
-                                }))))
-                .then(literal("dump").executes(guardedExec("config", interceptors, ctx -> {
-                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"dump"});
-                    return 1;
-                })))
-                .then(literal("reload")
-                        .then(argument("name", StringArgumentType.word())
-                                .executes(guardedExec("config", interceptors, ctx -> {
-                                    String name = ctx.getArgument("name", String.class);
-                                    cfgCmd.onCommand(
-                                            ctx.getSource().getSender(), null, "config", new String[] {"reload", name});
-                                    return 1;
-                                })))
-                        .executes(guardedExec("config", interceptors, ctx -> {
-                            cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"reload"});
-                            return 1;
-                        })))
-                .executes(guardedExec("config", interceptors, ctx -> {
-                    cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[0]);
-                    return 1;
-                }))
-                .build();
-
-        commands.register(node, "配置管理", List.of("cfg"));
-    }
-
-    // ================================================================
-    // Interceptor helpers
-    // ================================================================
-
-    /**
-     * Build a {@link Predicate} for {@code .requires()} on the command node.
-     * Only checks {@link AdminOnlyInterceptor} — non-admin users won't see the command.
-     */
-    private static Predicate<CommandSourceStack> requirement(List<CommandInterceptor> interceptors) {
-        return stack -> {
-            for (CommandInterceptor ci : interceptors) {
-                if (ci instanceof AdminOnlyInterceptor aoi) {
-                    return aoi.canUse(stack.getSender());
-                }
-            }
-            return true;
-        };
-    }
-
-    /**
-     * Wrap a {@link Command} with runtime interceptor checks
-     * (PlayerOnly and Cooldown).  AdminOnly is handled by {@link #requirement(List)}.
-     */
-    private static Command<CommandSourceStack> guardedExec(
-            String name, List<CommandInterceptor> interceptors, Command<CommandSourceStack> delegate) {
-        return ctx -> {
-            CommandSender sender = ctx.getSource().getSender();
-            for (CommandInterceptor ci : interceptors) {
-                if (ci instanceof AdminOnlyInterceptor) continue;
-                Component res = ci.preHandle(sender, name);
-                if (res != null) {
-                    sender.sendMessage(res);
-                    return 1;
-                }
-            }
-            return delegate.run(ctx);
-        };
-    }
-
-    /**
-     * Build interceptors for regular commands from config policies.
-     */
-    private static List<CommandInterceptor> commandInterceptors(
-            String name, CommandPolicies cp, boolean skipPlayerOnly) {
-        CommandPolicy p = cp.policies().getOrDefault(name, new CommandPolicy(0, false));
-        List<CommandInterceptor> list = new ArrayList<>();
-        if (!skipPlayerOnly) {
-            list.add(new PlayerOnlyInterceptor());
-        }
-        list.add(new AdminOnlyInterceptor(p.adminOnly()));
-        list.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
-        return list;
-    }
-
-    /**
-     * Build interceptors for hardcoded admin-only commands (blacklist, config).
-     */
-    private static List<CommandInterceptor> adminInterceptors(String name) {
-        return List.of(new AdminOnlyInterceptor(true), new CooldownInterceptor(name, 0));
+        commandRegistrar.registerCommands(plugin);
     }
 
     // --- Whitelist ---
@@ -950,6 +303,19 @@ public final class FeatureModule implements ServiceModule {
 
     public BlacklistService blacklistService() {
         return blacklistService;
+    }
+
+    public com.jokerhub.paper.plugin.orzmc.features.review.ReviewService reviewService() {
+        return reviewService;
+    }
+
+    public com.jokerhub.paper.plugin.orzmc.features.rank.RankService rankService() {
+        return rankService;
+    }
+
+    /** 在线列表格式化器（单一事实源，$l/$w 命令与上下线广播共享）。 */
+    public com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter listFormatter() {
+        return listFormatter;
     }
 
     // --- Lifecycle ---

@@ -7,6 +7,7 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
@@ -28,7 +29,7 @@ public class RobustWebSocketClient implements WsClient {
     private volatile boolean shouldReconnect = true;
     private final AtomicBoolean disconnected = new AtomicBoolean(false);
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
-    private int retryCount = 0;
+    private final AtomicInteger retryCount = new AtomicInteger(0);
     private volatile ScheduledFuture<?> heartbeatFuture;
     private final String heartbeatPayload;
     private volatile long lastMessageTs = 0L;
@@ -78,7 +79,7 @@ public class RobustWebSocketClient implements WsClient {
                 executor.schedule(
                         () -> {
                             if (client != null && client.isOpen()) {
-                                retryCount = 0;
+                                retryCount.set(0);
                             }
                         },
                         stableResetMs <= 0 ? 20000 : stableResetMs,
@@ -154,7 +155,7 @@ public class RobustWebSocketClient implements WsClient {
         if (!reconnecting.compareAndSet(false, true)) {
             return;
         }
-        if (retryCount >= maxRetries) {
+        if (retryCount.get() >= maxRetries) {
             server.logger().severe("达到最大重试次数，停止重连");
             shouldReconnect = false;
             stopHeartbeat();
@@ -180,9 +181,9 @@ public class RobustWebSocketClient implements WsClient {
             reconnecting.set(false);
             return;
         }
-        retryCount++;
+        retryCount.incrementAndGet();
         long delay = calculateBackoffDelay();
-        throttledLogger.info("ws-reconnect", "第 " + retryCount + " 次重连将在 " + delay + "ms 后进行");
+        throttledLogger.info("ws-reconnect", "第 " + retryCount.get() + " 次重连将在 " + delay + "ms 后进行");
         executor.schedule(
                 () -> {
                     if (!shouldReconnect) {
@@ -208,7 +209,7 @@ public class RobustWebSocketClient implements WsClient {
     }
 
     private long calculateBackoffDelay() {
-        long base = (long) (baseRetryInterval * Math.pow(2, Math.max(0, retryCount - 1)));
+        long base = (long) (baseRetryInterval * Math.pow(2, Math.max(0, retryCount.get() - 1)));
         long capped = Math.min(base, maxRetryInterval > 0 ? maxRetryInterval : base);
         int jitter = Math.max(0, Math.min(100, jitterPercent));
         double factor = 1.0 + ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * (jitter / 100.0));

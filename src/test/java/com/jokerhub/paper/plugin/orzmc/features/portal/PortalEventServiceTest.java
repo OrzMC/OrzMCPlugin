@@ -235,14 +235,15 @@ class PortalEventServiceTest extends ServiceTestBase {
     }
 
     @Test
-    void moveEvent_afterCooldown_transfersAgain() throws Exception {
+    void moveEvent_afterCooldown_transfersAgain() {
         when(portalService.findTargetExact(any(Location.class))).thenReturn("127.0.0.1:25566");
-        PortalEventService service = new PortalEventService(server, portalService, true);
+        java.util.concurrent.atomic.AtomicLong clock = new java.util.concurrent.atomic.AtomicLong(0);
+        PortalEventService service = new PortalEventService(server, portalService, true, p -> true, clock::get);
         service.handleMove(new PlayerMoveEvent(player, loc(100, 64, 100), loc(101, 64, 100)));
         verify(server, times(1)).executeConsoleCommand(anyString());
 
-        // 冷却（5s）过期后再次走进传送门 → 允许再次 transfer
-        Thread.sleep(5100);
+        // 冷却（5s）过期后再次走进传送门 → 允许再次 transfer（假时钟推进，无需真实 sleep）
+        clock.set(6000);
         service.handleMove(new PlayerMoveEvent(player, loc(101, 64, 100), loc(102, 64, 100)));
         verify(server, times(2)).executeConsoleCommand(anyString());
     }

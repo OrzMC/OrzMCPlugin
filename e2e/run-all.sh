@@ -5,7 +5,8 @@
 #   bash e2e/run-all.sh -c 01 -c 03  # 只跑指定用例（前缀匹配）
 #   bash e2e/run-all.sh -h         # 帮助
 # 环境要求:
-#   - Folia 测试服在线（~/folia-test/，端口 25565，RCON 25575/orztest2026）
+#   - 测试服在线（~/papermc-test 或 ~/folia-test，端口统一 25565，RCON 25575/orztest2026）
+#   - 核心自动检测（进程），可用 ORZMC_CORE=folia|paper 显式指定
 #   - node + ~/minecraft-bot/node_modules（mineflayer）
 set -uo pipefail
 
@@ -32,6 +33,7 @@ OrzMC 插件 E2E 测试套件
   03-security.js        安全拦截（黑名单登录 / 聊天过滤 / 命令守卫）
   04-maintenance.js     世界维护（$b 备份三阶段+落盘）
   05-groupmsg.js        群消息发送（白名单拦截/上下线/聚合/IP黑名单拦截，日志断言）
+  06-permission-msg.js  权限/审核消息（申请发起/通过/晋升/拒绝/撤回，LP+op 自建）
 EOF
 }
 
@@ -46,46 +48,72 @@ while getopts "c:rh" opt; do
   esac
 done
 
-# 前置检查（环境变量支持双核心: ORZMC_TEST_PORT 默认 25565）
+# 前置检查（端口统一 25565/25575，核心自动检测）
 ORZMC_TEST_PORT="${ORZMC_TEST_PORT:-25565}"
 if ! nc -z 127.0.0.1 "$ORZMC_TEST_PORT" 2>/dev/null; then
-  echo "❌ 测试服未在线（127.0.0.1:${ORZMC_TEST_PORT}）——Paper 用 ORZMC_TEST_PORT=25566 等" >&2
+  echo "❌ 测试服未在线（127.0.0.1:${ORZMC_TEST_PORT}）——先启动 ~/papermc-test 或 ~/folia-test" >&2
   exit 1
 fi
-# 日志路径按端口推断（双核心适配：25565=Folia，25566=Paper，其余可 ORZMC_LOG_PATH 覆盖）
+# 核心检测：ORZMC_CORE 显式指定 > 进程检测（2026-08-20 端口统一后无法靠端口区分核心）
+# ⚠️ 用 grep -c 而非 grep -q：set -o pipefail 下 grep -q 提前退出触发上游 SIGPIPE(141) → 误判失败
+# ⚠️ 进程检测依赖命令行含 <core>-test/<core>.*jar 路径片段（标准启动脚本满足）；非标准路径启动或
+#    双服同跑时可能误判（共享地图严禁同跑；同跑时固定优先 Folia）——一律可用 ORZMC_CORE 显式覆盖
+detect_core() {
+  if [ "$(ps aux | grep -v grep | grep -c '[f]olia-test/folia.*jar')" -gt 0 ]; then echo folia
+  elif [ "$(ps aux | grep -v grep | grep -c '[p]apermc-test/paper.*jar')" -gt 0 ]; then echo paper
+  else echo ""; fi
+}
+if [ -n "${ORZMC_CORE:-}" ]; then
+  # 显式指定：统一小写（macOS bash 3.2 无 ${var,,} 展开）
+  ORZMC_CORE="$(echo "$ORZMC_CORE" | tr '[:upper:]' '[:lower:]')"
+else
+  ORZMC_CORE="$(detect_core)"
+fi
+if [ -z "$ORZMC_CORE" ]; then
+  echo "❌ 无法自动识别测试服核心（folia/paper），用 ORZMC_CORE=folia|paper 显式指定" >&2
+  exit 1
+fi
+# 显式指定与实际运行核心不一致 → 警告（日志/备份将指向显式核心的测试服目录，便于快速定位）
+AUTO_CORE="$(detect_core)"
+if [ -n "$AUTO_CORE" ] && [ "$AUTO_CORE" != "$ORZMC_CORE" ]; then
+  echo "⚠️ 显式 ORZMC_CORE=${ORZMC_CORE} 与实际运行核心 ${AUTO_CORE} 不一致（路径将指向 ${ORZMC_CORE} 测试服目录）" >&2
+fi
+echo "✅ 检测到测试服核心: ${ORZMC_CORE}（端口 ${ORZMC_TEST_PORT}）"
+# 测试服目录映射（核心名 → 目录：folia→folia-test，paper→papermc-test，勿拼成 paper-test）
+case "$ORZMC_CORE" in
+  folia) TEST_DIR="$HOME/folia-test" ;;
+  paper) TEST_DIR="$HOME/papermc-test" ;;
+  *) TEST_DIR="" ;;
+esac
+if [ -z "$TEST_DIR" ] || [ ! -d "$TEST_DIR" ]; then
+  echo "❌ 核心 ${ORZMC_CORE} 对应测试服目录不存在: ${TEST_DIR:-（非法核心名，仅支持 folia|paper）}（可用 ORZMC_CORE=folia|paper）" >&2
+  exit 1
+fi
+# 日志路径按核心推断（可 ORZMC_LOG_PATH 覆盖）
 if [ -z "${ORZMC_LOG_PATH:-}" ]; then
-  case "$ORZMC_TEST_PORT" in
-    25565) ORZMC_LOG_PATH="$HOME/folia-test/logs/latest.log" ;;
-    25566) ORZMC_LOG_PATH="$HOME/papermc-test/logs/latest.log" ;;
-    *) ORZMC_LOG_PATH="" ;; # 未知端口：交给用例默认值
-  esac
+  ORZMC_LOG_PATH="$TEST_DIR/logs/latest.log"
 fi
 export ORZMC_LOG_PATH
-# RCON 端口按端口推断（双核心适配：25565→25575，25566→25576，可 ORZMC_RCON_PORT 覆盖）
-if [ -z "${ORZMC_RCON_PORT:-}" ]; then
-  case "$ORZMC_TEST_PORT" in
-    25565) ORZMC_RCON_PORT=25575 ;;
-    25566) ORZMC_RCON_PORT=25576 ;;
-    *) ORZMC_RCON_PORT="" ;;
-  esac
-fi
+# RCON 端口统一 25575（可 ORZMC_RCON_PORT 覆盖）
+ORZMC_RCON_PORT="${ORZMC_RCON_PORT:-25575}"
 export ORZMC_RCON_PORT
+# 备份目录按核心推断（可 ORZMC_BACKUP_DIR 覆盖；04-maintenance 落盘断言仅 ORZMC_ASSERT_COMPLETE=1 时执行）
+if [ -z "${ORZMC_BACKUP_DIR:-}" ]; then
+  ORZMC_BACKUP_DIR="$TEST_DIR/backup"
+fi
+export ORZMC_BACKUP_DIR
 if [ ! -d "$NODE_PATH" ]; then
-  echo "❌ 缺少 mineflayer 依赖: $NODE_PATH（请确认 ~/minecraft-bot/node_modules 存在）" >&2
+  echo "❌ 缺少 mineflayer 依赖: ${NODE_PATH}（请确认 ~/minecraft-bot/node_modules 存在）" >&2
   exit 1
 fi
 
 # 模板一致性检查（防配置漂移：群消息模板与仓库不同步 → 消息格式回归，2026-08-19 实测踩坑）
 TEMPLATE_REPO="$E2E_DIR/../src/main/resources/templates.yml"
 if [ -f "$TEMPLATE_REPO" ]; then
-  TEMPLATE_SERVER=""
-  case "$ORZMC_TEST_PORT" in
-    25565) TEMPLATE_SERVER="$HOME/folia-test/plugins/OrzMC/templates.yml" ;;
-    25566) TEMPLATE_SERVER="$HOME/papermc-test/plugins/OrzMC/templates.yml" ;;
-  esac
-  if [ -n "$TEMPLATE_SERVER" ]; then
-    if [ ! -f "$TEMPLATE_SERVER" ]; then
-      echo "⚠️ 测试服模板缺失: $TEMPLATE_SERVER（插件启动时将从 jar 提取默认，通常与仓库一致）" >&2
+  TEMPLATE_SERVER="$TEST_DIR/plugins/OrzMC/templates.yml"
+  # TEST_DIR 已校验非空，TEMPLATE_SERVER 恒非空（无死代码分支）
+  if [ ! -f "$TEMPLATE_SERVER" ]; then
+      echo "⚠️ 测试服模板缺失: ${TEMPLATE_SERVER}（插件启动时将从 jar 提取默认，通常与仓库一致）" >&2
     elif ! diff -q "$TEMPLATE_REPO" "$TEMPLATE_SERVER" >/dev/null 2>&1; then
       echo "❌ 模板配置漂移：测试服 templates.yml 与仓库不一致！" >&2
       echo "   仓库: $TEMPLATE_REPO" >&2
@@ -100,7 +128,6 @@ if [ -f "$TEMPLATE_REPO" ]; then
     else
       echo "✅ 模板一致性检查通过（templates.yml 与仓库一致）"
     fi
-  fi
 fi
 
 # 选择用例（macOS bash 3.2 无 mapfile，用 while read）
@@ -114,7 +141,7 @@ if [ "${#SELECTED[@]}" -gt 0 ]; then
       if [[ "$base" == "$sel"* ]]; then FILTERED+=("$c"); break; fi
     done
   done
-  CASES=("${FILTERED[@]}")
+  CASES=("${FILTERED[@]+"${FILTERED[@]}"}")
 fi
 
 if [ "${#CASES[@]}" -eq 0 ]; then

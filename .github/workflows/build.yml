@@ -67,10 +67,12 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: build/reports/jacoco/test/jacocoTestReport.xml
-          flags: unittests
+          # jacocoTestReport 合并了 test + integrationTest 两个 exec，覆盖两种 flag 的 paths
+          flags: unittests,integrationtests
           fail_ci_if_error: false
 
       - name: generate build summary
+        if: github.event_name == 'pull_request'
         run: |
           echo "### Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **BuildID:** $GITHUB_RUN_ID" >> $GITHUB_STEP_SUMMARY
@@ -79,6 +81,7 @@ jobs:
           echo "- **Author:** ${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
 
       - name: upload jar artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: orzmc-plugin-${{ github.event.pull_request.head.sha }}
@@ -139,12 +142,11 @@ jobs:
 
   # 真实 Folia 冒烟（D8）：foliaSmoke 任务下载 Folia jar（Fill API v3 + SHA256 校验）→
   # 无头启动 → 校验 OrzMC 加载 → stop → 断言干净退出。
-  # 独立 job 不拖慢主构建；初期 continue-on-error: true，稳定后转必须。
+  # 独立 job 不拖慢主构建；2026-08-19 起转为必须门禁（失败阻断 PR）。
   # 说明：MockBukkit 单线程模型测不出 region 隔离竞态，此 job 是「插件在 Folia 启动即崩溃」
   # 这类回归的唯一兜底。
   folia-smoke:
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:

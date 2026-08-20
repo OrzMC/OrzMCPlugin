@@ -48,7 +48,7 @@ public record EasyBotConfig(
                 "|",
                 apiServer,
                 wsServer,
-                apiKey,
+                hashKey(apiKey),
                 String.valueOf(httpConnectTimeoutSec),
                 String.valueOf(httpRequestTimeoutSec),
                 String.valueOf(httpMaxRetries),
@@ -155,5 +155,20 @@ public record EasyBotConfig(
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    /** apiKey 的 SHA-256 前缀（16 字符）：指纹只用于相等比较，不存明文，防误日志/调试泄露。 */
+    private static String hashKey(String key) {
+        if (key == null || key.isEmpty()) {
+            return "";
+        }
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(key.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest, 0, 8);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            // SHA-256 是 JVM 必需算法，理论不会走到；退化用哈希码（仍不泄露明文）
+            return Integer.toHexString(key.hashCode());
+        }
     }
 }

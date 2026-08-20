@@ -92,5 +92,6 @@
 
 - 全部 ⬜ 项完成且无失败判据命中 → 视为 Folia 适配验收通过，可发正式版（Folia loader）。
 - 任一 ❌ → 记录日志尾部、修复后走 PR 重新验证。
+- **2026-08-20 双核心验收更新**：TC-F1~F5 已在 E2E 套件（`plugin/e2e/`）与 2026-08-18 真机验收覆盖（详见 [e2e-test-report-20260820.md](e2e-test-report-20260820.md)，Paper/Folia 各 62/62 通过）；TC-F6 长稳 8h 未完成（建议专项窗口）。**发现 BUG-E2E-004**（symlink 世界 $b 空备份，backup-core walk 不跟随符号链接）——修复 PR #50/#51 已提，Folia 恢复常驻并升级 backup-core 后应重跑 TC-F2 完整备份。
 
 > 备注：Folia 下 `runFolia` 的 `run-folia/` 与 `run-folia-smoke/` 均为隔离运行目录，不影响真实配置（[`.gitignore`](../../.gitignore) 已忽略）。

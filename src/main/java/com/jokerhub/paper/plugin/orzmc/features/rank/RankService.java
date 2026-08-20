@@ -115,6 +115,7 @@ public final class RankService {
      * @return 升级后的组名；链顶（admin）或不可用时返回 null
      */
     public String promote(UUID playerId) {
+        guardSyncCall("promote");
         return promoteAsync(playerId).join();
     }
 
@@ -153,6 +154,7 @@ public final class RankService {
      * @return 降级后的组名；链底（default）或不可用时返回 null
      */
     public String demote(UUID playerId) {
+        guardSyncCall("demote");
         return demoteAsync(playerId).join();
     }
 
@@ -184,6 +186,23 @@ public final class RankService {
     /** LuckPerms 是否可用（软依赖检测）。 */
     public boolean isLuckPermsAvailable() {
         return promoter.isAvailable();
+    }
+
+    /**
+     * 同步便捷版仅测试/非调度线程使用：服务器调度线程（global/region）同步等待 LP future 会自锁
+     * （见 docs/dev/folia-luckperms-gotchas.md）。运行时守卫把「文档约定」变成硬约束。
+     */
+    private static void guardSyncCall(String op) {
+        boolean onTickThread;
+        try {
+            onTickThread = LuckPermsPromoter.isServerTickThread();
+        } catch (RuntimeException e) {
+            // Bukkit 未初始化（纯单测环境）时无法判定，放行；生产环境 Bukkit 恒可用，守卫生效
+            onTickThread = false;
+        }
+        if (onTickThread) {
+            throw new IllegalStateException("禁止在服务器调度线程调用同步 " + op + "，请改用 " + op + "Async");
+        }
     }
 
     /** 玩家名→UUID 解析（离线服需查缓存）。 */

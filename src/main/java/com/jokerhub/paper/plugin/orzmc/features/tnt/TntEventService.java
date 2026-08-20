@@ -172,11 +172,16 @@ public final class TntEventService {
     }
 
     private boolean checkCooldown(@NotNull Player player, int tntPlaceCooldown) {
-        if (!playerCooldowns.containsKey(player.getUniqueId())) {
+        Long lastPlaceTime = playerCooldowns.get(player.getUniqueId());
+        if (lastPlaceTime == null) {
             return false;
         }
-        long lastPlaceTime = playerCooldowns.get(player.getUniqueId());
-        return System.currentTimeMillis() - lastPlaceTime < tntPlaceCooldown * 1000L;
+        boolean coolingDown = System.currentTimeMillis() - lastPlaceTime < tntPlaceCooldown * 1000L;
+        if (!coolingDown) {
+            // 冷却已过期：移除条目，避免玩家放置一次 TNT 后永久残留
+            playerCooldowns.remove(player.getUniqueId());
+        }
+        return coolingDown;
     }
 
     /**
@@ -314,7 +319,9 @@ public final class TntEventService {
         for (String name : names) {
             try {
                 set.add(EntityType.valueOf(name));
-            } catch (IllegalArgumentException ignored) {
+            } catch (IllegalArgumentException e) {
+                // 配置里存在非法的实体类型名：忽略该项（debug 记录，避免高频 TNT 事件刷 warning）
+                java.util.logging.Logger.getLogger("OrzMC.Tnt").fine("TNT 豁免实体配置含非法 EntityType: " + name);
             }
         }
         return set;

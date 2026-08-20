@@ -132,15 +132,21 @@ public final class CommandGuardService {
             return new ParsedCommand(primary, List.of(tokenArray), arguments);
         }
 
-        /** 去前导 /、转小写、剥 minecraft: 前缀。 */
+        /** 去前导 /、去首尾空白、转小写、剥命名空间前缀（minecraft:/bukkit:/任意插件 ns:）。 */
         static String normalize(String line) {
             String s = line.trim();
             if (s.startsWith("/")) {
-                s = s.substring(1);
+                // 去 / 后再 trim，防 "/ op"（斜杠后空白）产生空首 token 绕过 deny-list
+                s = s.substring(1).trim();
             }
             s = s.toLowerCase(Locale.ROOT);
-            if (s.startsWith("minecraft:")) {
-                s = s.substring("minecraft:".length());
+            // 剥命名空间前缀：CommandMap 为命令注册带命名空间的别名（如 bukkit:stop / minecraft:op），
+            // deny-list 应匹配命令本体而非命名空间别名。仅当冒号位于命令名（首个 token）内才剥，
+            // 避免误伤参数中的冒号（如 "/say hello:world"）。
+            int colon = s.indexOf(':');
+            int firstSpace = s.indexOf(' ');
+            if (colon > 0 && (firstSpace == -1 || colon < firstSpace)) {
+                s = s.substring(colon + 1);
             }
             return s;
         }

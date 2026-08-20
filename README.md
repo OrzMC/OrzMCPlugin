@@ -25,7 +25,7 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 
 | Feature | Description |
 |---------|-------------|
-| Permission system (Rank & Review) | 4-level player rank chain (guest → member → builder → admin) powered by LuckPerms with auto-promotion, apply-and-review workflow (`/apply` / `/review` / `$v`), and manual promotion/demotion (`$p`). Zero setup: auto-creates the track and missing groups on startup; degrades gracefully when LuckPerms is absent. |
+| Permission system (Rank & Review) | 4-level player rank chain (default → member → builder → admin, "default" 显示名为 guest/访客) powered by LuckPerms with auto-promotion, apply-and-review workflow (`/apply` / `/review` / `$v`), and manual promotion/demotion (`$p`). Zero setup: auto-creates the track and missing groups on startup; degrades gracefully when LuckPerms is absent. |
 | Whitelist management | Control server access. Admins add/remove players via bot commands (`$a` / `$r` / `$w`); inactive players are cleaned up automatically; kicked non-whitelisted players receive a helpful notice. |
 | Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 11 bot commands for player management, queries and interaction; console commands (`$e`) return full output to the group — including async plugin output (e.g. Essentials/LuckPerms) captured via a log window, with noise filtering and 30-line truncation; 50+ customizable message templates push server events to the matching group or channel. |
 | Cross-server portals | Admins create or remove portals; players stepping on a portal are transferred across servers. Optional LoginSecurity verification before transfer. |
@@ -35,7 +35,7 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 | World maintenance | One-click world backup or optimization with real-time progress reports; the server list MOTD switches automatically during maintenance. |
 | Player notifications | Push join/quit/kick details (world, coordinates, online count, permission group) to the group chat; the online list shows each player's game mode and rank group. |
 | Guide book | First-join players automatically receive a guide book; content is YAML-configurable so server owners can tailor the onboarding. |
-| Runtime configuration | Manage 25 configuration options in-game with `/config`; changes hot-reload without restarting the server. |
+| Runtime configuration | Manage 29 configuration options in-game with `/config`; changes hot-reload without restarting the server. |
 | OrzMC menu | Open an in-game feature menu with quick access to every operation (in development). |
 
 For the full feature list, see [docs/features.md](./docs/features.md).

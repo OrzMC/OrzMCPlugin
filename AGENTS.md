@@ -6,7 +6,7 @@
 
 ## 项目是什么
 
-**PaperMC 服务端插件**（支持 Paper + Folia）——通过 EasyBot 网关统一接入多平台机器人（QQ 群 / 飞书），具备白名单管理、跨服传送门、TNT 防护、GeoIP 区域限制、权限链（LuckPerms track）与玩家审核晋升等功能。
+**PaperMC 服务端插件**（支持 Paper + Folia）——通过 EasyBot 网关统一接入多平台机器人（QQ / Telegram / Discord / 飞书 / 微信），具备白名单管理、跨服传送门、TNT 防护、GeoIP 区域限制、权限链（LuckPerms track）与玩家审核晋升等功能。
 
 ## 构建与测试命令
 
@@ -18,6 +18,8 @@
 ./gradlew check                    # 完整 CI 门禁：spotless + test + integrationTest + shadowJar
 ./gradlew clean build              # 全量构建 + shadowJar
 ./gradlew runServer                # 启动本地 Paper 调试服务器（Java 25）
+./gradlew runFolia                 # 启动本地 Folia 调试服务器
+./gradlew foliaSmoke               # 真实 Folia 无头冒烟：启动 → 校验插件加载 → 干净退出
 ./gradlew :orzmc-api:build         # 仅构建 orzmc-api 子模块（纯 Java，无 Bukkit 依赖）
 ./gradlew :orzmc-api:publishToMavenLocal  # 本地发布 orzmc-api SDK
 ```
@@ -31,7 +33,7 @@
 
 ```
 OrzMC/
-├── orzmc-api/              ← 纯 Java，零 Bukkit 依赖（7 个端口 + 消息模型）
+├── orzmc-api/              ← 纯 Java，零 Bukkit 依赖（3 个端口 + 消息模型）
 │   └── src/main/java/.../orzmc/
 │       ├── core/bot/           BotInboundHandler, MessageEnvelope
 │       ├── core/ports/health/  HealthStatus（只读健康查询接口）
@@ -60,7 +62,7 @@ OrzMC/
 │   │   ├── server/            服务端生命周期事件
 │   │   └── ...                guide, menu, teleport, player, bot
 │   ├── infra/                 基础设施实现
-│   │   ├── config/            ConfigService + 类型化配置记录类（15个，含 EasyBotConfig）、ConfigHealthCheck
+│   │   ├── config/            ConfigService + 类型化配置记录类（20个，含 EasyBotConfig）、ConfigHealthCheck
 │   │   ├── bot/               BotMessageService, BotMessageServiceProvider, OrzEasyBot
 │   │   ├── ws/                RobustWebSocketClient（自动重连 + 心跳检测）
 │   │   ├── net/               AsyncHttp（指数退避重试）
@@ -92,7 +94,7 @@ Tag 使用严格 SemVer，**不加 `v` 前缀**。本地构建产物为 `{versio
 
 - **无数据库**：所有状态存储在 YAML 配置文件中（portals.yml 在运行时修改）
 - **无 DI 框架**：通过显式组合根进行构造器注入
-- **类型化配置**：所有 YAML 访问通过 `configs/` 子包中的记录类（15 个，含 `WhitelistConfig`, `TntConfig`），附带健康检查
+- **类型化配置**：所有 YAML 访问通过 `configs/` 子包中的记录类（20 个，含 `WhitelistConfig`, `TntConfig`），附带健康检查
 - **异步安全**：`SafeScheduler` 包装 Bukkit 调度器，统一异常日志
 - **健康注册表**：`HealthStatus` 接口在 orzmc-api 中，`HealthAccessor` 适配器桥接实例化的 `HealthRegistry`
 
@@ -146,7 +148,7 @@ Tag 使用严格 SemVer，**不加 `v` 前缀**。本地构建产物为 `{versio
    - 测试补齐：可并行给另一个 agent（如 Cursor 补测试用例）
    - 接力原则：上一棒把上下文写进 PR 描述/提交信息/任务文件（如 `/tmp/task.md`），下一棒以「验证 + 完成剩余」为主，**不要重写已确认的代码**
 5. **文档纪律**：
-   - 行为/配置/权限变更必须同步文档（README、docs/、玩家指南 `docs/player-guide-newbie.md` 等），与代码同 PR。
+   - 行为/配置/权限变更必须同步文档（README、docs/、`docs/features.md` 玩家指南等），与代码同 PR。
    - 新增实战教训（踩坑）沉淀到 `docs/dev/` 并同步本文件红线；本文件只放精炼红线，细节进 docs。
    - CHANGELOG.md 按仓库惯例更新。
 6. **测试服验证**：涉及事件/通知/审核流程的改动，按 `docs/dev/folia-luckperms-gotchas.md` §6 在 Folia 测试服真机验证后再合并。

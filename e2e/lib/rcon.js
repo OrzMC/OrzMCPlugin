@@ -2,7 +2,7 @@
 // 环境变量（双核心支持）:
 //   ORZMC_RCON_PORT    RCON 端口（默认 25575）
 //   ORZMC_RCON_PASS    RCON 密码（默认 orztest2026）
-//   ORZMC_LOG_PATH     服务器日志路径（默认 ~/folia-test/logs/latest.log）
+//   ORZMC_LOG_PATH     服务器日志路径（默认 ~/papermc-test/logs/latest.log）
 // 用法: const { rcon } = require('./lib/rcon');
 //   const out = await rcon('list');          // 默认测试服
 //   const out = await rcon('orzdebug $v l', 25575, 'orztest2026');
@@ -13,7 +13,7 @@ const path = require('path');
 const DEFAULT_RCON_PORT = parseInt(process.env.ORZMC_RCON_PORT || '25575', 10);
 const DEFAULT_RCON_PASS = process.env.ORZMC_RCON_PASS || 'orztest2026';
 const DEFAULT_LOG_PATH = process.env.ORZMC_LOG_PATH
-  || path.join(os.homedir(), 'folia-test', 'logs', 'latest.log');
+  || path.join(os.homedir(), 'papermc-test', 'logs', 'latest.log');
 
 function rcon(cmd, port = DEFAULT_RCON_PORT, password = DEFAULT_RCON_PASS, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {

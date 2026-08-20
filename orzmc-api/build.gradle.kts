@@ -36,7 +36,7 @@ publishing {
             pom {
                 name.set("OrzMC API")
                 description.set("Core ports and models for the OrzMC PaperMC plugin")
-                url.set("https://github.com/OrzGeeker/OrzMC")
+                url.set("https://github.com/OrzMC/OrzMCPlugin")
             }
         }
     }

@@ -29,11 +29,15 @@ public final class LoginRateLimitService {
 
     /** 频率限流滑动窗口长度（毫秒）。 */
     private static final long WINDOW_MS = 60_000L;
+    /** 全表惰性清扫间隔（毫秒）：回收已过期（空窗口）的 IP 桶，防唯一 IP 永久残留导致无界增长。 */
+    private static final long SWEEP_INTERVAL_MS = 60_000L;
 
     private final Supplier<LoginRateLimitConfig> configSupplier;
     private final LongSupplier clock;
     /** ip → 窗口内各次登录尝试时刻。 */
     private final Map<String, Deque<Long>> attemptTimes = new ConcurrentHashMap<>();
+    /** 上次全表清扫时刻（惰性触发，无需定时任务）。 */
+    private volatile long lastSweepAt = 0L;
     /** ip → 当前在线玩家名集合（并发计数）。 */
     private final Map<String, Set<String>> onlineByIp = new ConcurrentHashMap<>();
     /** 玩家名 → ip（退出时反查，地址可能已关闭）。 */
@@ -55,6 +59,7 @@ public final class LoginRateLimitService {
             return false;
         }
         long now = clock.getAsLong();
+        sweepExpired(now);
         Deque<Long> times = attemptTimes.computeIfAbsent(ip, k -> new ArrayDeque<>());
         synchronized (times) {
             while (!times.isEmpty() && now - times.peekFirst() >= WINDOW_MS) {
@@ -66,6 +71,23 @@ public final class LoginRateLimitService {
             times.addLast(now);
             return false;
         }
+    }
+
+    /** 惰性全表清扫：移除所有已过期（窗口内无尝试）的 IP 桶，防唯一 IP 永久残留。 */
+    private void sweepExpired(long now) {
+        if (now - lastSweepAt < SWEEP_INTERVAL_MS) {
+            return;
+        }
+        lastSweepAt = now;
+        attemptTimes.entrySet().removeIf(entry -> {
+            Deque<Long> d = entry.getValue();
+            synchronized (d) {
+                while (!d.isEmpty() && now - d.peekFirst() >= WINDOW_MS) {
+                    d.pollFirst();
+                }
+                return d.isEmpty();
+            }
+        });
     }
 
     /** 判定该 IP 当前在线玩家是否已达并发上限。 */

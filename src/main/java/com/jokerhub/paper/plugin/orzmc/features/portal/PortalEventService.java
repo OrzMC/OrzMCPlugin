@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -35,6 +36,7 @@ public final class PortalEventService {
     private final PortalPort portalService;
     private final Predicate<Player> authCheck;
     private final boolean folia;
+    private final LongSupplier clock;
     private final Map<UUID, Long> lastTransfer = new ConcurrentHashMap<>();
 
     public PortalEventService(ServerFacade server, PortalPort portalService) {
@@ -48,17 +50,28 @@ public final class PortalEventService {
 
     /** 测试用：可注入 folia 模式 + 认证决策（测试环境无 LoginSecurity，默认实现恒 true 无法覆盖未认证分支）。 */
     PortalEventService(ServerFacade server, PortalPort portalService, boolean folia, Predicate<Player> authCheck) {
+        this(server, portalService, folia, authCheck, System::currentTimeMillis);
+    }
+
+    /** 测试用：注入可控时钟验证冷却滑动，避免真实 sleep。 */
+    PortalEventService(
+            ServerFacade server,
+            PortalPort portalService,
+            boolean folia,
+            Predicate<Player> authCheck,
+            LongSupplier clock) {
         this.server = server;
         this.portalService = portalService;
         this.authCheck = authCheck;
         this.folia = folia;
+        this.clock = clock;
     }
 
     /** Paper 路径：PlayerPortalEvent（玩家即将传送门传送）。 */
     public void handle(PlayerPortalEvent event) {
         Player player = event.getPlayer();
         // 冷却内不接管本次事件：避免「取消了原版传送但 transfer 被冷却拦截」的状态分歧
-        if (isOnCooldown(player, System.currentTimeMillis())) {
+        if (isOnCooldown(player, clock.getAsLong())) {
             return;
         }
         // 检查玩家是否已认证
@@ -102,7 +115,7 @@ public final class PortalEventService {
             return;
         }
         // 冷却内快速跳过（transfer() 内为双路径共享的权威判断）
-        if (isOnCooldown(player, System.currentTimeMillis())) {
+        if (isOnCooldown(player, clock.getAsLong())) {
             return;
         }
         // 精确命中传送门内部格（水平无邻域容差）：move 路径对每个方块移动求值，
@@ -132,7 +145,7 @@ public final class PortalEventService {
 
     private void transfer(Player player, String target) {
         // 双路径共享冷却（权威判断）：防 PlayerPortalEvent + PlayerMoveEvent 重复触发
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         if (isOnCooldown(player, now)) {
             return;
         }
@@ -153,6 +166,14 @@ public final class PortalEventService {
 
     private boolean isOnCooldown(Player player, long now) {
         Long last = lastTransfer.get(player.getUniqueId());
-        return last != null && now - last < TRANSFER_COOLDOWN_MS;
+        if (last == null) {
+            return false;
+        }
+        if (now - last >= TRANSFER_COOLDOWN_MS) {
+            // 冷却已过期：移除条目，避免玩家用过一次传送门后永久残留
+            lastTransfer.remove(player.getUniqueId());
+            return false;
+        }
+        return true;
     }
 }

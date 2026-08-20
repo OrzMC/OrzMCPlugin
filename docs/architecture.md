@@ -229,7 +229,8 @@ OrzServices.assemble(OrzMC)
 ### config.yml（核心配置，合并管理）
 
 ```yaml
-# config.yml 包含所有配置段：whitelist, maintenance, tnt, geoip, command_policies
+# config.yml 包含所有配置段：whitelist, maintenance, tnt, geoip, command_policies,
+# player_notify, entity_teleport_*, guard, chat, login_rate_limit, exploit_hardening
 # 参考 src/main/resources/config.yml
 ```
 
@@ -333,6 +334,8 @@ command_policies:
 | `$o` | 管理员 | 地图优化 |
 | `$e <命令>` | 管理员 | 执行控制台命令 |
 | `$d [list|add|remove] <pattern>` | 管理员 | 添加/移除/查看 IP 黑名单 |
+| `$v [l|y|n] <玩家>` | 管理员 | 查看/处理审核申请（`$v l` / `$v y` / `$v n`） |
+| `$p [u|d] <玩家>` | 管理员 | 权限升级/降级 |
 | `$l` | 通用 | 查看在线玩家 |
 | `$w [页码]` | 通用 | 查看白名单玩家 |
 | `$h` | 通用 | 查看帮助信息 |

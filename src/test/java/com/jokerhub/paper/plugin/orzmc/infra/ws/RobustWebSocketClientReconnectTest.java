@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
@@ -101,7 +102,12 @@ class RobustWebSocketClientReconnectTest {
     private void setPrivate(Object target, String name, Object value) throws Exception {
         Field f = target.getClass().getSuperclass().getDeclaredField(name);
         f.setAccessible(true);
-        f.set(target, value);
+        Object current = f.get(target);
+        if (current instanceof AtomicInteger ai) {
+            ai.set(((Number) value).intValue());
+        } else {
+            f.set(target, value);
+        }
     }
 
     /** 重试次数耗尽：listener.onError("WS reconnect exhausted") + shouldReconnect=false */

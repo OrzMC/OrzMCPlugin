@@ -1,8 +1,57 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.19] - 2026-08-20
+
+### 🐛 修复
+- **BUG-E2E-004：symlink 世界备份空跑假完成（backup-core，OrzMCBackup #50/#51）** — Folia 等以符号链接挂载世界目录的场景下，`RealFileSystem.walk` 不跟随符号链接，`$b` 备份静默产出 22B 空 zip（无任何报错）——backup-core 修复（walk 跟随符号链接），双核心复验 246,963/246,963 区块全量备份 ✅
+- **备份失败静默化（0.3.x 适配）** — 备份完成但 zip 未落盘时明确报「地图备份失败」并跳过旧备份清理（防 prune 误删唯一可靠副本）；zip 落盘判定用 mtime（同名覆盖不误判）
 
 ### ✨ 新功能
+- **备份目录迁移到服务器核心根目录** — `plugins/OrzMC/backup/` → `<worldContainer>/backup/`（快照/迁移整体打包）
+- **备份中间目录统一在 `backup/` 内处理** — backup-core 临时目录 = `backup/tempDir/`（Cleanup 阶段自动删除），zip 直接落 `backup/`；不再依赖系统临时目录
+- **启动清理** — 崩溃/断电残留的 `backup/tempDir` 启动时异步清理（MaintenanceModule.setup）
+- **备份/优化 input 改为世界目录** — `getWorldFolder()`（尊重 level-name，优先含 dimensions/region 的真实世界目录）——backup-core 0.3.x overlap 校验天然满足，避免误选非主世界漏备
+
+### 📦 依赖
+- backup-core 0.2.2 → **0.3.1**（symlink walk 修复 + 0.3.x API：IOOptions 三参 syncOnFinalize）
+
+### ⚠️ 升级注意
+- 备份目录位置变化：存量 zip 位于 `plugins/OrzMC/backup/` 的服务器，升级后请手动迁移到 `<worldContainer>/backup/`（或从新备份开始）
+- 备份为「优化式备份」（InhabitedTime 阈值 `maintenance.optimize_tick_time_threshold` 默认 300 秒过滤低活跃区块），如需逐字节全量请用外部快照/全量备份工具
+
+---
+
+## [1.0.18] - 2026-08-19
+
+### 🐛 修复
+- **BUG-001：`$w` 白名单分页 Folia 异常（#198）** — Folia 下分页命令抛异常（第一页即炸）——分页偏移钳位修复 + 回归护栏；Paper/Folia 双核心验证
+- **BUG-002：地图备份三层根因（backup-core v0.2.1/v0.2.2，OrzMCBackup #46/#47）** —
+  - 压缩字节垃圾值（~56 处损坏 chunk）→ UNKNOWN 枚举透传，损坏区块安全保留（不再中断备份）
+  - 长度字段荒谬值（如 0x789cd12e≈20 亿）→ >8MB 双守卫短路
+  - **EOF 死循环**：损坏 chunk offset 越过文件末尾 → `BufferedRafAccess.readFully` avail=0 时 remaining 不减 → CPU 100% 卡 49% → EOF 保护抛异常快速跳过
+  - 插件侧 errorHandler 聚合扩展（覆盖 Write 类损坏 chunk 错误），Done 时统一汇总「含 N 个损坏区块已安全保留」，不再误报失败
+- **BUG-003：CommandGuard 审计日志刷屏（#198）** — 命令方块循环注入（20 条/tick）曾产生 21 万条 WARN/53MB/20 分钟——「危险命令放行」WARN 日志 5s 限频（其余降 fine，审计记录不受影响）+ BLOCK 管理员通知 10s 限频（复用 ThrottledNotifier）；实测 4 分钟 13 条（修复前 4800+，~370 倍降幅）
+
+### 🚀 性能
+- **备份并行化（#198）** — `RuntimeOptions(0)`（单线程）→ CPU 逻辑核数并行（backup-core 按维度+区域并行）——317 万 chunk 世界备份 14分21秒 → **5分59秒**（2.4 倍提速，扫描速率 5 倍）
+
+### ✨ 新功能
+- **群消息统一日志（#201）** — Notifier.routeEvent 统一记录渲染后的群消息（`[群消息:<key>]` 前缀 + ⏎ 换行转义），所有通知类型（白名单拦截/IP黑名单/上下线/审核/异常）进服务器日志——E2E 断言 + 排查投递问题的一手证据，不再依赖 EasyBot API
+- **E2E 自动化测试套件（#198-#202）** — 插件仓库 `e2e/`：6 个用例（Bot 命令 / 玩家命令 / 安全拦截 / 世界维护 / 群消息发送 / 权限审核消息）双核心（Paper + Folia）全量回归，Folia 32/32 + Paper 32/32 + 群消息 11/11×2 + 权限 19/19×2 全绿
+  - run-all.sh 双核心适配：日志路径 / RCON 端口按端口自动推断（25565→Folia，25566→Paper）
+  - **前置模板一致性检查（#200）** — templates.yml 与仓库 diff 拦截（防配置漂移导致群消息格式回归，如 `{online_list}` 字面量残留）
+  - 占位符残留检查：所有群消息断言含「无 {xxx} 字面量」校验
+
+### 📦 依赖
+- backup-core 0.1.6 → **0.2.2**（#198）
+
+### ⚠️ 升级注意
+- 群消息通知样式（#197 表情标题+分割线版块式）已并入本版：存量服升级后需同步新 `templates.yml` 并 `/config reload`，否则仍显示旧样式（详见 #197 说明）
+- `entity_teleport_enabled` 语义反转修正（2026-08-16 记录，随本版正式发布）：配置名与实际行为原先相反（设为 `true` 反而限制传送）。现修正为：`true`（默认）= 允许所有实体正常传送（兼容原版行为），`false` = 仅白名单内实体可传送。⚠️ 现存 config.yml 中的 `entity_teleport_enabled: false`（旧默认值）在新语义下将变为「仅白名单可传送」，未自定义过该键的服务器请手动改为 `true`
+
+---
+
+### 🎨 样式（并入本版）
 - **群消息样式统一（#197）** — 四类群通知改为「表情标题 + 分割线 + 内容」版块式排版：
   - 白名单拦截：`🙅🏻‍♂️ {玩家} 尝试加入服务器，被白名单拦截`
   - 上下线/被踢：`🎮 当前玩家(N/上限)` 头部 + `🥰 上线` / `😋 下线` / `😂 被踢` 三版块；空版块连同分割线整体省略，版块内 1 人不显示人数、多人显示 `(N)`；单发与聚合摘要共用同一样式
@@ -13,7 +62,7 @@
     升级 jar 后需将新 `templates.yml` 同步到各端并 `/config reload`，否则仍显示旧样式；
     同时移除已失效的 `player_notify.include_online_list` 配置项（新样式头部 `🎮 当前玩家(N/上限)` 已含人数，摘要不再附带在线列表）
 
-### ✨ 新功能
+### 🚀 平台兼容（并入本版）
 - **Folia 全面适配（#186-#190、本 PR）** — 插件现同时支持 Paper 与 Folia 双运行时：
   - `paper-plugin.yml` 声明 `folia-supported: true`，同一 shadowJar 双端兼容
   - 调度统一切到 Folia 兼容调度器（global region / async），实体、方块、区块操作按 region 线程亲和迁移，TNT/通知聚合等共享状态并发安全化
@@ -22,15 +71,6 @@
   - CI 新增 `folia-smoke` job 每次 PR 真实启动 Folia 回归（初期 `continue-on-error: true`）
   - 详细评估与测试策略见 [docs/folia-migration.md](docs/folia-migration.md)
 
----
-
-## [1.0.18] - 2026-08-16
-
-### 🐛 修复
-- **`entity_teleport_enabled` 语义反转修正** — 配置名与实际行为原先相反（设为 `true` 反而限制传送）。现修正为：`true`（默认）= 允许所有实体正常传送（兼容原版行为），`false` = 仅白名单内实体可传送
-  - ⚠️ **升级注意**：现存 config.yml 中的 `entity_teleport_enabled: false`（旧默认值）在新语义下将变为「仅白名单可传送」。未自定义过该键的服务器请手动改为 `true`（或删除该行使用新默认值）
-
----
 
 ## [1.0.17] - 2026-08-13
 

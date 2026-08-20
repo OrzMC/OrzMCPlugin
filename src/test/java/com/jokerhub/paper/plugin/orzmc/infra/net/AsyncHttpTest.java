@@ -169,6 +169,31 @@ public class AsyncHttpTest {
         assertEquals(2, requestCount.get());
     }
 
+    @Test
+    void shutdown_clearsClientCacheAndAllowsReuse() throws Exception {
+        server.createContext("/cache", exchange -> {
+            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+
+        // 首次请求填充客户端缓存（按 connectTimeout 分桶）
+        AsyncHttp.get(baseUri.resolve("/cache").toString(), Map.of(), Duration.ofSeconds(1), Duration.ofSeconds(1), 0)
+                .join();
+        assertTrue(AsyncHttp.clientCount() > 0, "请求后应缓存 HttpClient");
+
+        // shutdown 关闭所有客户端并清空缓存（回收线程池，防泄漏）
+        AsyncHttp.shutdown();
+        assertEquals(0, AsyncHttp.clientCount(), "shutdown 后缓存应清空");
+
+        // 关闭后再次请求仍可重建客户端（幂等）
+        AsyncHttp.get(baseUri.resolve("/cache").toString(), Map.of(), Duration.ofSeconds(1), Duration.ofSeconds(1), 0)
+                .join();
+        assertTrue(AsyncHttp.clientCount() > 0, "shutdown 后再次请求应重建客户端");
+    }
+
     private void capture(
             HttpExchange exchange,
             AtomicReference<String> authHeader,

@@ -248,6 +248,31 @@ public final class ConfigHealthCheck {
         if (msg.isBlank()) issues.add("缺失: exploit_hardening.message 不可为空");
     }
 
+    /** 校验 EasyBot 网关 scheme：非本机地址用明文 http/ws 时提示改用加密协议。 */
+    private static void validateScheme(String url, String path, List<String> issues) {
+        if (url == null || url.isEmpty()) {
+            return;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(url);
+            String scheme = uri.getScheme();
+            if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("ws"))) {
+                return; // 非明文协议（https/wss）或无法判定，跳过
+            }
+            String host = uri.getHost();
+            if (host == null
+                    || "localhost".equalsIgnoreCase(host)
+                    || "127.0.0.1".equals(host)
+                    || "::1".equals(host)
+                    || host.startsWith("127.")) {
+                return; // 本地网关明文可接受
+            }
+            issues.add("建议: " + path + " 使用明文 " + scheme + " 且非本机地址，apiKey 将明文传输，建议改用加密协议");
+        } catch (IllegalArgumentException e) {
+            // 非法 URL 由其它校验负责，此处跳过
+        }
+    }
+
     private static void validateEasyBot(FileConfiguration cfg, List<String> issues) {
         if (cfg == null) {
             issues.add("easybot.yml 未加载");
@@ -259,6 +284,10 @@ public final class ConfigHealthCheck {
         } else if (prompt != null && String.valueOf(prompt).isBlank()) {
             issues.add("非法: easybot.cmd_prompt_char 不可为空");
         }
+
+        // apiKey 传输安全：远程网关（非本机）用明文 http/ws 时 apiKey 会明文传输
+        validateScheme(cfg.getString("api_server", ""), "easybot.api_server", issues);
+        validateScheme(cfg.getString("ws_server", ""), "easybot.ws_server", issues);
 
         // 检测是否有至少一个平台启用了 enabled: true
         boolean anyPlatformEnabled = false;

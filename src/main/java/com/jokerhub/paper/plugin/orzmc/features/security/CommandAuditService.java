@@ -7,6 +7,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
@@ -20,6 +24,10 @@ import java.util.logging.Logger;
  *
  * <p>文件超过上限（默认 5MB）时轮转：当前日志改名 {@code command_audit.log.1}（覆盖旧备份），
  * 从新文件重新开始。开关由 {@code SecurityGuardConfig.auditEnabled} 注入（每次读取最新配置）。</p>
+ *
+ * <p><b>写盘异步化</b>：{@code record()} 只格式化入队（非阻塞），单写线程落盘——命令在主/region
+ * 线程触发，同步写盘（含 5MB 文件 {@code Files.size} 检查）会拖慢 tick 线程。时间戳在入队时
+ * 采样（记录命令执行时刻，而非写盘时刻）。</p>
  */
 public final class CommandAuditService {
 
@@ -52,28 +60,58 @@ public final class CommandAuditService {
     private final Path logFile;
     private final int maxBytes;
     private final Logger logger;
+    /** 单写线程：串行落盘，避免多线程 append 交错 + tick 线程阻塞。 */
+    private final ExecutorService writer;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public CommandAuditService(Supplier<Boolean> enabledSupplier, Path auditDir, int maxBytes, Logger logger) {
         this.enabledSupplier = enabledSupplier;
         this.logFile = auditDir.resolve(LOG_FILE_NAME);
         this.maxBytes = maxBytes;
         this.logger = logger;
+        this.writer = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "OrzMC-CommandAudit");
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     /** 追加一条审计记录。来源见 {@code SOURCE_*}，blocked 决定结果 {@code blocked}/{@code executed}。 */
     public void record(String source, String sender, String commandLine, boolean blocked) {
-        if (!Boolean.TRUE.equals(enabledSupplier.get())) {
+        if (!Boolean.TRUE.equals(enabledSupplier.get()) || closed.get()) {
             return;
         }
+        String line = TIMESTAMP.format(OffsetDateTime.now())
+                + " | " + source
+                + " | " + sanitize(sender)
+                + " | " + sanitize(commandLine)
+                + " | " + (blocked ? RESULT_BLOCKED : RESULT_EXECUTED)
+                + System.lineSeparator();
+        writer.submit(() -> writeLine(line));
+    }
+
+    /** 冲刷所有待写记录（测试与 shutdown 前调用，保证落盘）。 */
+    public void flush() {
+        try {
+            writer.submit(() -> {}).get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.warning("[OrzMC] 命令审计冲刷失败: " + e.getMessage());
+        }
+    }
+
+    /** 停用写线程（shutdown 后 record 直接丢弃，不再入队）。 */
+    public void shutdown() {
+        if (closed.compareAndSet(false, true)) {
+            writer.shutdown();
+        }
+    }
+
+    /** 单行落盘 + 超限轮转（写线程内执行）。 */
+    private void writeLine(String line) {
         try {
             Files.createDirectories(logFile.getParent());
             rotateIfNeeded();
-            String line = TIMESTAMP.format(OffsetDateTime.now())
-                    + " | " + source
-                    + " | " + sanitize(sender)
-                    + " | " + sanitize(commandLine)
-                    + " | " + (blocked ? RESULT_BLOCKED : RESULT_EXECUTED)
-                    + System.lineSeparator();
             Files.writeString(
                     logFile, line, StandardCharsets.UTF_8, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
         } catch (IOException e) {

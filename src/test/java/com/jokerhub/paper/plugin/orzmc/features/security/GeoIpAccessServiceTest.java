@@ -74,6 +74,16 @@ class GeoIpAccessServiceTest {
     }
 
     @Test
+    void decide_ipv4MappedPrivateIp_skipsGeoIpLookup() {
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
+
+        GeoIpAccessService.Decision d = service.decide("::ffff:192.168.1.1").join();
+
+        assertTrue(d.allowed(), "IPv4-mapped 内网 ::ffff:192.168.x 应直接放行");
+        verify(client, never()).lookup(anyString());
+    }
+
+    @Test
     void decide_cgnat100_64_skipsGeoIpLookup() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
 

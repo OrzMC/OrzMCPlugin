@@ -15,7 +15,10 @@ public class OrzMC extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        services.shutdownAll();
+        // assemble() 抛异常时 services 保持 null，onDisable 仍会被 Bukkit 回调——判空避免掩盖启动错误
+        if (services != null) {
+            services.shutdownAll();
+        }
         getLogger().info("插件失效!");
     }
 

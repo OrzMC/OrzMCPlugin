@@ -14,9 +14,10 @@ import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
  *
  * <p>管理 EasyBot 网关适配器、消息路由和通知派发。
  * 内部处理 BotCommandService ← Notifier ← BotMessageService ← BotCommandService
- * 的循环依赖关系。</p>
+ * 的循环依赖关系。跨模块依赖（维护/黑名单/审核/权限/日志窗口/命令守卫）由组合根在
+ * {@link BotCommandService#injectDependencies} 中一次性注入，本模块不再持有二阶段 setter。</p>
  */
-public final class BotModule implements ServiceModule, Initializable {
+public final class BotModule implements ServiceModule {
 
     private final BotCommandService botCommandService;
     private final BotMessageService botMessageService;
@@ -28,9 +29,6 @@ public final class BotModule implements ServiceModule, Initializable {
         this.healthRegistry = new HealthRegistry();
         // Phase A: 先创建 BotCommandService（核心依赖来自 PlatformModule）
         this.botCommandService = new BotCommandService(platform.serverFacade(), platform.configs());
-        // $e 命令输出兜底：注入日志窗口收集服务
-        this.botCommandService.setLogCaptureService(platform.logCaptureService());
-        this.botCommandService.setCommandGuard(platform.commandGuardService(), platform.commandAuditService());
 
         // Phase C: 创建 BotMessageService（以 BotCommandService 作为 BotInboundHandler）
         this.botMessageService = BotMessageServiceProvider.create(
@@ -45,26 +43,6 @@ public final class BotModule implements ServiceModule, Initializable {
 
         // BotStatusService
         this.botStatusService = new BotStatusService(platform.textStyles(), new HealthAccessor(healthRegistry));
-    }
-
-    // 跨模块回引用（通过 afterPropertiesSet 注入）
-    private volatile com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService
-            pendingMaintenanceService;
-
-    /**
-     * 设置跨模块依赖，将在 {@link #afterPropertiesSet()} 阶段注入。
-     */
-    public void setWorldMaintenanceService(
-            com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService maintenanceService) {
-        this.pendingMaintenanceService = maintenanceService;
-    }
-
-    @Override
-    public void afterPropertiesSet() {
-        if (pendingMaintenanceService != null) {
-            botCommandService.setMaintenanceService(pendingMaintenanceService);
-            pendingMaintenanceService = null;
-        }
     }
 
     @Override

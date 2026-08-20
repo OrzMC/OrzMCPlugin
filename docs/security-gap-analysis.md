@@ -3,6 +3,8 @@
 > 定位：内部文档。对照通用 PaperMC 安全风险（通用知识见 [site 文章 25/26](../site/content/posts/2.server/25.papermc-dangerous-commands.md)），梳理 OrzMC 插件已有防护、识别缺口，并给出补强建议。
 >
 > 最后更新：2026-08-16
+>
+> **⚠️ 状态更新（2026-08-19）**：本文 §3 对照表与 §5 建议中的缺口（危险命令拦截、定时备份、聊天反垃圾、登录爆破、漏洞加固、IP 黑名单增强）**已由 [security-hardening-roadmap.md](./security-hardening-roadmap.md) 全部落地**（PR #179–#184）。本文保留为「加固前的现状快照」，最新能力清单见 `docs/features.md` 与 `docs/quality-testing-plan.md`。
 
 ---
 
@@ -92,7 +94,7 @@ private void handleExecuteConsoleCommand(...) {
 ### P0 — 上线前必须
 
 - [x] **`/orzdebug` 权限收紧**：已改为 AdminOnlyInterceptor 门禁（见第 4 节）。
-- [ ] **核实 `$e` 群侧管理员判定**：确认 `BotInboundDispatcher` 传入的 `isAdmin` 依据群主/管理员名单，而非可伪造字段。
+- [x] **核实 `$e` 群侧管理员判定**：已确认（2026-08-19）`OrzEasyBot` 的 `isAdmin` 判定 fail-closed——仅网关返回 `role=Owner/Admin` 视为管理员，role 缺失/未知一律按非管理员处理；网关 role 即权威，无需额外白名单兜底。
 - [ ] **复核 op 与 `orzmc.admin` 边界**：`CommandPermissionService.requireAdmin()` 使用 `isOp() || hasPermission("orzmc.admin")`，确认线上无遗留 OP 账号。
 - [ ] **验证白名单关闭告警链路**：实际关一次白名单确认群告警到达。
 

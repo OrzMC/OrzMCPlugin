@@ -9,6 +9,8 @@
 > **相关测试文档**：
 > - [插件功能测试用例](test-cases.md)（28 项端到端用例，含前置条件/步骤/预期/实际）
 > - [端到端测试报告（2026-08-06）](e2e-test-report-20260806.md)（真实环境：机器人 + 真实玩家 + RCON）
+> - [端到端测试报告（2026-08-20 双核心）](e2e-test-report-20260820.md)（Paper + Folia 62/62 用例，E2E 套件 `plugin/e2e/`）
+> - E2E 自动化套件：`plugin/e2e/run-all.sh`（01-06 用例：Bot 命令/玩家命令/安全拦截/备份维护/群消息/权限审核，双核心自动检测）
 
 ---
 
@@ -193,7 +195,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 - **突发聚合防刷屏**：同一区域（128×128×64 方块）+ 同类型事件在聚合窗口内合并，窗口尾部只发一条告警（带 `×N` 次数与首个事件坐标）；批次内事件不立即发送，避免「立即发送 + 尾部汇总」双条刷屏
 - 聚合窗口由 `tnt.notify_aggregate_ms` 控制（默认 3000ms），既是突发合并也限制持续刷屏频率
 - 方块爆炸统一归并为「方块爆炸」标签，不再按方块材质拆分
-- 注意：`tnt.notify_throttle_ms` 仅用于玩家上下线消息限流，与 TNT 告警无关
+- 上下线消息限流由 `player_notify.window_ms`（3s 聚合窗口）承担（`tnt.notify_throttle_ms` 已废弃移除）
 
 ---
 
@@ -257,13 +259,16 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 ### 7.1 世界备份
 - 命令：`$b`（管理员）
 - 执行流程：踢出所有玩家 → `save-off` → 压缩世界为 ZIP → `save-on` → 恢复服务
-- 备份存储位置：`plugins/OrzMC/backup/`
+- 备份存储位置：**服务器核心根目录 `backup/`**（如 `~/papermc-test/backup/`，非插件数据目录）
+- 目录使用：input=世界目录（`getWorldFolder()`）；backup-core 中间目录 = `backup/tempDir/`（backup-core Cleanup 阶段自动删除）；zip 直接落 `backup/`（output 父目录）；崩溃/断电残留由**启动清理**兜底（MaintenanceModule.setup 清 `backup/tempDir`）
 - 自动清理旧备份，保留最近 N 个（`maintenance.backup_retention_count`，默认 5）
+- ⚠️ **备份为"优化式备份"**：基于 backup-core（InhabitedTime 阈值过滤，阈值= `maintenance.optimize_tick_time_threshold` 默认 300 秒），活跃 ≤ 阈值（15 秒）的区块不进入备份 zip——备份体积远小于世界（实测 17G 世界 → zip ~1.4G），适合日常快照；如需逐字节全量，请用外部快照/全量备份工具
 
 ### 7.2 世界优化
 - 命令：`$o`（管理员，需先启用 `maintenance.optimize_enabled`）
-- 使用 OrzMCWorld 优化器就地优化世界区块文件
-- 支持按区块 tick 耗时过滤（`maintenance.optimize_tick_time_threshold`，默认 300ms）
+- 执行流程：踢出所有玩家 → `save-off` → 优化（剔除低活跃区块，InhabitedTime 阈值同上）→ `save-on` → 恢复服务
+- input=世界目录（与备份一致）；in-place 优化（backup-core 内部临时目录处理）
+- 实测（2026-08-20，裁剪后世界）：$o 31 秒完成 190,526/190,526 区块，剔除 5.6 万低活跃区块（22.8%），世界正常加载
 
 ### 7.3 进度报告
 - 实时推送备份/优化进度到 Bot
@@ -316,7 +321,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `dump` | 打印完整配置树 | `/config dump` |
 | `reload [name]` | 热重载指定或所有配置文件 | `/config reload` |
 
-### 10.2 可配置项（25 项）
+### 10.2 可配置项（29 项）
 
 **白名单**
 | 配置路径 | 类型 | 默认值 | 描述 |
@@ -340,7 +345,15 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `tnt.enable_respawn_anchor` | Boolean | false | 启用重生锚检测 |
 | `tnt.place_cooldown` | Integer | 5 | TNT 放置冷却（秒） |
 | `tnt.notify_aggregate_ms` | Long | 3000 | TNT/爆炸告警聚合窗口（毫秒） |
-| `tnt.notify_throttle_ms` | Long | 1000 | 玩家上下线消息限流（毫秒） |
+
+**上下线通知**
+| 配置路径 | 类型 | 默认值 | 描述 |
+|---------|------|--------|------|
+| `player_notify.enabled_join` | Boolean | true | 上线消息通知开关 |
+| `player_notify.enabled_quit` | Boolean | true | 下线消息通知开关 |
+| `player_notify.enabled_kick` | Boolean | true | 被踢消息通知开关 |
+| `player_notify.window_ms` | Long | 3000 | 上下线通知聚合窗口（毫秒） |
+| `player_notify.max_list_items` | Integer | 6 | 聚合摘要最多列出的玩家数 |
 
 **命令策略**
 | 配置路径 | 类型 | 默认值 | 描述 |
@@ -416,8 +429,9 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 
 插件配置文件位于 `plugins/OrzMC/` 目录：
 
-- **config.yml** — 核心配置（白名单、TNT、维护、GeoIP、实体传送策略、命令策略）
+- **config.yml** — 核心配置（白名单、TNT、维护、GeoIP、命令策略、上下线通知、实体传送、危险命令拦截 guard、聊天反垃圾、进服限流、漏洞加固）
 - **easybot.yml** — Bot 通用设置与 EasyBot IM Gateway 连接配置（多平台消息路由、WebSocket + HTTP）
+- **guide_book.yml** — 新手指南书内容配置（链接/悬停/样式/分页）
 - **permission.yml** — 权限系统配置（`config` 阈值节 + `reviews` 申请记录节，运行时修改）
 - **templates.yml** — 通知模板、样式配色、坐标格式、世界别名、权限组显示名、i18n 覆盖
 - **portals.yml** — 传送门数据（运行时修改）

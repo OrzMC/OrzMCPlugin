@@ -2,10 +2,10 @@ package com.jokerhub.paper.plugin.orzmc;
 
 import com.jokerhub.paper.plugin.orzmc.assembly.BotModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.FeatureModule;
-import com.jokerhub.paper.plugin.orzmc.assembly.Initializable;
 import com.jokerhub.paper.plugin.orzmc.assembly.MaintenanceModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.PlatformModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.PortalModule;
+import com.jokerhub.paper.plugin.orzmc.features.botcommands.BotCommandDependencies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 
 /**
@@ -20,9 +20,8 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
  *   <li><b>BotModule</b> — 依赖 PlatformModule，内部处理 Bot ↔ Notifier 循环</li>
  *   <li><b>PortalModule</b> — 依赖 PlatformModule（ConfigService）</li>
  *   <li><b>MaintenanceModule</b> — 依赖 PlatformModule + BotModule (Notifier)</li>
- *   <li><b>跨模块链接</b> — bot.setWorldMaintenanceService() → afterPropertiesSet() →</li>
- *   <li><b>Blacklist 回引用</b> — bot.botCommandService().setBlacklistService()（Feature 创建后注入）</li>
  *   <li><b>FeatureModule</b> — 依赖所有其他模块，创建 Feature 服务并注册命令/事件</li>
+ *   <li><b>跨模块依赖注入</b> — bot.botCommandService().injectDependencies(...)（连接 WebSocket 前一次性完成）</li>
  * </ol>
  */
 public final class OrzServices {
@@ -58,17 +57,21 @@ public final class OrzServices {
         // Phase 3: 维护模块（依赖 Platform + Bot 的 Notifier）
         MaintenanceModule maintenance = new MaintenanceModule(platform, bot);
 
-        // Phase 4: 设置跨模块回引用 —— 在 afterPropertiesSet 阶段注入
-        bot.setWorldMaintenanceService(maintenance.worldMaintenanceService());
-
-        // Phase 5: 触发所有 Initializable 模块的二阶段初始化
-        if (bot instanceof Initializable) ((Initializable) bot).afterPropertiesSet();
-
-        // Phase 6: 功能模块（依赖所有其他模块）
+        // Phase 4: 功能模块（依赖所有其他模块）
         FeatureModule feature = new FeatureModule(platform, bot, portal, maintenance);
 
-        // Phase 7: 设置跨模块回引用（BlacklistService → BotCommandService）
-        bot.botCommandService().setBlacklistService(feature.blacklistService());
+        // Phase 5: 一次性注入 BotCommandService 的全部跨模块依赖（维护/黑名单/审核/权限/日志窗口/命令守卫）。
+        // 必须在 botModule.setup()（连接 WebSocket）之前完成，避免半初始化窗口
+        bot.botCommandService()
+                .injectDependencies(new BotCommandDependencies()
+                        .maintenanceService(maintenance.worldMaintenanceService())
+                        .blacklistService(feature.blacklistService())
+                        .reviewService(feature.reviewService())
+                        .rankService(feature.rankService())
+                        .listFormatter(feature.listFormatter())
+                        .logCaptureService(platform.logCaptureService())
+                        .commandGuardService(platform.commandGuardService())
+                        .commandAuditService(platform.commandAuditService()));
 
         return new OrzServices(platform, bot, portal, maintenance, feature);
     }

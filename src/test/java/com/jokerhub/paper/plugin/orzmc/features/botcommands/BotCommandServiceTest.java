@@ -179,7 +179,7 @@ class BotCommandServiceTest {
         LogCaptureService capture = mock(LogCaptureService.class);
         when(capture.watermark()).thenReturn(42L);
         when(capture.drainSince(42L)).thenReturn(java.util.List.of("async log line"));
-        service.setLogCaptureService(capture);
+        service.injectDependencies(new BotCommandDependencies().logCaptureService(capture));
 
         when(serverFacade.executeConsoleCommand("say hello"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("say hello", true, java.util.List.of("sync line")));
@@ -197,7 +197,7 @@ class BotCommandServiceTest {
         LogCaptureService capture = mock(LogCaptureService.class);
         when(capture.watermark()).thenReturn(1L);
         when(capture.drainSince(anyLong())).thenReturn(java.util.List.of());
-        service.setLogCaptureService(capture);
+        service.injectDependencies(new BotCommandDependencies().logCaptureService(capture));
 
         when(serverFacade.executeConsoleCommand("say hi"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
@@ -215,7 +215,7 @@ class BotCommandServiceTest {
         LogCaptureService capture = mock(LogCaptureService.class);
         when(capture.watermark()).thenReturn(7L);
         when(capture.drainSince(7L)).thenReturn(java.util.List.of());
-        service.setLogCaptureService(capture);
+        service.injectDependencies(new BotCommandDependencies().logCaptureService(capture));
 
         when(serverFacade.executeConsoleCommand("say hi"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
@@ -233,7 +233,7 @@ class BotCommandServiceTest {
         when(capture.watermark()).thenReturn(9L);
         when(capture.drainSince(9L))
                 .thenReturn(java.util.List.of("Rcon issued server command: /say hi", "real async output"));
-        service.setLogCaptureService(capture);
+        service.injectDependencies(new BotCommandDependencies().logCaptureService(capture));
 
         when(serverFacade.executeConsoleCommand("say hi"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
@@ -251,7 +251,7 @@ class BotCommandServiceTest {
         when(capture.watermark()).thenReturn(3L);
         when(capture.drainSince(3L)).thenReturn(java.util.List.of("survived line"));
         when(capture.hasGapSince(3L)).thenReturn(true);
-        service.setLogCaptureService(capture);
+        service.injectDependencies(new BotCommandDependencies().logCaptureService(capture));
 
         when(serverFacade.executeConsoleCommand("say hi"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of()));
@@ -273,7 +273,8 @@ class BotCommandServiceTest {
     @Test
     void parse_executeConsole_guardBlocked_doesNotExecuteAndEmitsReason() {
         CommandAuditService audit = mock(CommandAuditService.class);
-        service.setCommandGuard(defaultGuard(), audit);
+        service.injectDependencies(
+                new BotCommandDependencies().commandGuardService(defaultGuard()).commandAuditService(audit));
 
         service.parse("$e stop", true, "老板", callback);
 
@@ -287,7 +288,8 @@ class BotCommandServiceTest {
     @Test
     void parse_executeConsole_guardAllowed_executesAndAudits() {
         CommandAuditService audit = mock(CommandAuditService.class);
-        service.setCommandGuard(defaultGuard(), audit);
+        service.injectDependencies(
+                new BotCommandDependencies().commandGuardService(defaultGuard()).commandAuditService(audit));
         when(serverFacade.executeConsoleCommand("say hi"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("say hi", true, java.util.List.of("执行成功")));
 
@@ -300,7 +302,8 @@ class BotCommandServiceTest {
     @Test
     void parse_executeConsole_guardWarn_stillExecutesWithAudit() {
         CommandAuditService audit = mock(CommandAuditService.class);
-        service.setCommandGuard(defaultGuard(), audit);
+        service.injectDependencies(
+                new BotCommandDependencies().commandGuardService(defaultGuard()).commandAuditService(audit));
         when(serverFacade.executeConsoleCommand("kill @e"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("kill @e", true, java.util.List.of("执行成功")));
 
@@ -313,10 +316,10 @@ class BotCommandServiceTest {
     @Test
     void parse_executeConsole_guardDisabled_executesWithoutBlock() {
         CommandAuditService audit = mock(CommandAuditService.class);
-        service.setCommandGuard(
-                new CommandGuardService(
-                        () -> new SecurityGuardConfig(false, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true)),
-                audit);
+        service.injectDependencies(new BotCommandDependencies()
+                .commandGuardService(new CommandGuardService(
+                        () -> new SecurityGuardConfig(false, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true)))
+                .commandAuditService(audit));
         when(serverFacade.executeConsoleCommand("stop"))
                 .thenReturn(new ServerFacade.ConsoleCommandResult("stop", true, java.util.List.of("执行成功")));
 
@@ -402,7 +405,7 @@ class BotCommandServiceTest {
     @Test
     void parse_reviewApprove_byPlayerName_callsReviewByApplicantName() {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
-        service.setReviewService(reviewService);
+        service.injectDependencies(new BotCommandDependencies().reviewService(reviewService));
         when(reviewService.reviewByApplicantName(eq("TestMember"), eq(true), anyString()))
                 .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
                         com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1")));
@@ -415,7 +418,7 @@ class BotCommandServiceTest {
     @Test
     void parse_reviewApprove_withSenderName_passesSenderAsReviewer() {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
-        service.setReviewService(reviewService);
+        service.injectDependencies(new BotCommandDependencies().reviewService(reviewService));
         when(reviewService.reviewByApplicantName(eq("TestMember"), eq(true), anyString()))
                 .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
                         com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已通过", "r1")));
@@ -429,7 +432,7 @@ class BotCommandServiceTest {
     @Test
     void parse_reviewReject_byPlayerName_callsReviewByApplicantName() {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
-        service.setReviewService(reviewService);
+        service.injectDependencies(new BotCommandDependencies().reviewService(reviewService));
         when(reviewService.reviewByApplicantName(eq("TestMember"), eq(false), anyString()))
                 .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
                         com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.Result.ok("已拒绝", "r1")));
@@ -442,7 +445,7 @@ class BotCommandServiceTest {
     @Test
     void parse_reviewApprove_nonAdmin_doesNotCallReview() {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
-        service.setReviewService(reviewService);
+        service.injectDependencies(new BotCommandDependencies().reviewService(reviewService));
 
         service.parse("$v y TestMember", false, callback);
         verify(reviewService, never()).reviewByApplicantName(anyString(), anyBoolean(), anyString());
@@ -452,7 +455,7 @@ class BotCommandServiceTest {
     @Test
     void parse_reviewList_callsListPending() {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
-        service.setReviewService(reviewService);
+        service.injectDependencies(new BotCommandDependencies().reviewService(reviewService));
         when(reviewService.listPending()).thenReturn(java.util.List.of());
 
         service.parse("$v l", true, callback);
@@ -463,7 +466,7 @@ class BotCommandServiceTest {
     @Test
     void parse_reviewUnknownSubcommand_emitsUsage() {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
-        service.setReviewService(reviewService);
+        service.injectDependencies(new BotCommandDependencies().reviewService(reviewService));
 
         service.parse("$v x", true, callback);
         verify(reviewService, never()).reviewByApplicantName(anyString(), anyBoolean(), anyString());
@@ -479,7 +482,7 @@ class BotCommandServiceTest {
     @Test
     void parse_reviewApprove_byTypeAndPlayer_callsReviewById() {
         var reviewService = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class);
-        service.setReviewService(reviewService);
+        service.injectDependencies(new BotCommandDependencies().reviewService(reviewService));
         var type = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewType.class);
         when(reviewService.typeById("builder-promotion")).thenReturn(java.util.Optional.of(type));
         var request = mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewRequest.class);
@@ -497,7 +500,7 @@ class BotCommandServiceTest {
     @Test
     void parse_permissionDemote_playerName_callsDemote() {
         var rankService = mock(RankService.class);
-        service.setRankService(rankService);
+        service.injectDependencies(new BotCommandDependencies().rankService(rankService));
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
         when(rankService.resolvePlayerId("TestMember")).thenReturn(java.util.UUID.randomUUID());
         when(rankService.demoteAsync(any(java.util.UUID.class)))
@@ -511,7 +514,7 @@ class BotCommandServiceTest {
     @Test
     void parse_permissionUpgrade_playerName_callsPromote() {
         var rankService = mock(RankService.class);
-        service.setRankService(rankService);
+        service.injectDependencies(new BotCommandDependencies().rankService(rankService));
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
         when(rankService.resolvePlayerId("TestMember")).thenReturn(java.util.UUID.randomUUID());
         when(rankService.promoteAsync(any(java.util.UUID.class)))
@@ -525,7 +528,7 @@ class BotCommandServiceTest {
     @Test
     void parse_permissionDemote_atBottom_emitsError() {
         var rankService = mock(RankService.class);
-        service.setRankService(rankService);
+        service.injectDependencies(new BotCommandDependencies().rankService(rankService));
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
         when(rankService.resolvePlayerId("TestPlayer")).thenReturn(java.util.UUID.randomUUID());
         when(rankService.demoteAsync(any(java.util.UUID.class)))
@@ -539,7 +542,7 @@ class BotCommandServiceTest {
     @Test
     void parse_permissionDemote_unknownPlayer_emitsError() {
         var rankService = mock(RankService.class);
-        service.setRankService(rankService);
+        service.injectDependencies(new BotCommandDependencies().rankService(rankService));
         when(rankService.resolvePlayerId("Nobody")).thenReturn(null);
 
         service.parse("$p d Nobody", true, callback);
@@ -550,7 +553,7 @@ class BotCommandServiceTest {
     @Test
     void parse_permissionDemote_nonAdmin_doesNotCallDemote() {
         var rankService = mock(RankService.class);
-        service.setRankService(rankService);
+        service.injectDependencies(new BotCommandDependencies().rankService(rankService));
 
         service.parse("$p d TestMember", false, callback);
         verify(rankService, never()).demoteAsync(any(java.util.UUID.class));
@@ -562,7 +565,7 @@ class BotCommandServiceTest {
     @Test
     void parse_backupHelpQuery_emitsUsageWithoutBackup() {
         var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
-        service.setMaintenanceService(maintenance);
+        service.injectDependencies(new BotCommandDependencies().maintenanceService(maintenance));
 
         service.parse("$b ?", true, callback);
         var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
@@ -577,7 +580,7 @@ class BotCommandServiceTest {
     void parse_backupHelpQuerySuffix_emitsUsageWithoutBackup() {
         // M1：前缀匹配——$b ?x / $b ?? / $b ? 2 均视为帮助请求，绝不执行备份
         var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
-        service.setMaintenanceService(maintenance);
+        service.injectDependencies(new BotCommandDependencies().maintenanceService(maintenance));
 
         service.parse("$b ? 2", true, callback);
         var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
@@ -592,7 +595,7 @@ class BotCommandServiceTest {
     void parse_backupHelpQueryFullWidthSpace_emitsUsageWithoutBackup() {
         // M1：U+3000 全角空格分隔（Java trim 不去全角空格），归一化后仍触发帮助拦截
         var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
-        service.setMaintenanceService(maintenance);
+        service.injectDependencies(new BotCommandDependencies().maintenanceService(maintenance));
 
         service.parse("$b　?", true, callback);
         var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
@@ -606,7 +609,7 @@ class BotCommandServiceTest {
     @Test
     void parse_optimizeHelpQuery_emitsUsageWithoutOptimize() {
         var maintenance = mock(com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService.class);
-        service.setMaintenanceService(maintenance);
+        service.injectDependencies(new BotCommandDependencies().maintenanceService(maintenance));
 
         service.parse("$o ?", true, callback);
         var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
@@ -620,7 +623,7 @@ class BotCommandServiceTest {
     @Test
     void parse_permissionBlank_emitsUsageMatchingTip() {
         var rankService = mock(RankService.class);
-        service.setRankService(rankService);
+        service.injectDependencies(new BotCommandDependencies().rankService(rankService));
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
 
         service.parse("$p", true, callback);
@@ -634,7 +637,7 @@ class BotCommandServiceTest {
     @Test
     void parse_permissionInvalidSubcommand_emitsUsageMatchingTip() {
         var rankService = mock(RankService.class);
-        service.setRankService(rankService);
+        service.injectDependencies(new BotCommandDependencies().rankService(rankService));
         when(rankService.isLuckPermsAvailable()).thenReturn(true);
 
         service.parse("$p x", true, callback);
@@ -647,7 +650,8 @@ class BotCommandServiceTest {
 
     @Test
     void parse_reviewBlank_emitsUsageMatchingTip() {
-        service.setReviewService(mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class));
+        service.injectDependencies(new BotCommandDependencies()
+                .reviewService(mock(com.jokerhub.paper.plugin.orzmc.features.review.ReviewService.class)));
 
         service.parse("$v", true, callback);
         var captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);

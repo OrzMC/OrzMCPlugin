@@ -143,8 +143,10 @@ public final class GeoIpAccessService {
                 || "::".equals(lower)) {
             return true;
         }
+        // IPv4-mapped IPv6（::ffff:x.x.x.x）：剥离前缀后按 IPv4 判断，避免对注定失败的内网地址发起查询
+        String candidate = lower.startsWith("::ffff:") ? ip.substring("::ffff:".length()) : ip;
         // 仅处理 IPv4
-        String[] parts = ip.split("\\.");
+        String[] parts = candidate.split("\\.");
         if (parts.length != 4) {
             return false;
         }

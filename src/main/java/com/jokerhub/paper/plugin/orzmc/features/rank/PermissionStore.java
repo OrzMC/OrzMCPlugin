@@ -99,71 +99,79 @@ public final class PermissionStore implements RankStore, ReviewStore {
 
     @Override
     public Optional<ReviewRequest> findById(String id) {
-        FileConfiguration cfg = configService.getConfig(FILE);
-        String path = REVIEWS_SECTION + "." + id;
-        if (!cfg.contains(path + ".type")) {
-            return Optional.empty();
+        synchronized (saveLock) {
+            FileConfiguration cfg = configService.getConfig(FILE);
+            String path = REVIEWS_SECTION + "." + id;
+            if (!cfg.contains(path + ".type")) {
+                return Optional.empty();
+            }
+            return readRequest(cfg, path);
         }
-        return readRequest(cfg, path);
     }
 
     @Override
     public List<ReviewRequest> listPending() {
-        FileConfiguration cfg = configService.getConfig(FILE);
-        ConfigurationSection section = cfg.getConfigurationSection(REVIEWS_SECTION);
-        if (section == null) {
-            return List.of();
+        synchronized (saveLock) {
+            FileConfiguration cfg = configService.getConfig(FILE);
+            ConfigurationSection section = cfg.getConfigurationSection(REVIEWS_SECTION);
+            if (section == null) {
+                return List.of();
+            }
+            List<ReviewRequest> pending = new ArrayList<>();
+            for (String id : section.getKeys(false)) {
+                readRequest(cfg, REVIEWS_SECTION + "." + id).ifPresent(request -> {
+                    if (request.status() == ReviewRequest.Status.PENDING) {
+                        pending.add(request);
+                    }
+                });
+            }
+            pending.sort(Comparator.comparingLong(ReviewRequest::createdAt));
+            return pending;
         }
-        List<ReviewRequest> pending = new ArrayList<>();
-        for (String id : section.getKeys(false)) {
-            readRequest(cfg, REVIEWS_SECTION + "." + id).ifPresent(request -> {
-                if (request.status() == ReviewRequest.Status.PENDING) {
-                    pending.add(request);
-                }
-            });
-        }
-        pending.sort(Comparator.comparingLong(ReviewRequest::createdAt));
-        return pending;
     }
 
     @Override
     public List<ReviewRequest> listByApplicant(UUID applicantId) {
-        FileConfiguration cfg = configService.getConfig(FILE);
-        ConfigurationSection section = cfg.getConfigurationSection(REVIEWS_SECTION);
-        if (section == null) {
-            return List.of();
+        synchronized (saveLock) {
+            FileConfiguration cfg = configService.getConfig(FILE);
+            ConfigurationSection section = cfg.getConfigurationSection(REVIEWS_SECTION);
+            if (section == null) {
+                return List.of();
+            }
+            List<ReviewRequest> found = new ArrayList<>();
+            for (String id : section.getKeys(false)) {
+                readRequest(cfg, REVIEWS_SECTION + "." + id).ifPresent(request -> {
+                    if (request.applicantId().equals(applicantId)) {
+                        found.add(request);
+                    }
+                });
+            }
+            found.sort(Comparator.comparingLong(ReviewRequest::createdAt));
+            return found;
         }
-        List<ReviewRequest> found = new ArrayList<>();
-        for (String id : section.getKeys(false)) {
-            readRequest(cfg, REVIEWS_SECTION + "." + id).ifPresent(request -> {
-                if (request.applicantId().equals(applicantId)) {
-                    found.add(request);
-                }
-            });
-        }
-        found.sort(Comparator.comparingLong(ReviewRequest::createdAt));
-        return found;
     }
 
     @Override
     public Optional<ReviewRequest> pendingFor(String typeId, UUID applicantId) {
-        FileConfiguration cfg = configService.getConfig(FILE);
-        ConfigurationSection section = cfg.getConfigurationSection(REVIEWS_SECTION);
-        if (section == null) {
-            return Optional.empty();
-        }
-        for (String id : section.getKeys(false)) {
-            Optional<ReviewRequest> maybe = readRequest(cfg, REVIEWS_SECTION + "." + id);
-            if (maybe.isPresent()) {
-                ReviewRequest request = maybe.get();
-                if (request.status() == ReviewRequest.Status.PENDING
-                        && request.typeId().equals(typeId)
-                        && request.applicantId().equals(applicantId)) {
-                    return Optional.of(request);
+        synchronized (saveLock) {
+            FileConfiguration cfg = configService.getConfig(FILE);
+            ConfigurationSection section = cfg.getConfigurationSection(REVIEWS_SECTION);
+            if (section == null) {
+                return Optional.empty();
+            }
+            for (String id : section.getKeys(false)) {
+                Optional<ReviewRequest> maybe = readRequest(cfg, REVIEWS_SECTION + "." + id);
+                if (maybe.isPresent()) {
+                    ReviewRequest request = maybe.get();
+                    if (request.status() == ReviewRequest.Status.PENDING
+                            && request.typeId().equals(typeId)
+                            && request.applicantId().equals(applicantId)) {
+                        return Optional.of(request);
+                    }
                 }
             }
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     @Override

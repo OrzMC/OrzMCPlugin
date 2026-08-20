@@ -79,6 +79,41 @@ class CommandGuardServiceTest {
     }
 
     @Test
+    void denyList_leadingWhitespaceAfterSlash_blocked() {
+        // 斜杠后带空白："/ op" 去 / 后若不再 trim 会产生空首 token，绕过 deny-list
+        assertEquals(
+                GuardDecision.Decision.BLOCK,
+                defaultService().guard("/ op steve").kind());
+        assertEquals(
+                GuardDecision.Decision.BLOCK, defaultService().guard("/  stop").kind());
+        assertEquals(
+                GuardDecision.Decision.BLOCK,
+                defaultService().guard("/   reload").kind());
+    }
+
+    @Test
+    void denyList_bukkitNamespace_blocked() {
+        // Bukkit 自注册命令存在 bukkit: 命名空间别名，剥除后应命中 deny-list
+        assertEquals(
+                GuardDecision.Decision.BLOCK,
+                defaultService().guard("/bukkit:stop").kind());
+        assertEquals(
+                GuardDecision.Decision.BLOCK,
+                defaultService().guard("bukkit:reload").kind());
+        assertEquals(
+                GuardDecision.Decision.BLOCK,
+                defaultService().guard("/bukkit:op steve").kind());
+    }
+
+    @Test
+    void colonInArgument_notStrippedAsNamespace() {
+        // 参数中的冒号不是命名空间前缀，不应被剥除（否则会破坏命令名导致误判）
+        assertEquals(
+                GuardDecision.Decision.ALLOW,
+                defaultService().guard("/say hello:world").kind());
+    }
+
+    @Test
     void denyList_similarCommandNamesNotBlocked() {
         assertEquals(
                 GuardDecision.Decision.ALLOW,

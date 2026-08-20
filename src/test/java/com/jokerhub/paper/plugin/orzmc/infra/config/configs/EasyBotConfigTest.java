@@ -100,4 +100,25 @@ class EasyBotConfigTest {
         assertEquals(first.connectionFingerprint(), same.connectionFingerprint());
         assertFalse(first.connectionFingerprint().equals(changed.connectionFingerprint()));
     }
+
+    @Test
+    void connectionFingerprint_doesNotContainPlaintextApiKey() {
+        EasyBotConfig cfg = new EasyBotConfig(
+                "http://gateway",
+                "ws://gateway",
+                "super-secret-key",
+                Map.of(),
+                3,
+                3,
+                3,
+                10,
+                5000,
+                60000,
+                10,
+                20000,
+                false,
+                60000);
+
+        assertFalse(cfg.connectionFingerprint().contains("super-secret-key"), "指纹不应携带明文 apiKey");
+    }
 }

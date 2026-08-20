@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 import org.junit.jupiter.api.Test;
@@ -301,7 +302,7 @@ class RobustWebSocketClientLifecycleTest {
         // Reconnect was scheduled — verify by checking retryCount
         Field retryField = RobustWebSocketClient.class.getDeclaredField("retryCount");
         retryField.setAccessible(true);
-        assertEquals(1, retryField.getInt(client));
+        assertEquals(1, ((AtomicInteger) retryField.get(client)).get());
     }
 
     @Test

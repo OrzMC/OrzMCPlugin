@@ -3,7 +3,6 @@ package com.jokerhub.paper.plugin.orzmc.assembly;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,9 +14,6 @@ class BotModuleTest {
 
     @Mock
     private PlatformModule platform;
-
-    @Mock
-    private WorldMaintenanceService maintenanceService;
 
     private BotModule module;
 
@@ -46,28 +42,6 @@ class BotModuleTest {
     @Test
     void botInboundHandler_isBotCommandService() {
         assertSame(module.botCommandService(), module.botInboundHandler());
-    }
-
-    @Test
-    void setWorldMaintenanceService_storesReference() {
-        module.setWorldMaintenanceService(maintenanceService);
-        // afterPropertiesSet 之前未设置
-        module.afterPropertiesSet();
-        // 验证 BotCommandService.setMaintenanceService 被调用
-    }
-
-    @Test
-    void setWorldMaintenanceService_null_doesNothing() {
-        module.setWorldMaintenanceService(null);
-        assertDoesNotThrow(() -> module.afterPropertiesSet());
-    }
-
-    @Test
-    void afterPropertiesSet_clearsPendingReference() {
-        module.setWorldMaintenanceService(maintenanceService);
-        module.afterPropertiesSet();
-        // 第二次调用不抛异常（pendingMaintenanceService 已清空）
-        assertDoesNotThrow(() -> module.afterPropertiesSet());
     }
 
     @Test

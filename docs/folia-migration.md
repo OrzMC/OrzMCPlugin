@@ -9,7 +9,7 @@
 
 ## 1. 现状与目标
 
-**现状**：`src/main/resources/paper-plugin.yml:10` 声明 `folia-supported: false`，
+**现状（迁移前快照）**：`src/main/resources/paper-plugin.yml:10` 声明 `folia-supported: false`，
 Folia 会直接拒绝加载本插件。即便翻牌，所有调度都经 `ServerFacade` 落到
 `Bukkit.getScheduler()`（Folia 已移除该 API，调用即抛异常），另有若干实体/区块操作
 在 region 线程模型下会抛「not the correct region」异常。`runServer` 仅能启动 Paper。
@@ -184,7 +184,7 @@ runPaper.folia.registerTask {
    即可在普通 JUnit 中断言「方块/区块操作投递到正确 chunk」。
 
 **真实 Folia 验收**：`./gradlew runFolia` 手动冒烟（启动加载 → 白名单 `$w` → TNT 爆炸 →
-传送弓 → 建门/拆门 → `/orzbackup`），无 `IllegalThreadStateException`/死锁。
+传送弓 → 建门/拆门 → `$b` 备份），无 `IllegalThreadStateException`/死锁。
 已固化为逐项清单：**[docs/folia-acceptance.md](folia-acceptance.md)**（FA-01~07 无头已验 ✅ +
 TC-F1~F6 真实环境待验 ⬜，含通过标准与失败判据）。
 

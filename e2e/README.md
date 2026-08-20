@@ -7,15 +7,16 @@
 
 | 项 | 要求 |
 |:--|:--|
-| Folia 测试服 | `~/folia-test/` 在线（端口 25565，RCON 25575/orztest2026） |
+| 测试服在线 | `~/papermc-test`（Paper）或 `~/folia-test`（Folia），端口统一 25565，RCON 25575/orztest2026 |
+| 核心自动检测 | run-all.sh 进程检测（`folia-test/folia.*jar` / `papermc-test/paper.*jar`），`ORZMC_CORE=folia|paper` 可显式覆盖（端口统一后无法靠端口区分核心） |
 | Node | 单 v24（`~/.n/bin/node`） |
 | mineflayer | `~/minecraft-bot/node_modules`（run-all.sh 自动设置 NODE_PATH） |
-| 测试服账号 | 无需预置——用例自动注册专用账号（SimpleLogin）并清理 |
+| 测试服账号 | 无需预置——用例自动注册专用账号（SimpleLogin/LoginSecurity 自适应）并清理 |
 
 ## 快速开始
 
 ```bash
-# 全量跑（01-04 用例，约 2-3 分钟）
+# 全量跑（01-06 用例，约 15-25 分钟）
 bash e2e/run-all.sh
 
 # 只跑指定用例
@@ -35,10 +36,14 @@ bash e2e/run-all.sh -h
 | `01-bot-cmds.js` | $h/$l/$w/$a/$r/$d/$e（Bot 命令全链路，写操作带还原） | ✅ 8 项 |
 | `02-player-cmds.js` | /guide /menu /bot /rank /apply /config 权限隔离、新手书自动发放 | ✅ 10 项 |
 | `03-security.js` | IP 黑名单登录拦截 / 聊天过滤（重复+链接）/ 命令守卫 | ✅ 10 项 |
-| `04-maintenance.js` | $b 备份三阶段 + 完成耗时 + 文件落盘 + 服务恢复 | ✅ 5 项 |
-| `05-portal.js`（规划） | /portal 创建/移除（bot 部分链路） | ⬜ |
-| `06-tpbow.js`（规划） | /tpbow 获取 + 权限边界 | ⬜ |
-| `07-review.js`（规划） | /apply→$v 审核→LP 授权闭环 | ⬜ |
+| `04-maintenance.js` | $b 备份三阶段 + 完成耗时 + 文件落盘 + 服务恢复 | ✅ 4 项 |
+| `05-groupmsg.js` | 群消息发送（白名单拦截/上下线/聚合/IP 黑名单拦截，日志断言） | ✅ 11 项（2026-08-19 加入，PR #201） |
+| `06-permission-msg.js` | 权限/审核消息（申请发起/通过/晋升/拒绝/撤回，LP+op 自建） | ✅ 19 项（2026-08-19 加入，PR #202） |
+
+> 2026-08-20 双核心验收（OrzMC 1.0.19-dev）：**Paper 62/62 + Folia 62/62 全绿**。
+> ⚠️ **备份时序**：04 触发 $b 后服务器进入维护模式（踢人+拒登），05/06 必须在备份完成后运行，
+> 否则 bot 登录被拒 → 用例零输出 exit 0（汇总假绿，勿误判）。全套跑完若 05/06 无输出，
+> 等备份完成（日志「地图备份 完成」+ zip 落盘）后补跑 `-c 05 -c 06`。
 
 ## 已知 Bug 检测
 

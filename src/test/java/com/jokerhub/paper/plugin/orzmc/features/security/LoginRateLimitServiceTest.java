@@ -127,4 +127,22 @@ class LoginRateLimitServiceTest {
         assertFalse(svc.isRateLimited(IP));
         assertFalse(svc.isConcurrencyReached(IP));
     }
+
+    @Test
+    void sweepExpired_removesStaleIpBuckets() throws Exception {
+        AtomicLong now = new AtomicLong(0L);
+        LoginRateLimitService svc = service(defaultConfig(), now::get);
+        // IP 在 t=0 尝试一次，留下一个过期后无用的桶
+        assertFalse(svc.isRateLimited(IP));
+        // 推进 120s：IP 的窗口已过期，且超过清扫间隔
+        now.set(120_000L);
+        // 另一个 IP 触发惰性全表清扫
+        assertFalse(svc.isRateLimited("9.9.9.9"));
+
+        java.lang.reflect.Field f = LoginRateLimitService.class.getDeclaredField("attemptTimes");
+        f.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, ?> attempts = (java.util.Map<String, ?>) f.get(svc);
+        assertFalse(attempts.containsKey(IP), "过期 IP 桶应在清扫后移除，避免无界增长");
+    }
 }

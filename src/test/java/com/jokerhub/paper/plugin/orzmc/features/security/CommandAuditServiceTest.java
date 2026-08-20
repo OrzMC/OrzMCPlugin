@@ -30,6 +30,7 @@ class CommandAuditServiceTest {
                 new CommandAuditService(() -> true, tmpDir, CommandAuditService.DEFAULT_MAX_BYTES, logger());
         svc.record(CommandAuditService.SOURCE_GAME, "steve", "/tp a 0 64 0", false);
         svc.record(CommandAuditService.SOURCE_GAME, "alice", "/op bob", true);
+        svc.flush();
 
         List<String> lines = Files.readAllLines(logFile(tmpDir), StandardCharsets.UTF_8);
         assertEquals(2, lines.size());
@@ -51,6 +52,7 @@ class CommandAuditServiceTest {
         CommandAuditService svc =
                 new CommandAuditService(() -> true, tmpDir, CommandAuditService.DEFAULT_MAX_BYTES, logger());
         svc.record(CommandAuditService.SOURCE_GAME, "steve", "say a\nb", false);
+        svc.flush();
 
         List<String> lines = Files.readAllLines(logFile(tmpDir), StandardCharsets.UTF_8);
         assertEquals(1, lines.size());
@@ -64,6 +66,7 @@ class CommandAuditServiceTest {
         CommandAuditService svc = new CommandAuditService(() -> true, tmpDir, 10, logger());
         svc.record(CommandAuditService.SOURCE_GAME, "a", "first", false);
         svc.record(CommandAuditService.SOURCE_GAME, "b", "second", false);
+        svc.flush();
 
         // 当前文件只有最后一条；.1 备份含第一条
         List<String> current = Files.readAllLines(logFile(tmpDir), StandardCharsets.UTF_8);
@@ -93,6 +96,7 @@ class CommandAuditServiceTest {
         CommandAuditService on =
                 new CommandAuditService(() -> true, tmpDir, CommandAuditService.DEFAULT_MAX_BYTES, logger());
         on.record(CommandAuditService.SOURCE_GAME, "steve", "/say hi", false);
+        on.flush();
         assertTrue(Files.exists(logFile(tmpDir)));
         List<String> lines = Files.readAllLines(logFile(tmpDir), StandardCharsets.UTF_8);
         assertEquals(1, lines.size());
