@@ -246,11 +246,13 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 - 传送成功播放猫咕噜声
 
 ### 6.3 实体传送策略
-- 默认**允许**实体传送（`entity_teleport_enabled: true`），所有实体可正常传送，兼容原版行为（村民/动物过下界传送门等）
-- 设为 `entity_teleport_enabled: false` 后仅白名单内实体可传送，白名单项支持：
-  - 特殊键：`TAMEABLE`（已驯服动物）、`ENDERMAN`、`ARMOR_STAND`、`SHULKER`
+- 默认**限制**命令/插件触发的实体传送（`entity_teleport_enabled: false`），仅白名单内实体可被传送，防 `@e` 选择器误用把海量实体传送到虚空/岩浆造成地图灾难
+- **下界传送门穿越不受限制**（`EntityPortalEvent` 始终放行）：掉落物/矿车/船/任意生物照常过传送门
+- 白名单项支持：
+  - 特殊键：`TAMEABLE`（按接口判定，覆盖猫/狗/鹦鹉 + 全部马科）、`ENDERMAN`、`ARMOR_STAND`、`SHULKER`
   - 任意大写 `EntityType` 名（如 `VILLAGER`）
-- 默认白名单：`TAMEABLE` / `ENDERMAN` / `ARMOR_STAND` / `SHULKER`
+- 设为 `entity_teleport_enabled: true` 后所有实体均可被命令/插件传送
+- 默认白名单（16 项，仅被动/友好实体）：`TAMEABLE` / `ENDERMAN` / `ARMOR_STAND` / `SHULKER` / `VILLAGER` / `WANDERING_TRADER` / `COW` / `PIG` / `SHEEP` / `CHICKEN` / `RABBIT` / `GOAT` / `MOOSHROOM` / `AXOLOTL` / `BEE` / `IRON_GOLEM`
 
 ---
 

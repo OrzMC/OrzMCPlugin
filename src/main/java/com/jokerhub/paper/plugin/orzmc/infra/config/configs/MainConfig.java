@@ -20,6 +20,29 @@ public record MainConfig(
         List<String> entityTeleportWhitelist,
         Map<String, CommandPolicy> commandPolicies) {
 
+    /**
+     * 实体传送白名单兜底：与 config.yml 保持一致。只含常见被动/友好实体
+     * （村民/牲畜/友好水生/傀儡等），敌对生物不在内——防止 @e 选择器误用。
+     * TAMEABLE 按接口判定，已覆盖猫/狗/鹦鹉 + 全部马科，无需重复列出。
+     */
+    public static final List<String> DEFAULT_ENTITY_TELEPORT_WHITELIST = List.of(
+            "TAMEABLE",
+            "ENDERMAN",
+            "ARMOR_STAND",
+            "SHULKER",
+            "VILLAGER",
+            "WANDERING_TRADER",
+            "COW",
+            "PIG",
+            "SHEEP",
+            "CHICKEN",
+            "RABBIT",
+            "GOAT",
+            "MOOSHROOM",
+            "AXOLOTL",
+            "BEE",
+            "IRON_GOLEM");
+
     public static MainConfig from(ConfigurationSection cfg) {
         boolean forceWhitelist = cfg.getBoolean("force_whitelist", true);
         int whitelistCleanupInactiveDays = cfg.getInt("whitelist_cleanup_inactive_days", 90);
@@ -36,10 +59,10 @@ public record MainConfig(
                 if (o != null) allowCodes.add(String.valueOf(o));
             }
         }
-        boolean entityTeleportEnabled = cfg.getBoolean("entity_teleport_enabled", true);
+        boolean entityTeleportEnabled = cfg.getBoolean("entity_teleport_enabled", false);
         List<String> entityTeleportWhitelist = new ArrayList<>(cfg.getStringList("entity_teleport_whitelist"));
         if (entityTeleportWhitelist.isEmpty()) {
-            entityTeleportWhitelist.addAll(List.of("TAMEABLE", "ENDERMAN", "ARMOR_STAND", "SHULKER"));
+            entityTeleportWhitelist.addAll(DEFAULT_ENTITY_TELEPORT_WHITELIST);
         }
         Map<String, CommandPolicy> policies = new HashMap<>();
         Object rawCmds = cfg.get("commands");

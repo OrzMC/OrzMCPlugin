@@ -96,4 +96,25 @@ class ConfigServiceTest {
     void manager_returnsNonNull() {
         assertNotNull(configService.manager());
     }
+
+    @Test
+    void setup_backfillsMissingRankColorsKeys() {
+        // mock 插件无资源文件 → 磁盘配置为空，等价于旧版服务器升级（config.yml 缺新键）。
+        // setup() 的 getOrSetDefault 需把 rank_colors 全键（含 tab_enabled）回填进磁盘配置，
+        // 否则 /orzmc config get 显示 <null>（行为虽默认 true，但 UI 与 7 个兄弟键不一致）。
+        configService.setup();
+        org.bukkit.configuration.file.FileConfiguration cfg = configService.getConfig("config");
+        for (String path : java.util.List.of(
+                "rank_colors.enabled",
+                "rank_colors.nametag_enabled",
+                "rank_colors.tab_enabled",
+                "rank_colors.op_color",
+                "rank_colors.colors.admin",
+                "rank_colors.colors.builder",
+                "rank_colors.colors.member",
+                "rank_colors.colors.default")) {
+            assertTrue(cfg.contains(path), "缺键未回填: " + path);
+        }
+        assertTrue(cfg.getBoolean("rank_colors.tab_enabled"));
+    }
 }

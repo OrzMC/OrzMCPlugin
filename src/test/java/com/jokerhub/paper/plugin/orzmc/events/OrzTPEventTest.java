@@ -10,6 +10,7 @@ import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import java.util.logging.Logger;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Tameable;
+import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.EntityTeleportEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,20 @@ class OrzTPEventTest extends ServiceTestBase {
         listener.onEntityTeleport(event);
 
         verify(event, never()).setCancelled(anyBoolean());
+        verifyNoInteractions(server);
+    }
+
+    // ---- 2026-08-21 传送门穿越始终放行（防 @e 误用只拦命令/插件传送） ----
+
+    @Test
+    void onEntityTeleport_portalEvent_neverCancelled() {
+        Entity entity = mock(Entity.class); // 非白名单实体
+        EntityPortalEvent portalEvent = mock(EntityPortalEvent.class);
+        when(portalEvent.getEntity()).thenReturn(entity);
+
+        listener.onEntityTeleport(portalEvent);
+
+        verify(portalEvent, never()).setCancelled(anyBoolean());
         verifyNoInteractions(server);
     }
 }

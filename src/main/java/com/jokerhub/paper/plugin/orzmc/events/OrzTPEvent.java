@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.features.teleport.EntityTeleportPolicyService;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.EntityTeleportEvent;
 
 public class OrzTPEvent extends OrzBaseListener {
@@ -18,6 +19,11 @@ public class OrzTPEvent extends OrzBaseListener {
 
     @EventHandler
     public void onEntityTeleport(EntityTeleportEvent event) {
+        // 下界传送门穿越（EntityPortalEvent/EntityPortalExitEvent，后者是前者子类）
+        // 始终放行：本策略只限制命令/插件触发的传送，避免掉落物/矿车/船/生物过门被误拦。
+        if (event instanceof EntityPortalEvent) {
+            return;
+        }
         if (!policyService.shouldCancel(event.getEntity())) {
             return;
         }

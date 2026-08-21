@@ -87,6 +87,15 @@ public final class ConfigPath {
         reg(map, "templates", "templates.coord.scale", Double.class, 1.0, "坐标缩放比例");
         reg(map, "templates", "templates.coord.precision", Integer.class, 2, "坐标小数位数");
         reg(map, "templates", "templates.coord.unit_label", String.class, "block", "坐标单位标签");
+        // rank_colors (config.yml)
+        reg(map, "config", "rank_colors.enabled", Boolean.class, true, "玩家名颜色总开关");
+        reg(map, "config", "rank_colors.nametag_enabled", Boolean.class, true, "头顶名牌着色开关");
+        reg(map, "config", "rank_colors.tab_enabled", Boolean.class, true, "Tab列表着色开关");
+        reg(map, "config", "rank_colors.op_color", String.class, "gold", "OP 玩家名颜色(命名色)");
+        reg(map, "config", "rank_colors.colors.admin", String.class, "red", "管理员名颜色(命名色)");
+        reg(map, "config", "rank_colors.colors.builder", String.class, "green", "建造者名颜色(命名色)");
+        reg(map, "config", "rank_colors.colors.member", String.class, "aqua", "成员名颜色(命名色)");
+        reg(map, "config", "rank_colors.colors.default", String.class, "gray", "访客名颜色(命名色)");
         return Collections.unmodifiableMap(map);
     }
 

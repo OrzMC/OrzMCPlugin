@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.0.23] - 2026-08-21
+
+### ✨ 新功能
+- **Tab 着色独立开关 `rank_colors.tab_enabled`（#221）** — 与 `nametag_enabled` 对等，单独控制 Tab 列表是否权限着色：
+  - `tab_enabled: true`（默认）：Tab 名按等级/OP 着色，与头顶/聊天三处统一
+  - `tab_enabled: false`：Tab 名 `playerListName` 置空，恢复服务器原计分板队伍/vanilla 渲染（**team 前缀 + 真实名**），仅头顶+聊天着色
+  - **总开关 `enabled: false` 同样置空**：三处着色全停，Tab 一并恢复服务器原显示策略
+  - `/orzmc config set/reset rank_colors.*` 改动后经调度线程立即对所有在线玩家热生效（消除原最长 ~60s 周期自愈延迟）
+  - 旧服升级自动回填 `rank_colors.tab_enabled` 键（`/orzmc config get` 不再显示 `<null>`）
+
+### ⚠️ 升级注意
+- `rank_colors.tab_enabled` 默认 `true`（行为与 1.0.22 一致，Tab 继续着色）。若希望 Tab 恢复服务器原 team 前缀显示，设 `rank_colors.tab_enabled: false`。
+- **已知固有交互**：`tab_enabled: false` 且 `nametag_enabled: true` 时，玩家仍处于 orzmc 计分板队伍（头顶着色所需），Tab 回退渲染会沿用该队伍 rank 色——计分板 team 机制决定，无法避免；三处全关或仅聊天着色请设 `nametag_enabled: false` 一并恢复。
+- **昵称取舍**：置空后 Tab 显示真实名 + 原 team 前缀，EssentialsX `/nick` 昵称不再体现在 Tab（头顶名牌/聊天仍保留昵称）。
+
+---
+
+## [1.0.22] - 2026-08-21
+
+### ✨ 新功能
+- **权限等级玩家名颜色（#219）** — 按 LuckPerms track 四级权限（default→member→builder→admin）在头顶名牌/聊天/Tab 三处统一按等级着色，纯颜色不加前缀，玩家可一眼识别他人权限等级：
+  - 头顶名牌：计分板 `orzmc-<组>` 队伍色（16 命名色，`#RRGGBB` 自动吸附最近命名色）；聊天：`AsyncChatEvent` LOWEST 设渲染器；Tab：`playerListName` 用 displayName 纯文本（保留 EssentialsX `/nick` 昵称）
+  - **OP 独立体系优先**：`isOp()` 显示 `op_color`（默认金）归 `orzmc-op` 专属队伍，与等级组无关，防同组非 OP 串色
+  - **冲突感知**：只管理 `orzmc-*` 队伍；外部插件已占用玩家名牌队伍即让位（聊天+Tab 照常），绝不碰任何队伍 prefix/suffix
+  - **EssentialsX 兼容**：聊天/Tab 保留 `/nick` 昵称；聊天渲染器 LOWEST 设置 → EssentialsChat 等格式化插件更高优先级覆盖即让位，rank 色保留在 Tab+头顶
+  - **实时刷新**：LuckPerms UserTrackEvent → 等级变更即时变色；60s 周期自愈兜底（覆盖手动 `lp user X parent set` 等不触发事件的操作）
+  - **Folia 线程安全**：计分板/Tab 全部经 global 调度器；聊天异步线程只读 LP 在线缓存零阻塞；LP 缺失时全员 default 灰
+  - 配置新增 `rank_colors` 段（幂等迁移，`/config reload` 热生效 + `/orzmc config set rank_colors.*` 热调）
+
+### ⚠️ 升级注意
+- `rank_colors` 默认启用：升级后首次启动自动写入默认段（不改已有配置），装上即按等级着色；不想启用请设 `rank_colors.enabled: false`。无 LuckPerms 的服务器全员显示 default 灰（OrzMC rank 体系本就依赖 LP）
+
+---
+
+## [1.0.21] - 2026-08-21
+
+### 🐛 修复
+- **实体传送策略默认收紧 + 下界传送门放行（#218）** — `entity_teleport_enabled` 默认由 `true` 反转为 `false`（防 `@e` 选择器误用把海量实体传送到虚空/岩浆造成地图灾难）；白名单扩充覆盖常见被动/友好实体（村民/牲畜/友好水生/傀儡，TAMEABLE 按接口判定覆盖猫狗鹦鹉+全部马科）；下界传送门穿越（EntityPortalEvent）**始终放行**，不受开关影响（掉落物/矿车/船/生物照常过门），策略只作用于命令/插件触发的传送
+
+### ⚠️ 升级注意
+- ⚠️ **`entity_teleport_enabled` 新默认值只对新装服生效**：存量 config.yml 已写入旧值 `true` 会保留（代码不覆盖已有配置）。如需收紧请在 config.yml 手动改为 `false`，**并补全白名单**（存量白名单仅 4 项，需手动追加 VILLAGER/COW/PIG 等新默认项，否则这些实体命令传送会被拦截）
+
+---
+
+## [1.0.20] - 2026-08-20
+
+### 🐛 修复
+- **备份/优化 input 改回世界根目录（#217）** — 26.1+ 布局下 `World#getWorldFolder()`/`getWorldPath()` 返回的是维度数据目录（`world/dimensions/minecraft/overworld`）而非世界根，直接用作 input 会漏备 level.dat/players/世界级 data/下界/末地（#215 回归）——改回 `getWorldContainer()` + server.properties `level-name` 定位世界根；backup/ 与它兄弟路径，天然满足 backup-core 0.3.x 的 input/output 不重叠校验
+
+---
+
 ## [1.0.19] - 2026-08-20
 
 ### 🐛 修复

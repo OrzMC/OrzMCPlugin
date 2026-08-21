@@ -277,6 +277,66 @@ class OrzConfigCommandTest {
         assertEquals(1, reloads.get());
     }
 
+    @Test
+    void set_rankColorPath_notifiesRankColorsReload() {
+        when(configService.saveConfig("config")).thenReturn(true);
+        when(configService.reloadConfig("config")).thenReturn(true);
+        AtomicInteger rankReloads = new AtomicInteger();
+        cmd.setRankColorsReload(rankReloads::incrementAndGet);
+
+        cmd.onCommand(sender, command, "orzmc", new String[] {"set", "rank_colors.tab_enabled", "false"});
+
+        assertEquals(1, rankReloads.get());
+    }
+
+    @Test
+    void set_nonRankColorPath_doesNotNotifyRankColors() {
+        when(configService.saveConfig("config")).thenReturn(true);
+        when(configService.reloadConfig("config")).thenReturn(true);
+        AtomicInteger rankReloads = new AtomicInteger();
+        cmd.setRankColorsReload(rankReloads::incrementAndGet);
+
+        cmd.onCommand(sender, command, "orzmc", new String[] {"set", "tnt.enable", "false"});
+
+        assertEquals(0, rankReloads.get());
+    }
+
+    @Test
+    void reset_rankColorPath_notifiesRankColorsReload() {
+        when(configService.saveConfig("config")).thenReturn(true);
+        when(configService.reloadConfig("config")).thenReturn(true);
+        AtomicInteger rankReloads = new AtomicInteger();
+        cmd.setRankColorsReload(rankReloads::incrementAndGet);
+
+        cmd.onCommand(sender, command, "orzmc", new String[] {"reset", "rank_colors.tab_enabled"});
+
+        assertEquals(1, rankReloads.get());
+    }
+
+    @Test
+    void reload_config_notifiesRankColorsReload() {
+        when(configService.reloadConfig("config")).thenReturn(true);
+        AtomicInteger rankReloads = new AtomicInteger();
+        cmd.setRankColorsReload(rankReloads::incrementAndGet);
+
+        cmd.onCommand(sender, command, "orzmc", new String[] {"reload", "config"});
+
+        assertEquals(1, rankReloads.get());
+    }
+
+    @Test
+    void reload_all_notifiesBothEasyBotAndRankColors() {
+        AtomicInteger easyBotReloads = new AtomicInteger();
+        AtomicInteger rankReloads = new AtomicInteger();
+        OrzConfigCommand both = new OrzConfigCommand(configService, textStyles, easyBotReloads::incrementAndGet);
+        both.setRankColorsReload(rankReloads::incrementAndGet);
+
+        both.onCommand(sender, command, "orzmc", new String[] {"reload"});
+
+        assertEquals(1, easyBotReloads.get());
+        assertEquals(1, rankReloads.get());
+    }
+
     // ---------------------------------------------------------------
     // parseValue
     // ---------------------------------------------------------------

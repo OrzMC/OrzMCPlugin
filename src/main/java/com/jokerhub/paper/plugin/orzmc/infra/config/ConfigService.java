@@ -38,6 +38,16 @@ public final class ConfigService {
         configManager.checkAndUpdateConfigVersion("config", 2.0);
         configManager.checkAndUpdateConfigVersion("templates", 2.0);
 
+        // 玩家名颜色（按权限等级）：仅缺失键写入默认值，不覆盖管理员修改（幂等）
+        configManager.getOrSetDefault("config", "rank_colors.enabled", true);
+        configManager.getOrSetDefault("config", "rank_colors.nametag_enabled", true);
+        configManager.getOrSetDefault("config", "rank_colors.tab_enabled", true);
+        configManager.getOrSetDefault("config", "rank_colors.op_color", "gold");
+        configManager.getOrSetDefault("config", "rank_colors.colors.admin", "red");
+        configManager.getOrSetDefault("config", "rank_colors.colors.builder", "green");
+        configManager.getOrSetDefault("config", "rank_colors.colors.member", "aqua");
+        configManager.getOrSetDefault("config", "rank_colors.colors.default", "gray");
+
         List<String> issues = ConfigHealthCheck.validateAll(configManager);
         if (!issues.isEmpty()) {
             plugin.getLogger().warning("配置健康检查发现问题:");

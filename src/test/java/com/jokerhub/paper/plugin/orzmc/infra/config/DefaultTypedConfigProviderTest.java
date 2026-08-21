@@ -62,6 +62,16 @@ class DefaultTypedConfigProviderTest {
     }
 
     @Test
+    void rankColors_returnsConfigWithDefaultsWhenSectionMissing() {
+        // sectionOrLegacy 未 stub → null → RankColorsConfig.from(null) 返回默认
+        com.jokerhub.paper.plugin.orzmc.infra.config.configs.RankColorsConfig result = provider.rankColors();
+        assertNotNull(result);
+        assertTrue(result.enabled());
+        assertTrue(result.nametagEnabled());
+        assertEquals(net.kyori.adventure.text.format.NamedTextColor.GOLD, result.opColor());
+    }
+
+    @Test
     void renderEvent_returnsMessageEnvelope() {
         when(configService.getConfig("templates")).thenReturn(templatesConfig);
         com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope result =

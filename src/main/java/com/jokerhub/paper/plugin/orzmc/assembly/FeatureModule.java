@@ -95,6 +95,10 @@ public final class FeatureModule implements ServiceModule {
     private final com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService rankCommandService;
     private final com.jokerhub.paper.plugin.orzmc.features.review.ReviewService reviewService;
     private final com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService reviewCommandService;
+    /** 玩家名颜色服务（按权限等级：头顶/聊天/Tab 三处着色）。 */
+    private final com.jokerhub.paper.plugin.orzmc.features.rank.PlayerRankDisplayService rankDisplayService;
+    /** 等级变更 → 颜色实时刷新桥（LP 启用时非 null，软依赖条件实例化）。 */
+    private final com.jokerhub.paper.plugin.orzmc.features.rank.RankDisplayLpBridge rankDisplayLpBridge;
 
     // 模块引用（供事件/命令注册使用）
     private final PlatformModule platform;
@@ -197,6 +201,17 @@ public final class FeatureModule implements ServiceModule {
                 rankService, reviewService, platform.textStyles());
         this.reviewCommandService = new com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService(
                 reviewService, platform.textStyles());
+        // 玩家名颜色（按权限等级）：rankService 创建后装配；LP 启用时桥接等级变更实时刷新。
+        // 三元短路：仅 LP 启用时才求值 LuckPermsProvider.get()，LP 缺失时 rankDisplayLpBridge 为 null
+        this.rankDisplayService = new com.jokerhub.paper.plugin.orzmc.features.rank.PlayerRankDisplayService(
+                platform.serverFacade(), rankService, () -> platform.configs().rankColors());
+        this.rankDisplayLpBridge = rankPromoter.isAvailable()
+                ? new com.jokerhub.paper.plugin.orzmc.features.rank.RankDisplayLpBridge(
+                        platform.serverFacade().plugin(),
+                        platform.serverFacade(),
+                        net.luckperms.api.LuckPermsProvider.get(),
+                        rankDisplayService)
+                : null;
 
         // 保留模块引用（供事件/命令注册使用）
         this.platform = platform;
@@ -270,9 +285,16 @@ public final class FeatureModule implements ServiceModule {
             new OrzWhiteListEvent(plugin, whitelistEventService),
             new OrzDebugEvent(plugin, botModule.botInboundHandler()),
             new OrzPortalEvent(plugin, portalEventService),
-            new com.jokerhub.paper.plugin.orzmc.events.OrzRankEvent(plugin, rankService)
+            new com.jokerhub.paper.plugin.orzmc.events.OrzRankEvent(plugin, rankService),
+            new com.jokerhub.paper.plugin.orzmc.events.OrzRankDisplayEvent(plugin, rankDisplayService)
         };
         EventBinder.bind(plugin, Arrays.asList(eventListeners));
+        // 周期自愈：约 60s 重刷一次在线玩家颜色（兜底 Paper 头顶名刷新遗漏 + 配置改动兜底生效）
+        rankDisplayService.startPeriodicRefresh();
+        // rank_colors.* 运行时改动（/orzmc config set/reset/reload）→ 立即重刷在线玩家，消除最长 ~60s 生效延迟；
+        // 命令线程 → 调度线程（Folia 区域线程安全，PlayerRankDisplayService 的 applyTo 必须在调度线程执行）
+        orzConfigCommand.setRankColorsReload(
+                () -> platform.serverFacade().runSync(rankDisplayService::refreshAllOnline));
     }
 
     // --- Command Registration ---
@@ -311,6 +333,11 @@ public final class FeatureModule implements ServiceModule {
 
     public com.jokerhub.paper.plugin.orzmc.features.rank.RankService rankService() {
         return rankService;
+    }
+
+    /** 玩家名颜色服务（按权限等级三处着色，跨模块引用用）。 */
+    public com.jokerhub.paper.plugin.orzmc.features.rank.PlayerRankDisplayService rankDisplayService() {
+        return rankDisplayService;
     }
 
     /** 在线列表格式化器（单一事实源，$l/$w 命令与上下线广播共享）。 */

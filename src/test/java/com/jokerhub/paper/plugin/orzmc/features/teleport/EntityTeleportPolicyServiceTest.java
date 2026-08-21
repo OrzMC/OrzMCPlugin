@@ -73,4 +73,45 @@ class EntityTeleportPolicyServiceTest extends ServiceTestBase {
         when(villager.getType()).thenReturn(EntityType.VILLAGER);
         assertTrue(service.shouldCancel(villager));
     }
+
+    // ---- 2026-08-21 默认值反转为受限模式：默认白名单覆盖常见被动/友好实体 ----
+
+    @Test
+    void shouldCancel_defaultWhitelist_commonPassiveMobsExempt() {
+        List<EntityType> common = List.of(
+                EntityType.VILLAGER,
+                EntityType.WANDERING_TRADER,
+                EntityType.COW,
+                EntityType.PIG,
+                EntityType.SHEEP,
+                EntityType.CHICKEN,
+                EntityType.RABBIT,
+                EntityType.GOAT,
+                EntityType.MOOSHROOM,
+                EntityType.AXOLOTL,
+                EntityType.BEE,
+                EntityType.IRON_GOLEM);
+        for (EntityType type : common) {
+            Entity entity = mock(Entity.class);
+            when(entity.getType()).thenReturn(type);
+            assertFalse(service.shouldCancel(entity), type + " 应在默认白名单内豁免传送");
+        }
+    }
+
+    @Test
+    void shouldCancel_defaultWhitelist_tameableFamilyExemptEvenNotListed() {
+        // TAMEABLE 按接口判定（AbstractHorse / Cat / Wolf 均实现 Tameable）：
+        // 马科与猫狗即使未逐项列出，也已被默认白名单覆盖，无需在配置中重复列出
+        assertFalse(service.shouldCancel(mock(Horse.class)));
+        assertFalse(service.shouldCancel(mock(Donkey.class)));
+        assertFalse(service.shouldCancel(mock(Cat.class)));
+        assertFalse(service.shouldCancel(mock(Wolf.class)));
+    }
+
+    @Test
+    void shouldCancel_defaultWhitelist_hostileMobStillCancelled() {
+        Entity zombie = mock(Entity.class);
+        when(zombie.getType()).thenReturn(EntityType.ZOMBIE);
+        assertTrue(service.shouldCancel(zombie));
+    }
 }

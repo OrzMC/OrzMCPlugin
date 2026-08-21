@@ -86,16 +86,31 @@ player_notify:
 # ==================================================
 #              实体传送策略（2026-08-09）
 # ==================================================
-# 实体传送开关：true = 允许所有实体正常传送（默认，兼容原版行为，
-# 如村民/动物过下界传送门）。false = 仅白名单内实体可传送：
+# 实体传送开关：true = 允许命令/插件传送所有实体。
+# false = 仅白名单内实体可被命令/插件传送（默认，防 @e 选择器误用把海量实体传送到虚空/岩浆造成地图灾难）。
+# 下界传送门穿越（EntityPortalEvent）始终放行，不受此开关影响（掉落物/矿车/船/生物照常过门）。
 #   - 白名单项：大写 EntityType 名（如 VILLAGER），或特殊键
 #     TAMEABLE / ENDERMAN / ARMOR_STAND / SHULKER
-entity_teleport_enabled: true
+#   - TAMEABLE 按接口判定，已覆盖猫/狗/鹦鹉 + 全部马科（马/驴/骡/羊驼/骆驼），无需重复列出
+#   - 白名单默认只含常见被动/友好实体（村民/牲畜/友好水生/傀儡等），敌对生物不在内
+entity_teleport_enabled: false
 entity_teleport_whitelist:
   - TAMEABLE
   - ENDERMAN
   - ARMOR_STAND
   - SHULKER
+  - VILLAGER
+  - WANDERING_TRADER
+  - COW
+  - PIG
+  - SHEEP
+  - CHICKEN
+  - RABBIT
+  - GOAT
+  - MOOSHROOM
+  - AXOLOTL
+  - BEE
+  - IRON_GOLEM
 
 # ==================================================
 #              命令策略
@@ -203,3 +218,30 @@ exploit_hardening:
   notify_admins: true
   # 命中时的提示文案
   message: "检测到异常内容，已自动处理"
+
+# ==================================================
+#             玩家名颜色（按权限等级，2026-08-21）
+# ==================================================
+# 三个界面生效：头顶名（计分板队伍颜色）、聊天、Tab 列表。
+# 纯颜色区分等级，不加前缀文字。OP 与四级权限独立：是 OP 优先显示 op_color，
+# 非 OP 才显示所属等级组颜色（colors）。计分板队伍颜色协议仅 16 个命名色，
+# 保证三处一致统一用命名色；也可填 #RRGGBB，自动吸附最近命名色。
+#
+# EssentialsX 兼容：聊天/Tab 名字用玩家 displayName（保留 /nick 昵称）再强制 rank 色；
+# 头顶名牌受计分板限制只能用真实名着色。若存在其它聊天格式化插件（如 EssentialsChat），
+# 聊天颜色自动让位给该插件，rank 色仍体现在 Tab + 头顶名牌。
+rank_colors:
+  # 总开关：关闭后三处着色全部停用（Tab 名置空，恢复服务器原计分板队伍/vanilla 渲染，保留 team 前缀）
+  enabled: true
+  # 头顶名牌着色开关：关闭后仅聊天+Tab 着色（避让占用计分板队伍的其它插件时可关）
+  nametag_enabled: true
+  # Tab 列表着色开关：关闭后仅头顶+聊天着色（Tab 名置空，恢复服务器原计分板队伍/vanilla 渲染，保留 team 前缀）
+  tab_enabled: true
+  # OP 专用色（玩家 isOp 即显示此色，与等级组无关；优先级最高）
+  op_color: "gold"
+  # 四级权限组 → 命名色（非 OP 玩家按所属组显示）
+  colors:
+    admin: "red"
+    builder: "green"
+    member: "aqua"
+    default: "gray"

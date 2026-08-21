@@ -9,6 +9,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.LoginRateLimitConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PlayerNotifyConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.RankColorsConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
@@ -101,6 +102,12 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
     public ExploitHardeningConfig exploitHardening() {
         ConfigurationSection section = sectionOrLegacy("config", "exploit_hardening", "exploit_hardening.yml");
         return ExploitHardeningConfig.from(section);
+    }
+
+    @Override
+    public RankColorsConfig rankColors() {
+        ConfigurationSection section = sectionOrLegacy("config", "rank_colors", "rank_colors.yml");
+        return RankColorsConfig.from(section);
     }
 
     @Override

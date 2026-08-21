@@ -28,6 +28,7 @@ public class OrzConfigCommand implements CommandExecutor {
     private final OrzTextStyles textStyles;
     private final Map<String, ConfigPath> registry;
     private final Runnable easyBotConfigReload;
+    private Runnable rankColorsReload = () -> {};
 
     public OrzConfigCommand(ConfigService configService, OrzTextStyles textStyles) {
         this(configService, textStyles, () -> {});
@@ -38,6 +39,14 @@ public class OrzConfigCommand implements CommandExecutor {
         this.textStyles = textStyles;
         this.registry = ConfigPath.all();
         this.easyBotConfigReload = easyBotConfigReload == null ? () -> {} : easyBotConfigReload;
+    }
+
+    /**
+     * 注册 rank_colors.* 配置改动后的回调（组合根注入：{@code /orzmc config} 改完即重刷在线玩家，
+     * 消除最长 ~60s 周期自愈才生效的延迟）。回调需自行保证在调度线程执行。
+     */
+    public void setRankColorsReload(Runnable rankColorsReload) {
+        this.rankColorsReload = rankColorsReload == null ? () -> {} : rankColorsReload;
     }
 
     @Override
@@ -145,7 +154,7 @@ public class OrzConfigCommand implements CommandExecutor {
             cfg.set(cp.path(), parsed);
             configService.saveConfig(cp.configName());
             configService.reloadConfig(cp.configName());
-            notifyEasyBotReload(cp.configName());
+            notifyConfigReload(cp);
             sender.sendMessage(textStyles.success("已设置: " + key + " = " + formatValue(parsed)));
         } catch (NumberFormatException e) {
             sender.sendMessage(textStyles.error("类型错误: " + key + " 需为 " + typeDisplay(cp.type()) + "，输入值无法解析"));
@@ -173,14 +182,14 @@ public class OrzConfigCommand implements CommandExecutor {
         cfg.set(cp.path(), cp.defaultValue());
         configService.saveConfig(cp.configName());
         configService.reloadConfig(cp.configName());
-        notifyEasyBotReload(cp.configName());
+        notifyConfigReload(cp);
         sender.sendMessage(textStyles.success("已恢复默认: " + key + " = " + formatValue(cp.defaultValue())));
     }
 
     private void handleReload(CommandSender sender, String[] args) {
         if (args.length >= 2) {
             if (configService.reloadConfig(args[1])) {
-                notifyEasyBotReload(args[1]);
+                notifyConfigNameReload(args[1]);
                 sender.sendMessage(textStyles.success("配置文件 " + args[1] + " 已重新加载"));
             } else {
                 sender.sendMessage(textStyles.error("配置文件 " + args[1] + " 不存在"));
@@ -188,13 +197,26 @@ public class OrzConfigCommand implements CommandExecutor {
         } else {
             configService.reloadAll();
             easyBotConfigReload.run();
+            rankColorsReload.run();
             sender.sendMessage(textStyles.success("所有配置文件已重新加载"));
         }
     }
 
-    private void notifyEasyBotReload(String configName) {
+    /** 按配置路径派发改动后回调：easybot → 连接协调；rank_colors.* → 重刷在线玩家着色。 */
+    private void notifyConfigReload(ConfigPath cp) {
+        if ("easybot".equalsIgnoreCase(cp.configName())) {
+            easyBotConfigReload.run();
+        } else if (cp.path().startsWith("rank_colors.")) {
+            rankColorsReload.run();
+        }
+    }
+
+    /** 按配置文件名派发改动后回调：easybot → 连接协调；config.yml（含 rank_colors）→ 重刷在线玩家着色。 */
+    private void notifyConfigNameReload(String configName) {
         if ("easybot".equalsIgnoreCase(configName)) {
             easyBotConfigReload.run();
+        } else if ("config".equalsIgnoreCase(configName)) {
+            rankColorsReload.run();
         }
     }
 
