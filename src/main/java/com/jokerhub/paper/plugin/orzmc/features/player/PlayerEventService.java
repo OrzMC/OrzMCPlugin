@@ -18,6 +18,13 @@ public final class PlayerEventService {
 
     private static final String GEOIP_ALERT_THROTTLE_KEY = "geoip_exception_alert";
 
+    /** geoip_block 群消息限频：GeoIP 故障期 fail-close 拒绝随客户端自动重连高频触发，
+     * 不限频会重复打爆玩家群（对照 whitelist_block 曾 48 次打爆 QQ 频控 40034100 的事故）。
+     * event.disallow 不受限频，拦截始终执行。 */
+    private static final long GEOIP_BLOCK_THROTTLE_MS = 5000L;
+
+    private static final String GEOIP_BLOCK_THROTTLE_KEY = "geoip_block_group_notify";
+
     private final ServerFacade server;
     private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
@@ -48,11 +55,32 @@ public final class PlayerEventService {
 
     public void handleGeoIpDecision(
             AsyncPlayerPreLoginEvent event, String playerName, String ipAddress, GeoIpAccessService.Decision decision) {
+        // 上游查询失败/无法定位国家码 → 无论放行还是拒绝都告警管理员（区分放行/拒绝措辞）
+        if (decision.lookupFailed()) {
+            handleGeoIpLookupFailure(playerName, ipAddress, decision.allowed() ? "已放行（fail-open）" : "已拒绝（fail-close）");
+        }
         if (decision.allowed()) {
-            // fail-open 放行；若因上游查询失败放行，仍私信告警管理员（不入玩家群）
-            if (decision.lookupFailed()) {
-                handleGeoIpLookupFailure(playerName, ipAddress);
-            }
+            return;
+        }
+        if (decision.lookupFailed()) {
+            // fail-close 拒绝：无法验证地区，区别于「地区不在白名单」的确定性拦截
+            MessageEnvelope envelope = configs.renderEvent(
+                    "geoip_block",
+                    java.util.Map.of(
+                            "name",
+                            playerName,
+                            "ip",
+                            ipAddress,
+                            "country_code",
+                            "",
+                            "allow_list",
+                            String.join(",", decision.allowList()),
+                            "address_info",
+                            ""));
+            notifyGeoIpBlock(envelope);
+            event.disallow(
+                    AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                    styles.error(playerName + "(" + ipAddress + ")\n无法验证IP所属地区（GeoIP 服务异常）"));
             return;
         }
         java.util.Map<String, String> vars = new java.util.HashMap<>();
@@ -62,7 +90,7 @@ public final class PlayerEventService {
         vars.put("allow_list", String.join(",", decision.allowList()));
         vars.put("address_info", formatAddressInfo(decision.rawJson()));
         MessageEnvelope envelope = configs.renderEvent("geoip_block", vars);
-        notifier.event("geoip_block", envelope);
+        notifyGeoIpBlock(envelope);
         event.disallow(
                 AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                 styles.error(playerName + "(" + ipAddress + ")" + "\n" + decision.countryCode() + "\n" + "IP位置不在服务支持区域"
@@ -92,7 +120,8 @@ public final class PlayerEventService {
      * 阻塞等待 GeoIP 决策结果并据此放行/拦截。
      *
      * <p>在异步的 AsyncPlayerPreLoginEvent 处理器内调用：只阻塞当前 netty 线程，
-     * 不会阻塞主线程。超时未取到结果或查询异常均 fail-open 放行，但告警到日志与群。</p>
+     * 不会阻塞主线程。超时/中断/异常按 {@code geoip.fail_open} 策略处理（默认 fail-close
+     * 拒绝进入，可配置 fail-open 放行），两种情况都告警到日志与群。</p>
      *
      * @param decisionFuture GeoIP 查询的异步结果
      * @param timeoutMs 阻塞等待上限，超过则按超时处理
@@ -108,13 +137,22 @@ public final class PlayerEventService {
             decision = decisionFuture.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
             handleGeoIpTimeout(playerName, ipAddress, timeoutMs);
+            if (!failOpen()) {
+                denyGeoIpUnverifiable(event, playerName, ipAddress);
+            }
             return;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             handleGeoIpException(e);
+            if (!failOpen()) {
+                denyGeoIpUnverifiable(event, playerName, ipAddress);
+            }
             return;
         } catch (Exception e) {
             handleGeoIpException(e);
+            if (!failOpen()) {
+                denyGeoIpUnverifiable(event, playerName, ipAddress);
+            }
             return;
         }
         handleGeoIpDecision(event, playerName, ipAddress, decision);
@@ -122,17 +160,53 @@ public final class PlayerEventService {
 
     public void handleGeoIpTimeout(String playerName, String ipAddress, long timeoutMs) {
         sendGeoIpAlert(
-                "IP地址解析超时(" + timeoutMs + "ms)，已放行: " + playerName + "(" + ipAddress + ")", "geoip lookup timeout");
+                "IP地址解析超时(" + timeoutMs + "ms)，" + (failOpen() ? "已放行" : "已拒绝") + ": " + playerName + "(" + ipAddress
+                        + ")",
+                "geoip lookup timeout");
     }
 
     /**
-     * GeoIP 上游查询失败（非超时）但 fail-open 放行时调用：告警到日志与管理员私信。
+     * GeoIP 上游查询失败（非超时）时调用：告警到日志与管理员私信。
      *
-     * <p>经 {@link com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier} 路由为
+     * <p>{@code outcome} 为放行/拒绝说明（如 {@code 已放行（fail-open）}）；经
+     * {@link com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier} 路由为
      * {@code exception_alert}（PRIVATE → 各平台 admin_dm），不会发到玩家群。</p>
      */
-    public void handleGeoIpLookupFailure(String playerName, String ipAddress) {
-        sendGeoIpAlert("IP地址解析服务异常，已放行: " + playerName + "(" + ipAddress + ")", "geoip lookup failed");
+    public void handleGeoIpLookupFailure(String playerName, String ipAddress, String outcome) {
+        sendGeoIpAlert("IP地址解析服务异常，" + outcome + ": " + playerName + "(" + ipAddress + ")", "geoip lookup failed");
+    }
+
+    /** fail-close 拦截：GeoIP 无法验证地区（超时/中断/查询失败）时拒绝进入并渲染 geoip_block。 */
+    private void denyGeoIpUnverifiable(AsyncPlayerPreLoginEvent event, String playerName, String ipAddress) {
+        MessageEnvelope envelope = configs.renderEvent(
+                "geoip_block",
+                java.util.Map.of(
+                        "name",
+                        playerName,
+                        "ip",
+                        ipAddress,
+                        "country_code",
+                        "",
+                        "allow_list",
+                        String.join(",", configs.ipWhitelist().allowCountryCode()),
+                        "address_info",
+                        ""));
+        notifyGeoIpBlock(envelope);
+        event.disallow(
+                AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                styles.error(playerName + "(" + ipAddress + ")\n无法验证IP所属地区（GeoIP 服务异常）"));
+    }
+
+    /** geoip_block 群消息限频发送（含玩家 IP 与白名单，不适合高频刷群）。 */
+    private void notifyGeoIpBlock(MessageEnvelope env) {
+        if (throttledNotifier.shouldRun(GEOIP_BLOCK_THROTTLE_KEY, GEOIP_BLOCK_THROTTLE_MS)) {
+            notifier.event("geoip_block", env);
+        }
+    }
+
+    /** {@code geoip.fail_open} 配置（默认 {@code false} = fail-close，安全优先）。 */
+    private boolean failOpen() {
+        return configs.ipWhitelist().failOpen();
     }
 
     /** 统一的 GeoIP 异常告警：写日志并路由 {@code exception_alert}（PRIVATE → 管理员私信）。 */

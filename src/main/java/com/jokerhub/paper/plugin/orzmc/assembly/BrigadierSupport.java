@@ -11,6 +11,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
 
@@ -60,15 +61,26 @@ final class BrigadierSupport {
         };
     }
 
-    /** Build interceptors for regular commands from config policies. */
-    static List<CommandInterceptor> commandInterceptors(String name, CommandPolicies cp, boolean skipPlayerOnly) {
-        CommandPolicy p = cp.policies().getOrDefault(name, new CommandPolicy(0, false));
+    /** 惰性取指定命令的策略：未配置时回退到「无冷却 + 非 adminOnly」默认。 */
+    static Supplier<CommandPolicy> policyFor(String name, Supplier<CommandPolicies> cpSupplier) {
+        return () -> cpSupplier.get().policies().getOrDefault(name, new CommandPolicy(0, false));
+    }
+
+    /**
+     * Build interceptors for regular commands from config policies.
+     *
+     * <p>策略以 {@link Supplier} 注入：AdminOnly/Cooldown 拦截器每次判断都重新读取
+     * {@code command_policies}，{@code /orzmc config set} 改动即时生效（无需重启或 reload）。</p>
+     */
+    static List<CommandInterceptor> commandInterceptors(
+            String name, Supplier<CommandPolicies> cpSupplier, boolean skipPlayerOnly) {
+        Supplier<CommandPolicy> policy = policyFor(name, cpSupplier);
         List<CommandInterceptor> list = new ArrayList<>();
         if (!skipPlayerOnly) {
             list.add(new PlayerOnlyInterceptor());
         }
-        list.add(new AdminOnlyInterceptor(p.adminOnly()));
-        list.add(new CooldownInterceptor(name, Math.max(0, p.cooldownSeconds())));
+        list.add(new AdminOnlyInterceptor(policy));
+        list.add(new CooldownInterceptor(name, policy));
         return list;
     }
 

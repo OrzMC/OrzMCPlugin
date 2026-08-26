@@ -14,7 +14,7 @@ class PlayerNotifyConfigTest {
         assertTrue(config.enabledJoin());
         assertTrue(config.enabledQuit());
         assertTrue(config.enabledKick());
-        assertEquals(3000L, config.windowMs());
+        assertEquals(1000L, config.windowMs());
         assertEquals(6, config.maxListItems());
     }
 
@@ -24,26 +24,26 @@ class PlayerNotifyConfigTest {
         when(cfg.getBoolean("enabled_join", true)).thenReturn(true);
         when(cfg.getBoolean("enabled_quit", true)).thenReturn(true);
         when(cfg.getBoolean("enabled_kick", true)).thenReturn(true);
-        when(cfg.getLong("window_ms", 3000L)).thenReturn(3000L);
+        when(cfg.getLong("window_ms", 1000L)).thenReturn(1000L);
         when(cfg.getInt("max_list_items", 6)).thenReturn(6);
 
         PlayerNotifyConfig config = PlayerNotifyConfig.from(cfg);
         assertTrue(config.enabledJoin());
         assertTrue(config.enabledQuit());
         assertTrue(config.enabledKick());
-        assertEquals(3000L, config.windowMs());
+        assertEquals(1000L, config.windowMs());
         assertEquals(6, config.maxListItems());
     }
 
     @Test
     void fromSection_nonPositiveWindow_fallsBackToDefault() {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
-        when(cfg.getLong("window_ms", 3000L)).thenReturn(0L);
+        when(cfg.getLong("window_ms", 1000L)).thenReturn(0L);
 
         PlayerNotifyConfig config = PlayerNotifyConfig.from(cfg);
 
         // 0/负数窗口会让聚合退化为 1 tick → 静默关闭防刷屏，必须回退默认
-        assertEquals(3000L, config.windowMs());
+        assertEquals(1000L, config.windowMs());
     }
 
     @Test
@@ -62,7 +62,7 @@ class PlayerNotifyConfigTest {
         when(cfg.getBoolean("enabled_join", true)).thenReturn(false);
         when(cfg.getBoolean("enabled_quit", true)).thenReturn(false);
         when(cfg.getBoolean("enabled_kick", true)).thenReturn(false);
-        when(cfg.getLong("window_ms", 3000L)).thenReturn(5000L);
+        when(cfg.getLong("window_ms", 1000L)).thenReturn(5000L);
         when(cfg.getInt("max_list_items", 6)).thenReturn(10);
 
         PlayerNotifyConfig config = PlayerNotifyConfig.from(cfg);

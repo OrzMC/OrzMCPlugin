@@ -12,7 +12,7 @@ class ChatConfigTest {
     void fromNull_returnsDefaults() {
         ChatConfig config = ChatConfig.from(null);
         assertTrue(config.enabled());
-        assertEquals(6, config.maxMessagesPerMinute());
+        assertEquals(20, config.maxMessagesPerMinute());
         assertTrue(config.detectLinks());
         assertTrue(config.detectRepeat());
         assertEquals(ChatConfig.DEFAULT_MESSAGE, config.message());
@@ -22,14 +22,14 @@ class ChatConfigTest {
     void fromEmpty_returnsDefaults() {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(true);
-        when(cfg.getInt("max_messages_per_minute", 6)).thenReturn(6);
+        when(cfg.getInt("max_messages_per_minute", 20)).thenReturn(20);
         when(cfg.getBoolean("detect_links", true)).thenReturn(true);
         when(cfg.getBoolean("detect_repeat", true)).thenReturn(true);
         when(cfg.getString("message", ChatConfig.DEFAULT_MESSAGE)).thenReturn(null);
 
         ChatConfig config = ChatConfig.from(cfg);
         assertTrue(config.enabled());
-        assertEquals(6, config.maxMessagesPerMinute());
+        assertEquals(20, config.maxMessagesPerMinute());
         assertTrue(config.detectLinks());
         assertTrue(config.detectRepeat());
         assertEquals(ChatConfig.DEFAULT_MESSAGE, config.message());
@@ -39,7 +39,7 @@ class ChatConfigTest {
     void fromFullSection_returnsCorrectValues() {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(false);
-        when(cfg.getInt("max_messages_per_minute", 6)).thenReturn(3);
+        when(cfg.getInt("max_messages_per_minute", 20)).thenReturn(3);
         when(cfg.getBoolean("detect_links", true)).thenReturn(false);
         when(cfg.getBoolean("detect_repeat", true)).thenReturn(false);
         when(cfg.getString("message", ChatConfig.DEFAULT_MESSAGE)).thenReturn("自定义提示");
@@ -55,7 +55,7 @@ class ChatConfigTest {
     @Test
     void fromSection_clampsNonPositiveMaxToOne() {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
-        when(cfg.getInt("max_messages_per_minute", 6)).thenReturn(0);
+        when(cfg.getInt("max_messages_per_minute", 20)).thenReturn(0);
 
         ChatConfig config = ChatConfig.from(cfg);
         assertEquals(1, config.maxMessagesPerMinute());

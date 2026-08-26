@@ -93,8 +93,8 @@ public class WhitelistIntegrationTest {
                 sink.keys.stream().anyMatch(k -> k.equals("player_join")), "player_join should be captured");
     }
 
-    /** 聚合窗口（config.yml window_ms=3000ms / 50 = 60 ticks），多 1 tick 确保冲刷执行。 */
-    private static final long FLUSH_TICKS = 61;
+    /** 聚合窗口（config.yml window_ms=1000ms / 50 = 20 ticks），多 1 tick 确保冲刷执行。 */
+    private static final long FLUSH_TICKS = 21;
 
     @Test
     public void testWhitelistConfigLoadedFromYaml() {

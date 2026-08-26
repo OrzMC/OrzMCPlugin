@@ -71,13 +71,27 @@ public final class BotCommandFeedbackService {
                 usageBlock("🎯 " + name + " 执行控制台命令", name + " <控制台命令>", name + " plugins\n" + name + " say 大家好");
             case BLACKLIST ->
                 usageBlock(
-                        "🎯 " + name + " IP黑名单管理",
+                        "🎯 " + name + " IP/玩家名规则管理",
                         name + "                查看黑名单\n"
                                 + name
                                 + " [IP]           添加黑名单\n"
                                 + name
-                                + " -[IP]          移除黑名单",
-                        name + "\n" + name + " 1.2.3.4\n" + name + " -1.2.3.4");
+                                + " -[IP]          移除黑名单\n"
+                                + name
+                                + " player <type> <value>   添加玩家名规则\n"
+                                + name
+                                + " -player <type> <value>  移除玩家名规则\n"
+                                + name
+                                + " player list             查看玩家名规则",
+                        name + "\n"
+                                + name
+                                + " 1.2.3.4\n"
+                                + name
+                                + " -1.2.3.4\n"
+                                + name
+                                + " player prefix bot_\n"
+                                + name
+                                + " -player suffix _test");
             case REVIEW ->
                 usageBlock(
                         "🎯 " + name + " 审核申请",

@@ -37,7 +37,7 @@ public record RankColorsConfig(
 
     public static RankColorsConfig from(ConfigurationSection cfg) {
         if (cfg == null) {
-            return new RankColorsConfig(true, true, true, DEFAULT_OP_COLOR, DEFAULTS);
+            return new RankColorsConfig(true, true, false, DEFAULT_OP_COLOR, DEFAULTS);
         }
         Map<String, NamedTextColor> colors = new HashMap<>();
         ConfigurationSection colorsSection = cfg.getConfigurationSection("colors");
@@ -55,7 +55,7 @@ public record RankColorsConfig(
         return new RankColorsConfig(
                 cfg.getBoolean("enabled", true),
                 cfg.getBoolean("nametag_enabled", true),
-                cfg.getBoolean("tab_enabled", true),
+                cfg.getBoolean("tab_enabled", false),
                 opColor != null ? opColor : DEFAULT_OP_COLOR,
                 Map.copyOf(colors));
     }

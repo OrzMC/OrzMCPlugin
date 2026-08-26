@@ -12,8 +12,8 @@ class LoginRateLimitConfigTest {
     void fromNull_returnsDefaults() {
         LoginRateLimitConfig config = LoginRateLimitConfig.from(null);
         assertTrue(config.enabled());
-        assertEquals(5, config.maxLoginAttemptsPerMinute());
-        assertEquals(3, config.maxConcurrentPerIp());
+        assertEquals(20, config.maxLoginAttemptsPerMinute());
+        assertEquals(5, config.maxConcurrentPerIp());
         assertTrue(config.notifyAdmins());
         assertEquals(LoginRateLimitConfig.DEFAULT_MESSAGE, config.message());
     }
@@ -22,15 +22,15 @@ class LoginRateLimitConfigTest {
     void fromEmpty_returnsDefaults() {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(true);
-        when(cfg.getInt("max_login_attempts_per_minute", 5)).thenReturn(5);
-        when(cfg.getInt("max_concurrent_per_ip", 3)).thenReturn(3);
+        when(cfg.getInt("max_login_attempts_per_minute", 20)).thenReturn(20);
+        when(cfg.getInt("max_concurrent_per_ip", 5)).thenReturn(5);
         when(cfg.getBoolean("notify_admins", true)).thenReturn(true);
         when(cfg.getString("message", LoginRateLimitConfig.DEFAULT_MESSAGE)).thenReturn(null);
 
         LoginRateLimitConfig config = LoginRateLimitConfig.from(cfg);
         assertTrue(config.enabled());
-        assertEquals(5, config.maxLoginAttemptsPerMinute());
-        assertEquals(3, config.maxConcurrentPerIp());
+        assertEquals(20, config.maxLoginAttemptsPerMinute());
+        assertEquals(5, config.maxConcurrentPerIp());
         assertTrue(config.notifyAdmins());
         assertEquals(LoginRateLimitConfig.DEFAULT_MESSAGE, config.message());
     }
@@ -39,8 +39,8 @@ class LoginRateLimitConfigTest {
     void fromFullSection_returnsCorrectValues() {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(false);
-        when(cfg.getInt("max_login_attempts_per_minute", 5)).thenReturn(2);
-        when(cfg.getInt("max_concurrent_per_ip", 3)).thenReturn(1);
+        when(cfg.getInt("max_login_attempts_per_minute", 20)).thenReturn(2);
+        when(cfg.getInt("max_concurrent_per_ip", 5)).thenReturn(1);
         when(cfg.getBoolean("notify_admins", true)).thenReturn(false);
         when(cfg.getString("message", LoginRateLimitConfig.DEFAULT_MESSAGE)).thenReturn("自定义提示");
 
@@ -55,8 +55,8 @@ class LoginRateLimitConfigTest {
     @Test
     void fromSection_clampsNonPositiveToMin() {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
-        when(cfg.getInt("max_login_attempts_per_minute", 5)).thenReturn(0);
-        when(cfg.getInt("max_concurrent_per_ip", 3)).thenReturn(0);
+        when(cfg.getInt("max_login_attempts_per_minute", 20)).thenReturn(0);
+        when(cfg.getInt("max_concurrent_per_ip", 5)).thenReturn(0);
 
         LoginRateLimitConfig config = LoginRateLimitConfig.from(cfg);
         assertEquals(1, config.maxLoginAttemptsPerMinute());

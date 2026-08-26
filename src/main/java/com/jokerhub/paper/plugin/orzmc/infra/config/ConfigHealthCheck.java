@@ -6,6 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -22,6 +26,7 @@ public final class ConfigHealthCheck {
         validateEasyBot(provider.apply("easybot"), issues);
         validateTemplates(provider.apply("templates"), issues);
         validatePortals(provider.apply("portals"), issues);
+        validateAccessRules(provider.apply("access_rules"), issues);
         return issues;
     }
 
@@ -41,6 +46,40 @@ public final class ConfigHealthCheck {
         validateChatSection(cfg.getConfigurationSection("chat"), issues);
         validateLoginRateLimitSection(cfg.getConfigurationSection("login_rate_limit"), issues);
         validateExploitHardeningSection(cfg.getConfigurationSection("exploit_hardening"), issues);
+        validateRankColorsSection(cfg.getConfigurationSection("rank_colors"), issues);
+    }
+
+    private static void validateRankColorsSection(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            issues.add("建议: config.yml 缺失 rank_colors 配置段，将使用默认配置（Tab 着色默认关闭）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: rank_colors.enabled 需为布尔值");
+        Object nt = section.get("nametag_enabled");
+        if (nt != null && !(nt instanceof Boolean)) issues.add("类型错误: rank_colors.nametag_enabled 需为布尔值");
+        Object tab = section.get("tab_enabled");
+        if (tab != null && !(tab instanceof Boolean)) issues.add("类型错误: rank_colors.tab_enabled 需为布尔值");
+        String opColor = section.getString("op_color", "");
+        if (!opColor.isBlank() && !isValidRankColor(opColor)) {
+            issues.add("非法: rank_colors.op_color '" + opColor + "' 不是合法命名色或 #RRGGBB");
+        }
+        ConfigurationSection colorsSection = section.getConfigurationSection("colors");
+        if (colorsSection != null) {
+            for (String key : colorsSection.getKeys(false)) {
+                String raw = colorsSection.getString(key, "");
+                if (!raw.isBlank() && !isValidRankColor(raw)) {
+                    issues.add("非法: rank_colors.colors." + key + " '" + raw + "' 不是合法命名色或 #RRGGBB");
+                }
+            }
+        }
+    }
+
+    /** 与 {@code RankColorsConfig.parseColor} 同一接受范围：命名色或 CSS hex（含 #RRGGBB）。 */
+    private static boolean isValidRankColor(String raw) {
+        String trimmed = raw.trim();
+        return NamedTextColor.NAMES.value(trimmed.toLowerCase(Locale.ROOT)) != null
+                || TextColor.fromCSSHexString(trimmed) != null;
     }
 
     private static void validateWhitelistSection(ConfigurationSection section, List<String> issues) {
@@ -107,15 +146,15 @@ public final class ConfigHealthCheck {
         if (section == null) {
             // 降级为建议：默认配置完整可用，仅升级安装（config.yml 存在故未复制新默认值）会缺此段，
             // 属提示而非缺陷，避免升级后每次启动的持久告警
-            issues.add("建议: config.yml 缺失 player_notify 配置段，将使用默认配置（窗口 3000ms，三类通知启用）");
+            issues.add("建议: config.yml 缺失 player_notify 配置段，将使用默认配置（窗口 1000ms，三类通知启用）");
             return;
         }
         for (String key : new String[] {"enabled_join", "enabled_quit", "enabled_kick"}) {
             Object en = section.get(key);
             if (en != null && !(en instanceof Boolean)) issues.add("类型错误: player_notify." + key + " 需为布尔值");
         }
-        long window = section.getLong("window_ms", 3000L);
-        if (window <= 0) issues.add("非法: player_notify.window_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）");
+        long window = section.getLong("window_ms", 1000L);
+        if (window <= 0) issues.add("非法: player_notify.window_ms 必须为正数（≤0 会回退默认 1000ms，静默关闭防刷屏）");
         int maxList = section.getInt("max_list_items", 6);
         if (maxList < 1) issues.add("非法: player_notify.max_list_items 不得小于 1");
     }
@@ -141,6 +180,63 @@ public final class ConfigHealthCheck {
             }
         } else {
             issues.add("类型错误: geoip.allow_country_code 需为列表");
+        }
+    }
+
+    private static void validateAccessRules(FileConfiguration cfg, List<String> issues) {
+        if (cfg == null) {
+            issues.add("access_rules.yml 未加载");
+            return;
+        }
+        Object ip = cfg.get("ip_blacklist");
+        if (ip != null && !(ip instanceof List<?>)) {
+            issues.add("类型错误: access_rules.ip_blacklist 需为列表");
+        }
+        Object raw = cfg.get("player_name_rules");
+        if (raw == null) {
+            return;
+        }
+        if (!(raw instanceof List<?> list)) {
+            issues.add("类型错误: access_rules.player_name_rules 需为列表");
+            return;
+        }
+        List<String> validTypes = List.of("exact", "prefix", "suffix", "contains", "glob", "regex");
+        for (Object item : list) {
+            String type = null;
+            String value = null;
+            if (item instanceof java.util.Map<?, ?> map) {
+                Object rawType = map.get("type");
+                Object rawValue = map.get("value");
+                type = rawType == null ? null : String.valueOf(rawType);
+                value = rawValue == null ? null : String.valueOf(rawValue);
+            } else if (item instanceof ConfigurationSection section) {
+                type = section.getString("type");
+                value = section.getString("value");
+            } else if (item instanceof String text) {
+                int colon = text.indexOf(':');
+                if (colon > 0) {
+                    type = text.substring(0, colon);
+                    value = text.substring(colon + 1);
+                }
+            }
+            if (type == null || value == null || value.isBlank()) {
+                issues.add("非法: access_rules.player_name_rules 条目缺少 type/value");
+                continue;
+            }
+            // trim 后校验：运行时 MatchType.from() 也是 trim 后解析，口径一致避免「运行时生效、
+            // 校验误报非法」；纯空白值（isBlank）运行时会被丢弃，此处同样视为缺值
+            String normalizedType = type.trim().toLowerCase(Locale.ROOT);
+            if (!validTypes.contains(normalizedType)) {
+                issues.add("非法: access_rules.player_name_rules.type '" + type + "' 不在支持范围");
+                continue;
+            }
+            if ("regex".equals(normalizedType)) {
+                try {
+                    Pattern.compile(value);
+                } catch (PatternSyntaxException e) {
+                    issues.add("非法: access_rules.player_name_rules 正则无法编译: " + value);
+                }
+            }
         }
     }
 
@@ -194,7 +290,7 @@ public final class ConfigHealthCheck {
         }
         Object en = section.get("enabled");
         if (en != null && !(en instanceof Boolean)) issues.add("类型错误: chat.enabled 需为布尔值");
-        int max = section.getInt("max_messages_per_minute", 6);
+        int max = section.getInt("max_messages_per_minute", 20);
         if (max < 1) issues.add("非法: chat.max_messages_per_minute 不得小于 1");
         Object dl = section.get("detect_links");
         if (dl != null && !(dl instanceof Boolean)) issues.add("类型错误: chat.detect_links 需为布尔值");
@@ -212,9 +308,9 @@ public final class ConfigHealthCheck {
         }
         Object en = section.get("enabled");
         if (en != null && !(en instanceof Boolean)) issues.add("类型错误: login_rate_limit.enabled 需为布尔值");
-        int freq = section.getInt("max_login_attempts_per_minute", 5);
+        int freq = section.getInt("max_login_attempts_per_minute", 20);
         if (freq < 1) issues.add("非法: login_rate_limit.max_login_attempts_per_minute 不得小于 1");
-        int conc = section.getInt("max_concurrent_per_ip", 3);
+        int conc = section.getInt("max_concurrent_per_ip", 5);
         if (conc < 1) issues.add("非法: login_rate_limit.max_concurrent_per_ip 不得小于 1");
         Object na = section.get("notify_admins");
         if (na != null && !(na instanceof Boolean)) issues.add("类型错误: login_rate_limit.notify_admins 需为布尔值");

@@ -130,7 +130,7 @@ class GeoIpAccessServiceTest {
     }
 
     @Test
-    void decide_geoIpQueryFailure_failsOpenAndMarksLookupFailed() {
+    void decide_geoIpQueryFailure_defaultFailClose_deniesAndMarksLookupFailed() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         CompletableFuture<GeoIpClient.GeoIpResult> failed = new CompletableFuture<>();
         failed.completeExceptionally(new RuntimeException("timeout"));
@@ -138,7 +138,20 @@ class GeoIpAccessServiceTest {
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
-        assertTrue(d.allowed(), "查询异常应 fail-open 放行");
+        assertFalse(d.allowed(), "默认 fail-close：查询异常应拒绝进入（安全优先）");
+        assertTrue(d.lookupFailed(), "查询异常应标记 lookupFailed 以便私信告警");
+    }
+
+    @Test
+    void decide_geoIpQueryFailure_failOpen_allowsAndMarksLookupFailed() {
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN"), true));
+        CompletableFuture<GeoIpClient.GeoIpResult> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("timeout"));
+        when(client.lookup("1.2.3.4")).thenReturn(failed);
+
+        GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
+
+        assertTrue(d.allowed(), "fail_open=true：查询异常应放行（可用性优先）");
         assertTrue(d.lookupFailed(), "查询异常应标记 lookupFailed 以便私信告警");
     }
 
@@ -183,20 +196,35 @@ class GeoIpAccessServiceTest {
         GeoIpAccessService.Decision d1 = service.decide("1.2.3.4").join();
         GeoIpAccessService.Decision d2 = service.decide("1.2.3.4").join();
 
-        assertTrue(d1.allowed());
-        assertTrue(d2.allowed());
+        assertFalse(d1.allowed());
+        assertFalse(d2.allowed());
         verify(client, times(2)).lookup("1.2.3.4");
     }
 
     @Test
-    void decide_emptyCountryCode_failsOpenAndAlertsWithoutCaching() {
+    void decide_emptyCountryCode_defaultFailClose_deniesAndAlertsWithoutCaching() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("", "{}");
         when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.completedFuture(res));
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
-        assertTrue(d.allowed(), "空国家码（上游无法定位）应 fail-open 放行，不误拦合法玩家");
+        assertFalse(d.allowed(), "默认 fail-close：空国家码（上游无法定位）应拒绝进入");
+        assertTrue(d.lookupFailed(), "空国家码应标记 lookupFailed 以便告警管理员");
+        // 不缓存：再次查询仍走上游
+        service.decide("1.2.3.4").join();
+        verify(client, times(2)).lookup("1.2.3.4");
+    }
+
+    @Test
+    void decide_emptyCountryCode_failOpen_allowsAndAlertsWithoutCaching() {
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN"), true));
+        GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("", "{}");
+        when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.completedFuture(res));
+
+        GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
+
+        assertTrue(d.allowed(), "fail_open=true：空国家码应放行，不误拦合法玩家");
         assertTrue(d.lookupFailed(), "空国家码应标记 lookupFailed 以便告警管理员");
         // 不缓存：再次查询仍走上游
         service.decide("1.2.3.4").join();

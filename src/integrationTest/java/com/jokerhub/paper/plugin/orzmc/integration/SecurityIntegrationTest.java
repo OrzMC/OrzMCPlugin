@@ -2,7 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.integration;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
-import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
+import com.jokerhub.paper.plugin.orzmc.features.security.AccessRuleService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.NotifierSink;
 import java.util.ArrayList;
@@ -59,6 +59,36 @@ public class SecurityIntegrationTest {
         Assertions.assertDoesNotThrow(() -> server.dispatchCommand(player, "blacklist remove 192.168.1.1"));
     }
 
+    // 注：MockBukkit 的 dispatchCommand 不会派发 Brigadier 命令（走 vanilla "Unknown command" 兜底），
+    // 游戏侧 /blacklist 守卫与移除反馈由单元测试（PlayerNameRuleTest / BotCommandServiceTest /
+    // AccessRuleServiceTest）覆盖；集成测试经 bot $d 走真实处理器链。
+
+    @Test
+    public void testBlacklistBotMatchTypeKeyword_rejectsNotIp() {
+        // P2：$d 简写首词是匹配类型 → 拒绝并回用法提示，绝不把 "prefix bot_" 当 IP 静默误加
+        AtomicReference<MessageEnvelope> got = new AtomicReference<>();
+        Assertions.assertDoesNotThrow(() ->
+                plugin.services().botModule().botInboundHandler().handleMessage("$d prefix bot_", true, got::set));
+        server.getScheduler().performOneTick();
+        MessageEnvelope envelope = got.get();
+        Assertions.assertNotNull(envelope, "Match-type guard should produce response");
+        Assertions.assertTrue(
+                envelope.message().contains("玩家名规则请使用"), "Expected player-rule usage hint, got: " + envelope.message());
+    }
+
+    @Test
+    public void testBlacklistBotRemoveMissing_reportsNotFound() {
+        // P3：移除不存在的 IP → 回「未找到」而非假报「已移除」
+        AtomicReference<MessageEnvelope> got = new AtomicReference<>();
+        Assertions.assertDoesNotThrow(() ->
+                plugin.services().botModule().botInboundHandler().handleMessage("$d -192.168.1.1", true, got::set));
+        server.getScheduler().performOneTick();
+        MessageEnvelope envelope = got.get();
+        Assertions.assertNotNull(envelope, "Remove-missing should produce response");
+        Assertions.assertTrue(
+                envelope.message().contains("未在黑名单中找到"), "Expected not-found feedback, got: " + envelope.message());
+    }
+
     @Test
     public void testBlacklistCommandNonAdminPlayer() {
         // MockBukkit does not check Brigadier requires(), so admin-only commands dispatch
@@ -67,26 +97,34 @@ public class SecurityIntegrationTest {
     }
 
     @Test
-    public void testBlacklistServiceDirectly() {
-        // Access BlacklistService through its public API
+    public void testAccessRuleServiceDirectly() {
+        // Access AccessRuleService through its public API
         ConfigService configService = new ConfigService(plugin);
-        BlacklistService blacklistService = new BlacklistService(configService);
-        Assertions.assertNotNull(blacklistService);
-        Assertions.assertTrue(blacklistService.getPatterns().isEmpty(), "Blacklist should start empty");
+        AccessRuleService accessRuleService = new AccessRuleService(configService);
+        Assertions.assertNotNull(accessRuleService);
+        Assertions.assertTrue(accessRuleService.getIpPatterns().isEmpty(), "Blacklist should start empty");
 
         // Test add
-        blacklistService.add("10.0.0.1");
-        Assertions.assertEquals(1, blacklistService.getPatterns().size());
-        Assertions.assertTrue(blacklistService.isBlocked("10.0.0.1"));
+        accessRuleService.addIpPattern("10.0.0.1");
+        Assertions.assertEquals(1, accessRuleService.getIpPatterns().size());
+        Assertions.assertTrue(accessRuleService.isIpBlocked("10.0.0.1"));
 
         // Test remove
-        blacklistService.remove("10.0.0.1");
-        Assertions.assertTrue(blacklistService.getPatterns().isEmpty());
+        accessRuleService.removeIpPattern("10.0.0.1");
+        Assertions.assertTrue(accessRuleService.getIpPatterns().isEmpty());
 
         // Test IP matching
-        blacklistService.add("192.168.1.*");
-        Assertions.assertTrue(blacklistService.isBlocked("192.168.1.100"));
-        Assertions.assertFalse(blacklistService.isBlocked("192.168.2.100"));
+        accessRuleService.addIpPattern("192.168.1.*");
+        Assertions.assertTrue(accessRuleService.isIpBlocked("192.168.1.100"));
+        Assertions.assertFalse(accessRuleService.isIpBlocked("192.168.2.100"));
+    }
+
+    @Test
+    public void testPlayerNameRuleViaBotCommand() {
+        AtomicReference<MessageEnvelope> got = new AtomicReference<>();
+        plugin.services().botModule().botInboundHandler().handleMessage("$d player prefix bot_", true, got::set);
+        server.getScheduler().performOneTick();
+        Assertions.assertNotNull(got.get(), "Player rule add should produce response");
     }
 
     @Test

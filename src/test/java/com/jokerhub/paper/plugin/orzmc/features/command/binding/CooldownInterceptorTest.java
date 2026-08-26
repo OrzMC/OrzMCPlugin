@@ -3,6 +3,8 @@ package com.jokerhub.paper.plugin.orzmc.features.command.binding;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
+import java.util.concurrent.atomic.AtomicReference;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -45,5 +47,28 @@ class CooldownInterceptorTest {
         assertNull(interceptor.preHandle(player, "quick"));
         // Second call immediately — should be within cooldown
         assertNotNull(interceptor.preHandle(player, "quick"));
+    }
+
+    @Test
+    @Order(4)
+    void supplierPolicy_hotFlipCooldown_reEvaluatedPerCall() {
+        // P3：command_policies 热生效——cooldown_secs 经 supplier 变更后即时生效（无需重建拦截器）
+        AtomicReference<CommandPolicy> ref = new AtomicReference<>(new CommandPolicy(0, false));
+        CooldownInterceptor interceptor = new CooldownInterceptor("hot_cmd", ref::get);
+        Player player = mock(Player.class);
+        when(player.getName()).thenReturn("Carol");
+
+        // 初始 0 秒：无冷却，连续调用放行
+        assertNull(interceptor.preHandle(player, "hot"));
+        assertNull(interceptor.preHandle(player, "hot"));
+
+        // 切到 10 秒：首次放行，第二次在冷却内被拦
+        ref.set(new CommandPolicy(10, false));
+        assertNull(interceptor.preHandle(player, "hot"));
+        assertNotNull(interceptor.preHandle(player, "hot"));
+
+        // 切回 0 秒：冷却立即失效
+        ref.set(new CommandPolicy(0, false));
+        assertNull(interceptor.preHandle(player, "hot"));
     }
 }

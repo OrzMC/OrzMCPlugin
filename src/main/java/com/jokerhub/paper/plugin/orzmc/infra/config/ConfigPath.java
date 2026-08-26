@@ -68,7 +68,7 @@ public final class ConfigPath {
         reg(map, "config", "player_notify.enabled_join", Boolean.class, true, "上线消息通知开关");
         reg(map, "config", "player_notify.enabled_quit", Boolean.class, true, "下线消息通知开关");
         reg(map, "config", "player_notify.enabled_kick", Boolean.class, true, "被踢消息通知开关");
-        reg(map, "config", "player_notify.window_ms", Long.class, 3000L, "上下线通知聚合窗口(毫秒)");
+        reg(map, "config", "player_notify.window_ms", Long.class, 1000L, "上下线通知聚合窗口(毫秒)");
         reg(map, "config", "player_notify.max_list_items", Integer.class, 6, "聚合摘要最多列出的玩家数");
 
         // command policies (config.yml)
@@ -90,7 +90,7 @@ public final class ConfigPath {
         // rank_colors (config.yml)
         reg(map, "config", "rank_colors.enabled", Boolean.class, true, "玩家名颜色总开关");
         reg(map, "config", "rank_colors.nametag_enabled", Boolean.class, true, "头顶名牌着色开关");
-        reg(map, "config", "rank_colors.tab_enabled", Boolean.class, true, "Tab列表着色开关");
+        reg(map, "config", "rank_colors.tab_enabled", Boolean.class, false, "Tab列表着色开关");
         reg(map, "config", "rank_colors.op_color", String.class, "gold", "OP 玩家名颜色(命名色)");
         reg(map, "config", "rank_colors.colors.admin", String.class, "red", "管理员名颜色(命名色)");
         reg(map, "config", "rank_colors.colors.builder", String.class, "green", "建造者名颜色(命名色)");

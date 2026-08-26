@@ -1,5 +1,53 @@
 # Changelog
 
+## [Unreleased]
+
+### ✨ 新功能
+- **访问规则统一（IP 黑名单 + 玩家名规则）** — 新增 `AccessRuleService` 统一管理登录访问规则：
+  - IP 黑名单继续支持精确 IP / CIDR / 通配符
+  - 玩家名新增 `exact / prefix / suffix / contains / glob / regex` 六种匹配方式，默认大小写不敏感
+  - prelogin 顺序固定为维护模式 → IP 黑名单 → 玩家名规则 → GeoIP
+  - `$d` 与 `/blacklist` 保持旧 IP 语法兼容，并新增 `player <type> <value>` 子命令管理玩家名规则
+  - 运行时规则持久化到 `access_rules.yml`（取代旧 `ip_blacklist.yml`）
+
+### ⚙️ 配置默认值调整
+- `rank_colors.tab_enabled` 默认改为 `false`（Tab 不再默认按权限着色）
+- `login_rate_limit.max_login_attempts_per_minute` 默认改为 `20`，`max_concurrent_per_ip` 默认改为 `5`
+- `chat.max_messages_per_minute` 默认改为 `20`
+- `player_notify.window_ms` 默认改为 `1000`
+- `guard.audit_enabled=true` 时，危险命令 WARN 不再重复刷控制台，细节由 `audit/command_audit.log` 承载
+- `geoip.fail_open` 新增（默认 `false` = fail-close）：GeoIP 查询失败（上游异常/超时/空国家码）时默认拒绝进入，需放行时手动设 `true`（fail-open）
+
+### 🐛 修复
+- **访问规则并发与线程安全（审查发现 P1-1/P2-1）**：
+  - `AccessRuleService.reload()` 加 synchronized，与 add/remove 互斥，避免「重载读旧快照」在变更间隙覆盖刚提交的内存规则
+  - 落盘改经 `ConfigManager.updateConfig` 原子完成 set→save，与 `reloadConfig` 互斥，消除「get/set 间隙实例被替换导致写丢失」
+  - `$d` 访问规则命令统一调度到全局线程执行：persist 的同步磁盘 I/O 不再阻塞 WS reader 线程，`$d` 间按到达顺序 FIFO 串行（添加后立刻 list 读最新）
+- **`/blacklist` 玩家名规则不被 IP 简写吞掉（审查发现 P1-2）**：`/blacklist player <type> <value>` / `-player` 不再误入 IP 添加/移除分支；`/blacklist player` 单独列出玩家名规则（对齐 `$d player` 语义）
+- **名称未上报时跳过玩家名规则匹配（审查发现 P2-2）**：离线模式 profile 未上报名称时不再用「未知玩家」占位符参与匹配，避免命中过宽规则（如 `contains:a`）误封合法玩家；通知与 GeoIP 仍用占位名展示
+- **玩家名规则解析抽公共入口（审查发现 P3-1）**：`PlayerNameRule.parse` 统一解析/校验（类型 + 正则合法性），bot `$d` 与游戏内 `/blacklist` 共用，消除两处重复
+- **玩家名关键字大小写不敏感（审查发现 P2）**：`$d Player exact foo` 之前会被当成 IP 规则静默误加并回复「已添加」造成错误安全感；现 `player` / `-player` / `player list` 关键字大小写不敏感，`$d PlayerX` 等畸形输入落入用法错误而非 IP 分支
+- **`$d` 访问规则命令异常兜底（审查发现 P3-1）**：`runSync` 派发后异常不再被 InboundEventParser 捕获，现包一层 `handleBlacklistSafely` 恢复服务端日志 + 群内错误反馈
+- **落盘失败显式告警（审查发现 P3-3）**：`AccessRuleService.persist` 消费 `updateConfig` 返回结果，写入失败（配置未注册等）时 `logger.warning` 显式告警，避免规则静默仅存内存、reload 后消失
+- **空串玩家名同样跳过名称规则匹配（审查发现 P3-4）**：profile 上报空串（离线模式变体）与 null 等价处理，均不参与玩家名规则匹配
+- **`/blacklist` 玩家名规则首词误当 IP（审查发现 P2）**：`/blacklist add|remove <pattern>` 与 `/blacklist -<pattern>` 简写在落入 IP 分支前增加玩家名语法守卫——`player` 前缀或首词为六种匹配类型之一（如 `prefix bot_`）时提示玩家名规则用法，不再静默把该串当 IP 添加/移除并回假成功；`$d` 简写同步收紧
+- **移除假成功改真实反馈（审查发现 P3）**：`AccessRuleService.removeIpPattern` / `removePlayerNameRule` 返回是否确有移除；`$d -<IP>`、`/blacklist remove <IP>` 与玩家名规则移除对不存在目标回「未找到」而非无条件「已移除」；游戏侧玩家名规则值空串时提示用法而非假成功
+- **`rank_colors` 配置健康检查（审查发现 P3）**：新增 `rank_colors` 段校验（enabled/nametag_enabled/tab_enabled 布尔类型 + op_color/colors.* 合法命名色或 `#RRGGBB`），非法配置在 `/orzmc config validate` 显式提示
+- **`command_policies` 改动即时生效（审查发现 P3，pre-existing）**：命令拦截器改为惰性读取 `command_policies`，`/orzmc config set command_policies.*` 后冷却与 admin-only 立即生效，无需重启或 reload（此前在 `minecraft:reload` 前仍沿用旧值）
+- **`$d -` / `/blacklist -` 简写 trim 收紧（审查发现 P3）**：`-` 简写去破折号后 `trim()`——`$d -` / `/blacklist -`（空模式）回用法提示；`$d - exact foo`（破折号后带空格）不再因首词空串绕过玩家名规则守卫，`$d - 1.2.3.4` 空格变体现在也能正常移除 IP
+- **玩家名规则增删反馈抽公共构建器（审查发现 P3）**：新增 `PlayerNameRuleFeedback.feedback`（解析 + 合法/非法 + 增删与已移除/未找到反馈）供 bot `$d` 与游戏内 `/blacklist` 共用，消除两处实现漂移并为游戏侧反馈逻辑补上单元测试
+- **玩家名规则「未找到」改用 error 模板键（审查发现 P3）**：bot 侧移除不存在的玩家名规则由 `command_blacklist_remove` 键改用 `command_blacklist_error` 键，与 IP「未找到」一致（模板均纯文本渲染 message，无展示差异）
+
+### ⚠️ 升级注意
+- **GeoIP 失败策略默认改为 fail-close**：此前 GeoIP 查询失败一律放行（fail-open），现默认拒绝进入（安全优先）；依赖旧行为的服务器请在 config.yml `geoip:` 段显式设 `fail_open: true`
+- **旧 `ip_blacklist.yml` 不再读取**：本版本起 IP 黑名单与玩家名规则统一存于 `access_rules.yml`，存量封禁数据不自动导入，升级前请将旧规则手动迁移到 `access_rules.yml`
+- **旧独立配置文件不再读取**：配置统一从 `config.yml`（已含 `command_policies` / `rank_colors` 等全部分段）与 `templates.yml` 读取，不再自动 fallback 到旧 `maintenance.yml` / `whitelist.yml` / `tnt.yml` / `player_notify.yml` / `ip_whitelist.yml` / `guard.yml` / `chat.yml` / `login_rate_limit.yml` / `exploit_hardening.yml` / `rank_colors.yml` / `styles.yml` / `commands.yml`。这些旧文件中的自定义值请迁移到 `config.yml` 对应分段；`config-version` 过旧提醒已随旧文件读取一并移除
+
+### 📦 依赖与测试
+- Paper API 升级到最新稳定版 `26.2.build.119-stable`，MockBukkit 同步升级到 `mockbukkit-v26.2:4.116.1`
+- `ServerMock.getWorldContainer()` 仍未实现（官方 PR #1618 跟踪中），插件启动清理改为获取失败时跳过并告警，避免集成测试被静默 SKIPPED
+- E2E Mineflayer 固定 `4.37.1` + `minecraft-data@3.113.2`，连接协议固定 `1.21.11`（Paper 26.2 兼容）
+
 ## [1.0.23] - 2026-08-21
 
 ### ✨ 新功能

@@ -12,7 +12,11 @@ set -uo pipefail
 
 E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CASES_DIR="$E2E_DIR/cases"
-NODE_PATH="${NODE_PATH:-$HOME/minecraft-bot/node_modules}"
+if [ -z "${NODE_PATH:-}" ] && [ -d "$E2E_DIR/node_modules" ]; then
+  NODE_PATH="$E2E_DIR/node_modules"
+else
+  NODE_PATH="${NODE_PATH:-$HOME/minecraft-bot/node_modules}"
+fi
 REPORT_DIR="$E2E_DIR/reports"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 REPORT_FILE="$REPORT_DIR/e2e-report-$TIMESTAMP.md"

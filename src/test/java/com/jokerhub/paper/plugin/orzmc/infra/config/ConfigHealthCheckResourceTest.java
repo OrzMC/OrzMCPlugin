@@ -29,6 +29,7 @@ public class ConfigHealthCheckResourceTest {
         cfgs.put("guide_book", load("guide_book.yml"));
         cfgs.put("templates", load("templates.yml"));
         cfgs.put("portals", load("portals.yml"));
+        cfgs.put("access_rules", load("access_rules.yml"));
 
         List<String> issues = ConfigHealthCheck.validateAll(cfgs::get);
         List<String> fatal = new ArrayList<>();

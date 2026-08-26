@@ -29,7 +29,6 @@ class ReviewCommandServiceTest {
         FileConfiguration templatesConfig = mock(FileConfiguration.class);
         when(configService.getConfig("templates")).thenReturn(templatesConfig);
         when(templatesConfig.getConfigurationSection("styles")).thenReturn(null);
-        when(configService.loadFile("styles.yml")).thenReturn(null);
         styles = new OrzTextStyles(configService);
         command = new ReviewCommandService(reviewService, styles);
     }

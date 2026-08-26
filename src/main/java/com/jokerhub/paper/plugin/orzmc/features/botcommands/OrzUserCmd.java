@@ -9,7 +9,7 @@ public enum OrzUserCmd {
     BACKUP("b", "地图备份", true),
     OPTIMIZE_WORLD("o", "优化地图大小", true),
     EXECUTE_CONSOLE_COMMAND("e", "执行控制台命令", true),
-    BLACKLIST("d", "添加/移除/查看IP黑名单", true),
+    BLACKLIST("d", "添加/移除/查看IP黑名单和玩家名规则", true),
     REVIEW("v", "查看/处理审核申请", true),
     PERMISSION("p", "权限管理（升级/降级）", true);
 

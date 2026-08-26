@@ -239,4 +239,18 @@ public class TemplateResourceSmokeTest extends ServiceTestBase {
                 rendered.contains("{player}") || rendered.contains("{ip}") || rendered.contains("{pattern}"),
                 "不得残留字面占位符: " + rendered);
     }
+
+    @Test
+    public void testPlayerNameBlockTemplateResolvesWithRealText() throws Exception {
+        YamlConfiguration cfg = load("templates.yml");
+        String resolved = TemplateRenderer.resolveTemplate("player_name_block", cfg, "");
+        Assertions.assertFalse(resolved.isEmpty(), "player_name_block 模板缺失");
+
+        var vars = java.util.Map.of("player", "alice", "rule", "prefix:bot_");
+        String rendered = TemplateRenderer.render(resolved, vars);
+
+        Assertions.assertTrue(rendered.contains("alice"), "应含玩家名: " + rendered);
+        Assertions.assertTrue(rendered.contains("prefix:bot_"), "应含命中规则: " + rendered);
+        Assertions.assertFalse(rendered.contains("{player}") || rendered.contains("{rule}"), "不得残留字面占位符: " + rendered);
+    }
 }

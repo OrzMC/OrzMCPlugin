@@ -53,10 +53,10 @@ Hangar/Modrinth 同步发布 Folia loader。
 
 - **Paper 上语义一致**：GlobalRegionScheduler 即主线程执行，tick 语义与 BukkitScheduler 相同。
 - **Folia 上安全**：runSync 落在全局区域线程（≈主线程）。
-- **证据（已从 jar 字节码核实）**：paper-api 26.1.2 含上述全部 API；MockBukkit 4.115.0
+- **证据（已从 jar 字节码核实）**：paper-api 26.2.build.119-stable 含上述全部 API；MockBukkit 4.116.1（26.2）
   已接线 Folia 调度器（`FoliaGlobalRegionScheduler.runAtFixedRate` →
   `BukkitSchedulerMock.runTaskTimer`），`server.getScheduler().performOneTick()` 照常推进。
-- **⚠ MockBukkit 局限（实测修正）**：MockBukkit 4.115.0 的 `PaperScheduledTask.cancel()`
+- **⚠ MockBukkit 局限（实测修正）**：MockBukkit 4.116.1 的 `PaperScheduledTask.cancel()`
   是**未实现的桩**（抛 `UnimplementedOperationException`）。它经 `unmock()` 的
   `disablePlugins()` 触发时会让静态 mock 泄漏，集成测试连锁「Already mocking」。
   **对策**：`ScheduledBackupService` / `TeleportBowFlightTracker` 的取消改为**尽力取消**
@@ -106,7 +106,7 @@ orzmc-api 是纯 Java 零 Bukkit 依赖子模块，`ScheduledTask` 是 Paper 类
 `Bukkit.isPrimaryThread()` → `Bukkit.isGlobalTickThread()`：
 - **Paper 主线程**与 **Folia global region 线程**上均为 true；
 - async 线程（LP loadUser 等）上为 false → 回调度器执行，消除 self-schedule + join 死锁。
-- 注：原计划考虑的 `getGlobalRegionScheduler().isOwnedByCurrentThread()` 在 paper-api 26.1.2
+- 注：原计划考虑的 `getGlobalRegionScheduler().isOwnedByCurrentThread()` 在 paper-api 26.2
   **不存在**，已改用 `Bukkit.isGlobalTickThread()`（语义等价，编译期核实）。
 
 ### D5 runFolia（run-paper 3.1.0）
@@ -164,9 +164,12 @@ runPaper.folia.registerTask {
    `verify(provider).run(plugin, world, cx, cz, task)` 断言方块/区块操作投递正确坐标；
    `mock(Player.getScheduler())` 验证 kick 投递；`verify(player).teleportAsync(...)` 验证传送；
    Tnt/PlayerEventAggregator 并发单测。
-3. **集成测试（MockBukkit）保持单一套件**：MockBukkit 4.115.0 已把 Folia 调度器路由进内部
+3. **集成测试（MockBukkit）保持单一套件**：MockBukkit 4.116.1（26.2）已把 Folia 调度器路由进内部
    `BukkitSchedulerMock`，`performOneTick()` 照常推进。**局限需文档化**：MockBukkit 单线程模型
    无法模拟 region 隔离/跨线程竞态——这类 bug 只能靠第 2 层的调度目标断言 + 真实 Folia 冒烟兜底。
+   `ServerMock.getWorldContainer()` 仍是未实现桩（跟踪 MockBukkit PR #1618），插件启动清理已改为
+   **尽力而为**：获取世界容器失败时跳过 backup/tempDir 清理并告警，避免集成测试被静默 SKIPPED。
+   Paper API 基线已升级到 26.2.build.119-stable，MockBukkit 同步切换至 `mockbukkit-v26.2:4.116.1`。
    （另见 D1 的 `PaperScheduledTask.cancel()` 未实现 → 生产代码尽力取消。）
 4. **⚠ 注册表相关枚举在普通 JUnit 不可用（实测，PR-2 发现）**：`Material.isSolid()`
    走 `BlockType.isSolid()`（服务端注册表），无服务器时恒为 false → 无法用 block mock 让

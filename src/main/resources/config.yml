@@ -67,6 +67,10 @@ geoip:
   # 填写大写两位 ISO 国家码，例如：
   #   allow_country_code: [CN, JP, TW]
   allow_country_code: []
+  # GeoIP 查询失败/超时/无法定位国家码时的登录策略（默认 fail-close，安全优先）：
+  #   false = fail-close：无法验证地区 → 拒绝进入，防绕过地区白名单
+  #   true  = fail-open ：无法验证地区 → 放行并告警管理员，防误拦（可用性优先）
+  fail_open: false
 
 # ==================================================
 #             玩家上下线通知（2026-08-16）
@@ -79,7 +83,7 @@ player_notify:
   # 聚合窗口(ms)：窗口内所有上下线事件合并为一条消息，限制高频上下线刷屏。
   # 单条事件仍按原模板单发（延迟一个窗口），多条事件渲染 player_digest 摘要。
   # 消息频率被限制为最多 1 条/窗口，事件不丢失（逐条精确计数）。
-  window_ms: 3000
+  window_ms: 1000
   # 聚合摘要最多列出的玩家名数量，超出用 "+等N人" 截断（仅显示截断，计数不受影响）
   max_list_items: 6
 
@@ -166,7 +170,7 @@ chat:
   # 总开关：关闭后聊天过滤全部停用
   enabled: true
   # 每分钟最多发言条数（60s 滑动窗口）
-  max_messages_per_minute: 6
+  max_messages_per_minute: 20
   # 是否丢弃含链接的消息
   detect_links: true
   # 是否丢弃与上一条完全相同的重复消息
@@ -185,9 +189,9 @@ login_rate_limit:
   # 总开关：关闭后进服限流全部停用
   enabled: true
   # 每分钟最多登录尝试次数（60s 滑动窗口）
-  max_login_attempts_per_minute: 5
+  max_login_attempts_per_minute: 20
   # 同 IP 最大在线上限
-  max_concurrent_per_ip: 3
+  max_concurrent_per_ip: 5
   # 命中时是否 PRIVATE 私信管理员
   notify_admins: true
   # 命中时的提示文案
@@ -236,7 +240,7 @@ rank_colors:
   # 头顶名牌着色开关：关闭后仅聊天+Tab 着色（避让占用计分板队伍的其它插件时可关）
   nametag_enabled: true
   # Tab 列表着色开关：关闭后仅头顶+聊天着色（Tab 名置空，恢复服务器原计分板队伍/vanilla 渲染，保留 team 前缀）
-  tab_enabled: true
+  tab_enabled: false
   # OP 专用色（玩家 isOp 即显示此色，与等级组无关；优先级最高）
   op_color: "gold"
   # 四级权限组 → 命名色（非 OP 玩家按所属组显示）

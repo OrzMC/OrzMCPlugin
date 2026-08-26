@@ -36,20 +36,17 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
 
     @Override
     public MaintenanceConfig maintenance() {
-        ConfigurationSection section = sectionOrLegacy("config", "maintenance", "maintenance.yml");
-        return MaintenanceConfig.from(section);
+        return MaintenanceConfig.from(section("maintenance"));
     }
 
     @Override
     public WhitelistConfig whitelist() {
-        ConfigurationSection section = sectionOrLegacy("config", "whitelist", "whitelist.yml");
-        return WhitelistConfig.from(section);
+        return WhitelistConfig.from(section("whitelist"));
     }
 
     @Override
     public WhitelistKickMessage whitelistKickMessage() {
-        ConfigurationSection section = sectionOrLegacy("config", "whitelist", "whitelist.yml");
-        return WhitelistKickMessage.from(section);
+        return WhitelistKickMessage.from(section("whitelist"));
     }
 
     @Override
@@ -64,50 +61,42 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
 
     @Override
     public TntConfig tnt() {
-        ConfigurationSection section = sectionOrLegacy("config", "tnt", "tnt.yml");
-        return TntConfig.from(section);
+        return TntConfig.from(section("tnt"));
     }
 
     @Override
     public PlayerNotifyConfig playerNotify() {
-        ConfigurationSection section = sectionOrLegacy("config", "player_notify", "player_notify.yml");
-        return PlayerNotifyConfig.from(section);
+        return PlayerNotifyConfig.from(section("player_notify"));
     }
 
     @Override
     public IpWhitelist ipWhitelist() {
-        ConfigurationSection section = sectionOrLegacy("config", "geoip", "ip_whitelist.yml");
-        return IpWhitelist.from(section);
+        return IpWhitelist.from(section("geoip"));
     }
 
     @Override
     public SecurityGuardConfig securityGuard() {
-        ConfigurationSection section = sectionOrLegacy("config", "guard", "guard.yml");
-        return SecurityGuardConfig.from(section);
+        return SecurityGuardConfig.from(section("guard"));
     }
 
     @Override
     public ChatConfig chat() {
-        ConfigurationSection section = sectionOrLegacy("config", "chat", "chat.yml");
-        return ChatConfig.from(section);
+        return ChatConfig.from(section("chat"));
     }
 
     @Override
     public LoginRateLimitConfig loginRateLimit() {
-        ConfigurationSection section = sectionOrLegacy("config", "login_rate_limit", "login_rate_limit.yml");
-        return LoginRateLimitConfig.from(section);
+        return LoginRateLimitConfig.from(section("login_rate_limit"));
     }
 
     @Override
     public ExploitHardeningConfig exploitHardening() {
-        ConfigurationSection section = sectionOrLegacy("config", "exploit_hardening", "exploit_hardening.yml");
-        return ExploitHardeningConfig.from(section);
+        return ExploitHardeningConfig.from(section("exploit_hardening"));
     }
 
     @Override
     public RankColorsConfig rankColors() {
-        ConfigurationSection section = sectionOrLegacy("config", "rank_colors", "rank_colors.yml");
-        return RankColorsConfig.from(section);
+        return RankColorsConfig.from(section("rank_colors"));
     }
 
     @Override
@@ -129,12 +118,9 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
         return TemplateRenderer.resolveTemplate(templateKey, configService.getConfig("templates"), fallback);
     }
 
-    /**
-     * Read a ConfigurationSection from the merged config, with fallback to old individual file.
-     * Delegates to ConfigManager for the actual lookup logic.
-     * Returns null if neither path has data.
-     */
-    private ConfigurationSection sectionOrLegacy(String mergedConfigName, String section, String legacyFileName) {
-        return configService.sectionOrLegacy(mergedConfigName, section, legacyFileName);
+    /** 从合并 {@code config.yml} 读取指定分段；缺失返回 {@code null}（由各 TypedConfig 默认值兜底）。 */
+    private ConfigurationSection section(String name) {
+        FileConfiguration cfg = configService.getConfig("config");
+        return cfg == null ? null : cfg.getConfigurationSection(name);
     }
 }

@@ -57,6 +57,10 @@ class PlayerRankDisplayServiceTest {
         return new PlayerRankDisplayService(serverFacade, rankService, () -> config);
     }
 
+    private PlayerRankDisplayService serviceWithTabEnabled() {
+        return service(new RankColorsConfig(true, true, true, NamedTextColor.GOLD, RankColorsConfig.DEFAULTS));
+    }
+
     private Player mockPlayer(String name, boolean op) {
         Player p = mock(Player.class);
         when(p.getName()).thenReturn(name);
@@ -109,7 +113,7 @@ class PlayerRankDisplayServiceTest {
         Team team = mock(Team.class);
         when(board.registerNewTeam("orzmc-member")).thenReturn(team);
 
-        service().applyTo(p);
+        serviceWithTabEnabled().applyTo(p);
 
         verify(team).color(NamedTextColor.AQUA);
         verify(team).removeEntry("Steve");
@@ -128,7 +132,7 @@ class PlayerRankDisplayServiceTest {
         Team team = mock(Team.class);
         when(board.registerNewTeam("orzmc-op")).thenReturn(team);
 
-        service().applyTo(p);
+        serviceWithTabEnabled().applyTo(p);
 
         verify(board).registerNewTeam("orzmc-op");
         verify(team).color(NamedTextColor.GOLD);
@@ -147,7 +151,7 @@ class PlayerRankDisplayServiceTest {
         Team newTeam = mock(Team.class);
         when(board.registerNewTeam("orzmc-builder")).thenReturn(newTeam);
 
-        service().applyTo(p);
+        serviceWithTabEnabled().applyTo(p);
 
         verify(oldTeam).removeEntry("Steve");
         verify(newTeam).color(NamedTextColor.GREEN);
@@ -162,7 +166,7 @@ class PlayerRankDisplayServiceTest {
         when(foreign.getName()).thenReturn("TAB-123");
         when(board.getEntryTeam("Steve")).thenReturn(foreign);
 
-        service().applyTo(p);
+        serviceWithTabEnabled().applyTo(p);
 
         verify(board, never()).registerNewTeam(anyString());
         verify(foreign, never()).removeEntry(anyString());
@@ -179,7 +183,7 @@ class PlayerRankDisplayServiceTest {
         Team team = mock(Team.class);
         when(board.registerNewTeam("orzmc-member")).thenReturn(team);
 
-        service().applyTo(p);
+        serviceWithTabEnabled().applyTo(p);
 
         // Tab 用昵称 + rank 色；头顶队伍 entry 仍是真实名（计分板限制）
         ArgumentCaptor<Component> cap = ArgumentCaptor.forClass(Component.class);
@@ -291,7 +295,7 @@ class PlayerRankDisplayServiceTest {
         when(rankService.currentGroup(p.getUniqueId())).thenReturn("super-long-group-name");
         when(board.getEntryTeam("Steve")).thenReturn(null);
 
-        service().applyTo(p);
+        serviceWithTabEnabled().applyTo(p);
 
         verify(board, never()).registerNewTeam(anyString());
         verify(p).playerListName(Component.text("Steve").color(NamedTextColor.GRAY));

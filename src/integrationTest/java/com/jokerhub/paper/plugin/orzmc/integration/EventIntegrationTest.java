@@ -19,8 +19,8 @@ import org.mockbukkit.mockbukkit.entity.PlayerMock;
 @Tag("integration")
 public class EventIntegrationTest {
 
-    /** 玩家上下线通知聚合窗口（config.yml window_ms=3000ms / 50 = 60 ticks），多 1 tick 确保冲刷执行。 */
-    private static final long FLUSH_TICKS = 61;
+    /** 玩家上下线通知聚合窗口（config.yml window_ms=1000ms / 50 = 20 ticks），多 1 tick 确保冲刷执行。 */
+    private static final long FLUSH_TICKS = 21;
 
     private ServerMock server;
     private OrzMC plugin;

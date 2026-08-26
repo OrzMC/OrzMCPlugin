@@ -144,10 +144,12 @@ class CommandGuardEventServiceTest {
         verify(notifier).event(eq(TemplateKeys.COMMAND_GUARD_BLOCKED), any(MessageEnvelope.class));
     }
 
-    // ---- WARN：放行 + 日志 ----
+    // ---- WARN：放行 + 审计/日志 ----
 
     @Test
-    void warn_allowsButLogsWarning() {
+    void warn_auditEnabled_suppressesConsoleWarning_keepsFineTrace() {
+        // audit_enabled 时控制台不写 WARN（细节由 command_audit.log 承载，避免高频刷屏噪声）；
+        // 仅留一条 fine 级踪迹——审计文件异常时事件不至于完全不可见
         withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
         Player player = mock(Player.class);
         when(player.getName()).thenReturn("steve");
@@ -159,6 +161,20 @@ class CommandGuardEventServiceTest {
         verify(player, never()).sendMessage(any(Component.class));
         verify(audit).record(CommandAuditService.SOURCE_GAME, "steve", "/kill @e", false);
         verify(notifier, never()).event(anyString(), any(MessageEnvelope.class));
+        verify(logger, never()).warning(anyString());
+        verify(logger).fine(contains("kill @e"));
+    }
+
+    @Test
+    void warn_auditDisabled_logsWarning() {
+        withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, false));
+        Player player = mock(Player.class);
+        when(player.getName()).thenReturn("steve");
+        PlayerCommandPreprocessEvent event = playerEvent("/kill @e", player);
+
+        service.onPlayerCommand(event);
+
+        verify(audit).record(CommandAuditService.SOURCE_GAME, "steve", "/kill @e", false);
         verify(logger).warning(contains("kill @e"));
     }
 
@@ -202,7 +218,7 @@ class CommandGuardEventServiceTest {
 
     @Test
     void warn_highFrequency_throttlesWarningLog() {
-        withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
+        withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, false));
         // 限频器：第一条放行，后续全部抑制 → warning 1 条 + fine N 条
         ThrottledNotifier logThrottle = mock(ThrottledNotifier.class);
         when(logThrottle.shouldRun("command_guard_warn_log", 5000)).thenReturn(true, false, false);

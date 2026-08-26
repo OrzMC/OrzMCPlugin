@@ -16,9 +16,9 @@ public record ChatConfig(
 
     public static ChatConfig from(ConfigurationSection cfg) {
         if (cfg == null) {
-            return new ChatConfig(true, 6, true, true, DEFAULT_MESSAGE);
+            return new ChatConfig(true, 20, true, true, DEFAULT_MESSAGE);
         }
-        int max = cfg.getInt("max_messages_per_minute", 6);
+        int max = cfg.getInt("max_messages_per_minute", 20);
         if (max < 1) {
             // 非正上限会让限流失效（同 1 tick），回退最小 1
             max = 1;

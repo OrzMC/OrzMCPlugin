@@ -55,7 +55,7 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
     testImplementation("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
-    testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
 }
@@ -78,7 +78,7 @@ configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
 )
 
 dependencies {
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.115.0")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.2:4.116.1")
 }
 
 // 项目编译时插件添加
@@ -91,7 +91,7 @@ plugins {
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
     id("com.modrinth.minotaur") version "2.9.0"
-    id("com.diffplug.spotless") version "8.9.0"
+    id("com.diffplug.spotless") version "8.10.0"
     id("jacoco")
 }
 

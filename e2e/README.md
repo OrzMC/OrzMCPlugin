@@ -10,7 +10,7 @@
 | 测试服在线 | `~/papermc-test`（Paper）或 `~/folia-test`（Folia），端口统一 25565，RCON 25575/orztest2026 |
 | 核心自动检测 | run-all.sh 进程检测（`folia-test/folia.*jar` / `papermc-test/paper.*jar`），`ORZMC_CORE=folia|paper` 可显式覆盖（端口统一后无法靠端口区分核心） |
 | Node | 单 v24（`~/.n/bin/node`） |
-| mineflayer | `~/minecraft-bot/node_modules`（run-all.sh 自动设置 NODE_PATH） |
+| mineflayer | `cd e2e && npm install`（推荐，本地 `e2e/node_modules`）或 `~/minecraft-bot/node_modules`；固定 `mineflayer@4.37.1` + `minecraft-data@3.113.2`（run-all.sh 自动设置 NODE_PATH）；连接协议固定 `1.21.11`（Paper 26.2 兼容） |
 | 测试服账号 | 无需预置——用例自动注册专用账号（SimpleLogin/LoginSecurity 自适应）并清理 |
 
 ## 快速开始

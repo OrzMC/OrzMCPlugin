@@ -47,6 +47,7 @@ function spawnBot(opts) {
       port: parseInt(opts.port || String(TEST_PORT), 10),
       username: opts.name,
       auth: 'offline',
+      version: '1.21.11',
     });
     bot._messages = [];
     bot._joined = false;

@@ -22,11 +22,12 @@ import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.guide.GuideService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.menu.MenuEventService;
+import com.jokerhub.paper.plugin.orzmc.features.player.LoginAccessControlService;
 import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventAggregator;
 import com.jokerhub.paper.plugin.orzmc.features.player.PlayerEventService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.portal.PortalEventService;
-import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
+import com.jokerhub.paper.plugin.orzmc.features.security.AccessRuleService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardEventService;
 import com.jokerhub.paper.plugin.orzmc.features.security.ExploitHardeningEventService;
@@ -58,7 +59,7 @@ import org.bukkit.event.Listener;
 public final class FeatureModule implements ServiceModule {
 
     private final GeoIpAccessService geoIpAccessService;
-    private final BlacklistService blacklistService;
+    private final AccessRuleService accessRuleService;
     /** 命令审计日志（安全加固 P0-4）：audit/command_audit.log，超限轮转。 */
     private final CommandAuditService commandAuditService;
     /** 危险命令拦截（安全加固 P0-3）：玩家聊天栏 + 控制台命令统一过 guard。 */
@@ -70,6 +71,9 @@ public final class FeatureModule implements ServiceModule {
             new com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter();
 
     private final PlayerEventService playerEventService;
+    /** 登录访问控制统一入口：维护模式 → IP 黑名单 → 玩家名规则 → GeoIP。 */
+    private final LoginAccessControlService loginAccessControlService;
+
     private final TntEventService tntEventService;
     private final WhitelistEventService whitelistEventService;
     private final MenuEventService menuEventService;
@@ -115,7 +119,8 @@ public final class FeatureModule implements ServiceModule {
         this.mainConfig = MainConfig.from(platform.configService().getConfig("config"));
         // Feature services
         this.geoIpAccessService = new GeoIpAccessService(platform.configs());
-        this.blacklistService = new BlacklistService(platform.configService());
+        this.accessRuleService = new AccessRuleService(
+                platform.configService(), platform.serverFacade().logger());
         // 命令审计 + 危险命令判定核心：由平台模块统一持有（$e 与事件共享同一实例）
         this.commandAuditService = platform.commandAuditService();
         // 危险命令拦截：纯判定核心 + 事件编排；guard 每次读取最新配置（Supplier），/config reload 生效
@@ -136,6 +141,16 @@ public final class FeatureModule implements ServiceModule {
                 platform.throttledNotifier(),
                 new PlayerEventAggregator(
                         platform.serverFacade(), platform.configs(), botModule.notifier(), this.listFormatter));
+        this.loginAccessControlService = new LoginAccessControlService(
+                maintenanceModule.worldMaintenanceService(),
+                accessRuleService,
+                geoIpAccessService,
+                playerEventService,
+                botModule.notifier(),
+                platform.configs(),
+                platform.textStyles(),
+                platform.serverFacade(),
+                platform.throttledNotifier()); // IP 黑名单/玩家名规则拦截私信限频（防重连刷屏打爆 QQ 频控）
         this.tntEventService = new TntEventService(
                 platform.configs(), platform.textStyles(), botModule.notifier(), platform.serverScheduler());
         this.whitelistEventService = new WhitelistEventService(
@@ -224,7 +239,7 @@ public final class FeatureModule implements ServiceModule {
                 menuCommandService,
                 teleportBowService,
                 portalCommandService,
-                blacklistService,
+                accessRuleService,
                 reviewCommandService,
                 rankCommandService,
                 rankService,
@@ -257,16 +272,7 @@ public final class FeatureModule implements ServiceModule {
     public void setupEventListeners(OrzMC plugin) {
         Listener[] eventListeners = new Listener[] {
             new OrzBowShootEvent(plugin, teleportBowEventService),
-            new OrzPlayerEvent(
-                    plugin,
-                    geoIpAccessService,
-                    blacklistService,
-                    playerEventService,
-                    guideService,
-                    platform.textStyles(),
-                    maintenanceModule.worldMaintenanceService(),
-                    botModule.notifier(),
-                    platform.configs()),
+            new OrzPlayerEvent(plugin, loginAccessControlService, guideService, playerEventService),
             new OrzTPEvent(
                     plugin,
                     platform.serverFacade(),
@@ -295,6 +301,12 @@ public final class FeatureModule implements ServiceModule {
         // 命令线程 → 调度线程（Folia 区域线程安全，PlayerRankDisplayService 的 applyTo 必须在调度线程执行）
         orzConfigCommand.setRankColorsReload(
                 () -> platform.serverFacade().runSync(rankDisplayService::refreshAllOnline));
+        // access_rules 运行时改动（/orzmc config reload）→ 刷新 AccessRuleService 内存缓存，
+        // 手动编辑 access_rules.yml 后即改即生效（无需重启）
+        orzConfigCommand.setAccessRulesReload(accessRuleService::reload);
+        // command_policies.* 运行时改动（/orzmc config set/reset/reload）→ 刷新命令拦截器策略快照，
+        // 即改即生效且热路径不再全量重解析
+        orzConfigCommand.setCommandPoliciesReload(commandRegistrar::refreshCommandPolicies);
     }
 
     // --- Command Registration ---
@@ -323,8 +335,8 @@ public final class FeatureModule implements ServiceModule {
 
     // --- Getters for cross-module references ---
 
-    public BlacklistService blacklistService() {
-        return blacklistService;
+    public AccessRuleService accessRuleService() {
+        return accessRuleService;
     }
 
     public com.jokerhub.paper.plugin.orzmc.features.review.ReviewService reviewService() {

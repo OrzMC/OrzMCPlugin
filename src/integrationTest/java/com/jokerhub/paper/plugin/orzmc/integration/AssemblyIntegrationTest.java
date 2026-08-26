@@ -65,10 +65,10 @@ public class AssemblyIntegrationTest {
     }
 
     @Test
-    public void testBotModuleHasBlacklistServiceBackReference() {
+    public void testBotModuleHasAccessRuleServiceBackReference() {
         BotModule botModule = plugin.services().botModule();
         // $d is the BLACKLIST command. With no args, it lists patterns.
-        // This exercises blacklistService.getPatterns() via the bot command path.
+        // This exercises accessRuleService.getIpPatterns() via the bot command path.
         AtomicReference<MessageEnvelope> got = new AtomicReference<>();
         Assertions.assertDoesNotThrow(() -> botModule.botInboundHandler().handleMessage("$d", true, got::set));
         server.getScheduler().performOneTick();

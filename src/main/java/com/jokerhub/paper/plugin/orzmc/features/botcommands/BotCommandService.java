@@ -4,7 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.BotInboundHandler;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
-import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
+import com.jokerhub.paper.plugin.orzmc.features.security.AccessRuleService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
@@ -17,7 +17,7 @@ public final class BotCommandService extends BotCommandContext implements BotInb
     private BotCommandListFeedbackService listFeedbackService;
     private final Map<OrzUserCmd, CmdHandler> handlers;
     private WorldMaintenanceService maintenanceService;
-    private BlacklistService blacklistService;
+    private AccessRuleService accessRuleService;
     private com.jokerhub.paper.plugin.orzmc.features.review.ReviewService reviewService;
     private com.jokerhub.paper.plugin.orzmc.features.rank.RankService rankService;
     private LogCaptureService logCaptureService;
@@ -37,7 +37,7 @@ public final class BotCommandService extends BotCommandContext implements BotInb
     private final PlayerListCommandHandler playerListCommandHandler;
     /** $b/$o 地图备份/优化命令处理器（Supplier 注入 maintenanceService）。 */
     private final MaintenanceCommandHandler maintenanceCommandHandler;
-    /** $d IP 黑名单命令处理器（Supplier 注入 blacklistService）。 */
+    /** $d 访问规则命令处理器（Supplier 注入 accessRuleService）。 */
     private final BlacklistCommandHandler blacklistCommandHandler;
 
     @FunctionalInterface
@@ -62,7 +62,7 @@ public final class BotCommandService extends BotCommandContext implements BotInb
         this.whitelistCommandHandler = new WhitelistCommandHandler(server, configs, () -> listFeedbackService);
         this.playerListCommandHandler = new PlayerListCommandHandler(server, configs, () -> listFeedbackService);
         this.maintenanceCommandHandler = new MaintenanceCommandHandler(server, configs, () -> maintenanceService);
-        this.blacklistCommandHandler = new BlacklistCommandHandler(server, configs, () -> blacklistService);
+        this.blacklistCommandHandler = new BlacklistCommandHandler(server, configs, () -> accessRuleService);
         this.handlers = Map.ofEntries(
                 Map.entry(
                         OrzUserCmd.SHOW_PLAYERS,
@@ -99,7 +99,7 @@ public final class BotCommandService extends BotCommandContext implements BotInb
      */
     public void injectDependencies(BotCommandDependencies deps) {
         this.maintenanceService = deps.maintenanceService();
-        this.blacklistService = deps.blacklistService();
+        this.accessRuleService = deps.accessRuleService();
         this.reviewService = deps.reviewService();
         this.logCaptureService = deps.logCaptureService();
         this.commandGuardService = deps.commandGuardService();

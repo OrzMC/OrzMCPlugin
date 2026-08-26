@@ -27,7 +27,7 @@
 
 | 维度 | 现状 |
 |------|------|
-| **目标平台** | Paper 26.1+（Minecraft Java 版） |
+| **目标平台** | Paper 26.2（Minecraft Java 版） |
 | **语言** | Java 25+，Gradle（Kotlin DSL）构建 |
 | **当前发布渠道** | [Hangar](https://hangar.papermc.io/OrzMC/OrzMC)（免费）、[Modrinth](https://modrinth.com/plugin/orzmc)（免费） |
 | **发布方式** | CI/CD 全自动化（GitHub Actions），Push main → Snapshot/Beta，Tag → Release |

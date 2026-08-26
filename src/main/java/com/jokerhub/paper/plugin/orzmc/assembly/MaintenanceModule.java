@@ -27,12 +27,17 @@ public final class MaintenanceModule implements ServiceModule {
     public void setup() {
         scheduledBackupService.setup();
         // 启动清理：崩溃/断电可能导致 backup/tempDir 残留，删除防占用磁盘与污染下次备份。
-        // 异步执行避免大残留阻塞服务器启动。
-        org.bukkit.Server server = platform.serverFacade().server();
-        if (server != null && server.getWorldContainer() != null) {
-            File backupDir = new File(server.getWorldContainer(), "backup");
-            java.util.logging.Logger logger = platform.serverFacade().logger();
-            platform.serverFacade().runAsync(() -> WorldMaintenanceService.cleanupStaleBackupTemp(backupDir, logger));
+        // 异步执行避免大残留阻塞服务器启动；获取世界容器失败时降级为跳过（MockBukkit 当前未实现）。
+        try {
+            org.bukkit.Server server = platform.serverFacade().server();
+            if (server != null && server.getWorldContainer() != null) {
+                File backupDir = new File(server.getWorldContainer(), "backup");
+                java.util.logging.Logger logger = platform.serverFacade().logger();
+                platform.serverFacade()
+                        .runAsync(() -> WorldMaintenanceService.cleanupStaleBackupTemp(backupDir, logger));
+            }
+        } catch (RuntimeException e) {
+            platform.serverFacade().logger().warning("无法获取世界容器，跳过备份临时目录清理: " + e);
         }
     }
 

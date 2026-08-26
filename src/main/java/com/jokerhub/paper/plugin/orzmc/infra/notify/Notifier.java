@@ -56,7 +56,8 @@ public final class Notifier {
                             TemplateKeys.SECURITY_AUDIT,
                             TemplateKeys.LOGIN_RATE_LIMIT_ALERT,
                             TemplateKeys.EXPLOIT_BLOCKED,
-                            TemplateKeys.IP_BLACKLIST_BLOCK -> MessageEnvelope.TargetType.PRIVATE;
+                            TemplateKeys.IP_BLACKLIST_BLOCK,
+                            TemplateKeys.PLAYER_NAME_BLOCK -> MessageEnvelope.TargetType.PRIVATE;
                     default -> MessageEnvelope.TargetType.PUBLIC;
                 };
         botMessageService.send(envelope.withTargetType(target));

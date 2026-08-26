@@ -22,7 +22,7 @@
 | **bot** | BotStatusService / OrzEasyBot | EasyBot 网关多平台接入（QQ/飞书/Telegram/Discord/微信）；PUBLIC/PRIVATE 路由；`/bot` 健康状态；WS 自动重连；命令前缀可配置 | 单测+E2E |
 | **portal** | PortalCommandService / PortalEventService | `/portal <host> [port]` 建门（4×5 黑曜石框架+文字标签）；`/portal remove`；跨服 transfer；未登录禁传送（LoginSecurity 集成）；portals.yml 持久化；Folia PlayerMoveEvent 补偿路径（#195） | 单测+集成+E2E(部分) |
 | **tnt** | TntEventService / TntPolicy | TNT 放置拦截（4 拦截点）；区域白名单；5s 放置冷却；重生锚控制；爆炸通知聚合（128×128×64 + 3s 窗口 + ×N）；exempt_entities 豁免 | 单测+集成 |
-| **security** | 11 个服务（见 1.2） | GeoIP 国家限制；IP 黑名单（精确/CIDR/通配符）；危险命令拦截；命令审计；聊天反垃圾；进服限流；漏洞加固；登录验证 | 单测+集成+E2E |
+| **security** | 12 个服务（见 1.2） | GeoIP 国家限制；IP 黑名单（精确/CIDR/通配符）；玩家名规则（exact/prefix/suffix/contains/glob/regex）；危险命令拦截；命令审计；聊天反垃圾；进服限流；漏洞加固；登录验证 | 单测+集成+E2E |
 | **teleport** | TeleportBowService / TeleportBowEventService / EntityTeleportPolicyService | `/tpbow` 传送弓（无限附魔）；飞行路径 force-load（提前 24 格）；落点安全检查+最近安全点搜索；猫咕噜声；实体传送策略（白名单 TAMEABLE/ENDERMAN/ARMOR_STAND/SHULKER） | 单测+集成+E2E |
 | **maintenance** | WorldMaintenanceService / ScheduledBackupService | `$b` 备份（踢人→save-off→ZIP→save-on→保留 N 份）；`$o` 优化（tick 阈值过滤）；三阶段进度报告；维护 MOTD；定时自动备份（backup_interval_hours）；完成耗时中文可读化（duration_human） | 单测+E2E |
 | **player** | PlayerEventService / PlayerEventAggregator | 上下线/踢出通知（世界别名/坐标/权限组/在线列表）；3s 聚合窗口+摘要；max_list_items 截断；限流 | 单测+集成+E2E |
@@ -31,7 +31,7 @@
 | **rank** | RankService / LuckPermsPromoter / PermissionStore | 4 级权限链（default→member→builder→admin）；LP track 自动初始化/校正；自动晋升（member-threshold-hours）；`$p u/d` 手动升降级；`/rank` 进度展示；升级通知 | 单测+集成 |
 | **review** | ReviewService / ReviewCommandService / ReviewHandler | `/apply` 申请（资格预检）；`/review approve/reject`；`$v l/y/n` 群审核；LP 异步授权+状态一致性；申请历史 10 条裁剪；通知双方 | 单测+集成+E2E |
 | **server** | ServerLifecycleService / ExceptionAlertService / StartupSecurityAuditService | 启动/停止通知；异常告警（PRIVATE）；启动安全审计 | 单测 |
-| **chat** | ChatSpamFilterService | 聊天限流（6 条/分钟）；链接检测；重复消息检测 | 单测+集成 |
+| **chat** | ChatSpamFilterService | 聊天限流（20 条/分钟）；链接检测；重复消息检测 | 单测+集成 |
 | **command** | CommandFeedbackService + 拦截器链 | PlayerOnly/AdminOnly/Cooldown 三拦截器；命令反馈；/config 子命令 | 单测 |
 
 ### 1.2 安全加固四大模块（features.md 未收录，2026-08 新增）
@@ -39,8 +39,8 @@
 | 模块 | 配置节 | 拦截点 | 行为 | 测试状态 |
 |:--|:--|:--|:--|:--|
 | 危险命令拦截 | `guard` | ServerCommandEvent | deny-list（op/deop/publish/seed/reload/plugman/stop）命中拦截+私信管理员+审计日志 | ✅ 单测覆盖（CommandGuardServiceTest 等 4 类） |
-| 聊天反垃圾 | `chat` | AsyncChatEvent | 限流 6 条/分、链接检测、重复检测，命中取消消息+提示 | ✅ 单测覆盖（ChatSpamFilter 2 类） |
-| 进服限流 | `login_rate_limit` | AsyncPlayerPreLoginEvent | 每 IP 5 次/分登录尝试；同 IP 并发上限 3；私信管理员 | ✅ 单测覆盖（LoginRateLimit 2 类） |
+| 聊天反垃圾 | `chat` | AsyncChatEvent | 限流 20 条/分、链接检测、重复检测，命中取消消息+提示 | ✅ 单测覆盖（ChatSpamFilter 2 类） |
+| 进服限流 | `login_rate_limit` | AsyncPlayerPreLoginEvent | 每 IP 20 次/分登录尝试；同 IP 并发上限 5；私信管理员 | ✅ 单测覆盖（LoginRateLimit 2 类） |
 | 漏洞加固 | `exploit_hardening` | 书页/物品属性/实体生成 | 书 100 页上限；物品 6 属性修饰符上限；单区块 128 实体上限 | ✅ 单测覆盖（ExploitHardening 2 类） |
 
 ### 1.3 命令清单（11 Bot 命令 + 9 游戏命令 + /config）
@@ -51,7 +51,7 @@ Bot 命令：`$l` 在线 / `$w` 白名单 / `$h` 帮助 / `$a` 加白 / `$r` 移
 
 ### 1.4 配置面（6 配置文件 + 25+ 运行时配置项）
 
-config.yml（白名单/维护/TNT/GeoIP/实体传送/命令策略/安全加固四模块）· easybot.yml · templates.yml（50+ 模板）· permission.yml · portals.yml · ip_blacklist.yml · guide_book.yml
+config.yml（白名单/维护/TNT/GeoIP/实体传送/命令策略/安全加固四模块）· easybot.yml · templates.yml（50+ 模板）· permission.yml · portals.yml · access_rules.yml · guide_book.yml
 
 ---
 

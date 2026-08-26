@@ -15,7 +15,7 @@ class RankColorsConfigTest {
         RankColorsConfig cfg = RankColorsConfig.from(null);
         assertTrue(cfg.enabled());
         assertTrue(cfg.nametagEnabled());
-        assertTrue(cfg.tabEnabled());
+        assertFalse(cfg.tabEnabled());
         assertEquals(NamedTextColor.GOLD, cfg.opColor());
         assertEquals(NamedTextColor.GRAY, cfg.colors().get("default"));
         assertEquals(NamedTextColor.AQUA, cfg.colors().get("member"));
@@ -33,7 +33,7 @@ class RankColorsConfigTest {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(false);
         when(cfg.getBoolean("nametag_enabled", true)).thenReturn(false);
-        when(cfg.getBoolean("tab_enabled", true)).thenReturn(false);
+        when(cfg.getBoolean("tab_enabled", false)).thenReturn(false);
         when(cfg.getString("op_color")).thenReturn("gold");
         when(cfg.getConfigurationSection("colors")).thenReturn(colors);
 
@@ -58,7 +58,7 @@ class RankColorsConfigTest {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(true);
         when(cfg.getBoolean("nametag_enabled", true)).thenReturn(true);
-        when(cfg.getBoolean("tab_enabled", true)).thenReturn(true);
+        when(cfg.getBoolean("tab_enabled", false)).thenReturn(true);
         when(cfg.getString("op_color")).thenReturn(null);
         when(cfg.getConfigurationSection("colors")).thenReturn(colors);
 
@@ -80,7 +80,7 @@ class RankColorsConfigTest {
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(true);
         when(cfg.getBoolean("nametag_enabled", true)).thenReturn(true);
-        when(cfg.getBoolean("tab_enabled", true)).thenReturn(true);
+        when(cfg.getBoolean("tab_enabled", false)).thenReturn(true);
         when(cfg.getString("op_color")).thenReturn("not-a-color");
         when(cfg.getConfigurationSection("colors")).thenReturn(colors);
 

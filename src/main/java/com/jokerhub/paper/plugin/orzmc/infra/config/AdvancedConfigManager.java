@@ -36,15 +36,4 @@ public class AdvancedConfigManager extends ConfigManager {
         defaultsSetter.accept(config);
         saveConfig(configName);
     }
-
-    public boolean checkAndUpdateConfigVersion(String configName, double currentVersion) {
-        ConfigWrapper wrapper = getWrapper(configName);
-        double configVersion = wrapper.getDouble("config-version", 0.0);
-        if (configVersion < currentVersion) {
-            plugin.getLogger()
-                    .warning("配置文件 " + configName + " 版本过旧 (" + configVersion + " < " + currentVersion + ")，建议更新！");
-            return false;
-        }
-        return true;
-    }
 }

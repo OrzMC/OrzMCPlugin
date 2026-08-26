@@ -65,7 +65,7 @@ public final class OrzServices {
         bot.botCommandService()
                 .injectDependencies(new BotCommandDependencies()
                         .maintenanceService(maintenance.worldMaintenanceService())
-                        .blacklistService(feature.blacklistService())
+                        .accessRuleService(feature.accessRuleService())
                         .reviewService(feature.reviewService())
                         .rankService(feature.rankService())
                         .listFormatter(feature.listFormatter())

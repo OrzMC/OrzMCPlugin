@@ -1,0 +1,12 @@
+{
+  "name": "orzmc-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "minecraft-data": "3.113.2",
+    "mineflayer": "4.37.1"
+  }
+}

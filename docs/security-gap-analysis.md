@@ -22,7 +22,7 @@ OrzMC 私服对外运营（离线模式 + 强制白名单 + 群机器人管理�
 |---|---|---|---|
 | 强制白名单 | 启动时开启白名单 + enforce + 默认生存；未白名单玩家踢出；白名单被关闭时群告警 | `whitelist.forceWhitelist`、`whitelist.kick_message` | `features/whitelist/`、`FeatureModule.enableForceWhitelist()` |
 | 白名单维护 | 群指令 `$a/$r/$w` 批量增删、踢出在线玩家、不活跃自动清理 | `whitelist.cleanupInactiveDays` | `features/whitelist/` |
-| GeoIP 国家白名单 | 按国家码限制进服；私网直放行；12h 缓存；查询失败放行但私信告警 | `geoip.allow_country_code` | `features/security/GeoIpAccessService.java` |
+| GeoIP 国家白名单 | 按国家码限制进服；私网直放行；12h 缓存；查询失败/超时/空国家码默认 fail-close 拒绝（可配 `geoip.fail_open: true` 放行），均私信告警管理员 | `geoip.allow_country_code`、`geoip.fail_open` | `features/security/GeoIpAccessService.java`、`features/player/PlayerEventService.java` |
 | IP 黑名单 | 精确 IP / CIDR / 通配符三种规则，登录前拦截 | `ip_blacklist.yml` | `features/security/BlacklistService.java` |
 | TNT 防护 | 点燃/放置/发射器/爆炸多拦截点；区域白名单；放置冷却；爆炸告警聚合 | `tnt.*` | `features/tnt/` |
 | 权限链 Rank | LuckPerms 四级 track（default→member→builder→admin），自动晋升 + 申请审核；脏节点归一 | `permission.yml`、LP track | `features/rank/`、`features/review/` |
@@ -40,7 +40,7 @@ OrzMC 私服对外运营（离线模式 + 强制白名单 + 群机器人管理�
 | `/orzdebug` 调试入口 | **已修复（2026-08-16）** | 见第 4 节：改为 AdminOnlyInterceptor，仅 OP / `orzmc.admin` / 控制台可用 |
 | Bot `$e` 执行控制台命令 | **已正确门禁** | `BotCommandService` 通过 `guardAdminCommand` 校验 `isAdmin`；`$e` 属 `needAdminPermission=true`。群侧 `isAdmin` 由 `BotInboundDispatcher` 依据群成员身份传入 |
 | 登录爆破 | **未覆盖** | LoginSecurity 自带基础防护，插件无额外限速/封禁；高频失败可打满 `ip_blacklist.yml` 前反复尝试 |
-| GeoIP fail-open | **放行但有告警** | 查询失败/超时放行（3s 决策窗口）+ 私信告警；可用 IP 黑名单兜底，属权衡取舍 |
+| GeoIP 查询失败 | **默认 fail-close，可配 fail-open** | 查询失败/超时/空国家码默认拒绝进入（3s 决策窗口，安全优先），`geoip.fail_open: true` 改为放行（可用性优先）；两种策略均私信告警管理员 |
 | 定时备份 | **未覆盖** | 备份仅 `$b` 手动触发，无 cron/定时调度；依赖服主自觉 |
 | 聊天反垃圾/反广告 | **未覆盖** | 不在本插件职责内，依赖外部插件 |
 | 防 X-Ray | **未覆盖** | 依赖 Paper 内置 anti-xray 配置（站点文章已记录），非插件能力 |

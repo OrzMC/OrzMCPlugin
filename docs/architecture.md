@@ -14,7 +14,7 @@
     - `commands/` 包中每个 CommandExecutor 只做参数采集与拦截器壳
 - **服务层（Features）**
     - 承载业务流程与规则，依赖通过构造注入
-    - 示例：`features/player/PlayerEventService`, `features/tnt/TntEventService`, `features/whitelist/WhitelistService`
+    - 示例：`features/player/LoginAccessControlService`, `features/player/PlayerEventService`, `features/tnt/TntEventService`, `features/whitelist/WhitelistService`
 - **核心层（Core / 端口与消息）**
     - `core/ports/` 定义业务端口接口（`ServerAccess`, `ServerLogger`, `ServerScheduler`, `TypedConfigProvider`）
     - `core/bot/` 定义消息模型（`MessageEnvelope`, `BotInboundHandler`）
@@ -47,7 +47,7 @@ PlatformModule
 ├── ServerFacade          ← 服务端门面（聚合 ServerAccess / ServerLogger / ServerScheduler）
 ├── ConfigService         ← YAML 配置加载与管理
 ├── DefaultTypedConfigProvider ← 类型化配置统一入口（通过各个 Config 记录类转型）
-├── OrzTextStyles         ← 文本样式（从 templates.yml → styles 段读取，兼容旧 styles.yml）
+├── OrzTextStyles         ← 文本样式（从 templates.yml → styles 段读取）
 ├── ThrottledLogger       ← 日志限流
 ├── ThrottledNotifier     ← 通知限流
 └── HealthRegistry         ← 健康状态注册与查询
@@ -67,7 +67,7 @@ PlatformModule
     - HealthRegistry（Status: enabled/httpOk/httpChecked/wsConnected/apiReady/lastError/lastUpdated）
     - HealthAccessor（桥接实例化 HealthRegistry 与 HealthStatus 接口）
 - **styles/** — 统一文本样式与颜色
-    - OrzTextStyles（读取 templates.yml → styles 段，兼容旧 styles.yml）
+    - OrzTextStyles（读取 templates.yml → styles 段）
 - **server/** — 服务端交互
     - ServerFacade（聚合 serverAccess / serverLogger / serverScheduler）
 - **net/** — HTTP 客户端封装
@@ -98,7 +98,7 @@ BotModule
 │   ├── $cmd ? 支持：在指令后加 ? 或 ？ 查询详细用法
 │   ├── BotCommandFeedbackService     ← 指令反馈信息构建（帮助、用法提示）
 │   ├── BotCommandListFeedbackService ← 在线列表/白名单列表构建（含权限组展示）
-│   └── setMaintenanceService() / setBlacklistService() / setReviewService() / setRankService() 跨模块注入
+│   └── setMaintenanceService() / setAccessRuleService() / setReviewService() / setRankService() 跨模块注入
 ├── BotMessageService     ← EasyBot 统一网关消息服务
 ├── Notifier              ← 通知派发（依赖 BotMessageService）
 ├── BotStatusService      ← 机器人状态查询
@@ -139,7 +139,7 @@ MaintenanceModule
 
 **注册的事件监听器**：
 - OrzBowShootEvent — 传送弓射箭事件
-- OrzPlayerEvent — 玩家进出服 / 首次加入向导
+- OrzPlayerEvent — 登录访问控制 / 玩家进出服 / 首次加入向导
 - OrzTPEvent — 跨服传送
 - OrzTNTEvent — TNT 检测
 - OrzMenuEvent — 菜单交互
@@ -155,7 +155,7 @@ MaintenanceModule
 - `/tpbow`（别名 `/tpb`） — 获取传送弓
 - `/bot` — 查看机器人状态（自动重连 WebSocket）
 - `/portal` — 管理传送门（`<host> [port]` 创建，`remove <host> [port]` 移除）
-- `/blacklist`（别名 `/bl`） — IP 黑名单管理（list/add/remove）
+- `/blacklist`（别名 `/bl`） — IP 黑名单与玩家名规则管理（list/add/remove）
 - `/config`（别名 `/cfg`） — 管理员配置管理（list/get/set/reset/dump/reload）
 - `/apply` — 玩家提交/查询/撤回审核申请（如 `/apply builder [理由]`）
 - `/review approve|reject <玩家>` — 管理员审核申请
@@ -169,10 +169,10 @@ MaintenanceModule
 - `CooldownRegistry` — 冷却注册与管理
 - 执行方式：通过 `guardedExec()` 包装 Brigadier `Command` 执行体，运行时按序检查拦截器链
 
-**IP 黑名单**：
-- `BlacklistService` 管理 IP 黑名单规则（支持通配符模式如 `192.168.*`）
-- 玩家连接时 `OrzPlayerEvent` 调用 `BlacklistService.isBlacklisted()` 检查
-- 黑名单存储于 `ip_blacklist.yml`
+**访问规则**：
+- `AccessRuleService` 统一管理 IP 黑名单（精确/CIDR/通配符）与玩家名规则（exact/prefix/suffix/contains/glob/regex）
+- 玩家连接时 `LoginAccessControlService` 统一编排 prelogin：IP 黑名单 → 玩家名规则 → GeoIP 地区白名单
+- 运行时规则存储于 `access_rules.yml`（取代旧 `ip_blacklist.yml`，不再自动迁移存量数据）
 
 ## 模块生命周期
 
@@ -194,7 +194,7 @@ OrzServices.assemble(OrzMC)
   │
   ├── 7. new FeatureModule(platform, bot, portal, maintenance)  ← 依赖所有模块
   │
-  ├── 8. bot.botCommandService().setBlacklistService(...)   ← IP 黑名单回引用注入（Feature → Bot）
+  ├── 8. bot.botCommandService().injectDependencies(accessRuleService(...))   ← 访问规则回引用注入（Feature → Bot）
   │
   └── OrzServices.setupAll(plugin)
         ├── botModule.setup()             ← 启动 Bot 连接
@@ -267,8 +267,6 @@ styles:
   error: "#FF5555"
 ```
 
-兼容旧 `styles.yml` 文件（自动 fallback 读取）。
-
 ### easybot.yml（EasyBot IM 网关配置）
 
 机器人连接、路由及通用 Bot 设置统一存放在 `easybot.yml`：
@@ -299,7 +297,7 @@ platforms:
 
 ## 命令策略（冷却/权限）
 
-命令策略通过 `config.yml` → `command_policies` 配置，兼容旧 `commands.yml`（作为 fallback）：
+命令策略通过 `config.yml` → `command_policies` 配置：
 
 ```yaml
 command_policies:
@@ -333,7 +331,7 @@ command_policies:
 | `$b` | 管理员 | 地图备份 |
 | `$o` | 管理员 | 地图优化 |
 | `$e <命令>` | 管理员 | 执行控制台命令 |
-| `$d [list|add|remove] <pattern>` | 管理员 | 添加/移除/查看 IP 黑名单 |
+| `$d <IP> / $d player <type> <value>` | 管理员 | 添加/移除/查看 IP 黑名单与玩家名规则 |
 | `$v [l|y|n] <玩家>` | 管理员 | 查看/处理审核申请（`$v l` / `$v y` / `$v n`） |
 | `$p [u|d] <玩家>` | 管理员 | 权限升级/降级 |
 | `$l` | 通用 | 查看在线玩家 |

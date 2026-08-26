@@ -17,14 +17,14 @@ public record LoginRateLimitConfig(
 
     public static LoginRateLimitConfig from(ConfigurationSection cfg) {
         if (cfg == null) {
-            return new LoginRateLimitConfig(true, 5, 3, true, DEFAULT_MESSAGE);
+            return new LoginRateLimitConfig(true, 20, 5, true, DEFAULT_MESSAGE);
         }
-        int freq = cfg.getInt("max_login_attempts_per_minute", 5);
+        int freq = cfg.getInt("max_login_attempts_per_minute", 20);
         if (freq < 1) {
             // 非正上限会让限流失效，回退最小 1
             freq = 1;
         }
-        int concurrent = cfg.getInt("max_concurrent_per_ip", 3);
+        int concurrent = cfg.getInt("max_concurrent_per_ip", 5);
         if (concurrent < 1) {
             concurrent = 1;
         }

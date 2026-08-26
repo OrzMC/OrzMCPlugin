@@ -144,7 +144,7 @@ class ConfigPathTest {
         ConfigPath window = all.get("player_notify.window_ms");
         assertNotNull(window);
         assertEquals(Long.class, window.type());
-        assertEquals(3000L, window.defaultValue());
+        assertEquals(1000L, window.defaultValue());
 
         ConfigPath maxList = all.get("player_notify.max_list_items");
         assertNotNull(maxList);

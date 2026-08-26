@@ -27,7 +27,13 @@ async function check(name, fn, expect = true) {
 // 尝试登录并返回被踢原因（或 null=成功进服）
 function tryLogin(name, timeoutMs = 15000) {
   return new Promise((resolve) => {
-    const bot = mineflayer.createBot({ host: '127.0.0.1', port: TEST_PORT, username: name, auth: 'offline' });
+    const bot = mineflayer.createBot({
+      host: '127.0.0.1',
+      port: TEST_PORT,
+      username: name,
+      auth: 'offline',
+      version: '1.21.11',
+    });
     let reason = null;
     let settled = false;
     const done = (v) => { if (!settled) { settled = true; try { bot.quit(); } catch (e) {} resolve(v); } };

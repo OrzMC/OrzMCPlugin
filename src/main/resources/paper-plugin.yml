@@ -6,7 +6,7 @@ description: OrzMC for Paper Server Plugin
 authors: [ wangzhizhou ]
 contributors: [ wangzhizhou ]
 website: https://orzmc.jokerhub.cn
-api-version: '26.1.2'
+api-version: '26.2'
 folia-supported: true
 
 # LuckPerms 软依赖（Paper 26 新格式）：确保 OrzMC 在 LP 之后加载，
@@ -16,7 +16,7 @@ dependencies:
     LuckPerms:
       required: false
 
-# Paper 26.1 插件模式忽略 YAML 命令声明，命令通过 Paper LifecycleEvents.COMMANDS + Brigadier 注册。
+# Paper 26.2 插件模式忽略 YAML 命令声明，命令通过 Paper LifecycleEvents.COMMANDS + Brigadier 注册。
 # 此处只保留权限声明，供 Bukkit Permission 系统使用。
 permissions:
   orzmc.admin:

@@ -60,5 +60,6 @@ class TemplateKeysTest {
         assertEquals("login_rate_limit_alert", TemplateKeys.LOGIN_RATE_LIMIT_ALERT);
         assertEquals("exploit_blocked", TemplateKeys.EXPLOIT_BLOCKED);
         assertEquals("ip_blacklist_block", TemplateKeys.IP_BLACKLIST_BLOCK);
+        assertEquals("player_name_block", TemplateKeys.PLAYER_NAME_BLOCK);
     }
 }

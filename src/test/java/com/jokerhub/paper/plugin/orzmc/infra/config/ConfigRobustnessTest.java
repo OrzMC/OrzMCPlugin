@@ -12,19 +12,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * 验证配置合并后的向后兼容性。
+ * 验证配置解析与健康检查健壮性。
  *
- * <p>旧式配置（config.yml 无分段 + 独立配置文件）必须能通过健康检查，
- * 且 {@link ConfigManager#sectionOrLegacy} 能正确提取旧文件内容。
+ * <p>新式 config.yml 全分段可解析；分段缺失时 {@code TypedConfig.from(null)} 返回安全默认；
+ * 健康检查对空配置不崩溃、对完整新配置无致命问题。
  */
-public class ConfigBackwardCompatTest {
+public class ConfigRobustnessTest {
 
     private FileConfiguration load(String name) throws Exception {
         try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(name)) {
@@ -33,58 +32,10 @@ public class ConfigBackwardCompatTest {
         }
     }
 
-    /** 旧式 config.yml：只有注释，无 whitelist/maintenance/tnt/geoip/command_policies 分段。 */
-    private FileConfiguration oldStyleConfig() {
+    /** 空 config.yml：无任何分段（等价于配置缺失的健壮性场景）。 */
+    private FileConfiguration emptyConfig() {
         YamlConfiguration cfg = new YamlConfiguration();
         // 故意不设任何键
-        return cfg;
-    }
-
-    /** 旧式 whitelist.yml：扁平结构（无 whitelist: 包裹） */
-    private FileConfiguration oldWhitelistYml() {
-        YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("force_whitelist", true);
-        cfg.set("cleanup_inactive_days", 90);
-        cfg.set("pagination_delay_ticks", 5);
-        return cfg;
-    }
-
-    /** 旧式 maintenance.yml：扁平结构 */
-    private FileConfiguration oldMaintenanceYml() {
-        YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("optimize_enabled", false);
-        cfg.set("optimize_tick_time_threshold", 300);
-        cfg.set("backup_retention_count", 5);
-        cfg.set("backup_maintenance_motd", "服务器维护中，稍后再试");
-        return cfg;
-    }
-
-    /** 旧式 tnt.yml：扁平结构 */
-    private FileConfiguration oldTntYml() {
-        YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("enable", false);
-        cfg.set("enable_respawn_anchor", false);
-        cfg.set("place_cooldown", 5);
-        cfg.set("notify_throttle_ms", 1000L);
-        return cfg;
-    }
-
-    /** 旧式 ip_whitelist.yml */
-    private FileConfiguration oldIpWhitelistYml() {
-        YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("allow_country_code", List.of());
-        return cfg;
-    }
-
-    /** 旧式 commands.yml：带 commands: 包裹 */
-    private FileConfiguration oldCommandsYml() {
-        YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("commands.tpbow.cooldown_secs", 3);
-        cfg.set("commands.tpbow.admin_only", false);
-        cfg.set("commands.menu.cooldown_secs", 0);
-        cfg.set("commands.menu.admin_only", false);
-        cfg.set("commands.portal.cooldown_secs", 5);
-        cfg.set("commands.portal.admin_only", true);
         return cfg;
     }
 
@@ -153,63 +104,8 @@ public class ConfigBackwardCompatTest {
     }
 
     // ---------------------------------------------------------------
-    // 场景 B：旧式扁平文件 → TypedConfigs.from() 从旧文件直接读取
+    // 场景 B：TypedConfig.from(null) → 安全默认值（分段缺失时健壮性）
     // ---------------------------------------------------------------
-
-    @Test
-    public void testOldWhitelistFileDirectParse() {
-        // 旧的 whitelist.yml 是扁平结构（无 whitelist: 包裹），
-        // sectionOrLegacy 会返回 legacy 文件本身作为 section。
-        FileConfiguration legacy = oldWhitelistYml();
-
-        WhitelistConfig wl = WhitelistConfig.from(legacy);
-        Assertions.assertTrue(wl.forceWhitelist());
-        Assertions.assertEquals(90, wl.cleanupInactiveDays());
-        Assertions.assertEquals(5, wl.paginationDelayTicks());
-    }
-
-    @Test
-    public void testOldMaintenanceFileDirectParse() {
-        FileConfiguration legacy = oldMaintenanceYml();
-
-        MaintenanceConfig mt = MaintenanceConfig.from(legacy);
-        Assertions.assertFalse(mt.optimizeEnabled());
-        Assertions.assertEquals(300L, mt.optimizeTickTimeThreshold());
-        Assertions.assertEquals("服务器维护中，稍后再试", mt.backupMaintenanceMotd());
-    }
-
-    @Test
-    public void testOldTntFileDirectParse() {
-        FileConfiguration legacy = oldTntYml();
-
-        TntConfig tnt = TntConfig.from(legacy);
-        Assertions.assertFalse(tnt.enable());
-        Assertions.assertEquals(5, tnt.placeCooldownSeconds());
-        // notify_throttle_ms 已移出 TntConfig（ThrottledNotifier 直接读原始配置），旧文件仍能无损解析
-    }
-
-    @Test
-    public void testOldIpWhitelistFileDirectParse() {
-        FileConfiguration legacy = oldIpWhitelistYml();
-
-        IpWhitelist ip = IpWhitelist.from(legacy);
-        Assertions.assertTrue(ip.allowCountryCode().isEmpty());
-    }
-
-    // ---------------------------------------------------------------
-    // 场景 C：sectionOrLegacy 逻辑测试（通过程序化 provider 模拟）
-    // 旧式 config.yml（无分段）→ 应 null 分段 → 代码不会 NPE
-    // ---------------------------------------------------------------
-
-    @Test
-    public void testSectionOrLegacyReturnsNullForNonExistentSection() {
-        // 模拟旧式 config.yml：只有 config-version，没有子分段
-        YamlConfiguration minimal = new YamlConfiguration();
-        minimal.set("config-version", 2);
-
-        ConfigurationSection whitelistSection = minimal.getConfigurationSection("whitelist");
-        Assertions.assertNull(whitelistSection, "旧式 config.yml 不应有 whitelist 分段");
-    }
 
     @Test
     public void testNullSectionIsHandledGracefully() {
@@ -232,15 +128,15 @@ public class ConfigBackwardCompatTest {
     }
 
     // ---------------------------------------------------------------
-    // 场景 D：健康检查在旧式配置上不应崩溃
+    // 场景 C：健康检查在空配置上不应崩溃
     // ---------------------------------------------------------------
 
     @Test
-    public void testHealthCheckWithOldStyleConfigDoesNotCrash() throws Exception {
-        // 模拟旧式设置：config.yml 无分段，但其他文件存在
+    public void testHealthCheckWithEmptyConfigDoesNotCrash() throws Exception {
+        // 模拟配置缺失：config.yml 无任何分段，但其他文件存在
         // 健康检查应优雅处理，不抛出异常
         Map<String, FileConfiguration> cfgs = new HashMap<>();
-        cfgs.put("config", oldStyleConfig());
+        cfgs.put("config", emptyConfig());
         cfgs.put("easybot", load("easybot.yml"));
         cfgs.put("guide_book", load("guide_book.yml"));
         cfgs.put("templates", load("templates.yml"));

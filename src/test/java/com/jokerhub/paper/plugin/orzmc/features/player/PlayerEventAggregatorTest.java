@@ -61,7 +61,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
     @BeforeEach
     void setUp() {
         formatter = new OnlineListFormatter();
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 1000L, 6));
         when(server.server()).thenReturn(bukkitServer);
         when(server.logger()).thenReturn(logger);
         when(configs.renderEvent(anyString(), anyMap())).thenReturn(MessageEnvelope.publicMessage("ok"));
@@ -111,9 +111,9 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
         aggregator.enqueue(p, PlayerEventService.PlayerState.JOIN);
 
-        // 纯聚合：事件不立即发送，仅调度一次窗口冲刷（3000ms → 60 ticks）
+        // 纯聚合：事件不立即发送，仅调度一次窗口冲刷（1000ms → 20 ticks）
         verify(notifier, never()).event(anyString(), any(MessageEnvelope.class));
-        verify(server).runLater(any(Runnable.class), eq(60L));
+        verify(server).runLater(any(Runnable.class), eq(20L));
         runTail();
 
         @SuppressWarnings("unchecked")
@@ -252,7 +252,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
     @Test
     void enqueue_manyEvents_truncatesNamesOnlyCountExact() {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 1000L, 6));
         doReturn(List.of()).when(bukkitServer).getOnlinePlayers();
         when(bukkitServer.getMaxPlayers()).thenReturn(100);
         when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));
@@ -296,7 +296,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
     @Test
     void enqueue_configReloaded_usesNewWindow() {
-        // 首个窗口 3000ms → 60 ticks
+        // 首个窗口 1000ms → 20 ticks
         aggregator.enqueue(mockPlayer("A"), PlayerEventService.PlayerState.JOIN);
         runTail();
 
@@ -309,7 +309,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
     @Test
     void enqueue_disabledState_suppressed() {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 1000L, 6));
 
         aggregator.enqueue(mockPlayer("Alice"), PlayerEventService.PlayerState.JOIN);
 
@@ -324,7 +324,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         aggregator.enqueue(mockPlayer("A"), PlayerEventService.PlayerState.JOIN);
         aggregator.enqueue(mockPlayer("B"), PlayerEventService.PlayerState.JOIN);
         // 窗口内管理员关闭上线通知 → 挂起批次不再发送
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 1000L, 6));
 
         runTail();
 
@@ -338,7 +338,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
         aggregator.enqueue(mockPlayer("A"), PlayerEventService.PlayerState.JOIN);
         aggregator.enqueue(b, PlayerEventService.PlayerState.QUIT);
         // 上线被关闭后，窗口内剩余 1 条 QUIT → 走单条模板而非摘要
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 3000L, 6));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(false, true, true, 1000L, 6));
         doReturn(List.of(b)).when(bukkitServer).getOnlinePlayers();
         when(bukkitServer.getMaxPlayers()).thenReturn(100);
         when(configs.renderEvent(eq("player_quit"), anyMap())).thenReturn(MessageEnvelope.publicMessage("quit"));
@@ -463,7 +463,7 @@ class PlayerEventAggregatorTest extends ServiceTestBase {
 
     @Test
     void concurrentEnqueue_serializedIntoOneBatch_exactCounts() throws Exception {
-        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 3000L, 6));
+        when(configs.playerNotify()).thenReturn(new PlayerNotifyConfig(true, true, true, 1000L, 6));
         doReturn(List.of()).when(bukkitServer).getOnlinePlayers();
         when(bukkitServer.getMaxPlayers()).thenReturn(100);
         when(configs.renderEvent(eq("player_digest"), anyMap())).thenReturn(MessageEnvelope.publicMessage("digest"));

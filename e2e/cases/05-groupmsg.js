@@ -72,6 +72,7 @@ async function waitGmsgBlock(key, mustContain, timeoutMs = 25000) {
         port: parseInt(process.env.ORZMC_TEST_PORT || '25565', 10),
         username: blocked,
         auth: 'offline',
+        version: '1.21.11',
       });
       bot.once('kicked', () => resolve('kicked'));
       bot.once('spawn', () => resolve('spawned'));
@@ -132,6 +133,7 @@ async function waitGmsgBlock(key, mustContain, timeoutMs = 25000) {
         port: parseInt(process.env.ORZMC_TEST_PORT || '25565', 10),
         username: badIpName,
         auth: 'offline',
+        version: '1.21.11',
       });
       bot.once('kicked', () => resolve('kicked'));
       bot.once('spawn', () => resolve('spawned'));

@@ -3,7 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.features.botcommands;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import com.jokerhub.paper.plugin.orzmc.features.rank.RankService;
 import com.jokerhub.paper.plugin.orzmc.features.review.ReviewService;
-import com.jokerhub.paper.plugin.orzmc.features.security.BlacklistService;
+import com.jokerhub.paper.plugin.orzmc.features.security.AccessRuleService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardService;
 import com.jokerhub.paper.plugin.orzmc.infra.logging.LogCaptureService;
@@ -19,7 +19,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.player.OnlineListFormatter;
 public final class BotCommandDependencies {
 
     private WorldMaintenanceService maintenanceService;
-    private BlacklistService blacklistService;
+    private AccessRuleService accessRuleService;
     private ReviewService reviewService;
     private RankService rankService;
     private LogCaptureService logCaptureService;
@@ -32,8 +32,8 @@ public final class BotCommandDependencies {
         return this;
     }
 
-    public BotCommandDependencies blacklistService(BlacklistService blacklistService) {
-        this.blacklistService = blacklistService;
+    public BotCommandDependencies accessRuleService(AccessRuleService accessRuleService) {
+        this.accessRuleService = accessRuleService;
         return this;
     }
 
@@ -71,8 +71,8 @@ public final class BotCommandDependencies {
         return maintenanceService;
     }
 
-    BlacklistService blacklistService() {
-        return blacklistService;
+    AccessRuleService accessRuleService() {
+        return accessRuleService;
     }
 
     ReviewService reviewService() {

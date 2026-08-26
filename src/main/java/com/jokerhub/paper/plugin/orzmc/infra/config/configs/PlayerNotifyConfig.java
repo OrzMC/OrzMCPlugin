@@ -14,12 +14,12 @@ public record PlayerNotifyConfig(
 
     public static PlayerNotifyConfig from(ConfigurationSection cfg) {
         if (cfg == null) {
-            return new PlayerNotifyConfig(true, true, true, 3000L, 6);
+            return new PlayerNotifyConfig(true, true, true, 1000L, 6);
         }
-        long windowMs = cfg.getLong("window_ms", 3000L);
+        long windowMs = cfg.getLong("window_ms", 1000L);
         if (windowMs <= 0) {
             // 非正窗口会让聚合退化为 1 tick，等于关闭防刷屏 → 回退默认
-            windowMs = 3000L;
+            windowMs = 1000L;
         }
         int maxListItems = cfg.getInt("max_list_items", 6);
         if (maxListItems < 1) {

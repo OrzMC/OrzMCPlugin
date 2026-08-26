@@ -24,7 +24,8 @@ import org.bukkit.event.server.ServerCommandEvent;
  *   <li>命中 {@code BLOCK} → 取消事件 + 发送者中文反馈 + 审计记录 blocked +（按
  *       {@code notify_admins} 配置）PRIVATE 私信管理员（模板 {@code command_guard_blocked}，
  *       Java 兜底文案防模板缺失）；</li>
- *   <li>命中 {@code WARN}（未限定目标选择器）→ 审计记录 executed + warning 日志但放行；</li>
+ *   <li>命中 {@code WARN}（未限定目标选择器）→ 审计记录 executed 后放行；控制台 warning
+ *       仅当 {@code audit_enabled=false} 时输出（审计开启时细节由审计文件承载，避免刷屏）。</li>
  *   <li>ALLOW → 审计记录 executed 后放行。</li>
  * </ul>
  */
@@ -92,9 +93,16 @@ public final class CommandGuardEventService {
             }
             case WARN -> {
                 audit.record(auditSource(sender), sender.getName(), commandLine, false);
-                // 日志节流：命令方块循环注入等高频来源 5 秒最多 1 条 warning（防日志刷屏），
-                // 其余降级为 fine；审计记录不受影响（audit.record 写文件不刷日志）
-                if (logThrottle.shouldRun("command_guard_warn_log", 5000)) {
+                if (configs.securityGuard().auditEnabled()) {
+                    // audit_enabled 时控制台不写 WARN：细节由 command_audit.log 承载，
+                    // 避免管理员查看问题时被高频 WARN 刷屏。仍留一条 fine 级踪迹——
+                    // 审计文件异常时事件不至于完全不可见。
+                    logger.fine("[OrzMC] 危险命令放行（审计已开启，详见审计）: "
+                            + commandLine
+                            + "（来源: " + sourceLabel(sender) + "，发送者: " + sender.getName() + "）");
+                } else if (logThrottle.shouldRun("command_guard_warn_log", 5000)) {
+                    // 日志节流：命令方块循环注入等高频来源 5 秒最多 1 条 warning（防日志刷屏），
+                    // 其余降级为 fine；审计记录不受影响。
                     logger.warning("[OrzMC] 危险命令放行（未限定目标选择器）: "
                             + commandLine
                             + "（来源: " + sourceLabel(sender) + "，发送者: " + sender.getName() + "）");

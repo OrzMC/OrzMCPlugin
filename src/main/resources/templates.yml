@@ -33,6 +33,7 @@ templates:
     login_rate_limit_alert: PLAIN
     exploit_blocked: PLAIN
     ip_blacklist_block: PLAIN
+    player_name_block: PLAIN
     maintenance_backup_stage: CODE_BLOCK
     maintenance_backup_done: CODE_BLOCK
     maintenance_backup_error: CODE_BLOCK
@@ -87,6 +88,7 @@ templates:
   login_rate_limit_alert: "⚠ 登录限流\nIP: {ip}\n玩家: {player}\n原因: {reason}"
   exploit_blocked: "⚠ 漏洞利用拦截\n玩家: {player}\n原因: {reason}"
   ip_blacklist_block: "⚠ IP 黑名单拦截\n玩家: {player}\nIP: {ip}\n命中规则: {pattern}"
+  player_name_block: "⚠ 玩家名规则拦截\n玩家: {player}\n命中规则: {rule}"
   player_join: "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n🥰 上线：\n{name}"
   player_quit: "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n😋 下线：\n{name}"
   player_kick: "🎮 当前玩家({online_count}/{max_count})\n---------------------------------\n😂 被踢：\n{name}"

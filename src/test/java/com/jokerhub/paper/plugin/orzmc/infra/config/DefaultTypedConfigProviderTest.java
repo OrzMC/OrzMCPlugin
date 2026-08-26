@@ -63,7 +63,7 @@ class DefaultTypedConfigProviderTest {
 
     @Test
     void rankColors_returnsConfigWithDefaultsWhenSectionMissing() {
-        // sectionOrLegacy 未 stub → null → RankColorsConfig.from(null) 返回默认
+        // config 未 stub → getConfig("config") 返回 null → section() 返回 null → RankColorsConfig.from(null) 返回默认
         com.jokerhub.paper.plugin.orzmc.infra.config.configs.RankColorsConfig result = provider.rankColors();
         assertNotNull(result);
         assertTrue(result.enabled());

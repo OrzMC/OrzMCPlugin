@@ -78,7 +78,7 @@ approve 命令（region 线程）
 - 事件类消息用游戏内 bot 真实触发（`~/minecraft-bot/exec-cmds.js`：登录→命令→打印 chat 响应；`stay-for-kick.js`：驻留供 RCON kick）。
 - **orzdebug 控制台命令只回显日志、不发群**（callback 写死 `logger.info`），无法用其模拟群用户命令。
 - 投递记录查询：`~/.hermes/skills/gaming/orzmc/scripts/easybot_deliveries.py [N]`（QQ+飞书双平台实际渲染）。
-- 高频登录测试：`login_rate_limit`（每 IP 5 次/分钟）会踢 bot——IPv4/IPv6（127.0.0.1 vs ::1）分流或临时关限流；bukkit.yml `connection-throttle: 4000` 4s 内重连被拒。
+- 高频登录测试：`login_rate_limit`（每 IP 20 次/分钟）会踢 bot——IPv4/IPv6（127.0.0.1 vs ::1）分流或临时关限流；bukkit.yml `connection-throttle: 4000` 4s 内重连被拒。
 - 服务器重启流程：RCON stop → 失败则强杀 → `rm -f world/session.lock` → `screen -dmS folia ./start.sh`（测试服 screen 会话名 `folia`）。
 
 ## 7. 修复提交时间线（可 git 追溯）

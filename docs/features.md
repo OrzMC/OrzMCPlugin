@@ -61,7 +61,7 @@ WebSocket 向插件推送入站消息，插件通过 HTTP API 发送回复和服
 | `$e` | 执行控制台命令，输出完整回传群聊（含异步输出，日志窗口捕获 + 噪音过滤 + 30 行截断） | 管理员 |
 | `$v` | 查看/处理审核申请（`$v l` 列表 / `$v y <玩家>` 通过 / `$v n <玩家>` 拒绝） | 管理员 |
 | `$p` | 权限升降级（`$p u <玩家>` 升级 / `$p d <玩家>` 降级） | 管理员 |
-| `$d` | IP 黑名单管理 | 管理员 |
+| `$d` | 访问规则管理（IP 黑名单 + 玩家名规则） | 管理员 |
 
 ### 2.3 通知系统
 
@@ -195,7 +195,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 - **突发聚合防刷屏**：同一区域（128×128×64 方块）+ 同类型事件在聚合窗口内合并，窗口尾部只发一条告警（带 `×N` 次数与首个事件坐标）；批次内事件不立即发送，避免「立即发送 + 尾部汇总」双条刷屏
 - 聚合窗口由 `tnt.notify_aggregate_ms` 控制（默认 3000ms），既是突发合并也限制持续刷屏频率
 - 方块爆炸统一归并为「方块爆炸」标签，不再按方块材质拆分
-- 上下线消息限流由 `player_notify.window_ms`（3s 聚合窗口）承担（`tnt.notify_throttle_ms` 已废弃移除）
+- 上下线消息限流由 `player_notify.window_ms`（1s 聚合窗口）承担（`tnt.notify_throttle_ms` 已废弃移除）
 
 ---
 
@@ -208,15 +208,23 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 - 上游查询失败/超时/返回空国家码时 **fail-open 放行**（可用性优先），并私信告警管理员（1 分钟限频，日志始终保留完整现场），告警不入玩家群
 - 被拒玩家踢出消息中显示其所在国家及允许的国家列表；拦截时 Bot 推送通知
 
-### 5.2 IP 黑名单
-- 持久化存储于 `ip_blacklist.yml`
-- 支持多种匹配模式：
+### 5.2 访问规则
+- 运行时规则持久化于 `access_rules.yml`（取代旧 `ip_blacklist.yml`，存量数据不自动导入）
+- IP 黑名单支持多种匹配模式：
   - 精确 IP：`192.168.1.1`
   - CIDR：`192.168.1.0/24`
   - 通配符：`10.*`、`192.168.*`
+- 玩家名规则支持：
+  - 精确匹配：`exact Steve`
+  - 前缀：`prefix bot_`
+  - 后缀：`suffix _alt`
+  - 关键词：`contains admin`
+  - glob：`glob Steve*`
+  - 正则：`regex ^bot\d+$`
+- 玩家名匹配默认大小写不敏感；离线模式下玩家名由客户端上报，名称规则适合反滥用/风控，不能替代 UUID 或 IP 作为强安全边界
 - 管理方式：
-  - 游戏内命令：`/blacklist list|add|remove <pattern>`（别名 `/bl`）
-  - Bot 命令：`$d`
+  - 游戏内命令：`/blacklist list|add|remove <pattern>`，玩家名规则为 `/blacklist add|remove player <type> <value>`（别名 `/bl`）
+  - Bot 命令：`$d <IP>` / `$d -<IP>`，玩家名规则为 `$d player <type> <value>` / `$d -player <type> <value>`
 
 ### 5.3 登录验证集成
 - 反射调用 LoginSecurity API
@@ -354,7 +362,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `player_notify.enabled_join` | Boolean | true | 上线消息通知开关 |
 | `player_notify.enabled_quit` | Boolean | true | 下线消息通知开关 |
 | `player_notify.enabled_kick` | Boolean | true | 被踢消息通知开关 |
-| `player_notify.window_ms` | Long | 3000 | 上下线通知聚合窗口（毫秒） |
+| `player_notify.window_ms` | Long | 1000 | 上下线通知聚合窗口（毫秒） |
 | `player_notify.max_list_items` | Integer | 6 | 聚合摘要最多列出的玩家数 |
 
 **命令策略**
@@ -366,6 +374,27 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `command_policies.menu.admin_only` | Boolean | false | 菜单仅管理员 |
 | `command_policies.portal.cooldown_secs` | Integer | 5 | 传送门冷却（秒） |
 | `command_policies.portal.admin_only` | Boolean | true | 传送门仅管理员 |
+
+**聊天反垃圾**
+| 配置路径 | 类型 | 默认值 | 描述 |
+|---------|------|--------|------|
+| `chat.max_messages_per_minute` | Integer | 20 | 60s 滑动窗口内最多发言条数 |
+
+**登录限流**
+| 配置路径 | 类型 | 默认值 | 描述 |
+|---------|------|--------|------|
+| `login_rate_limit.max_login_attempts_per_minute` | Integer | 20 | 60s 滑动窗口内最多登录尝试次数 |
+| `login_rate_limit.max_concurrent_per_ip` | Integer | 5 | 同 IP 最大在线上限 |
+
+**危险命令拦截**
+| 配置路径 | 类型 | 默认值 | 描述 |
+|---------|------|--------|------|
+| `guard.audit_enabled` | Boolean | true | 是否写 `audit/command_audit.log`；开启时 WARN 不再重复刷控制台 |
+
+**玩家名颜色**
+| 配置路径 | 类型 | 默认值 | 描述 |
+|---------|------|--------|------|
+| `rank_colors.tab_enabled` | Boolean | false | Tab 列表着色开关 |
 
 **Bot（来源：easybot.yml）**
 | 配置路径 | 类型 | 默认值 | 描述 |
@@ -394,7 +423,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `/bot` | — | 查看 Bot 连接状态 | 通用 |
 | `/portal <host> [port]` | — | 创建跨服传送门 | 管理员 |
 | `/portal remove <host> [port]` | — | 删除传送门 | 管理员 |
-| `/blacklist list\|add\|remove` | `/bl` | IP 黑名单管理 | 管理员 |
+| `/blacklist list\|add\|remove` | `/bl` | IP 黑名单与玩家名规则管理 | 管理员 |
 | `/config list\|get\|set\|reset\|dump\|reload` | `/cfg` | 运行时配置管理 | 管理员 |
 | `/orzdebug <Bot命令>` | — | 模拟群里用户发 Bot 命令（调试用） | 通用 |
 | `/rank` | — | 查看自己的权限组/时长进度/下一步可申请 | 通用 |
@@ -416,7 +445,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | 组件 | 说明 |
 |------|------|
 | **Bot 消息路由** | OrzEasyBot 根据 PUBLIC / PRIVATE 统一路由至玩家群或管理员私聊 |
-| **多文件配置** | config.yml、easybot.yml、templates.yml、portals.yml、ip_blacklist.yml，支持热重载 |
+| **多文件配置** | config.yml、easybot.yml、templates.yml、portals.yml、access_rules.yml，支持热重载 |
 | **样式系统** | 可配置颜色调色板（成功/信息/警告/错误/坐标/玩家等），CSS 十六进制色值 |
 | **模板系统** | 变量替换、坐标格式化（缩放/精度/单位）、世界别名/角色别名/i18n |
 | **健康注册表** | 线程安全的服务健康状态追踪 |
@@ -437,7 +466,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 - **permission.yml** — 权限系统配置（`config` 阈值节 + `reviews` 申请记录节，运行时修改）
 - **templates.yml** — 通知模板、样式配色、坐标格式、世界别名、权限组显示名、i18n 覆盖
 - **portals.yml** — 传送门数据（运行时修改）
-- **ip_blacklist.yml** — IP 黑名单数据（运行时修改）
+- **access_rules.yml** — IP 黑名单与玩家名规则数据（运行时修改；取代旧 ip_blacklist.yml）
 
 > 大部分配置可通过 `/config` 命令在运行时修改并立即生效，无需重启服务器。
 

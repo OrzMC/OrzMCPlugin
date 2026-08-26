@@ -8,6 +8,7 @@ import static org.mockito.Mockito.*;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
@@ -80,6 +81,23 @@ class PlayerEventServiceTest extends ServiceTestBase {
     }
 
     @Test
+    void handleGeoIpDecision_blocked_throttledSuppressesGroupMsg_keepsDisallow() {
+        // geoip_block 群消息限频：GeoIP 故障期 fail-close 拒绝随客户端自动重连高频触发，
+        // 不限频会重复打爆玩家群（对照 whitelist_block 曾 48 次打爆 QQ 频控 40034100）。
+        // 限频只抑制群消息；event.disallow 不受限频，拦截始终执行。
+        when(throttledNotifier.shouldRun(eq("geoip_block_group_notify"), anyLong()))
+                .thenReturn(false);
+        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(styles.error(anyString())).thenReturn(Component.text("error"));
+
+        service.handleGeoIpDecision(
+                loginEvent, "player1", "1.2.3.4", new GeoIpAccessService.Decision(false, "US", List.of("CN"), "{}"));
+
+        verify(notifier, never()).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
+    }
+
+    @Test
     void handleGeoIpDecision_allowedButLookupFailed_sendsPrivateAlert() {
         when(server.logger()).thenReturn(logger);
         when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("error"));
@@ -87,9 +105,25 @@ class PlayerEventServiceTest extends ServiceTestBase {
         service.handleGeoIpDecision(
                 loginEvent, "player1", "1.2.3.4", new GeoIpAccessService.Decision(true, "", List.of("CN"), "", true));
 
-        verify(logger).warning(contains("已放行"));
+        verify(logger).warning(contains("已放行（fail-open）"));
         verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
         verifyNoInteractions(loginEvent);
+    }
+
+    @Test
+    void handleGeoIpDecision_deniedButLookupFailed_failClose_blocksAndAlerts() {
+        when(server.logger()).thenReturn(logger);
+        when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("error"));
+        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(styles.error(anyString())).thenReturn(Component.text("error"));
+
+        service.handleGeoIpDecision(
+                loginEvent, "player1", "1.2.3.4", new GeoIpAccessService.Decision(false, "", List.of("CN"), "", true));
+
+        verify(logger).warning(contains("已拒绝（fail-close）"));
+        verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
+        verify(notifier).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
     }
 
     @Test
@@ -108,7 +142,7 @@ class PlayerEventServiceTest extends ServiceTestBase {
         when(server.logger()).thenReturn(logger);
         when(throttledNotifier.shouldRun(anyString(), anyLong())).thenReturn(false);
 
-        service.handleGeoIpLookupFailure("player1", "1.2.3.4");
+        service.handleGeoIpLookupFailure("player1", "1.2.3.4", "已放行（fail-open）");
 
         verify(logger).warning(contains("已放行"));
         verifyNoInteractions(notifier, configs, styles);
@@ -138,21 +172,60 @@ class PlayerEventServiceTest extends ServiceTestBase {
     }
 
     @Test
-    void handleGeoIpPreLogin_timeout_allowsAndWarns() {
+    void handleGeoIpPreLogin_timeout_defaultFailClose_deniesAndAlerts() {
         when(server.logger()).thenReturn(logger);
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
+        when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("timeout"));
+        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(styles.error(anyString())).thenReturn(Component.text("error"));
+        CompletableFuture<GeoIpAccessService.Decision> never = new CompletableFuture<>();
+
+        service.handleGeoIpPreLogin(loginEvent, "player1", "1.2.3.4", never, 50);
+
+        verify(logger).warning(contains("超时"));
+        verify(logger).warning(contains("已拒绝"));
+        verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
+        verify(notifier).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
+    }
+
+    @Test
+    void handleGeoIpPreLogin_timeout_failOpen_allowsAndAlerts() {
+        when(server.logger()).thenReturn(logger);
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN"), true));
         when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("timeout"));
         CompletableFuture<GeoIpAccessService.Decision> never = new CompletableFuture<>();
 
         service.handleGeoIpPreLogin(loginEvent, "player1", "1.2.3.4", never, 50);
 
         verify(logger).warning(contains("超时"));
+        verify(logger).warning(contains("已放行"));
         verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
         verifyNoInteractions(loginEvent);
     }
 
     @Test
-    void handleGeoIpPreLogin_lookupError_allowsAndWarns() {
+    void handleGeoIpPreLogin_lookupError_defaultFailClose_deniesAndAlerts() {
         when(server.logger()).thenReturn(logger);
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
+        when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("error"));
+        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(styles.error(anyString())).thenReturn(Component.text("error"));
+        CompletableFuture<GeoIpAccessService.Decision> failed =
+                CompletableFuture.failedFuture(new RuntimeException("boom"));
+
+        service.handleGeoIpPreLogin(loginEvent, "player1", "1.2.3.4", failed, 1000);
+
+        verify(logger).warning(contains("boom"));
+        verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
+        verify(notifier).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
+    }
+
+    @Test
+    void handleGeoIpPreLogin_lookupError_failOpen_allowsAndAlerts() {
+        when(server.logger()).thenReturn(logger);
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN"), true));
         when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("error"));
         CompletableFuture<GeoIpAccessService.Decision> failed =
                 CompletableFuture.failedFuture(new RuntimeException("boom"));
@@ -167,11 +240,13 @@ class PlayerEventServiceTest extends ServiceTestBase {
     @Test
     void handleGeoIpTimeout_logsWarningAndNotifies() {
         when(server.logger()).thenReturn(logger);
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("timeout"));
 
         service.handleGeoIpTimeout("player1", "1.2.3.4", 3000);
 
         verify(logger).warning(contains("超时"));
+        verify(logger).warning(contains("已拒绝"));
         verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
     }
 

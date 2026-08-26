@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.features.security;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.net.GeoIpClient;
 import java.time.Duration;
 import java.util.List;
@@ -64,7 +65,9 @@ public final class GeoIpAccessService {
     }
 
     public CompletableFuture<Decision> decide(String ipAddress) {
-        List<String> allow = configs.ipWhitelist().allowCountryCode();
+        IpWhitelist whitelist = configs.ipWhitelist();
+        List<String> allow = whitelist.allowCountryCode();
+        boolean failOpen = whitelist.failOpen();
         if (allow.isEmpty()) {
             return CompletableFuture.completedFuture(new Decision(true, "", allow, ""));
         }
@@ -79,17 +82,17 @@ public final class GeoIpAccessService {
         }
         return client.lookup(ipAddress).handle((res, ex) -> {
             if (ex != null || res == null) {
-                // 查询失败 fail-open 放行（可用性优先），不缓存，避免把临时故障误固定；
-                // 置 lookupFailed=true，由调用方（PlayerEventService）私信告警管理员
-                return new Decision(true, "", allow, "", true);
+                // 查询失败按 fail_open 策略处理（默认 fail-close 拒绝，可配置 fail-open 放行）：
+                // 不缓存，避免把临时故障误固定；置 lookupFailed=true，由调用方告警管理员
+                return new Decision(failOpen, "", allow, "", true);
             }
             String cc = res.countryCode() == null ? "" : res.countryCode();
             if (cc.isEmpty()) {
                 // geojs.io 返回了可解析但无国家码的响应（无法定位的保留段/云段 IP，
-                // 或 429/5xx 的错误体恰好是可解析 JSON）。与超时/异常一致按 fail-open 放行，
+                // 或 429/5xx 的错误体恰好是可解析 JSON）。同样按 fail_open 策略处理，
                 // 延续 2026-08-06 内网误拦教训：未知国家码不应静默误拦合法玩家；
                 // 不缓存（避免误锁 12h），置 lookupFailed 告警管理员。
-                return new Decision(true, "", allow, res.rawJson(), true);
+                return new Decision(failOpen, "", allow, res.rawJson(), true);
             }
             cachePut(ipAddress, res);
             return toDecision(res, allow);
@@ -98,7 +101,9 @@ public final class GeoIpAccessService {
 
     private Decision toDecision(GeoIpClient.GeoIpResult res, List<String> allow) {
         String cc = res.countryCode() == null ? "" : res.countryCode();
-        boolean ok = allow.contains(cc);
+        // 配置侧在 IpWhitelist.from 已归一化为大写，比对仍用 equalsIgnoreCase 兜底：
+        // 上游返回小写国家码时也不会因大小写分叉而误拦全服（fail-close 下硬锁服）。
+        boolean ok = allow.stream().anyMatch(a -> a != null && a.equalsIgnoreCase(cc));
         return new Decision(ok, cc, allow, res.rawJson());
     }
 
