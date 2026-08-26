@@ -145,10 +145,11 @@ runPaper.folia.registerTask {
     （`https://fill.papermc.io/v3/projects/folia/versions/{ver}/builds/latest`，响应
     `downloads["server:default"].url` 即直链）。JSON ⊂ YAML，`foliaSmoke` 直接复用 buildscript
     已有的 SnakeYAML 解析，零新增依赖。
-  - **关键坑 2（自阻断）**：OrzMC 安全加固 deny-list 默认拦截 `stop`/`reload` 等危险命令，
-    冒烟发送 `stop` 会被拦截、服务器不退出 → `foliaSmoke` 在隔离的 `run-folia-smoke/plugins/OrzMC/config.yml`
-    写 `guard.blocked_commands: []` 放行（仅影响冒烟目录，不触碰真实配置）。开发机手动
-    `runFolia`/`runServer` 亦会被拦截，属插件既有安全设计。
+  - **关键坑 2（自阻断，已缓解）**：早期 deny-list 默认拦截 `stop`/`reload`，冒烟发送 `stop`
+    会被拦截、服务器不退出 → `foliaSmoke` 曾需在隔离的 `run-folia-smoke/plugins/OrzMC/config.yml`
+    写 `guard.blocked_commands: []` 放行。默认 deny-list 已调整为仅 `op`/`publish`/`seed`
+    （`stop`/`reload`/`deop`/`plugman` 不再默认拦截），冒烟 `stop` 直接放行；该目录保留
+    `[]` 无副作用，仅影响冒烟目录，不触碰真实配置。
 
 ### D6 测试策略（单元/集成测试是否需要单独 Folia 处理）
 

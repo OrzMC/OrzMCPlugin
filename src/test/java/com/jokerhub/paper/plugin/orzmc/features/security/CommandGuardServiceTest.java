@@ -56,13 +56,24 @@ class CommandGuardServiceTest {
         assertEquals(
                 GuardDecision.Decision.BLOCK, defaultService().guard("op steve").kind());
         assertEquals(
-                GuardDecision.Decision.BLOCK, defaultService().guard("/reload").kind());
-        assertEquals(
-                GuardDecision.Decision.BLOCK, defaultService().guard("stop").kind());
-        assertEquals(
-                GuardDecision.Decision.BLOCK, defaultService().guard("publish").kind());
+                GuardDecision.Decision.BLOCK, defaultService().guard("/publish").kind());
         assertEquals(
                 GuardDecision.Decision.BLOCK, defaultService().guard("seed").kind());
+    }
+
+    @Test
+    void denyList_lifecycleCommands_notBlockedByDefault() {
+        // 运维生命周期命令不默认拦截（原生即受 OP 权限限制，管理员需要它们）
+        assertEquals(
+                GuardDecision.Decision.ALLOW, defaultService().guard("stop").kind());
+        assertEquals(
+                GuardDecision.Decision.ALLOW, defaultService().guard("/reload").kind());
+        assertEquals(
+                GuardDecision.Decision.ALLOW,
+                defaultService().guard("deop steve").kind());
+        assertEquals(
+                GuardDecision.Decision.ALLOW,
+                defaultService().guard("plugman reload example").kind());
     }
 
     @Test
@@ -75,7 +86,7 @@ class CommandGuardServiceTest {
                 defaultService().guard("minecraft:op Steve").kind());
         assertEquals(
                 GuardDecision.Decision.BLOCK,
-                defaultService().guard("/minecraft:reload").kind());
+                defaultService().guard("/minecraft:publish").kind());
     }
 
     @Test
@@ -85,10 +96,10 @@ class CommandGuardServiceTest {
                 GuardDecision.Decision.BLOCK,
                 defaultService().guard("/ op steve").kind());
         assertEquals(
-                GuardDecision.Decision.BLOCK, defaultService().guard("/  stop").kind());
-        assertEquals(
                 GuardDecision.Decision.BLOCK,
-                defaultService().guard("/   reload").kind());
+                defaultService().guard("/  publish").kind());
+        assertEquals(
+                GuardDecision.Decision.BLOCK, defaultService().guard("/   seed").kind());
     }
 
     @Test
@@ -96,10 +107,10 @@ class CommandGuardServiceTest {
         // Bukkit 自注册命令存在 bukkit: 命名空间别名，剥除后应命中 deny-list
         assertEquals(
                 GuardDecision.Decision.BLOCK,
-                defaultService().guard("/bukkit:stop").kind());
+                defaultService().guard("/bukkit:publish").kind());
         assertEquals(
                 GuardDecision.Decision.BLOCK,
-                defaultService().guard("bukkit:reload").kind());
+                defaultService().guard("bukkit:seed").kind());
         assertEquals(
                 GuardDecision.Decision.BLOCK,
                 defaultService().guard("/bukkit:op steve").kind());

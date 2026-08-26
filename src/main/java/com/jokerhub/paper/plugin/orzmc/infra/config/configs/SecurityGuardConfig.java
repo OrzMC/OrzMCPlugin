@@ -13,9 +13,14 @@ import org.bukkit.configuration.ConfigurationSection;
 public record SecurityGuardConfig(
         boolean enabled, List<String> blockedCommands, boolean notifyAdmins, boolean auditEnabled) {
 
-    /** 默认高危命令 deny-list（小写命令名；支持子命令项如 plugman reload）。 */
-    public static final List<String> DEFAULT_BLOCKED_COMMANDS =
-            List.of("op", "deop", "publish", "seed", "reload", "plugman", "stop");
+    /** 默认高危命令 deny-list（小写命令名；支持子命令项如 plugman reload）。
+     *
+     * <p>仅保留非管理员可实际造成提权/信息泄露的命令：{@code op}（提权）、{@code publish}
+     * （绕过 online-mode）、{@code seed}（泄露种子）。{@code stop}/{@code reload}/{@code deop}/
+     * {@code plugman} 属正常服务器运维生命周期命令，且原生即受 OP 权限限制，不默认拦截——
+     * 否则连管理员也无法停服/重载/管理 OP 与插件。</p>
+     */
+    public static final List<String> DEFAULT_BLOCKED_COMMANDS = List.of("op", "publish", "seed");
 
     public static SecurityGuardConfig from(ConfigurationSection cfg) {
         if (cfg == null) {

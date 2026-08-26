@@ -129,19 +129,35 @@ class CommandGuardEventServiceTest {
         withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
         CommandSender console = mock(CommandSender.class);
         when(console.getName()).thenReturn("CONSOLE");
-        ServerCommandEvent event = serverEvent("stop", console);
+        ServerCommandEvent event = serverEvent("op steve", console);
 
         service.onServerCommand(event);
 
         verify(event).setCancelled(true);
         verify(console).sendMessage(any(Component.class));
-        verify(audit).record(CommandAuditService.SOURCE_CONSOLE, "CONSOLE", "stop", true);
+        verify(audit).record(CommandAuditService.SOURCE_CONSOLE, "CONSOLE", "op steve", true);
         verify(configs)
                 .renderTemplate(
                         eq(TemplateKeys.COMMAND_GUARD_BLOCKED),
                         argThat(vars -> "控制台/RCON".equals(vars.get("source")) && "CONSOLE".equals(vars.get("sender"))),
                         anyString());
         verify(notifier).event(eq(TemplateKeys.COMMAND_GUARD_BLOCKED), any(MessageEnvelope.class));
+    }
+
+    @Test
+    void serverCommand_lifecycleCommand_allowed() {
+        // 运维生命周期命令（stop/reload 等）不再默认拦截：控制台停服/重载照常放行并审计 executed
+        withConfig(new SecurityGuardConfig(true, SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, true, true));
+        CommandSender console = mock(CommandSender.class);
+        when(console.getName()).thenReturn("CONSOLE");
+        ServerCommandEvent event = serverEvent("stop", console);
+
+        service.onServerCommand(event);
+
+        verify(event, never()).setCancelled(anyBoolean());
+        verify(console, never()).sendMessage(any(Component.class));
+        verify(audit).record(CommandAuditService.SOURCE_CONSOLE, "CONSOLE", "stop", false);
+        verify(notifier, never()).event(anyString(), any(MessageEnvelope.class));
     }
 
     // ---- WARN：放行 + 审计/日志 ----

@@ -134,25 +134,21 @@ command_policies:
 #             危险命令拦截（安全加固）
 # ==================================================
 # 高危命令 deny-list：命中即拦截执行并（可选）私信管理员。
-# 覆盖站点文章《PaperMC 危险指令与防护》中的核心高危项：
-#   op/deop —— 误给 OP / 影子管理员
+# 仅默认拦截非管理员即可造成提权/信息泄露的命令：
+#   op      —— 误给 OP / 影子管理员
 #   publish —— 绕过 online-mode 认证
 #   seed    —— 泄露世界种子
-#   reload  —— Bukkit 热重载造成状态错乱
-#   plugman —— 插件热重载同类问题
-#   stop    —— 未经确认的停服
+# stop/reload/deop/plugman 属正常服务器运维生命周期命令（停服/重载/管理 OP 与插件），
+# 且原生即受 OP 权限限制，故不默认拦截，避免管理员自身无法执行运维操作。
+# 如需恢复拦截，自行在下方列表追加即可。
 guard:
   # 总开关：关闭后危险命令拦截/审计全部停用
   enabled: true
   # 高危命令 deny-list（小写命令名，支持子命令项，如 plugman reload）
   blocked_commands:
     - op
-    - deop
     - publish
     - seed
-    - reload
-    - plugman
-    - stop
   # 拦截时是否私信管理员（PRIVATE 路由）
   notify_admins: true
   # 是否记录命令审计到 audit/command_audit.log

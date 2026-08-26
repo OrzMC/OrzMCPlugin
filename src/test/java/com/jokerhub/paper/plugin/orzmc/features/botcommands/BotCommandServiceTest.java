@@ -278,13 +278,28 @@ class BotCommandServiceTest {
         service.injectDependencies(
                 new BotCommandDependencies().commandGuardService(defaultGuard()).commandAuditService(audit));
 
-        service.parse("$e stop", true, "老板", callback);
+        service.parse("$e op steve", true, "老板", callback);
 
         verify(serverFacade, never()).executeConsoleCommand(anyString());
-        verify(audit).record(CommandAuditService.SOURCE_BOT, "老板", "stop", true);
+        verify(audit).record(CommandAuditService.SOURCE_BOT, "老板", "op steve", true);
         org.mockito.ArgumentCaptor<MessageEnvelope> captor = org.mockito.ArgumentCaptor.forClass(MessageEnvelope.class);
         verify(callback).accept(captor.capture());
         assertTrue(captor.getValue().message().contains("已被安全拦截"));
+    }
+
+    @Test
+    void parse_executeConsole_guardAllowed_lifecycleCommandExecutes() {
+        // 运维生命周期命令（stop/reload 等）不再默认拦截：$e stop 可正常执行停服
+        CommandAuditService audit = mock(CommandAuditService.class);
+        service.injectDependencies(
+                new BotCommandDependencies().commandGuardService(defaultGuard()).commandAuditService(audit));
+        when(serverFacade.executeConsoleCommand("stop"))
+                .thenReturn(new ServerFacade.ConsoleCommandResult("stop", true, java.util.List.of("执行成功")));
+
+        service.parse("$e stop", true, "老板", callback);
+
+        verify(serverFacade).executeConsoleCommand("stop");
+        verify(audit).record(CommandAuditService.SOURCE_BOT, "老板", "stop", false);
     }
 
     @Test

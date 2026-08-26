@@ -10,7 +10,7 @@ import java.util.function.Supplier;
  *
  * <p>对一条待执行命令做两类检查：</p>
  * <ol>
- *   <li><b>deny-list</b>：配置的高危命令（{@code op}、{@code reload}、{@code plugman} 等）
+ *   <li><b>deny-list</b>：配置的高危命令（默认 {@code op}、{@code publish}、{@code seed}）
  *       命中即 {@code BLOCK}——覆盖站点文章《危险指令》防护原则②「高危节点默认拒绝」；</li>
  *   <li><b>目标选择器守护</b>：{@code kill}/{@code clear}/{@code give}/{@code execute}/{@code effect}
  *       中出现<b>未限定</b> {@code type=..} 或 {@code distance=..} 的裸 {@code @e}/{@code @a} 即 {@code WARN}

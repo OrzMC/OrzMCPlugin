@@ -389,6 +389,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 **危险命令拦截**
 | 配置路径 | 类型 | 默认值 | 描述 |
 |---------|------|--------|------|
+| `guard.blocked_commands` | List\<String\> | op, publish, seed | 高危命令 deny-list（小写命令名，支持子命令项）。默认仅拦提权/泄露类（op/publish/seed）；stop/reload/deop/plugman 等运维生命周期命令不默认拦截 |
 | `guard.audit_enabled` | Boolean | true | 是否写 `audit/command_audit.log`；开启时 WARN 不再重复刷控制台 |
 
 **玩家名颜色**

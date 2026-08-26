@@ -38,7 +38,7 @@
 
 | 模块 | 配置节 | 拦截点 | 行为 | 测试状态 |
 |:--|:--|:--|:--|:--|
-| 危险命令拦截 | `guard` | ServerCommandEvent | deny-list（op/deop/publish/seed/reload/plugman/stop）命中拦截+私信管理员+审计日志 | ✅ 单测覆盖（CommandGuardServiceTest 等 4 类） |
+| 危险命令拦截 | `guard` | ServerCommandEvent | deny-list（op/publish/seed）命中拦截+私信管理员+审计日志（stop/reload/deop/plugman 等运维命令不默认拦截） | ✅ 单测覆盖（CommandGuardServiceTest 等 4 类） |
 | 聊天反垃圾 | `chat` | AsyncChatEvent | 限流 20 条/分、链接检测、重复检测，命中取消消息+提示 | ✅ 单测覆盖（ChatSpamFilter 2 类） |
 | 进服限流 | `login_rate_limit` | AsyncPlayerPreLoginEvent | 每 IP 20 次/分登录尝试；同 IP 并发上限 5；私信管理员 | ✅ 单测覆盖（LoginRateLimit 2 类） |
 | 漏洞加固 | `exploit_hardening` | 书页/物品属性/实体生成 | 书 100 页上限；物品 6 属性修饰符上限；单区块 128 实体上限 | ✅ 单测覆盖（ExploitHardening 2 类） |

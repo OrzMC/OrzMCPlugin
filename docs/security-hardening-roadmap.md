@@ -55,7 +55,7 @@
 - **目标**：新增 `infra/config/configs/SecurityGuardConfig.java`（`record` + `from(ConfigurationSection)`）。
 - **字段**：
   - `enabled`（boolean，默认 `true`）—— 总开关；
-  - `blockedCommands`（`List<String>`，默认 `op, deop, publish, seed, reload, plugman, stop`）—— 危险命令 deny-list（支持子命令项如 `plugman reload`）；
+  - `blockedCommands`（`List<String>`，默认 `op, publish, seed`）—— 危险命令 deny-list（支持子命令项如 `plugman reload`）；默认仅保留非管理员可实际提权/泄露的命令（`op` 提权、`publish` 绕过 online-mode、`seed` 泄露种子）；`stop`/`reload`/`deop`/`plugman` 属正常运维生命周期命令且原生受 OP 权限限制，不默认拦截，避免管理员无法停服/重载/管理 OP 与插件；
   - `notifyAdmins`（boolean，默认 `true`）—— 拦截时是否私信管理员；
   - `auditEnabled`（boolean，默认 `true`）—— 是否记录命令审计。
 - **落点**：`config.yml` 新增 `guard:` 配置段；`TypedConfigProvider` 增加 `securityGuard()`；`DefaultTypedConfigProvider` 实现（`sectionOrLegacy("config", "guard", ...)`）；`ConfigHealthCheck` 增加 `validateGuardSection`。
@@ -90,7 +90,7 @@
 
 - **目标**：堵住"群内任意控制台执行"这扇最危险的门。
 - **行为**：`BotCommandService.handleExecuteConsoleCommand` 在 `server.dispatchCommand` **之前**先过 `CommandGuardService`：`BLOCK` → 返回「命令已被安全拦截」反馈 + 记审计，不执行；`WARN` → 仍执行但记审计。`/orzdebug` 与 RCON 入口复用同一处理路径，自动覆盖。
-- **验收**：扩展 `BotCommandServiceTest`，覆盖 `$e stop`（deny-list）被拦、普通命令放行。
+- **验收**：扩展 `BotCommandServiceTest`，覆盖 `$e op steve`（deny-list）被拦、普通命令与 `$e stop`（运维生命周期命令）放行。
 
 ---
 
