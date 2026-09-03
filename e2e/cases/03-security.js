@@ -1,13 +1,12 @@
 // 03-security.js —— 安全拦截类 E2E（IP 黑名单登录拦截 / 聊天过滤 / 命令守卫）
 // 自包含：写操作全部带还原（$d 加黑→测→移除）
 // 环境变量: ORZMC_TEST_PORT（MC 端口，默认 25565）ORZMC_LOG_PATH
-// 用法: NODE_PATH=~/minecraft-bot/node_modules node cases/03-security.js
+// 用法: 由 e2e/run-all.sh 或技能 wrapper（scripts/e2e-mcsm-wrapper.sh）注入环境运行（见 README）
 const mineflayer = require('mineflayer');
 const { rcon, waitLog } = require('../lib/rcon');
 const { TEST_PORT } = require('../lib/bot');
-const path = require('path');
-const os = require('os');
-const LOG_PATH = process.env.ORZMC_LOG_PATH || path.join(os.homedir(), 'papermc-test', 'logs', 'latest.log');
+const LOG_PATH = process.env.ORZMC_LOG_PATH;  // 无默认：由运行入口注入（MCSM 实例日志路径，见 e2e-mcsm-wrapper.sh）
+if (!LOG_PATH) { console.error('❌ 未设置 ORZMC_LOG_PATH（由 run-all.sh / 技能 wrapper 注入）'); process.exit(1); }
 
 const results = [];
 let failed = 0;

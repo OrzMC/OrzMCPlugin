@@ -2,7 +2,7 @@
 // 场景：whitelist_block 拦截 / player_join 上线 / player_digest 聚合 / player_quit 下线 / ip_blacklist_block 拦截
 // 断言源：Notifier.routeEvent 统一群消息日志「[群消息:<key>] <渲染后内容>」+ 占位符残留检查
 // 自包含：写操作全部带还原（$a 加白→测→$r 移除；$d 加黑→测→$d -移除）
-// 用法: NODE_PATH=~/minecraft-bot/node_modules node cases/05-groupmsg.js
+// 用法: 由 e2e/run-all.sh 或技能 wrapper（scripts/e2e-mcsm-wrapper.sh）注入环境运行（见 README）
 const { rcon, waitLog } = require('../lib/rcon');
 const { spawnBot } = require('../lib/bot');
 

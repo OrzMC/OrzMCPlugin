@@ -6,7 +6,6 @@ cmd_prompt_char: "$"
 optimize_enabled: false
 optimize_tick_time_threshold: 300
 backup_retention_count: 5
-backup_maintenance_motd: "服务器维护中，稍后再试"
 allow_country_code:
   - CN
   - HK
@@ -21,4 +20,5 @@ commands:
   portal:
     cooldown_secs: 5
     admin_only: true
-config-version: 2.0
+prison:
+  cell_location: "world,0,100,0,0,0"

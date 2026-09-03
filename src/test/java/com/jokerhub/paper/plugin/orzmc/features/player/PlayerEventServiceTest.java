@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
@@ -114,7 +115,8 @@ class PlayerEventServiceTest extends ServiceTestBase {
     void handleGeoIpDecision_deniedButLookupFailed_failClose_blocksAndAlerts() {
         when(server.logger()).thenReturn(logger);
         when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("error"));
-        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(configs.renderEvent(eq("geoip_unverifiable"), anyMap()))
+                .thenReturn(MessageEnvelope.publicMessage("retry"));
         when(styles.error(anyString())).thenReturn(Component.text("error"));
 
         service.handleGeoIpDecision(
@@ -122,7 +124,8 @@ class PlayerEventServiceTest extends ServiceTestBase {
 
         verify(logger).warning(contains("已拒绝（fail-close）"));
         verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
-        verify(notifier).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(notifier).event(eq("geoip_unverifiable"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("geoip_block"), any(MessageEnvelope.class));
         verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
     }
 
@@ -176,7 +179,8 @@ class PlayerEventServiceTest extends ServiceTestBase {
         when(server.logger()).thenReturn(logger);
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("timeout"));
-        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(configs.renderEvent(eq("geoip_unverifiable"), anyMap()))
+                .thenReturn(MessageEnvelope.publicMessage("retry"));
         when(styles.error(anyString())).thenReturn(Component.text("error"));
         CompletableFuture<GeoIpAccessService.Decision> never = new CompletableFuture<>();
 
@@ -185,7 +189,32 @@ class PlayerEventServiceTest extends ServiceTestBase {
         verify(logger).warning(contains("超时"));
         verify(logger).warning(contains("已拒绝"));
         verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
-        verify(notifier).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(notifier).event(eq("geoip_unverifiable"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
+    }
+
+    @Test
+    void denyGeoIpUnverifiable_rendersRetryHintTemplate_withNameAndIpOnly() {
+        when(server.logger()).thenReturn(logger);
+        when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
+        when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("timeout"));
+        when(configs.renderEvent(eq("geoip_unverifiable"), anyMap()))
+                .thenReturn(MessageEnvelope.publicMessage("retry"));
+        when(styles.error(anyString())).thenReturn(Component.text("error"));
+        CompletableFuture<GeoIpAccessService.Decision> never = new CompletableFuture<>();
+
+        service.handleGeoIpPreLogin(loginEvent, "player1", "1.2.3.4", never, 50);
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.Map<String, String>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(configs).renderEvent(eq("geoip_unverifiable"), captor.capture());
+        assertEquals(java.util.Set.of("name", "ip"), captor.getValue().keySet());
+        assertEquals("player1", captor.getValue().get("name"));
+        assertEquals("1.2.3.4", captor.getValue().get("ip"));
+        verify(notifier).event(eq("geoip_unverifiable"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("geoip_block"), any(MessageEnvelope.class));
         verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
     }
 
@@ -209,7 +238,8 @@ class PlayerEventServiceTest extends ServiceTestBase {
         when(server.logger()).thenReturn(logger);
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         when(configs.renderEvent(eq("exception_alert"), anyMap())).thenReturn(MessageEnvelope.publicMessage("error"));
-        when(configs.renderEvent(eq("geoip_block"), anyMap())).thenReturn(MessageEnvelope.publicMessage("blocked"));
+        when(configs.renderEvent(eq("geoip_unverifiable"), anyMap()))
+                .thenReturn(MessageEnvelope.publicMessage("retry"));
         when(styles.error(anyString())).thenReturn(Component.text("error"));
         CompletableFuture<GeoIpAccessService.Decision> failed =
                 CompletableFuture.failedFuture(new RuntimeException("boom"));
@@ -218,7 +248,8 @@ class PlayerEventServiceTest extends ServiceTestBase {
 
         verify(logger).warning(contains("boom"));
         verify(notifier).event(eq("exception_alert"), any(MessageEnvelope.class));
-        verify(notifier).event(eq("geoip_block"), any(MessageEnvelope.class));
+        verify(notifier).event(eq("geoip_unverifiable"), any(MessageEnvelope.class));
+        verify(notifier, never()).event(eq("geoip_block"), any(MessageEnvelope.class));
         verify(loginEvent).disallow(eq(AsyncPlayerPreLoginEvent.Result.KICK_OTHER), any(Component.class));
     }
 

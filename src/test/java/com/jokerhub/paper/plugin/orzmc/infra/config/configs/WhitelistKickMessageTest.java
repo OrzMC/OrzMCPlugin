@@ -15,7 +15,6 @@ class WhitelistKickMessageTest {
     void fromNull_returnsDefaults() {
         WhitelistKickMessage config = WhitelistKickMessage.from(null);
         assertEquals("", config.title());
-        assertEquals("", config.qqGroupId());
         assertTrue(config.ups().isEmpty());
     }
 
@@ -26,7 +25,6 @@ class WhitelistKickMessageTest {
 
         WhitelistKickMessage config = WhitelistKickMessage.from(cfg);
         assertEquals("", config.title());
-        assertEquals("", config.qqGroupId());
         assertTrue(config.ups().isEmpty());
     }
 
@@ -37,14 +35,12 @@ class WhitelistKickMessageTest {
 
         when(cfg.getConfigurationSection("kick_message")).thenReturn(kickSection);
         when(kickSection.getString("title", "")).thenReturn("您已被踢出服务器");
-        when(kickSection.getString("qq_group_id", "")).thenReturn("123456");
         List<Map<?, ?>> upsList = new ArrayList<>();
         upsList.add(Map.of("name", "Player1", "platform", "QQ"));
         when(kickSection.getMapList("ups")).thenReturn(upsList);
 
         WhitelistKickMessage config = WhitelistKickMessage.from(cfg);
         assertEquals("您已被踢出服务器", config.title());
-        assertEquals("123456", config.qqGroupId());
         assertEquals(1, config.ups().size());
         assertEquals("Player1", config.ups().getFirst().name());
         assertEquals("QQ", config.ups().getFirst().platform());

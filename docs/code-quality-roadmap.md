@@ -4,6 +4,8 @@
 > 与既有 [security-hardening-roadmap.md](./security-hardening-roadmap.md)（安全功能已全部落地）互补——本文聚焦**已上线功能的缺陷修复、泄漏治理、测试补齐与文档校正**。
 >
 > 最后更新：2026-08-19（已对 HEAD `1248213` = 1.0.19 重新评估，#198–#203 的变更已核对：P0 命令绕过仍开放，新增 N1/N2 两项）
+>
+> 2026-09-03：全量复核（对照 HEAD `f7d09ea`）——A1/A2/A3/A4/A6/A8/A9/A10/A11/A12/A13/A14/A15/A16/N1/Q3/Q4/Q5 已随历次重构闭环（见 §2.3 表下注）；**A5**（架构决策待定）与 **A7**（产品行为待确认）暂不执行；A17/Q1/Q2/N2 保持开放。
 
 ---
 
@@ -85,20 +87,47 @@
 | A2 | P1 | `OrzEasyBot` God class（834 行，HTTP/WS/解析/限流/鉴权混杂） | `infra/bot/OrzEasyBot.java` | C |
 | A3 | P1 | `BotCommandService` God class（735 行，11 命令 + 分页 + 守卫） | `features/botcommands/BotCommandService.java` | C |
 | A4 | P1 | `core/ports` 泄漏 Bukkit 类型（Location/Player/World/Server） | `core/ports/portal/*`、`core/ports/server/ServerAccess.java` | C |
-| A5 | P1 | `TypedConfigProvider`（core）反向 import `infra.config.configs.*` | `core/ports/config/TypedConfigProvider.java:4-16` | C |
-| A6 | P1 | 二阶段注入半初始化窗口（bot 先连上，review/rank 后注入） | `OrzServices.java:78,84`、`FeatureModule.java:276-277` | F |
-| A7 | P1 | `enableForceWhitelist` 无条件覆盖服务器 gamemode/white-list | `FeatureModule.java:933-947` | F |
+| A5 | P1 | `TypedConfigProvider`（core）反向 import `infra.config.configs.*` | `core/ports/config/TypedConfigProvider.java:4-13` | C |
+| A6 | P1 | 二阶段注入半初始化窗口（bot 先连上，review/rank 后注入） | `OrzServices.java:70-81` | F |
+| A7 | P1 | `enableForceWhitelist` 无条件覆盖服务器 gamemode/white-list | `assembly/FeatureModule.java:402-416` | F |
 | A8 | P2 | `OrzMC.onDisable` 未判空，启动失败时二次 NPE | `OrzMC.java:18` | F |
-| A9 | P2 | `(Player) sender` 强转依赖拦截器顺序（潜在 CCE） | `FeatureModule.java:342,350,358` | F |
-| A10 | P2 | 死字段 `rankEventService` + 空 `setup()` override | `FeatureModule.java:126,267-270` | F |
+| A9 | P2 | `(Player) sender` 强转依赖拦截器顺序（潜在 CCE） | `assembly/FeatureCommandRegistrar.java`（registerSimple 已改 instanceof） | F |
+| A10 | P2 | 死字段 `rankEventService` + 空 `setup()` override | `assembly/FeatureModule.java` | F |
 | A11 | P2 | 空 catch 吞异常（`PlayerAuthenticationService:56`、`TntEventService:317`） | 两处 | F |
-| A12 | P2 | `OrzEasyBot` 错误路径用 `info` 级别记录 | `OrzEasyBot.java:286,348,417,603,785` | F |
+| A12 | P2 | `OrzEasyBot` 错误路径用 `info` 级别记录 | `infra/bot/OrzEasyBot.java` | F |
 | A13 | P2 | `WhitelistService` 每次调用 `defaultImpl` 新建实例 | `BotCommandService.java:223,258,269` | F |
-| A14 | P2 | `OnlineListFormatter` 实例化 3 次 + 注释与实现不符 | `FeatureModule.java:97-98,216` | F |
-| A15 | P2 | `ReviewType` 两段注册 lambda 逐字重复 | `FeatureModule.java:220-254` | F |
-| A16 | P2 | 三个渲染方法（review×2 + rank）样板重复 | `FeatureModule.java:745-779` | F |
-| A17 | P2 | `FeatureModule` 无 tearDown（flight tracker 等任务依赖 Bukkit 自动回收） | `FeatureModule.java` | F |
-| N1 | P2 | 备份/优化错误计数器 `chunkErrorCount`/`fatalErrorReported` **跨 run 不复位** → 首次致命错误后，后续 run 的致命错误不再发群通知；损坏区块计数累积导致后续干净 run 误报「含 N 个损坏区块」（#198 引入） | `features/maintenance/WorldMaintenanceService.java:163-176,194-201` | F |
+| A14 | P2 | `OnlineListFormatter` 实例化 3 次 + 注释与实现不符 | 现状仅 1 处 `new`（BotCommandListFeedbackService:17） | F |
+| A15 | P2 | `ReviewType` 两段注册 lambda 逐字重复 | `assembly/FeatureModule.java:261-262,328`（promotionType 模板） | F |
+| A16 | P2 | 三个渲染方法（review×2 + rank）样板重复 | `assembly/ReviewCommandRegistrar.java`、`RankCommandRegistrar.java` | F |
+| A17 | P2 | `FeatureModule` 无 tearDown（flight tracker 等任务依赖 Bukkit 自动回收） | `assembly/FeatureModule.java` | F |
+> **2026-09-03 复核**（HEAD `f7d09ea` = #243 合入后）：逐行对照当前代码核实，以下行**已在前序重构中闭环**，无需再执行：
+> - **A1 已治理**：命令注册全部分出为 `assembly/` 逐特性注册器（#243 `f7d09ea`，FeatureCommandRegistrar 970→298）；FeatureModule 现存 506 行，经评估为**合法组合根**（跨特性服务 DAG 装配 + 事件委托），不做机械拆分（详见 #243 PR 讨论）。
+> - **A2 已完成**：E2（OrzEasyBot 834→229 行编排）。
+> - **A3 已完成**：E3（BotCommandService 735→192 行分派）。
+> - **A4 已闭环**：orzmc-api `core/ports` 无 org.bukkit import（2026-09-03 grep 核验）。
+> - **A6 已闭环**：依赖注入在 `botModule.setup()`（连接 WS）**之前**完成（`OrzServices.assemble` L70–81，注释明示「避免半初始化窗口」）。
+> - **A8 已闭环**：`OrzMC.onDisable` 判空 + 注释即原问题描述（`OrzMC.java:18-19`）。
+> - **A9 已闭环**：`registerSimple` 改 `instanceof Player`，assembly/commands 无 `(Player) sender` 强转残留。
+> - **A10 已闭环**：`rankEventService` 死字段与空 `setup()` 已删除。
+> - **A11 已闭环**：两处空 catch 均已补日志（grep 核验无残留）。
+> - **A12 已闭环**：E2 拆分后错误日志随 WebSocketLifecycle/HttpSender 下沉，OrzEasyBot 仅编排。
+> - **A13 已闭环**：`WhitelistCommandHandler:25-26` 单例注入（注释即原问题描述）。
+> - **A14 已闭环**：全仓仅 `BotCommandListFeedbackService:17` 一处 `new OnlineListFormatter`（共享单实例注入）。
+> - **A15 已闭环**：`promotionType` 模板消除两段 ReviewType 注册 lambda 重复。
+> - **A16 已闭环**：命令拆分后渲染方法已变薄（纯 instanceof→send），无样板重复。
+> - **N1 已闭环**：`runExclusive` 已复位 `chunkErrorCount`/`fatalErrorReported`（`WorldMaintenanceService:265-268`，注释即 N1 原文描述）。
+> - **Q3 已闭环**：`PortalsWriterTest` 已存在。
+> - **Q4 已闭环**：`PortalEventServiceTest` 已无 `Thread.sleep`。
+> - **Q5 已闭环**：`CooldownRegistryTest` 已无真实时间/静态状态依赖（grep 核验）。
+>
+> 仍开放：
+> - **A5**（core→infra 反向 import）：**架构决策待定**——config 记录依赖 Bukkit `ConfigurationSection` 解析无法入纯 api；机械搬移 30+ 调用点纯 churn，需先定 `core/ports/config` 定位（2026-09-03 判断暂不执行）。
+> - **A7**（enableForceWhitelist 无条件覆盖）：**产品行为待确认**——false 分支应「不触碰运维手动配置」还是「显式关闭」？默认 `force_whitelist=true` 主路径不受影响；唯一可疑点 `setDefaultGameMode(SURVIVAL)` 在 false 时也执行。建议等到有实际事故证据再改（2026-09-03 判断暂不执行）。
+> - **A17**（FeatureModule 无 tearDown）：未核实，保持开放。
+> - **N2**（文档碎片化）：本文档即一例；#244 为跟进动作。
+> - **Q1/Q2**：FeatureModule 零测试（组合根定位下价值低）；review/rank 链路已有单测 + E2E 部分缓解。
+
+| N1 | P2 | ~~备份/优化错误计数器 `chunkErrorCount`/`fatalErrorReported` **跨 run 不复位**~~ → ✅ 已闭环（`runExclusive` L265-268 复位，见 §2.3 下注） | `features/maintenance/WorldMaintenanceService.java:265-268` | F |
 | N2 | P2 | 文档碎片化加剧：`quality-testing-plan.md` 成为第 4 份功能清单（与 features.md / architecture.md / AGENTS.md 并行），根因是「新增文档而非更新旧文档」 | `docs/quality-testing-plan.md` | F |
 
 ### 2.4 测试质量

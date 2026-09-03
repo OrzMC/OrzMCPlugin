@@ -3,6 +3,22 @@
 ## [Unreleased]
 
 ### ✨ 新功能
+- **插件自更新（基于 Hangar）** — 不再需要手动下载 jar 再丢进 `plugins/update/`：
+  - `update.channel`（默认 `release` 正式版；`beta` 为 `-dev` 开发版）选择更新通道，启动后按 `update.check_interval_hours`（默认 12h）异步检查新版本，不卡主线程
+  - 发现新版本时默认仅控制台提示，管理员 `/update check` 查询、`/update now` 手动下载；`update.auto_download: true` 后自动下载
+  - 下载走 CDN 直链 + **sha256 校验**，通过后按平台原始文件名（如 `OrzMC-1.0.24.jar`）原子落盘 `plugins/update/`（含 `.part` 临时文件清理与旧名暂存清理，防下载损坏/多版本并存），重启服务器即由 Paper 自动完成替换
+  - 版本判定精确：构建期烘焙发布串 + HEAD 提交时间，杜绝 `-dev.N` 构建与基础版本误判；远程发布时间早于本地构建（本地更新尚未发版）或已暂存待重启的版本不重复下载；并发下载单飞防重
+  - Folia 安全：调度链走 global region，全部网络/文件 IO 走异步线程；`update.enabled: false` 后停止周期检查（`/update` 手动命令仍可用）
+  - 既有安装经 schema 自动升级（config-version 11）注入 `update:` 段，无需手动补配置
+
+- **配置文件 schema 自动升级（框架落地）** — 结束「升级需手动删除全部配置再重生成迁移」的历史操作：
+  - `config.yml` / `templates.yml` / `easybot.yml` 顶层新增 `config-version` 版本标记，插件启动时对比磁盘与内置版本
+  - 磁盘版本低于内置（含无标记旧装、`#238` 前的旧 `config-version: 2`）→ 自动执行：备份原文件为 `*.bak` → 深合并补齐缺失默认键/段（已有值一律不覆盖）→ 写回新版本标记并打印升级报告
+  - 版本一致时零打扰（不写文件、不告警）；磁盘版本更高（插件降级）或文件疑似 YAML 损坏时跳过并告警，避免误覆盖
+  - 运行时数据文件（`portals.yml` / `access_rules.yml` / `permission.yml` / `guide_book.yml`）明确不纳入 schema 迁移
+- **旧版默认值自动翻转（仅针对仍用旧默认的安装）** — legacy 升级时若磁盘值恰为旧版默认（`rank_colors.tab_enabled: true`、`chat.max_messages_per_minute: 6`、`login_rate_limit.max_login_attempts_per_minute: 5`、`login_rate_limit.max_concurrent_per_ip: 3`、`player_notify.window_ms: 3000`、旧 4 项 `entity_teleport_whitelist`）自动推进到新默认；已手动自定义过的值一律保留并日志列出「保留自定义」，不再需要对照 `#238` 前旧默认逐项手动改
+- **模板健康检查全量解锁** — `templates.yml` 历史上因「升级安装不补新默认」排除在校验外的 9 个事件 key（`command_guard_blocked` / `security_audit` / `login_rate_limit_alert` / `exploit_blocked` / `ip_blacklist_block` / `player_name_block` / `prison_imprisoned` / `prison_released` / `player_digest`）收回 `TemplateKeys.ALL` 统一校验；schema 自动升级会为旧装补齐缺失模板，彻底消除升级后每次启动的持久「缺失」告警，内置 `templates.yml` 必须覆盖全部 key（单测钉死）
+
 - **访问规则统一（IP 黑名单 + 玩家名规则）** — 新增 `AccessRuleService` 统一管理登录访问规则：
   - IP 黑名单继续支持精确 IP / CIDR / 通配符
   - 玩家名新增 `exact / prefix / suffix / contains / glob / regex` 六种匹配方式，默认大小写不敏感
@@ -37,8 +53,10 @@
 - **`$d -` / `/blacklist -` 简写 trim 收紧（审查发现 P3）**：`-` 简写去破折号后 `trim()`——`$d -` / `/blacklist -`（空模式）回用法提示；`$d - exact foo`（破折号后带空格）不再因首词空串绕过玩家名规则守卫，`$d - 1.2.3.4` 空格变体现在也能正常移除 IP
 - **玩家名规则增删反馈抽公共构建器（审查发现 P3）**：新增 `PlayerNameRuleFeedback.feedback`（解析 + 合法/非法 + 增删与已移除/未找到反馈）供 bot `$d` 与游戏内 `/blacklist` 共用，消除两处实现漂移并为游戏侧反馈逻辑补上单元测试
 - **玩家名规则「未找到」改用 error 模板键（审查发现 P3）**：bot 侧移除不存在的玩家名规则由 `command_blacklist_remove` 键改用 `command_blacklist_error` 键，与 IP「未找到」一致（模板均纯文本渲染 message，无展示差异）
+- **Bot 命令帮助补全使用示例**：`$d ?` 补齐玩家名规则 6 种匹配类型（`exact`/`prefix`/`suffix`/`contains`/`glob`/`regex`）清单与全类型示例；`$v ?` 补充 `yes`/`no` 别名与同玩家多类型申请用 `$v y <typeId> <玩家>`；`$p ?` 补充 `up`/`down` 别名。仓库文档（`docs/features.md` / `docs/architecture.md`）同步 `$d` 示例
 
 ### ⚠️ 升级注意
+- **配置升级已自动化，无需再手动删档重生成**：升级后启动即自动完成备份 → 补缺 → 旧默认翻转 → 版本回写（见「✨ 新功能」schema 条目）。`config.yml` / `templates.yml` / `easybot.yml` 的 `config-version` 由插件维护，**不要手动改/删**；若需审计变更，比对同目录 `.bak` 文件即可
 - **GeoIP 失败策略默认改为 fail-close**：此前 GeoIP 查询失败一律放行（fail-open），现默认拒绝进入（安全优先）；依赖旧行为的服务器请在 config.yml `geoip:` 段显式设 `fail_open: true`
 - **旧 `ip_blacklist.yml` 不再读取**：本版本起 IP 黑名单与玩家名规则统一存于 `access_rules.yml`，存量封禁数据不自动导入，升级前请将旧规则手动迁移到 `access_rules.yml`
 - **旧独立配置文件不再读取**：配置统一从 `config.yml`（已含 `command_policies` / `rank_colors` 等全部分段）与 `templates.yml` 读取，不再自动 fallback 到旧 `maintenance.yml` / `whitelist.yml` / `tnt.yml` / `player_notify.yml` / `ip_whitelist.yml` / `guard.yml` / `chat.yml` / `login_rate_limit.yml` / `exploit_hardening.yml` / `rank_colors.yml` / `styles.yml` / `commands.yml`。这些旧文件中的自定义值请迁移到 `config.yml` 对应分段；`config-version` 过旧提醒已随旧文件读取一并移除

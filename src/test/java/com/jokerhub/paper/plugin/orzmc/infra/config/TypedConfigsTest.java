@@ -1,7 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.EntityTeleportConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
@@ -12,28 +12,27 @@ import org.junit.jupiter.api.Test;
 
 public class TypedConfigsTest {
     @Test
-    public void testMainConfigMapping() {
+    public void testEntityTeleportConfigMapping() {
         YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("force_whitelist", true);
-        cfg.set("whitelist_cleanup_inactive_days", 30);
-        cfg.set("whitelist_pagination_delay_ticks", 7);
-        cfg.set("cmd_prompt_char", "!");
-        cfg.set("optimize_enabled", true);
-        cfg.set("optimize_tick_time_threshold", 500L);
-        cfg.set("backup_retention_count", 9);
-        cfg.set("backup_maintenance_motd", "维护中");
-        cfg.set("allow_country_code", List.of("CN", "JP"));
+        cfg.set("entity_teleport_enabled", true);
+        cfg.set("entity_teleport_whitelist", List.of("VILLAGER", "TAMEABLE"));
 
-        MainConfig mc = MainConfig.from(cfg);
-        Assertions.assertTrue(mc.forceWhitelist());
-        Assertions.assertEquals(30, mc.whitelistCleanupInactiveDays());
-        Assertions.assertEquals(7, mc.whitelistPaginationDelayTicks());
-        Assertions.assertEquals("!", mc.cmdPromptChar());
-        Assertions.assertTrue(mc.optimizeEnabled());
-        Assertions.assertEquals(500L, mc.optimizeTickTimeThreshold());
-        Assertions.assertEquals(9, mc.backupRetentionCount());
-        Assertions.assertEquals("维护中", mc.backupMaintenanceMotd());
-        Assertions.assertEquals(List.of("CN", "JP"), mc.allowCountryCode());
+        EntityTeleportConfig ec = EntityTeleportConfig.from(cfg);
+        Assertions.assertTrue(ec.enabled());
+        Assertions.assertEquals(List.of("VILLAGER", "TAMEABLE"), ec.whitelist());
+    }
+
+    @Test
+    public void testEntityTeleportConfigEmptyWhitelistFallsBackToDefaults() {
+        // 根级 false + 空白名单 → 回退内置 16 项默认白名单（config.yml 未配置/清空时语义）
+        YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("entity_teleport_enabled", false);
+        cfg.set("entity_teleport_whitelist", List.of());
+
+        EntityTeleportConfig ec = EntityTeleportConfig.from(cfg);
+        Assertions.assertFalse(ec.enabled());
+        Assertions.assertEquals(EntityTeleportConfig.DEFAULT_ENTITY_TELEPORT_WHITELIST, ec.whitelist());
+        Assertions.assertEquals(16, ec.whitelist().size());
     }
 
     @Test
@@ -77,13 +76,11 @@ public class TypedConfigsTest {
         cfg.set("optimize_enabled", true);
         cfg.set("optimize_tick_time_threshold", 600L);
         cfg.set("backup_retention_count", 12);
-        cfg.set("backup_maintenance_motd", "维护中");
 
         MaintenanceConfig maintenance = MaintenanceConfig.from(cfg);
         Assertions.assertTrue(maintenance.optimizeEnabled());
         Assertions.assertEquals(600L, maintenance.optimizeTickTimeThreshold());
         Assertions.assertEquals(12, maintenance.backupRetentionCount());
-        Assertions.assertEquals("维护中", maintenance.backupMaintenanceMotd());
     }
 
     @Test

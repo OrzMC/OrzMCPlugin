@@ -6,7 +6,7 @@
 ## 分层说明
 
 - **组合根（Composition Root）**
-    - `OrzServices` 作为显式组合根，按依赖顺序创建 5 个领域模块
+    - `OrzServices` 作为显式组合根，按依赖顺序创建 6 个领域模块
     - `OrzMC` (JavaPlugin) 入口，仅调用 `OrzServices.assemble(this)` 和生命周期方法
 - **适配层（Events/Commands）**
     - 事件监听、命令入口只采集参数并调用服务
@@ -55,6 +55,8 @@ PlatformModule
 
 - **config/** — 配置加载、类型化包装与健康检查
     - ConfigService, ConfigManager, ConfigHealthCheck
+    - schema 自动升级（ConfigSchema / ConfigUpgrader / DefaultsMerger / LegacyDefaultFlips）：
+      版本门控的备份→补缺→旧默认翻转→回写，规则见 [配置 Schema 升级治理规范](dev/config-schema-governance.md)
     - `configs/` 子包中每个配置对应一个记录类（`BotConfig`, `Styles`, `TntConfig`, `WhitelistConfig`, `Portals`, `MainConfig`, `MaintenanceConfig`, `CommandPolicies`, `TemplateOptions`, `Templates`, `IpWhitelist`, `WhitelistKickMessage`）
     - `SafeKeys` YAML 键名安全编码（解决 '.' 被识别为层级分隔的问题）
     - `PortalsWriter` 持久化传送门配置
@@ -133,6 +135,20 @@ MaintenanceModule
 - 依赖 PlatformModule（ConfigService）和 BotModule（Notifier）
 - 通过 BotCommandService 暴露给 $b / $o 命令
 
+### 4.5 UpdateModule — 插件自更新模块
+
+```
+UpdateModule
+├── UpdateService        ← 版本判定 / sha256 校验下载（纯后台，无 Bukkit 依赖）
+├── UpdateCommandService ← /update check|now 命令服务
+├── HangarClient        ← Hangar API v1 只读客户端（最新版/下载直链/sha256）
+└── BuildInfo           ← 读取构建期烘焙的 orzmc-build.properties（版本串 + HEAD 时间）
+```
+
+- 依赖 PlatformModule（ServerFacade / TypedConfigProvider）；装配于 MaintenanceModule 之后、FeatureModule 之前
+- 版本比对用「发布串 + 构建时间」，与 Hangar 通道 `release`/`beta` 对齐；调度链走 global region，网络/文件 IO 走异步线程，Folia 安全
+- 下载目标 `plugins/update/`，文件名保持平台原名（`Hangar fileInfo.name`，如 `OrzMC-1.0.24.jar`）；sha256 通过后原子落盘，重启后 Paper 按插件元数据 name 匹配完成替换
+
 ### 5. FeatureModule — 功能模块（依赖所有其他模块）
 
 将所有 Feature 服务集中创建，并注册 Bukkit 事件监听器和命令。
@@ -150,6 +166,8 @@ MaintenanceModule
 - OrzRankEvent — 权限/晋升相关事件
 
 **注册的命令**（通过 Paper LifecycleEvents.COMMANDS + Brigadier `LiteralCommandNode`，替代旧的 CommandMap API）：
+命令树按特性拆到 `assembly/` 下独立的 `XxxCommandRegistrar`（一个文件一个特性），由
+`FeatureCommandRegistrar` 在事件里统一编排；下列命令仍内联于协调器：guide/menu/tpbow、`/bot`、`/orzdebug`、`/maintenance`。
 - `/guide` — 获取玩家指南
 - `/menu` — 打开菜单
 - `/tpbow`（别名 `/tpb`） — 获取传送弓
@@ -161,6 +179,7 @@ MaintenanceModule
 - `/review approve|reject <玩家>` — 管理员审核申请
 - `/rank [玩家]` — 查询权限组与晋升进度（admin 可查指定玩家）
 - `/orzdebug <Bot命令>` — 模拟群里用户发 Bot 命令（调试用）
+- `/update check|now`（别名 `/upd`） — 检查/下载插件自更新（管理员，见 4.5 UpdateModule）
 
 **命令拦截器**（`features/command/binding/`）：
 - `PlayerOnlyInterceptor` — 玩家限定
@@ -186,26 +205,24 @@ OrzServices.assemble(OrzMC)
   │
   ├── 2. new BotModule(platform)         ← 依赖 Platform
   ├── 3. new PortalModule(platform)      ← 依赖 Platform
-  │
   ├── 4. new MaintenanceModule(platform, bot)  ← 依赖 Platform + Bot
+  ├── 4.5 new UpdateModule(platform)     ← 依赖 Platform（自更新）
+  ├── 5. new FeatureModule(platform, bot, portal, maintenance, update)  ← 依赖所有模块
   │
-  ├── 5. bot.setWorldMaintenanceService(...)   ← 跨模块回引用注入
-  ├── 6. ((Initializable) bot).afterPropertiesSet()  ← 二阶段初始化
-  │
-  ├── 7. new FeatureModule(platform, bot, portal, maintenance)  ← 依赖所有模块
-  │
-  ├── 8. bot.botCommandService().injectDependencies(accessRuleService(...))   ← 访问规则回引用注入（Feature → Bot）
+  ├── 6. bot.botCommandService().injectDependencies(...)   ← Feature → Bot 跨模块回引用注入
   │
   └── OrzServices.setupAll(plugin)
-        ├── botModule.setup()             ← 启动 Bot 连接
-        ├── portalModule.setup()          ← 初始化传送门
+        ├── botModule.setup()            ← 启动 Bot 连接
+        ├── portalModule.setup()         ← 初始化传送门
+        ├── maintenanceModule.setup()    ← 维护模块启动
+        ├── updateModule.setup()         ← 排首轮自更新检查（异步，不阻塞启动）
         ├── featureModule.setupEventListeners(plugin)   ← 注册事件
-        ├── featureModule.setupCommandHandlers(plugin)  ← 通过 Paper LifecycleEvents.COMMANDS 注册 Brigadier 命令
+        ├── featureModule.setupCommandHandlers(plugin)  ← 注册 Brigadier 命令（含 /update）
         └── featureModule.enableForceWhitelist(plugin)  ← 应用白名单配置
 ```
 
 `OrzServices.shutdownAll()` 逆序销毁：
-- 先发停服通知 → BotModule.tearDown() → PortalModule.tearDown() → PlatformModule.tearDown()
+- 冲刷上下线聚合批次 → 通知停服 → BotModule.tearDown() → PortalModule.tearDown() → MaintenanceModule.tearDown() → UpdateModule.tearDown() → PlatformModule.tearDown()
 
 ## 依赖关系图
 
@@ -214,6 +231,7 @@ OrzServices.assemble(OrzMC)
     - BotModule 利用 PlatformModule 创建 BotCommandService → BotMessageService → Notifier
     - PortalModule 利用 PlatformModule 创建 PortalService
     - MaintenanceModule 利用 PlatformModule + BotModule 创建 WorldMaintenanceService
+    - UpdateModule 利用 PlatformModule 创建 UpdateService + UpdateCommandService（HangarClient / BuildInfo）
     - FeatureModule 利用所有模块创建 Feature 服务并注册命令/事件
 
 ## 设计原则
@@ -331,9 +349,9 @@ command_policies:
 | `$b` | 管理员 | 地图备份 |
 | `$o` | 管理员 | 地图优化 |
 | `$e <命令>` | 管理员 | 执行控制台命令 |
-| `$d <IP> / $d player <type> <value>` | 管理员 | 添加/移除/查看 IP 黑名单与玩家名规则 |
-| `$v [l|y|n] <玩家>` | 管理员 | 查看/处理审核申请（`$v l` / `$v y` / `$v n`） |
-| `$p [u|d] <玩家>` | 管理员 | 权限升级/降级 |
+| `$d <IP>` / `$d -<IP>` / `$d player <type> <value>` / `$d -player <type> <value>`（type: `exact`/`prefix`/`suffix`/`contains`/`glob`/`regex`） | 管理员 | 添加/移除/查看 IP 黑名单与玩家名规则 |
+| `$v [l|y|n] <玩家>` | 管理员 | 查看/处理审核申请（`$v l` 列表 / `$v y`/`yes` 通过 / `$v n`/`no` 拒绝；同名多类型申请用 `$v y <typeId> <玩家>`） |
+| `$p u|up / d|down <玩家>` | 管理员 | 权限升级（default→member→builder→admin）/ 降级（admin→builder→member→default） |
 | `$l` | 通用 | 查看在线玩家 |
 | `$w [页码]` | 通用 | 查看白名单玩家 |
 | `$h` | 通用 | 查看帮助信息 |
@@ -364,14 +382,16 @@ command_policies:
 | 模块 | `assembly/BotModule.java` | 机器人消息模块 |
 | 模块 | `assembly/PortalModule.java` | 传送门模块 |
 | 模块 | `assembly/MaintenanceModule.java` | 维护模块 |
-| 模块 | `assembly/FeatureModule.java` | 功能模块（注册命令/事件） |
+| 模块 | `assembly/FeatureModule.java` | 功能模块（集中创建 Feature 服务、注册事件） |
 | 事件 | `events/` | 事件适配层（10 个监听器） |
-| 命令 | `commands/` | 命令适配层（仅保留 OrzConfigCommand，其余命令已内联至 FeatureModule Brigadier 注册） |
+| 命令 | `assembly/FeatureCommandRegistrar.java` | 命令协调器（薄，298 行）：编排各特性命令组 + 未独立化简单命令 |
+| 命令组 | `assembly/*CommandRegistrar.java` | 按特性拆分的命令注册器（portal/blacklist/review/rank/prison/config/update，均实现 `CommandGroup`） |
+| 命令 | `commands/` | 命令适配层（仅保留 OrzConfigCommand） |
 | 配置 | `infra/config/configs/` | 类型化配置记录类（15 个，含 EasyBotConfig） |
 | 配置 | `src/main/resources/easybot.yml` | EasyBot IM Gateway 默认配置 |
 | 适配器 | `infra/bot/OrzEasyBot.java` | EasyBot 网关适配器（WS + HTTP） |
 | 拦截器 | `features/command/binding/` | 命令拦截器（5 个文件：4 拦截器 + CooldownRegistry） |
-| 命令注册 | `assembly/FeatureModule.java` | 通过 Paper LifecycleEvents.COMMANDS + Brigadier 注册（替代 CommandMap API） |
+| 命令注册 | `assembly/FeatureCommandRegistrar.java` | 通过 Paper LifecycleEvents.COMMANDS + Brigadier 注册（替代 CommandMap API），编排 `CommandGroup` 特性组 |
 | 绑定 | `infra/binding/EventBinder.java` | 事件监听器注册 |
 | 端口 | `orzmc-api/src/main/java/.../orzmc/core/ports/` | 纯 Java 接口 |
 | 消息 | `orzmc-api/src/main/java/.../orzmc/core/bot/` | 消息模型 |

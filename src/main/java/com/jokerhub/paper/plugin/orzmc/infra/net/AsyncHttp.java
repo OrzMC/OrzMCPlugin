@@ -24,8 +24,8 @@ public final class AsyncHttp {
                 timeout, value -> HttpClient.newBuilder().connectTimeout(value).build());
     }
 
-    private static CompletableFuture<HttpResponse<String>> sendWithRetry(
-            HttpClient c, HttpRequest request, int retries) {
+    private static <T> CompletableFuture<HttpResponse<T>> sendWithRetry(
+            HttpClient c, HttpRequest request, HttpResponse.BodyHandler<T> bodyHandler, int retries) {
         int normalizedRetries = Math.max(0, retries);
         long requestTimeoutMs =
                 request.timeout().orElse(DEFAULT_REQUEST_TIMEOUT).toMillis();
@@ -35,13 +35,17 @@ public final class AsyncHttp {
         }
         long requestBudget = saturatingMultiply(requestTimeoutMs, normalizedRetries + 1L);
         long totalBudget = saturatingAdd(requestBudget, backoffBudget);
-        return sendWithRetry(c, request, normalizedRetries, 0)
+        return sendWithRetry(c, request, bodyHandler, normalizedRetries, 0)
                 .orTimeout(Math.max(1L, totalBudget), TimeUnit.MILLISECONDS);
     }
 
-    private static CompletableFuture<HttpResponse<String>> sendWithRetry(
-            HttpClient c, HttpRequest request, int retriesRemaining, int attempt) {
-        return c.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+    private static <T> CompletableFuture<HttpResponse<T>> sendWithRetry(
+            HttpClient c,
+            HttpRequest request,
+            HttpResponse.BodyHandler<T> bodyHandler,
+            int retriesRemaining,
+            int attempt) {
+        return c.sendAsync(request, bodyHandler)
                 .handle((resp, ex) -> {
                     boolean retryableStatus = resp != null
                             && (resp.statusCode() == 408
@@ -53,13 +57,14 @@ public final class AsyncHttp {
                     if (retriesRemaining <= 0) {
                         return ex == null
                                 ? CompletableFuture.completedFuture(resp)
-                                : CompletableFuture.<HttpResponse<String>>failedFuture(ex);
+                                : CompletableFuture.<HttpResponse<T>>failedFuture(ex);
                     }
                     long delay = retryAfterMillis(resp).orElse(BASE_BACKOFF_MS * (1L << Math.min(attempt, 10)));
                     java.util.concurrent.Executor delayed =
                             CompletableFuture.delayedExecutor(delay, TimeUnit.MILLISECONDS);
                     return CompletableFuture.supplyAsync(() -> null, delayed)
-                            .thenCompose(v -> sendWithRetry(c, request, retriesRemaining - 1, attempt + 1));
+                            .thenCompose(
+                                    v -> sendWithRetry(c, request, bodyHandler, retriesRemaining - 1, attempt + 1));
                 })
                 .thenCompose(f -> f);
     }
@@ -71,13 +76,30 @@ public final class AsyncHttp {
             Duration requestTimeout,
             Integer maxRetries) {
         HttpClient c = client(connectTimeout);
+        HttpRequest req = buildGet(url, headers, requestTimeout);
+        return sendWithRetry(
+                c, req, HttpResponse.BodyHandlers.ofString(), maxRetries == null ? DEFAULT_MAX_RETRIES : maxRetries);
+    }
+
+    public static CompletableFuture<HttpResponse<byte[]>> getBytes(
+            String url,
+            Map<String, String> headers,
+            Duration connectTimeout,
+            Duration requestTimeout,
+            Integer maxRetries) {
+        HttpClient c = client(connectTimeout);
+        HttpRequest req = buildGet(url, headers, requestTimeout);
+        return sendWithRetry(
+                c, req, HttpResponse.BodyHandlers.ofByteArray(), maxRetries == null ? DEFAULT_MAX_RETRIES : maxRetries);
+    }
+
+    private static HttpRequest buildGet(String url, Map<String, String> headers, Duration requestTimeout) {
         HttpRequest.Builder b = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(requestTimeout == null ? DEFAULT_REQUEST_TIMEOUT : requestTimeout)
                 .header("User-Agent", "OrzMC-EasyBot/1");
         if (headers != null) headers.forEach(b::setHeader);
-        HttpRequest req = b.GET().build();
-        return sendWithRetry(c, req, maxRetries == null ? DEFAULT_MAX_RETRIES : maxRetries);
+        return b.GET().build();
     }
 
     public static CompletableFuture<HttpResponse<String>> postJson(
@@ -96,10 +118,11 @@ public final class AsyncHttp {
         if (headers != null) headers.forEach(b::setHeader);
         HttpRequest req = b.POST(HttpRequest.BodyPublishers.ofString(json == null ? "" : json))
                 .build();
-        return sendWithRetry(c, req, maxRetries == null ? DEFAULT_MAX_RETRIES : maxRetries);
+        return sendWithRetry(
+                c, req, HttpResponse.BodyHandlers.ofString(), maxRetries == null ? DEFAULT_MAX_RETRIES : maxRetries);
     }
 
-    private static java.util.Optional<Long> retryAfterMillis(HttpResponse<String> response) {
+    private static java.util.Optional<Long> retryAfterMillis(HttpResponse<?> response) {
         if (response == null || response.statusCode() != 429) {
             return java.util.Optional.empty();
         }

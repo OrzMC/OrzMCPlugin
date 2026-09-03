@@ -1,5 +1,5 @@
 // 01-bot-cmds.js —— Bot 命令类 E2E（$h/$l/$w/$a/$r/$d/$e，写操作带还原）
-// 用法: NODE_PATH=~/minecraft-bot/node_modules node cases/01-bot-cmds.js
+// 用法: 由 e2e/run-all.sh 或技能 wrapper（scripts/e2e-mcsm-wrapper.sh）注入环境运行（见 README）
 // 输出: [PASS]/[FAIL] 行；退出码 0=全过 1=有失败（KNOWN-BUG 计入但单独标注）
 const { rcon, waitLog } = require('../lib/rcon');
 

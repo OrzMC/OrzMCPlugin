@@ -45,11 +45,8 @@ public final class WhitelistEventService {
             return;
         }
         TextComponent.Builder kickMsgBuilder = Component.text();
-        WhitelistKickMessage kickMsg = configs.whitelistKickMessage();
-        String qqGroupId = kickMsg.qqGroupId();
-        if (qqGroupId == null || qqGroupId.isEmpty()) {
-            qqGroupId = configs.bot().qqGroupId();
-        }
+        // QQ 群号单一事实源：easybot.qq_group_id（whitelist.kick_message.qq_group_id 已废弃删除，2026-09-02）
+        String qqGroupId = configs.bot().qqGroupId();
         if (qqGroupId != null && !qqGroupId.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {
                 kickMsgBuilder.append(Component.newline()).append(Component.newline());

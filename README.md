@@ -33,6 +33,7 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 | Security controls | Restrict joins by GeoIP country; IP blacklist modes (exact IP / CIDR / wildcard); player-name deny rules (exact / prefix / suffix / contains / glob / regex); optional LoginSecurity secondary verification. |
 | Teleport bow | Shoot an arrow to teleport to its landing spot with automatic safe-landing detection; chunks along the flight path are force-loaded so long shots always land; configurable entity teleport policy (restricted by default — only whitelisted passive/neutral entities can be teleported by commands/plugins; nether portal traversal is always allowed). |
 | World maintenance | One-click world backup or optimization with real-time progress reports; the server list MOTD switches automatically during maintenance. |
+| Plugin self-update | Periodically checks Hangar for a new version (release / beta channel), verifies the sha256 and auto-downloads into `plugins/update/` — a server restart completes the upgrade. Admins can also run `/update check` to query and `/update now` to download manually. |
 | Player notifications | Push join/quit/kick details (world, coordinates, online count, permission group) to the group chat; the online list shows each player's game mode and rank group. |
 | Guide book | First-join players automatically receive a guide book; content is YAML-configurable so server owners can tailor the onboarding. |
 | Runtime configuration | Manage 29 configuration options in-game with `/config`; changes hot-reload without restarting the server. |
@@ -81,9 +82,29 @@ direct-connection parameters are no longer needed and can be removed.
 
 ## Updating
 
-PaperMC provides an `update/` directory inside the plugin directory. Put the
-new plugin JAR there; on the next server restart it is moved into `plugins/`
-automatically, completing the update.
+### Built-in auto-update (recommended)
+
+The plugin checks Hangar for new versions on startup and every
+`update.check_interval_hours` (default 12 h), all off the server thread:
+
+- **`update.channel`**: `release` (stable, default) or `beta` (dev `-dev` builds).
+- **`update.auto_download`**: `false` by default — a new version only prints a
+  console notice, and admins run `/update now` to download. Set to `true` to
+  auto-download into `plugins/update/` (sha256-verified before it is staged).
+- Admins can always run `/update check` (query) and `/update now` (download);
+  after the download finishes, **restart the server** and Paper swaps in the
+  new JAR automatically.
+
+> Manual updating still works: drop the new plugin JAR into the `update/`
+> directory; on the next restart Paper moves it into `plugins/` automatically.
+
+> **Configuration files** (`config.yml` / `templates.yml` / `easybot.yml`) are
+> migrated **automatically on startup**: the previous file is kept as `*.bak`,
+> missing default keys are merged in (existing values are never overwritten),
+> and documented old defaults are flipped only when they were left untouched.
+> No manual delete-and-regenerate is needed. Do not edit `config-version` by
+> hand. See [config schema governance](./docs/dev/config-schema-governance.md)
+> for the full rules and boundaries.
 
 ## Feedback
 
@@ -97,4 +118,5 @@ You can also join our QQ channel for feedback:<br/>
 
 - [Contribution guide](CONTRIBUTING.md) (development notes and iteration conventions)
 - [Plugin architecture](./docs/architecture.md)
+- [Config schema governance](./docs/dev/config-schema-governance.md)
 - [Changelog](./CHANGELOG.md)

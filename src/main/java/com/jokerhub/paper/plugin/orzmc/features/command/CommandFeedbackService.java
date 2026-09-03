@@ -16,6 +16,10 @@ public final class CommandFeedbackService {
         return Component.text("需要玩家执行");
     }
 
+    public TextComponent prisonDeniedTip() {
+        return Component.text("你正在坐牢，无法使用该命令");
+    }
+
     public TextComponent usageTip(String text) {
         return Component.text(text);
     }

@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.config.configs;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.util.List;
 import org.bukkit.configuration.ConfigurationSection;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,19 +27,24 @@ class MoreConfigRecordsTest {
     }
 
     @Nested
-    class MainConfigFromTest {
+    class EntityTeleportConfigFromTest {
         @Test
-        void fromNull_throwsNpe() {
-            assertThrows(NullPointerException.class, () -> MainConfig.from(null));
+        void fromNull_returnsDefaults() {
+            // cfg 缺失/未加载 → enabled=false + 内置 16 项默认白名单
+            EntityTeleportConfig c = EntityTeleportConfig.from(null);
+            assertFalse(c.enabled());
+            assertEquals(EntityTeleportConfig.DEFAULT_ENTITY_TELEPORT_WHITELIST, c.whitelist());
         }
 
         @Test
         void fromSection_parsesValues() {
             ConfigurationSection cfg = mock(ConfigurationSection.class);
-            // MainConfig.from() 调用 cfg.getBoolean("force_whitelist", true)
-            when(cfg.getBoolean("force_whitelist", true)).thenReturn(false);
-            MainConfig c = MainConfig.from(cfg);
-            assertFalse(c.forceWhitelist());
+            // EntityTeleportConfig.from() 调用 cfg.getBoolean("entity_teleport_enabled", false)
+            when(cfg.getBoolean("entity_teleport_enabled", false)).thenReturn(true);
+            when(cfg.getStringList("entity_teleport_whitelist")).thenReturn(List.of("VILLAGER"));
+            EntityTeleportConfig c = EntityTeleportConfig.from(cfg);
+            assertTrue(c.enabled());
+            assertEquals(List.of("VILLAGER"), c.whitelist());
         }
     }
 

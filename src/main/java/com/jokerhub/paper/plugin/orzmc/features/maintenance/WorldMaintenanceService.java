@@ -6,7 +6,6 @@ import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
@@ -30,13 +29,24 @@ public class WorldMaintenanceService {
     private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
     private final Notifier notifier;
+    /** 维护模式状态机：备份/优化执行时驱动进入/进度/退出（独立于本服务的 running 生命周期）。 */
+    private final MaintenanceModeService maintenanceModeService;
 
     public WorldMaintenanceService(
-            ServerFacade server, TypedConfigProvider configs, OrzTextStyles styles, Notifier notifier) {
+            ServerFacade server,
+            TypedConfigProvider configs,
+            OrzTextStyles styles,
+            Notifier notifier,
+            MaintenanceModeService maintenanceModeService) {
         this.server = server;
         this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
+        this.maintenanceModeService = maintenanceModeService;
+    }
+
+    public MaintenanceModeService maintenanceModeService() {
+        return maintenanceModeService;
     }
 
     public boolean isRunning() {
@@ -107,7 +117,6 @@ public class WorldMaintenanceService {
             }
             int percent = (int) Math.ceil(current * 100.0 / total);
             MaintenanceStage stage = mapProgressStage(progressEvent.getStage());
-            Templates tpls = configs.templates();
             java.util.Map<String, String> vars = new java.util.HashMap<>();
             vars.put("label", label);
             vars.put("stage", stage.name());
@@ -143,6 +152,9 @@ public class WorldMaintenanceService {
             vars.put("eta_unit", etaUnit);
             vars.put("current", String.valueOf(current));
             vars.put("total", String.valueOf(total));
+            // 同步推进度到维护模式状态机：MOTD/登录拦截按此渲染「阶段+百分比+预计剩余」
+            long etaSeconds = Math.max(0, Math.round(etaMs / 1000.0));
+            maintenanceModeService.updateProgress(stageI18n, percent, etaSeconds);
             String eventKey = "备份".equals(label) ? "maintenance_backup_stage" : "maintenance_optimize_stage";
             MessageEnvelope env = configs.renderEvent(eventKey, vars);
             server.logger().info(env.message());
@@ -239,40 +251,78 @@ public class WorldMaintenanceService {
         });
     }
 
-    public void runExclusive(String kickText, Runnable asyncWork, Runnable finallyWork) {
-        if (!running.compareAndSet(false, true)) {
-            return;
-        }
-        // 复位本次运行的错误聚合计数器：否则跨 run 累积——fatalErrorReported 一旦置 true，
-        // 后续 run 的致命错误不再发群通知；chunkErrorCount 累积导致干净 run 误报「含 N 个损坏区块」。
-        chunkErrorCount.set(0);
-        fatalErrorReported.set(false);
-        server.runSync(() -> {
-            startMs = System.currentTimeMillis();
-            for (Player p : server.server().getOnlinePlayers()) {
-                // Folia：踢人投递到玩家所在 region 线程；save 命令留在 global region 的 dispatchCommand
-                p.getScheduler().run(server.plugin(), t -> p.kick(styles.warn(kickText)), () -> {});
+    public void runExclusive(
+            MaintenanceModeService.MaintenanceReason reason, Runnable asyncWork, Runnable finallyWork) {
+        // 状态转移收敛到同一把锁（维护模式状态机实例）：CAS running + 读 wasManual + enter(reason)
+        // 与 /maintenance on|off（MaintenanceCommandService）的校验 + enter/exit 同锁互斥，
+        // 消除 check-then-act 竞态——避免 reason 被覆盖或手动维护被静默清除。
+        boolean wasManual;
+        String kickText;
+        synchronized (maintenanceModeService) {
+            if (!running.compareAndSet(false, true)) {
+                return;
             }
-            OrzUtil.executeConsoleCmd(server, () -> {}, "save-off", "save-all flush");
-            server.runAsync(() -> {
-                try {
-                    asyncWork.run();
-                } catch (Exception e) {
-                    server.logger().log(Level.SEVERE, "WorldMaintenanceService 异步任务异常", e);
-                } finally {
-                    OrzUtil.executeConsoleCmd(server, () -> {}, "save-on");
-                    running.set(false);
-                    if (finallyWork != null) {
-                        finallyWork.run();
-                    }
+            // 复位本次运行的错误聚合计数器：否则跨 run 累积——fatalErrorReported 一旦置 true，
+            // 后续 run 的致命错误不再发群通知；chunkErrorCount 累积导致干净 run 误报「含 N 个损坏区块」。
+            chunkErrorCount.set(0);
+            fatalErrorReported.set(false);
+            // 手动维护期间备份/优化照常执行：reason 被备份/优化覆盖，结束后恢复手动维护（wasManual 还原）
+            wasManual = maintenanceModeService.isActive()
+                    && maintenanceModeService.reason() == MaintenanceModeService.MaintenanceReason.MANUAL;
+            maintenanceModeService.enter(reason);
+            // 踢人无进度：统一场景文案（templates.yml maintenance_motd_*，PR4 迁移）
+            kickText = MaintenanceModeService.renderMotdText(reason, configs.templates(), null);
+        }
+        try {
+            server.runSync(() -> {
+                startMs = System.currentTimeMillis();
+                for (Player p : server.server().getOnlinePlayers()) {
+                    // Folia：踢人投递到玩家所在 region 线程；save 命令留在 global region 的 dispatchCommand
+                    p.getScheduler().run(server.plugin(), t -> p.kick(styles.warn(kickText)), () -> {});
                 }
+                OrzUtil.executeConsoleCmd(server, () -> {}, "save-off", "save-all flush");
+                server.runAsync(() -> {
+                    try {
+                        asyncWork.run();
+                    } catch (Exception e) {
+                        server.logger().log(Level.SEVERE, "WorldMaintenanceService 异步任务异常", e);
+                    } finally {
+                        OrzUtil.executeConsoleCmd(server, () -> {}, "save-on");
+                        // 还原维护模式 + running 复位同锁原子化：让 exitManual 在锁内读到一致的
+                        // running==false 边界（否则残留态无法自愈）
+                        synchronized (maintenanceModeService) {
+                            restoreMaintenanceMode(wasManual);
+                            running.set(false);
+                        }
+                        if (finallyWork != null) {
+                            finallyWork.run();
+                        }
+                    }
+                });
             });
-        });
+        } catch (RuntimeException e) {
+            // runSync 调度被拒（关服/插件禁用等）：async 分支不会执行，兜底还原状态，
+            // 避免 running + 维护模式残留（否则 /maintenance off 也因 running 卡死无法退出）
+            server.logger().log(Level.SEVERE, "WorldMaintenanceService 维护调度失败，已还原状态", e);
+            synchronized (maintenanceModeService) {
+                restoreMaintenanceMode(wasManual);
+                running.set(false);
+            }
+        }
+    }
+
+    /** 还原维护模式：备份/优化前为手动维护 → 恢复 MANUAL，否则退出。 */
+    private void restoreMaintenanceMode(boolean wasManual) {
+        if (wasManual) {
+            maintenanceModeService.enter(MaintenanceModeService.MaintenanceReason.MANUAL);
+        } else {
+            maintenanceModeService.exit();
+        }
     }
 
     public void backup(long tickTimeThreshold, int retainCount, Consumer<String> callback) {
         runExclusive(
-                "服务器地图备份中，请稍后再尝试登录。",
+                MaintenanceModeService.MaintenanceReason.BACKUP,
                 () -> {
                     File worldDir = worldFolder();
                     // 备份目录放服务器核心根目录（非插件数据目录），便于快照/迁移整体打包
@@ -391,7 +441,7 @@ public class WorldMaintenanceService {
 
     public void optimize(long tickTimeThreshold, Consumer<String> callback) {
         runExclusive(
-                "服务器地图优化中，请稍后再尝试登录。",
+                MaintenanceModeService.MaintenanceReason.OPTIMIZE,
                 () -> {
                     Path input = worldFolder().toPath();
                     runOptimizerJob(false, input, null, tickTimeThreshold, callback);

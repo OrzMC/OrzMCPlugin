@@ -1,14 +1,12 @@
 // 04-maintenance.js —— 世界维护类 E2E（$b 备份三阶段 + 完成 + 备份文件落盘）
 // ⚠️ $b 会踢出所有在线玩家并短暂进入维护模式——适合无玩家时段执行
 // 环境变量: ORZMC_LOG_PATH（日志）ORZMC_BACKUP_DIR（备份目录）
-// 用法: NODE_PATH=~/minecraft-bot/node_modules node cases/04-maintenance.js
+// 用法: 由 e2e/run-all.sh 或技能 wrapper（scripts/e2e-mcsm-wrapper.sh）注入环境运行（见 README）
 const { rcon, waitLog } = require('../lib/rcon');
 const fs = require('fs');
-const path = require('path');
-const os = require('os');
 
-const LOG_PATH = process.env.ORZMC_LOG_PATH || path.join(os.homedir(), 'papermc-test', 'logs', 'latest.log');
-const BACKUP_DIR = process.env.ORZMC_BACKUP_DIR || path.join(os.homedir(), 'papermc-test', 'backup');
+const LOG_PATH = process.env.ORZMC_LOG_PATH;      // 无默认：由运行入口注入（MCSM 实例日志路径）
+const BACKUP_DIR = process.env.ORZMC_BACKUP_DIR;  // 无默认：由运行入口注入（实例目录 backup/）
 
 const results = [];
 let failed = 0;

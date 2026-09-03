@@ -314,6 +314,47 @@ class LuckPermsPromoterTest {
         return g;
     }
 
+    // ---- 坐牢守卫（prison 玩家拒绝升降级）----
+
+    @Test
+    void promote_prisoner_refusesWithoutTouchingLpState() {
+        // 回归（评审 ①）：promoteInternal 开头坐牢守卫——isPrisoner 时直接拒绝，不得走到
+        // normalizeSingleGroup（会清掉 prison 继承节点造成漂移），不落库不通知
+        mockEmptyContext();
+        LuckPermsPromoter withGuard = new LuckPermsPromoter(u -> "TestPlayer", null, null, id -> true);
+
+        assertNull(withGuard.promote(id));
+        verify(track, never()).promote(any(), any());
+        verify(userManager, never()).saveUser(any());
+        verify(userManager, never()).loadUser(any());
+    }
+
+    @Test
+    void demote_prisoner_refusesWithoutTouchingLpState() {
+        mockEmptyContext();
+        LuckPermsPromoter withGuard = new LuckPermsPromoter(u -> "TestPlayer", null, null, id -> true);
+
+        assertNull(withGuard.demote(id));
+        verify(track, never()).demote(any(), any());
+        verify(userManager, never()).saveUser(any());
+        verify(userManager, never()).loadUser(any());
+    }
+
+    @Test
+    void promote_nonPrisonerWithGuardProceedsNormally() {
+        // 守卫只拦坐牢玩家：prisonCheck=false 时行为与未注入守卫一致（仍走 normalize+promote）
+        mockEmptyContext();
+        LuckPermsPromoter withGuard = new LuckPermsPromoter(u -> "TestPlayer", null, null, id -> false);
+        PromotionResult result = mock(PromotionResult.class);
+        when(result.getStatus()).thenReturn(PromotionResult.Status.SUCCESS);
+        when(result.getGroupTo()).thenReturn(Optional.of("member"));
+        when(track.promote(any(), any())).thenReturn(result);
+        when(userManager.saveUser(user)).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null));
+
+        assertEquals("member", withGuard.promote(id));
+        verify(track).promote(eq(user), any(net.luckperms.api.context.ImmutableContextSet.class));
+    }
+
     // ---- 玩家解析 ----
 
     @Test

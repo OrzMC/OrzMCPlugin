@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.assembly;
 
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.ScheduledBackupService;
 import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
 import java.io.File;
@@ -11,14 +12,21 @@ import java.io.File;
  */
 public final class MaintenanceModule implements ServiceModule {
 
+    private final MaintenanceModeService maintenanceModeService;
     private final WorldMaintenanceService worldMaintenanceService;
     private final ScheduledBackupService scheduledBackupService;
     private final PlatformModule platform;
 
     public MaintenanceModule(PlatformModule platform, BotModule botModule) {
         this.platform = platform;
+        // 维护模式状态机独立于 WorldMaintenanceService 生命周期（备份/优化/手动共用）
+        this.maintenanceModeService = new MaintenanceModeService();
         this.worldMaintenanceService = new WorldMaintenanceService(
-                platform.serverFacade(), platform.configs(), platform.textStyles(), botModule.notifier());
+                platform.serverFacade(),
+                platform.configs(),
+                platform.textStyles(),
+                botModule.notifier(),
+                maintenanceModeService);
         this.scheduledBackupService =
                 new ScheduledBackupService(platform.serverFacade(), platform.configs(), worldMaintenanceService);
     }
@@ -48,6 +56,10 @@ public final class MaintenanceModule implements ServiceModule {
 
     public WorldMaintenanceService worldMaintenanceService() {
         return worldMaintenanceService;
+    }
+
+    public MaintenanceModeService maintenanceModeService() {
+        return maintenanceModeService;
     }
 
     public ScheduledBackupService scheduledBackupService() {

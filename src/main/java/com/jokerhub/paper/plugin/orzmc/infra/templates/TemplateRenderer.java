@@ -30,11 +30,6 @@ public final class TemplateRenderer {
         if (cfg == null || templateKey == null || templateKey.isEmpty()) {
             return fallback == null ? "" : fallback;
         }
-        String locale = cfg.getString("templates.locale", "zh-CN");
-        String localized = cfg.getString("templates.i18n.command." + locale + "." + templateKey);
-        if (localized != null && !localized.isEmpty()) {
-            return localized;
-        }
         String direct = cfg.getString("templates." + templateKey);
         if (direct != null && !direct.isEmpty()) {
             return direct;

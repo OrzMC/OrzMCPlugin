@@ -1,6 +1,6 @@
 // 02-player-cmds.js —— 玩家命令类 E2E（/guide /menu /bot /rank /apply status /config 权限隔离）
 // 自包含：专用 bot 账号自动注册 → 测试 → 退服 → 清理白名单
-// 用法: NODE_PATH=~/minecraft-bot/node_modules node cases/02-player-cmds.js
+// 用法: 由 e2e/run-all.sh 或技能 wrapper（scripts/e2e-mcsm-wrapper.sh）注入环境运行（见 README）
 const { rcon, waitLog } = require('../lib/rcon');
 const { spawnBot, waitMessage, quitBot } = require('../lib/bot');
 

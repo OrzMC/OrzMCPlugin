@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.review;
 
+import com.jokerhub.paper.plugin.orzmc.features.rank.GamemodeCorrectionService;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,6 +54,11 @@ public final class ReviewService {
     private final PlayerLookup lookup;
     /** 状态落盘/通知回同步调度线程的执行器（Paper 主线程 / Folia global region 线程）；未注入则内联（单测）。 */
     private final Executor syncExecutor;
+    /**
+     * 审核通过后的游戏模式矫正（可空：不注入则跳过）。与权限组变化联动——审核通过多为
+     * 晋升（授予权限），但未来降级型审核可能回收权限，此处兜底对齐游戏模式与当前权限。
+     */
+    private final GamemodeCorrectionService gamemodeCorrection;
     // LinkedHashMap 保持注册顺序（/apply 帮助列表稳定），synchronizedMap 保证并发安全
     private final Map<String, ReviewType> registry =
             java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>());
@@ -67,7 +73,7 @@ public final class ReviewService {
     private final Set<String> inflightReviews = ConcurrentHashMap.newKeySet();
 
     public ReviewService(ReviewStore store, ReviewNotifier notifier, PlayerLookup lookup) {
-        this(store, notifier, lookup, Runnable::run);
+        this(store, notifier, lookup, Runnable::run, null);
     }
 
     /**
@@ -75,10 +81,25 @@ public final class ReviewService {
      *     生产传入 {@code serverFacade::runSync}；框架单测可用 {@code Runnable::run} 内联。
      */
     public ReviewService(ReviewStore store, ReviewNotifier notifier, PlayerLookup lookup, Executor syncExecutor) {
+        this(store, notifier, lookup, syncExecutor, null);
+    }
+
+    /**
+     * @param syncExecutor     回同步调度线程执行状态落盘 + 通知（审核通过后的最终化）。
+     *     生产传入 {@code serverFacade::runSync}；框架单测可用 {@code Runnable::run} 内联。
+     * @param gamemodeCorrection 审核通过后的游戏模式矫正（可空；不注入则跳过）。
+     */
+    public ReviewService(
+            ReviewStore store,
+            ReviewNotifier notifier,
+            PlayerLookup lookup,
+            Executor syncExecutor,
+            GamemodeCorrectionService gamemodeCorrection) {
         this.store = store;
         this.notifier = notifier;
         this.lookup = lookup;
         this.syncExecutor = syncExecutor != null ? syncExecutor : Runnable::run;
+        this.gamemodeCorrection = gamemodeCorrection;
     }
 
     /** 玩家在线则发游戏内消息；通知端口未注入或玩家离线时静默。 */
@@ -341,6 +362,11 @@ public final class ReviewService {
                     return;
                 }
                 deferred.complete(finalizeStatus(request, ReviewRequest.Status.APPROVED, reviewerName, type));
+                // 权限组变化后矫正游戏模式（审核通过多为晋升，授予权限通常无需矫正；
+                // 为降级型审核兜底，无权限的模式被切回生存）。correctAsync 经实体调度器投递（Folia 兼容）。
+                if (gamemodeCorrection != null) {
+                    gamemodeCorrection.correctAsync(org.bukkit.Bukkit.getPlayer(request.applicantId()));
+                }
             } catch (Throwable t) {
                 LOGGER.warning("审核通过后落状态失败，申请保持待审: " + request.id() + " - " + t.getMessage());
                 deferred.complete(Result.fail("授权成功但状态保存失败，请刷新确认后重试。"));

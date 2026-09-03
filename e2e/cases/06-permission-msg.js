@@ -3,7 +3,7 @@
 // 自包含：$a 加白名单 → lp 设组/op 设管理员 → 测试 → 清理（$r + deop）
 // ⚠️ LP 设组必须 parent set + group set 双发（parent 自动创建用户；group set 设主组=track 判定源）
 // ⚠️ 注册后 SimpleLogin 自动登录有延迟：spawn 后 sleep 2.5s 再发命令
-// 用法: NODE_PATH=~/minecraft-bot/node_modules node cases/06-permission-msg.js
+// 用法: 由 e2e/run-all.sh 或技能 wrapper（scripts/e2e-mcsm-wrapper.sh）注入环境运行（见 README）
 const { rcon, waitLog } = require('../lib/rcon');
 const { spawnBot } = require('../lib/bot');
 

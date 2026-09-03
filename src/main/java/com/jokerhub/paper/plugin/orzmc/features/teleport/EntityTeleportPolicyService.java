@@ -1,6 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.features.teleport;
 
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.EntityTeleportConfig;
 import java.util.List;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Enderman;
@@ -15,7 +15,7 @@ import org.bukkit.event.entity.EntityPortalEvent;
  * <ul>
  *   <li>{@code cancelEnabled=false} 不禁止——所有实体可正常传送（原版行为）</li>
  *   <li>{@code cancelEnabled=true} 时，仅白名单内实体豁免（默认白名单见
- *       {@link MainConfig#DEFAULT_ENTITY_TELEPORT_WHITELIST}，覆盖常见被动/友好实体，
+ *       {@link EntityTeleportConfig#DEFAULT_ENTITY_TELEPORT_WHITELIST}，覆盖常见被动/友好实体，
  *       敌对生物不在内——防止 @e 选择器误用造成地图灾难）</li>
  * </ul>
  * 白名单项：大写 EntityType 名（如 VILLAGER）或特殊接口键（TAMEABLE）。
@@ -31,7 +31,7 @@ public final class EntityTeleportPolicyService {
 
     /** 受限模式（仅白名单可传送）+ 默认白名单（2026-08-21 起默认值）。 */
     public EntityTeleportPolicyService() {
-        this(true, MainConfig.DEFAULT_ENTITY_TELEPORT_WHITELIST);
+        this(true, EntityTeleportConfig.DEFAULT_ENTITY_TELEPORT_WHITELIST);
     }
 
     public EntityTeleportPolicyService(boolean cancelEnabled, List<String> whitelist) {

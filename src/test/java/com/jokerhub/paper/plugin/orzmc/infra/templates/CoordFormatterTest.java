@@ -32,8 +32,6 @@ class CoordFormatterTest {
         when(opt.coordPrecision()).thenReturn(2);
         when(opt.coordUnitLabel()).thenReturn("m");
         when(opt.worldAlias()).thenReturn(Map.of());
-        when(opt.worldAliasLocalized()).thenReturn(Map.of());
-        when(opt.locale()).thenReturn("zh-CN");
     }
 
     @Test

@@ -3,7 +3,9 @@ package com.jokerhub.paper.plugin.orzmc.features.player;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService.MaintenanceProgress;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService.MaintenanceReason;
 import com.jokerhub.paper.plugin.orzmc.features.security.AccessRuleService;
 import com.jokerhub.paper.plugin.orzmc.features.security.GeoIpAccessService;
 import com.jokerhub.paper.plugin.orzmc.features.security.PlayerNameRule;
@@ -28,7 +30,7 @@ public final class LoginAccessControlService {
      * 40034100 的事故）。控制台 warning 不受限频，保持每次可查。 */
     private static final long ACCESS_RULE_BLOCK_THROTTLE_MS = 5000L;
 
-    private final WorldMaintenanceService maintenanceService;
+    private final MaintenanceModeService maintenanceModeService;
     private final AccessRuleService accessRuleService;
     private final GeoIpAccessService geoIpAccessService;
     private final PlayerEventService playerEventService;
@@ -39,7 +41,7 @@ public final class LoginAccessControlService {
     private final ThrottledNotifier blockNotifier;
 
     public LoginAccessControlService(
-            WorldMaintenanceService maintenanceService,
+            MaintenanceModeService maintenanceModeService,
             AccessRuleService accessRuleService,
             GeoIpAccessService geoIpAccessService,
             PlayerEventService playerEventService,
@@ -48,7 +50,7 @@ public final class LoginAccessControlService {
             OrzTextStyles styles,
             ServerFacade server,
             ThrottledNotifier blockNotifier) {
-        this.maintenanceService = maintenanceService;
+        this.maintenanceModeService = maintenanceModeService;
         this.accessRuleService = accessRuleService;
         this.geoIpAccessService = geoIpAccessService;
         this.playerEventService = playerEventService;
@@ -60,8 +62,8 @@ public final class LoginAccessControlService {
     }
 
     public void handlePreLogin(AsyncPlayerPreLoginEvent event) {
-        if (maintenanceService.isRunning()) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, styles.warn("服务器地图备份中，请稍后再尝试登录。"));
+        if (maintenanceModeService.isActive()) {
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, styles.warn(buildRejectText()));
             return;
         }
         if (!event.getLoginResult().equals(AsyncPlayerPreLoginEvent.Result.ALLOWED)) {
@@ -100,6 +102,22 @@ public final class LoginAccessControlService {
                 ipAddress,
                 geoIpAccessService.decide(ipAddress),
                 GeoIpAccessService.DECISION_TIMEOUT_MS);
+    }
+
+    /**
+     * 按维护原因渲染登录被拒文案：统一走 {@link MaintenanceModeService#renderMotdText}。
+     *
+     * <p>场景文案与进度行由 {@code templates.yml} 的 {@code maintenance_motd_*} 键驱动
+     * （2026-09-02 PR4 迁移自 config.yml maintenance 段）：有进度时进度行以
+     * {@code maintenance_motd_progress_line} 模板渲染为第二行；场景模板自带
+     * {@code {stage}/{percent}/{eta}} 占位符则直接替换、不追加独立进度行。原「未用 {eta} 时
+     * 追加空格+预计剩余 N 秒」尾缀逻辑已废弃（progress_line 默认含 {eta}；若服主自定义
+     * progress_line 无 {eta} 则无预计剩余，尊重模板意图）。</p>
+     */
+    private String buildRejectText() {
+        MaintenanceReason reason = maintenanceModeService.reason();
+        MaintenanceProgress progress = maintenanceModeService.progress();
+        return MaintenanceModeService.renderMotdText(reason, configs.templates(), progress);
     }
 
     /** 封禁命中（安全加固 P2-4）：PRIVATE 私信管理员 + 服务端日志。私信限频防重连刷屏，日志每次保留。 */

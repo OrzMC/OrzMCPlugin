@@ -103,6 +103,11 @@ class BotCommandFeedbackServiceTest {
 
         String blacklistTip = feedback.usageTip(OrzUserCmd.BLACKLIST, "$");
         assertTrue(blacklistTip.contains("$d -1.2.3.4"));
+        // 玩家名规则 6 种匹配类型与示例都要在 $d ? 帮助中完整展示（M4 审查项）
+        assertTrue(blacklistTip.contains("exact精确"));
+        assertTrue(blacklistTip.contains("regex正则"));
+        assertTrue(blacklistTip.contains("$d player glob bot_*"));
+        assertTrue(blacklistTip.contains("$d player regex ^bot"));
 
         String backupTip = feedback.usageTip(OrzUserCmd.BACKUP, "$");
         assertTrue(backupTip.contains("无参数"));
@@ -111,6 +116,6 @@ class BotCommandFeedbackServiceTest {
     @Test
     void usageTip_usesCustomPromptChar() {
         String tip = feedback.usageTip(OrzUserCmd.PERMISSION, "!");
-        assertTrue(tip.contains("!p u <玩家>"));
+        assertTrue(tip.contains("!p u|up <玩家>"));
     }
 }

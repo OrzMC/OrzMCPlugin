@@ -5,6 +5,8 @@ import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.security.MessageDigest
+import java.time.Instant
+import java.util.Properties
 import java.util.concurrent.TimeUnit
 
 buildscript {
@@ -91,7 +93,7 @@ plugins {
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
     id("com.modrinth.minotaur") version "2.9.0"
-    id("com.diffplug.spotless") version "8.10.0"
+    id("com.diffplug.spotless") version "8.10.1"
     id("jacoco")
 }
 
@@ -170,6 +172,33 @@ val shadowJarVersion: String = when {
 
 // Use the commit description for the changelog
 val changelogContent: String = latestCommitMessage()
+
+// ---- 运行时自更新版本信息烘焙（build-info）----
+// 生成的 orzmc-build.properties 打进 jar，供插件自更新精确比对「当前运行版本」
+// 与 Hangar 通道最新版本。构建时间取 HEAD 提交时间（稳定：同一提交反复构建不产生
+// 增量重编译，Gradle 依 inputs 判定 up-to-date 跳过）。
+val buildCommitTime: String = runCatching { executeGitCommand("log", "-1", "--format=%cI") }
+    .getOrElse { Instant.now().toString() }
+
+val generateBuildInfo = tasks.register("generateBuildInfo") {
+    val outDir = layout.buildDirectory.dir("generated/build-info")
+    outputs.dir(outDir)
+    inputs.property("buildVersion", shadowJarVersion)
+    inputs.property("buildTime", buildCommitTime)
+    doLast {
+        val props = Properties()
+        props["buildVersion"] = shadowJarVersion
+        props["buildTime"] = buildCommitTime
+        outDir.get().asFile.mkdirs()
+        outDir.get().file("orzmc-build.properties").asFile.outputStream().use { props.store(it, "OrzMC build info") }
+    }
+}
+sourceSets.named("main") {
+    resources.srcDir(layout.buildDirectory.dir("generated/build-info"))
+}
+tasks.named("processResources") {
+    dependsOn(generateBuildInfo)
+}
 
 // 统一通道名（小写），Hangar 和 Modrinth 共用
 val platformChannel: String = if (isReleaseTag) "release" else "beta"

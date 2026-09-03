@@ -167,13 +167,11 @@ class OrzConfigCommandTest {
     void set_stringValueWithSpaces_joinsArgs() {
         when(configService.saveConfig("config")).thenReturn(true);
         when(configService.reloadConfig("config")).thenReturn(true);
-        when(configConfig.get("maintenance.backup_maintenance_motd")).thenReturn(null);
+        when(configConfig.get("prison.cell_location")).thenReturn(null);
 
-        cmd.onCommand(sender, command, "orzmc", new String[] {
-            "set", "maintenance.backup_maintenance_motd", "Server", "is", "down"
-        });
+        cmd.onCommand(sender, command, "orzmc", new String[] {"set", "prison.cell_location", "Server", "is", "down"});
 
-        verify(configConfig).set(eq("maintenance.backup_maintenance_motd"), eq("Server is down"));
+        verify(configConfig).set(eq("prison.cell_location"), eq("Server is down"));
         verify(textStyles).success(contains("已设置"));
     }
 

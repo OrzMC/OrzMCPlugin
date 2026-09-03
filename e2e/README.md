@@ -7,23 +7,28 @@
 
 | 项 | 要求 |
 |:--|:--|
-| 测试服在线 | `~/papermc-test`（Paper）或 `~/folia-test`（Folia），端口统一 25565，RCON 25575/orztest2026 |
-| 核心自动检测 | run-all.sh 进程检测（`folia-test/folia.*jar` / `papermc-test/paper.*jar`），`ORZMC_CORE=folia|paper` 可显式覆盖（端口统一后无法靠端口区分核心） |
-| Node | 单 v24（`~/.n/bin/node`） |
-| mineflayer | `cd e2e && npm install`（推荐，本地 `e2e/node_modules`）或 `~/minecraft-bot/node_modules`；固定 `mineflayer@4.37.1` + `minecraft-data@3.113.2`（run-all.sh 自动设置 NODE_PATH）；连接协议固定 `1.21.11`（Paper 26.2 兼容） |
+| 测试服在线 | MCSM 本机栈实例（`papermc-test`/`folia-test`，端口统一 25565）——**2026-09-03 起测试服由 MCSM 面板管理**，实例 java 在容器内宿主 ps 不可见 → 核心/目录全部环境变量显式注入（见下），仓库零本机路径假设 |
+| 运行入口 | 技能侧 wrapper 注入环境（`orzmc` 技能 `scripts/e2e-mcsm-wrapper.sh [paper\|folia] [参数]`：查实例状态 + 注入 ORZMC_CORE/TEST_DIR/CONSOLE_URL/API_KEY + 调 run-all.sh）——**套件本身保持独立，不感知 MCSM 布局** |
+| Node | v22+（开发机单 v24） |
+| mineflayer | `cd e2e && npm install`（**仓库内** `e2e/node_modules`，固定 `mineflayer@4.37.1` + `minecraft-data@3.113.2`，版本锁 package-lock.json；不再引用仓库外目录） |
+| 控制台命令 | 默认 **http 模式**（`ORZMC_RCON_MODE=http`）= MCSM 面板 console API（`ORZMC_CONSOLE_URL`/`ORZMC_API_KEY` 注入）；`=rcon` 原生协议模式保留（需 `ORZMC_RCON_PASS`，直连场景） |
 | 测试服账号 | 无需预置——用例自动注册专用账号（SimpleLogin/LoginSecurity 自适应）并清理 |
 
 ## 快速开始
 
 ```bash
-# 全量跑（01-06 用例，约 15-25 分钟）
-bash e2e/run-all.sh
+# 通过技能 wrapper（推荐——自动查实例状态 + 注入环境）:
+#   wrapper 在 orzmc 技能 scripts/ 下；用法示例:
+bash ~/.hermes/skills/gaming/orzmc/scripts/e2e-mcsm-wrapper.sh paper -c 01
+bash ~/.hermes/skills/gaming/orzmc/scripts/e2e-mcsm-wrapper.sh folia -r     # Folia 全量 + 报告
 
-# 只跑指定用例
-bash e2e/run-all.sh -c 01 -c 03
-
-# 生成 Markdown 报告
-bash e2e/run-all.sh -r        # → reports/e2e-report-YYYYMMDD-HHMMSS.md
+# 或手动注入环境直接跑（测试服目录 = MCSM 实例 InstanceData/<uuid>）:
+export ORZMC_CORE=paper
+export ORZMC_TEST_DIR=/Users/Shared/orzmc/mcsmanager/daemon/data/InstanceData/<uuid>
+export ORZMC_CONSOLE_URL=https://mcs.jokerhub.cn/api/protected_instance/command
+export ORZMC_API_KEY=<MCSM_LOCAL_API_KEY>
+bash e2e/run-all.sh -c 03        # 只跑指定用例
+bash e2e/run-all.sh -r           # 全量 + Markdown 报告（reports/）
 
 # 帮助
 bash e2e/run-all.sh -h

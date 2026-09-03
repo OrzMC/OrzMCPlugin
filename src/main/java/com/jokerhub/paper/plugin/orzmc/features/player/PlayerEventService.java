@@ -18,7 +18,7 @@ public final class PlayerEventService {
 
     private static final String GEOIP_ALERT_THROTTLE_KEY = "geoip_exception_alert";
 
-    /** geoip_block 群消息限频：GeoIP 故障期 fail-close 拒绝随客户端自动重连高频触发，
+    /** geoip_block/geoip_unverifiable 群消息限频：GeoIP 故障期 fail-close 拒绝随客户端自动重连高频触发，
      * 不限频会重复打爆玩家群（对照 whitelist_block 曾 48 次打爆 QQ 频控 40034100 的事故）。
      * event.disallow 不受限频，拦截始终执行。 */
     private static final long GEOIP_BLOCK_THROTTLE_MS = 5000L;
@@ -63,24 +63,8 @@ public final class PlayerEventService {
             return;
         }
         if (decision.lookupFailed()) {
-            // fail-close 拒绝：无法验证地区，区别于「地区不在白名单」的确定性拦截
-            MessageEnvelope envelope = configs.renderEvent(
-                    "geoip_block",
-                    java.util.Map.of(
-                            "name",
-                            playerName,
-                            "ip",
-                            ipAddress,
-                            "country_code",
-                            "",
-                            "allow_list",
-                            String.join(",", decision.allowList()),
-                            "address_info",
-                            ""));
-            notifyGeoIpBlock(envelope);
-            event.disallow(
-                    AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                    styles.error(playerName + "(" + ipAddress + ")\n无法验证IP所属地区（GeoIP 服务异常）"));
+            // fail-close 拒绝：无法验证地区（解析服务临时故障），区别于「地区不在白名单」的确定性拦截
+            denyGeoIpUnverifiable(event, playerName, ipAddress);
             return;
         }
         java.util.Map<String, String> vars = new java.util.HashMap<>();
@@ -90,7 +74,7 @@ public final class PlayerEventService {
         vars.put("allow_list", String.join(",", decision.allowList()));
         vars.put("address_info", formatAddressInfo(decision.rawJson()));
         MessageEnvelope envelope = configs.renderEvent("geoip_block", vars);
-        notifyGeoIpBlock(envelope);
+        notifyGeoIpBlock("geoip_block", envelope);
         event.disallow(
                 AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                 styles.error(playerName + "(" + ipAddress + ")" + "\n" + decision.countryCode() + "\n" + "IP位置不在服务支持区域"
@@ -176,31 +160,20 @@ public final class PlayerEventService {
         sendGeoIpAlert("IP地址解析服务异常，" + outcome + ": " + playerName + "(" + ipAddress + ")", "geoip lookup failed");
     }
 
-    /** fail-close 拦截：GeoIP 无法验证地区（超时/中断/查询失败）时拒绝进入并渲染 geoip_block。 */
+    /** fail-close 拦截：GeoIP 无法验证地区（超时/中断/查询失败）时拒绝进入并渲染 geoip_unverifiable，提示玩家重试。 */
     private void denyGeoIpUnverifiable(AsyncPlayerPreLoginEvent event, String playerName, String ipAddress) {
-        MessageEnvelope envelope = configs.renderEvent(
-                "geoip_block",
-                java.util.Map.of(
-                        "name",
-                        playerName,
-                        "ip",
-                        ipAddress,
-                        "country_code",
-                        "",
-                        "allow_list",
-                        String.join(",", configs.ipWhitelist().allowCountryCode()),
-                        "address_info",
-                        ""));
-        notifyGeoIpBlock(envelope);
+        MessageEnvelope envelope =
+                configs.renderEvent("geoip_unverifiable", java.util.Map.of("name", playerName, "ip", ipAddress));
+        notifyGeoIpBlock("geoip_unverifiable", envelope);
         event.disallow(
                 AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                styles.error(playerName + "(" + ipAddress + ")\n无法验证IP所属地区（GeoIP 服务异常）"));
+                styles.error(playerName + "(" + ipAddress + ")\n地区解析服务暂时不可用，无法验证你的地区，请稍后重新尝试登录"));
     }
 
-    /** geoip_block 群消息限频发送（含玩家 IP 与白名单，不适合高频刷群）。 */
-    private void notifyGeoIpBlock(MessageEnvelope env) {
+    /** geoip_block/geoip_unverifiable 群消息限频发送（含玩家 IP 与白名单，不适合高频刷群）。 */
+    private void notifyGeoIpBlock(String eventKey, MessageEnvelope env) {
         if (throttledNotifier.shouldRun(GEOIP_BLOCK_THROTTLE_KEY, GEOIP_BLOCK_THROTTLE_MS)) {
-            notifier.event("geoip_block", env);
+            notifier.event(eventKey, env);
         }
     }
 

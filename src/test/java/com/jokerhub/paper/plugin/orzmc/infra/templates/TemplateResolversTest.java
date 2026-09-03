@@ -9,8 +9,7 @@ import org.junit.jupiter.api.Test;
 public class TemplateResolversTest {
 
     private static TemplateOptions options(Map<String, String> stage, Map<String, String> world) {
-        return new TemplateOptions(
-                stage, "per_sec", "ms", world, new HashMap<>(), 1.0, "block", "zh-CN", new HashMap<>());
+        return new TemplateOptions(stage, "per_sec", "ms", world, 1.0, 2, "block");
     }
 
     @Test
@@ -28,24 +27,17 @@ public class TemplateResolversTest {
     }
 
     @Test
-    public void testStageAliasI18n() {
-        Map<String, String> stageAliasLocalizedMap = new HashMap<>();
-        stageAliasLocalizedMap.put("Region", "区域");
-        stageAliasLocalizedMap.put("Chunk", "区块");
-        Map<String, Map<String, String>> stageAliasLocalized = new HashMap<>();
-        stageAliasLocalized.put("zh-CN", stageAliasLocalizedMap);
-        TemplateOptions opt = new TemplateOptions(
-                new HashMap<>(),
-                "per_sec",
-                "ms",
-                new HashMap<>(),
-                new HashMap<>(),
-                1.0,
-                "block",
-                "zh-CN",
-                stageAliasLocalized);
+    public void testStageAliasFallback() {
+        // stageCnMap 为空（原 i18n 分支已删）：命中硬编码兜底
+        TemplateOptions opt = options(new HashMap<>(), new HashMap<>());
         Assertions.assertEquals("区域", TemplateResolvers.stageAlias("Region", opt));
         Assertions.assertEquals("区块", TemplateResolvers.stageAlias("Chunk", opt));
         Assertions.assertEquals("进行中", TemplateResolvers.stageAlias("Unknown", opt));
+
+        // stageCnMap 优先于硬编码兜底
+        Map<String, String> stageCn = new HashMap<>();
+        stageCn.put("Region", "加载区域");
+        TemplateOptions optCn = options(stageCn, new HashMap<>());
+        Assertions.assertEquals("加载区域", TemplateResolvers.stageAlias("Region", optCn));
     }
 }

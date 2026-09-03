@@ -17,6 +17,7 @@ import net.luckperms.api.model.group.GroupManager;
 import net.luckperms.api.node.Node;
 import net.luckperms.api.node.NodeBuilderRegistry;
 import net.luckperms.api.node.types.InheritanceNode;
+import net.luckperms.api.node.types.PermissionNode;
 import net.luckperms.api.track.Track;
 import net.luckperms.api.track.TrackManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +60,19 @@ class LuckPermsBootstrapTest {
             when(node.getGroupName()).thenReturn(lastGroup.get());
             return node;
         });
+        // forPermission：permission(name) 记录参数，build() 返回带 getPermission 的 node（prison 组用）
+        PermissionNode.Builder permNb = mock(PermissionNode.Builder.class);
+        AtomicReference<String> lastPermission = new AtomicReference<>();
+        when(registry.forPermission()).thenReturn(permNb);
+        when(permNb.permission(anyString())).thenAnswer(inv -> {
+            lastPermission.set(inv.getArgument(0));
+            return permNb;
+        });
+        when(permNb.build()).thenAnswer(inv -> {
+            PermissionNode node = mock(PermissionNode.class);
+            when(node.getPermission()).thenReturn(lastPermission.get());
+            return node;
+        });
         created.clear();
         groupParents.clear();
         created.put("default", defaultGroup);
@@ -87,6 +101,19 @@ class LuckPermsBootstrapTest {
         if (parent != null) {
             groupParents.put(name, parent);
         }
+        return g;
+    }
+
+    /** 已存在的 prison 组（带 essentials.msg 权限，无继承——独立组）。 */
+    private Group mockPrisonGroupWithMsg() {
+        Group g = mock(Group.class);
+        NodeMap nm = mock(NodeMap.class);
+        java.util.Collection<Node> nodes = new java.util.ArrayList<>();
+        PermissionNode perm = mock(PermissionNode.class);
+        when(perm.getPermission()).thenReturn("essentials.msg");
+        nodes.add(perm);
+        when(nm.toCollection()).thenReturn(nodes);
+        when(g.data()).thenReturn(nm);
         return g;
     }
 
@@ -158,12 +185,32 @@ class LuckPermsBootstrapTest {
         created.put("member", mockGroup("member", "default"));
         created.put("builder", mockGroup("builder", "member"));
         created.put("admin", mockGroup("admin", "builder"));
+        // prison 组已存在且带 essentials.msg（独立组无继承）→ 无需 create/save
+        created.put("prison", mockPrisonGroupWithMsg());
 
         new LuckPermsBootstrap(api, logger).initialize();
 
         verify(groupManager, never()).createAndLoadGroup(any());
         verify(groupManager, never()).saveGroup(any());
         verify(groupManager, never()).deleteGroup(any());
+    }
+
+    @Test
+    void initialize_prisonGroupMissing_createsWithMsgPermission() {
+        mockTrackMissing();
+        created.put("member", mockGroup("member", "default"));
+        created.put("builder", mockGroup("builder", "member"));
+        created.put("admin", mockGroup("admin", "builder"));
+        when(groupManager.getGroup("prison")).thenReturn(null);
+
+        new LuckPermsBootstrap(api, logger).initialize();
+
+        verify(groupManager).createAndLoadGroup("prison");
+        // prison 组建好后挂 essentials.msg 权限并落库
+        verify(created.get("prison").data())
+                .add(argThat(node -> node instanceof PermissionNode
+                        && "essentials.msg".equals(((PermissionNode) node).getPermission())));
+        verify(groupManager, atLeastOnce()).saveGroup(created.get("prison"));
     }
 
     @Test

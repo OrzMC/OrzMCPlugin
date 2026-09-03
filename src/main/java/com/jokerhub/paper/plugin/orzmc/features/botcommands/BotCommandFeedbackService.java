@@ -82,27 +82,45 @@ public final class BotCommandFeedbackService {
                                 + name
                                 + " -player <type> <value>  移除玩家名规则\n"
                                 + name
-                                + " player list             查看玩家名规则",
+                                + " player list             查看玩家名规则\n"
+                                + "匹配类型 <type>: exact精确 / prefix前缀 / suffix后缀 / contains包含 / glob通配(*?) / regex正则",
                         name + "\n"
                                 + name
                                 + " 1.2.3.4\n"
                                 + name
                                 + " -1.2.3.4\n"
                                 + name
+                                + " player exact 服主\n"
+                                + name
                                 + " player prefix bot_\n"
                                 + name
-                                + " -player suffix _test");
+                                + " player suffix _test\n"
+                                + name
+                                + " player contains admin\n"
+                                + name
+                                + " player glob bot_*\n"
+                                + name
+                                + " player regex ^bot\n"
+                                + name
+                                + " -player prefix bot_");
             case REVIEW ->
                 usageBlock(
                         "🎯 " + name + " 审核申请",
-                        name + " l [页码]       查看待审列表\n" + name + " y <玩家>       通过申请\n" + name + " n <玩家>       拒绝申请",
-                        name + " l\n" + name + " l 2\n" + name + " y Steve");
+                        name + " l [页码]       查看待审列表\n"
+                                + name
+                                + " y <玩家>       通过申请\n"
+                                + name
+                                + " n <玩家>       拒绝申请\n"
+                                + "（y/n 可写 yes/no；同玩家多类型申请用 "
+                                + name
+                                + " y <typeId> <玩家>）",
+                        name + " l\n" + name + " l 2\n" + name + " y Steve\n" + name + " y builder-promotion Steve");
             case PERMISSION ->
                 usageBlock(
                         "🎯 " + name + " 权限管理",
-                        name + " u <玩家>       权限升级（default→member→builder→admin）\n"
+                        name + " u|up <玩家>    权限升级（default→member→builder→admin）\n"
                                 + name
-                                + " d <玩家>       权限降级（admin→builder→member→default）",
+                                + " d|down <玩家>  权限降级（admin→builder→member→default）",
                         name + " u Steve\n" + name + " d Steve");
             case SHOW_PLAYERS -> usageBlock("🎯 " + name + " 查看在线玩家", name + "（无参数，直接执行）", name);
             case SHOW_WHITELIST ->

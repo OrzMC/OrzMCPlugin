@@ -59,9 +59,9 @@ WebSocket 向插件推送入站消息，插件通过 HTTP API 发送回复和服
 | `$b` | 触发世界备份 | 管理员 |
 | `$o` | 世界优化 | 管理员 |
 | `$e` | 执行控制台命令，输出完整回传群聊（含异步输出，日志窗口捕获 + 噪音过滤 + 30 行截断） | 管理员 |
-| `$v` | 查看/处理审核申请（`$v l` 列表 / `$v y <玩家>` 通过 / `$v n <玩家>` 拒绝） | 管理员 |
-| `$p` | 权限升降级（`$p u <玩家>` 升级 / `$p d <玩家>` 降级） | 管理员 |
-| `$d` | 访问规则管理（IP 黑名单 + 玩家名规则） | 管理员 |
+| `$v` | 查看/处理审核申请（`$v l` 列表 / `$v y`/`yes` 通过 / `$v n`/`no` 拒绝；同名多类型申请用 `$v y <typeId> <玩家>`） | 管理员 |
+| `$p` | 权限升降级（`$p u`/`up` 升级 / `$p d`/`down` 降级，default→member→builder→admin） | 管理员 |
+| `$d` | 访问规则管理（`$d <IP>` / `$d -<IP>` 黑名单；`$d player <type> <value>` 加 / `$d -player <type> <value>` 删玩家名规则；type: `exact`/`prefix`/`suffix`/`contains`/`glob`/`regex`） | 管理员 |
 
 ### 2.3 通知系统
 
@@ -224,7 +224,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 - 玩家名匹配默认大小写不敏感；离线模式下玩家名由客户端上报，名称规则适合反滥用/风控，不能替代 UUID 或 IP 作为强安全边界
 - 管理方式：
   - 游戏内命令：`/blacklist list|add|remove <pattern>`，玩家名规则为 `/blacklist add|remove player <type> <value>`（别名 `/bl`）
-  - Bot 命令：`$d <IP>` / `$d -<IP>`，玩家名规则为 `$d player <type> <value>` / `$d -player <type> <value>`
+  - Bot 命令：`$d <IP>` / `$d -<IP>`，玩家名规则为 `$d player <type> <value>` / `$d -player <type> <value>`（`<type>` 支持 `exact`/`prefix`/`suffix`/`contains`/`glob`/`regex`，示例见上方）
 
 ### 5.3 登录验证集成
 - 反射调用 LoginSecurity API
@@ -346,7 +346,16 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `maintenance.optimize_enabled` | Boolean | false | 启用地图自动优化 |
 | `maintenance.optimize_tick_time_threshold` | Long | 300 | 优化触发 tick 阈值（ms） |
 | `maintenance.backup_retention_count` | Integer | 5 | 地图备份保留数量 |
-| `maintenance.backup_maintenance_motd` | String | 服务器维护中，稍后再试 | 维护 MOTD 提示 |
+
+> **维护场景文案/进度行模板**（2026-09-02 起迁移至 templates.yml，MOTD/登录拦截/踢人统一读取）：
+> `maintenance_motd_backup`（服务器地图备份中）、`maintenance_motd_optimize`（服务器地图优化中）、
+> `maintenance_motd_manual`（服主手动 `/maintenance on`）、`maintenance_motd_progress_line`（追加进度行）。
+> 支持占位符 `{stage}` `{percent}` `{eta}`：场景模板写入占位符即内联展示进度（不再追加独立进度行）；
+> 未写占位符且场景有进度（backup/optimize）时自动追加 progress_line 行。模板缺失时用代码内置默认文案。
+>
+> ⚠️ **升级迁移**：旧版 `config.yml` 的 `maintenance.backup/optimize/manual_maintenance_motd` 自定义文案已废弃——
+> 升级后需手动把自定义值搬运到 `templates.yml` 的 `maintenance_motd_*` 对应键；且不再支持
+> `/orzmc config set` 修改 motd 文案（该路径已移出注册表），请直接编辑 `templates.yml` 后执行 `/config reload` 生效。
 
 **TNT**
 | 配置路径 | 类型 | 默认值 | 描述 |
@@ -355,6 +364,14 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `tnt.enable_respawn_anchor` | Boolean | false | 启用重生锚检测 |
 | `tnt.place_cooldown` | Integer | 5 | TNT 放置冷却（秒） |
 | `tnt.notify_aggregate_ms` | Long | 3000 | TNT/爆炸告警聚合窗口（毫秒） |
+
+**插件自更新**
+| 配置路径 | 类型 | 默认值 | 描述 |
+|---------|------|--------|------|
+| `update.enabled` | Boolean | true | 自更新总开关（false 后不再自动检查；`/update check\|now` 仍可手动使用） |
+| `update.channel` | String | release | 更新通道：release（正式版）/ beta（开发版） |
+| `update.check_interval_hours` | Long | 12 | 自动检查间隔（小时）；0 = 仅启动后检查一次 |
+| `update.auto_download` | Boolean | false | 发现新版本自动下载到 plugins/update（重启生效） |
 
 **上下线通知**
 | 配置路径 | 类型 | 默认值 | 描述 |
@@ -430,6 +447,7 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 | `/rank` | — | 查看自己的权限组/时长进度/下一步可申请 | 通用 |
 | `/apply [类型] [理由]` | — | 提交权限晋升申请（`/apply builder` / `/apply admin`） | 通用 |
 | `/review approve\|reject <玩家>` | — | 审核通过/拒绝玩家的晋升申请 | 管理员 |
+| `/update check\|now` | `/upd` | 检查/下载插件新版本（下载到 `plugins/update`，重启生效） | 管理员 |
 
 ---
 
@@ -544,6 +562,19 @@ PUBLIC；异常告警（含 GeoIP 上游异常私信）与维护失败事件走 
 - 权限组只应通过本系统（`/apply` 审核 / `$p` 升降级）管理，请勿用 `lp user X parent add` 手动叠加组，否则会造成权限判定异常
 - 结案申请记录每玩家自动保留最近 10 条，历史记录自动裁剪（文件大小有上限）
 - 详细设计见 [权限系统方案文档](./permission-system-v2.md)
+
+## 十六、插件自更新
+
+插件内置自更新（默认开启），从 [Hangar](https://hangar.papermc.io/) 查询 OrzMC 新版本：
+
+- **`update.channel`**：`release`（正式版，默认）或 `beta`（开发版 `-dev` 构建）
+- 启动后经 `update.check_interval_hours`（默认 12 小时）异步检查一次；发现新版本时：
+  - `update.auto_download: false`（默认）→ 控制台提示，管理员 `/update now` 手动下载
+  - `update.auto_download: true` → 自动下载到 `plugins/update/`（sha256 校验通过才落盘）
+- 下载完成后**重启服务器即生效**（Paper 自动替换旧 jar）；管理员可随时 `/update check` 查询状态
+- 所有检查与下载均走异步线程，不卡主线程；无法识别本地构建信息等异常场景自动降级为仅提示
+
+> 各通道最新版本以 Hangar 发布时间为准；插件本地构建时间晚于远程发布（本地更新尚未发版）时不误判。
 
 ---
 

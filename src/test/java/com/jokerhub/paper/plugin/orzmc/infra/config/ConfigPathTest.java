@@ -11,7 +11,7 @@ class ConfigPathTest {
     void all_containsExpectedEntries() {
         Map<String, ConfigPath> all = ConfigPath.all();
         assertNotNull(all);
-        assertEquals(37, all.size());
+        assertEquals(68, all.size());
     }
 
     @Test
@@ -85,12 +85,6 @@ class ConfigPathTest {
     void all_containsTemplatesPaths() {
         Map<String, ConfigPath> all = ConfigPath.all();
 
-        ConfigPath locale = all.get("templates.locale");
-        assertNotNull(locale);
-        assertEquals("templates", locale.configName());
-        assertEquals(String.class, locale.type());
-        assertEquals("zh-CN", locale.defaultValue());
-
         ConfigPath scale = all.get("templates.coord.scale");
         assertNotNull(scale);
         assertEquals(Double.class, scale.type());
@@ -127,14 +121,41 @@ class ConfigPathTest {
         Map<String, ConfigPath> all = ConfigPath.all();
         String[] keys = all.keySet().toArray(new String[0]);
 
-        // whitelist entries come first
-        assertTrue(keys[0].startsWith("whitelist."));
-        // maintenance entries come after whitelist
-        assertTrue(keys[3].startsWith("maintenance."));
-        // tnt entries come after maintenance
-        assertTrue(keys[7].startsWith("tnt."));
-        // easybot entries after command_policies（player_notify 5 项 + command_policies 6 项 → easybot 起点 22）
-        assertTrue(keys[22].startsWith("cmd_prompt_char") || keys[22].startsWith("discord_server_link"));
+        // 各组起始键按注册顺序单调递增：whitelist 最早，随后 maintenance/tnt/player_notify/
+        // command_policies/easybot/templates/rank_colors/gamemode-correction/prison，
+        // 末尾为后补齐的 chat/guard/login_rate_limit/exploit_hardening/geoip/entity_teleport_enabled。
+        String[] groupStartPrefixes = {
+            "whitelist.",
+            "maintenance.",
+            "tnt.",
+            "player_notify.",
+            "command_policies.",
+            "cmd_prompt_char",
+            "templates.",
+            "rank_colors.",
+            "gamemode-correction.",
+            "prison.",
+            "chat.",
+            "guard.",
+            "login_rate_limit.",
+            "exploit_hardening.",
+            "geoip.",
+            "entity_teleport_enabled",
+            "update."
+        };
+        int prev = -1;
+        for (String prefix : groupStartPrefixes) {
+            int idx = -1;
+            for (int i = 0; i < keys.length; i++) {
+                if (keys[i].startsWith(prefix)) {
+                    idx = i;
+                    break;
+                }
+            }
+            assertTrue(idx > prev, prefix + " 分组应出现在上一分组之后，实际 idx=" + idx);
+            prev = idx;
+        }
+        assertTrue(keys[0].startsWith("whitelist."), "whitelist 应为第一个分组");
     }
 
     @Test
@@ -156,14 +177,12 @@ class ConfigPathTest {
     void all_containsMaintenancePaths() {
         Map<String, ConfigPath> all = ConfigPath.all();
 
-        ConfigPath motd = all.get("maintenance.backup_maintenance_motd");
-        assertNotNull(motd);
-        assertEquals(String.class, motd.type());
-        assertEquals("服务器维护中，稍后再试", motd.defaultValue());
-
         ConfigPath retention = all.get("maintenance.backup_retention_count");
         assertNotNull(retention);
         assertEquals(Integer.class, retention.type());
         assertEquals(5, retention.defaultValue());
+
+        // 维护场景文案/进度行已迁 templates.yml（maintenance_motd_*），不再是 config.yml 可注册路径
+        assertNull(all.get("maintenance.backup_maintenance_motd"));
     }
 }

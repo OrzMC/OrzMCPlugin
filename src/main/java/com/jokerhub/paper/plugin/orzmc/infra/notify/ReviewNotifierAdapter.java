@@ -51,6 +51,8 @@ public final class ReviewNotifierAdapter implements ReviewNotifier {
                         "❌ [申请拒绝] {player}\n---------------------------------\n{summary}\n---------------------------------\n审核人：{reviewer}";
                     case TemplateKeys.RANK_PROMOTED -> "🎉 {player} 权限已升级为「{group}」";
                     case TemplateKeys.RANK_DEMOTED -> "⬇️ {player} 权限已被降级为「{group}」";
+                    case TemplateKeys.PRISON_IMPRISONED -> "🔒 {player} 已被关入牢房（原组 {group}）";
+                    case TemplateKeys.PRISON_RELEASED -> "🔓 {player} 已解除坐牢（恢复组 {group}）";
                     default -> "{message}";
                 };
         MessageEnvelope env = configs.renderTemplate(templateKey, vars, fallback);

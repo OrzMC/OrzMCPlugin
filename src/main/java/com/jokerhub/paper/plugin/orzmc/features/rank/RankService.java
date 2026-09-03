@@ -1,9 +1,11 @@
 package com.jokerhub.paper.plugin.orzmc.features.rank;
 
+import com.jokerhub.paper.plugin.orzmc.features.prison.PrisonService;
 import com.jokerhub.paper.plugin.orzmc.features.review.ReviewNotifier;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.logging.Logger;
 
 /**
@@ -31,6 +33,12 @@ public final class RankService {
     private final RankPromoter promoter;
     private final int memberThresholdHours;
     private final ReviewNotifier notifier;
+    /** 回同步调度线程执行游戏模式矫正的执行器（Paper 主线程 / Folia global region 线程）；未注入则内联（单测）。 */
+    private final Executor syncExecutor;
+    /** 升降级后的游戏模式矫正（可空：不注入则跳过）。 */
+    private final GamemodeCorrectionService gamemodeCorrection;
+    /** 坐牢服务（可空：不注入则不做 prison 拦截）。 */
+    private final PrisonService prisonService;
 
     public RankService(RankStore store, RankPromoter promoter) {
         this(store, promoter, DEFAULT_MEMBER_THRESHOLD_HOURS, null);
@@ -41,10 +49,40 @@ public final class RankService {
     }
 
     public RankService(RankStore store, RankPromoter promoter, int memberThresholdHours, ReviewNotifier notifier) {
+        this(store, promoter, memberThresholdHours, notifier, null, null);
+    }
+
+    public RankService(
+            RankStore store,
+            RankPromoter promoter,
+            int memberThresholdHours,
+            ReviewNotifier notifier,
+            Executor syncExecutor,
+            GamemodeCorrectionService gamemodeCorrection) {
+        this(store, promoter, memberThresholdHours, notifier, syncExecutor, gamemodeCorrection, null);
+    }
+
+    /**
+     * @param syncExecutor      回同步调度线程执行游戏模式矫正（promote/demote 的 LP 操作在
+     *     非服务器线程，矫正需切回同步线程）；生产传入 {@code serverFacade::runSync}。
+     * @param gamemodeCorrection 升降级后的游戏模式矫正（可空；不注入则跳过）。
+     * @param prisonService     坐牢服务（可空；不注入则不做 prison 玩家晋升拦截）。
+     */
+    public RankService(
+            RankStore store,
+            RankPromoter promoter,
+            int memberThresholdHours,
+            ReviewNotifier notifier,
+            Executor syncExecutor,
+            GamemodeCorrectionService gamemodeCorrection,
+            PrisonService prisonService) {
         this.store = store;
         this.promoter = promoter;
         this.memberThresholdHours = memberThresholdHours;
         this.notifier = notifier;
+        this.syncExecutor = syncExecutor;
+        this.gamemodeCorrection = gamemodeCorrection;
+        this.prisonService = prisonService;
     }
 
     /** 玩家在线则发游戏内消息；通知端口未注入或玩家离线时静默。 */
@@ -61,6 +99,14 @@ public final class RankService {
         }
     }
 
+    /** 升降级后矫正游戏模式：correctAsync 经玩家实体调度器投递到其 region 线程（Folia 兼容），线程无关。 */
+    private void correctGamemode(UUID playerId) {
+        if (gamemodeCorrection == null) {
+            return;
+        }
+        gamemodeCorrection.correctAsync(org.bukkit.Bukkit.getPlayer(playerId));
+    }
+
     /** 检查玩家是否达到自动晋升条件（default→member）。
      *
      * <p>时长从服务器原生 stats 读取（玩家离线也有数据），因此可在任意时刻调用。
@@ -70,6 +116,10 @@ public final class RankService {
     public void checkPromotion(UUID playerId) {
         if (!promoter.isAvailable()) {
             return; // 无 LuckPerms：晋升不可用
+        }
+        // 坐牢玩家不参与四级晋升（prison 独立组，不在 track；重进也不自动回四级）
+        if (prisonService != null && prisonService.isPrisoner(playerId)) {
+            return;
         }
         long playtime = store.getPlaytimeMinutes(playerId);
         if (playtime < memberThresholdMinutes()) {
@@ -132,6 +182,10 @@ public final class RankService {
         if (!promoter.isAvailable()) {
             return CompletableFuture.completedFuture(null); // 无 LuckPerms：升级不可用
         }
+        // 坐牢玩家拒绝升降级（双层守卫：本层拦截业务调用 + LuckPermsPromoter 内层拦截 LP 直接调用）
+        if (prisonService != null && prisonService.isPrisoner(playerId)) {
+            return CompletableFuture.completedFuture(null);
+        }
         return promoter.promoteAsync(playerId).thenApply(to -> {
             if (to == null) {
                 return null; // 链顶（END_OF_TRACK）或失败
@@ -142,6 +196,7 @@ public final class RankService {
                     Map.of(
                             "player", promoter.playerName(playerId).orElse(playerId.toString()),
                             "group", groupDisplayName(to)));
+            correctGamemode(playerId);
             return to;
         });
     }
@@ -169,6 +224,10 @@ public final class RankService {
         if (!promoter.isAvailable()) {
             return CompletableFuture.completedFuture(null); // 无 LuckPerms：降级不可用
         }
+        // 坐牢玩家拒绝升降级（同 promoteAsync 双层守卫）
+        if (prisonService != null && prisonService.isPrisoner(playerId)) {
+            return CompletableFuture.completedFuture(null);
+        }
         return promoter.demoteAsync(playerId).thenApply(to -> {
             if (to == null) {
                 return null; // 链底（REMOVED_FROM_FIRST_GROUP / NOT_ON_TRACK）或失败
@@ -179,6 +238,7 @@ public final class RankService {
                     Map.of(
                             "player", promoter.playerName(playerId).orElse(playerId.toString()),
                             "group", groupDisplayName(to)));
+            correctGamemode(playerId);
             return to;
         });
     }

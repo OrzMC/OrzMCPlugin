@@ -99,9 +99,6 @@ public final class ConfigHealthCheck {
         } else {
             String title = kickSection.getString("title", "");
             if (title.isEmpty()) issues.add("缺失: whitelist.kick_message.title 不可为空");
-            String qqGroupId = kickSection.getString("qq_group_id", "");
-            if (qqGroupId.isEmpty())
-                issues.add("建议: whitelist.kick_message.qq_group_id 未配置，将使用 easybot.qq_group_id 作为默认值");
             List<?> ups = kickSection.getList("ups");
             if (ups == null || ups.isEmpty()) issues.add("缺失: whitelist.kick_message.ups 至少需要一项");
         }
@@ -118,8 +115,8 @@ public final class ConfigHealthCheck {
         if (thr <= 0) issues.add("非法: maintenance.optimize_tick_time_threshold 必须为正数");
         int retain = section.getInt("backup_retention_count", 5);
         if (retain < 0) issues.add("非法: maintenance.backup_retention_count 不得为负数");
-        String motd = section.getString("backup_maintenance_motd", "");
-        if (motd.isEmpty()) issues.add("缺失: maintenance.backup_maintenance_motd");
+        // 维护场景文案/进度行已迁 templates.yml（maintenance_motd_*，Templates record 有默认兜底），
+        // config.yml maintenance 段不再含 motd 键，故此处不再校验（2026-09-02 PR4）
     }
 
     private static void validateTntSection(ConfigurationSection section, List<String> issues) {
@@ -577,20 +574,6 @@ public final class ConfigHealthCheck {
         if (!(eta.equalsIgnoreCase("ms") || eta.equalsIgnoreCase("sec") || eta.equalsIgnoreCase("min"))) {
             issues.add("非法: templates.progress_units.eta 取值 ms/sec/min");
         }
-        String locale = cfg.getString(base + ".locale", "zh-CN");
-        if (locale.isEmpty()) issues.add("缺失: templates.locale");
-        Object wal = cfg.get("templates.i18n.world_alias");
-        if (wal != null && !(wal instanceof ConfigurationSection)) {
-            issues.add("类型错误: templates.i18n.world_alias 需为对象映射");
-        }
-        Object sal = cfg.get("templates.i18n.stage_alias");
-        if (sal != null && !(sal instanceof ConfigurationSection)) {
-            issues.add("类型错误: templates.i18n.stage_alias 需为对象映射");
-        }
-        Object cal = cfg.get("templates.i18n.command");
-        if (cal != null && !(cal instanceof ConfigurationSection)) {
-            issues.add("类型错误: templates.i18n.command 需为对象映射");
-        }
         if (!cfg.contains("templates.world_alias.world")) issues.add("建议: templates.world_alias.world 缺失");
         if (!cfg.contains("templates.world_alias.world_nether"))
             issues.add("建议: templates.world_alias.world_nether 缺失");
@@ -598,22 +581,10 @@ public final class ConfigHealthCheck {
             issues.add("建议: templates.world_alias.world_the_end 缺失");
         // 权限组中文名由 RankService.groupDisplayName 统一提供（唯一事实源），
         // 模板系统的 role_alias/role_groups 配置已删除，不再校验
-        String[] commandKeys = TemplateKeys.COMMAND_KEYS;
         String[] requiredTemplates = TemplateKeys.ALL;
         for (String key : requiredTemplates) {
             if (!cfg.contains("templates." + key)) {
                 issues.add("缺失: templates." + key);
-            }
-        }
-        if (cal instanceof ConfigurationSection cmdSec) {
-            for (String localeKey : cmdSec.getKeys(false)) {
-                ConfigurationSection langSec = cmdSec.getConfigurationSection(localeKey);
-                if (langSec == null) continue;
-                for (String key : commandKeys) {
-                    if (!langSec.contains(key)) {
-                        issues.add("建议: templates.i18n.command." + localeKey + "." + key + " 缺失");
-                    }
-                }
             }
         }
         Object rawFmt = cfg.get("templates.format");

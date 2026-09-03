@@ -42,7 +42,6 @@ public class ConfigRobustnessTest {
     /** 新式 config.yml：包含所有分段 */
     private FileConfiguration newStyleConfig() {
         YamlConfiguration cfg = new YamlConfiguration();
-        cfg.set("config-version", 2);
         cfg.set("whitelist.force_whitelist", true);
         cfg.set("whitelist.cleanup_inactive_days", 90);
         cfg.set("whitelist.pagination_delay_ticks", 5);
@@ -57,7 +56,6 @@ public class ConfigRobustnessTest {
         cfg.set("maintenance.optimize_enabled", false);
         cfg.set("maintenance.optimize_tick_time_threshold", 300);
         cfg.set("maintenance.backup_retention_count", 5);
-        cfg.set("maintenance.backup_maintenance_motd", "服务器维护中，稍后再试");
         cfg.set("tnt.enable", false);
         cfg.set("tnt.enable_respawn_anchor", false);
         cfg.set("tnt.place_cooldown", 5);

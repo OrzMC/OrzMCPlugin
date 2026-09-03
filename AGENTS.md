@@ -42,12 +42,13 @@ OrzMC/
 │
 ├── src/main/java/.../orzmc/   ← 主模块（platform，包含全部业务逻辑）
 │   ├── OrzMC.java              插件入口（继承 JavaPlugin）
-│   ├── OrzServices.java        组合根（装配 5 个领域模块）
+│   ├── OrzServices.java        组合根（装配 6 个领域模块）
 │   ├── assembly/               领域模块：
 │   │   ├── PlatformModule.java     配置、服务端门面、样式、限流
 │   │   ├── BotModule.java          EasyBot 机器人、通知派发、消息路由
 │   │   ├── PortalModule.java       跨服传送门
 │   │   ├── MaintenanceModule.java  世界备份与地图优化
+│   │   ├── UpdateModule.java       插件自更新（Hangar 检查/下载，sha256 校验）
 │   │   └── FeatureModule.java      所有 Feature 服务 + 命令/事件注册（Brigadier 命令注册 + 拦截器链）
 │   ├── core/ports/            含 Bukkit 依赖的端口（PortalPort, ServerAccess, TypedConfigProvider 等）
 │   ├── features/              业务逻辑层
@@ -65,7 +66,7 @@ OrzMC/
 │   │   ├── config/            ConfigService + 类型化配置记录类（20个，含 EasyBotConfig）、ConfigHealthCheck
 │   │   ├── bot/               BotMessageService, BotMessageServiceProvider, OrzEasyBot
 │   │   ├── ws/                RobustWebSocketClient（自动重连 + 心跳检测）
-│   │   ├── net/               AsyncHttp（指数退避重试）
+│   │   ├── net/               AsyncHttp（指数退避重试）、HangarClient（自更新查询）
 │   │   ├── scheduler/         SafeScheduler（异步异常日志包装器）
 │   │   └── ...                templates, paging, styles, health, binding
 │   ├── commands/              Bukkit CommandExecutor 适配器（仅 OrzConfigCommand，其余已内联至 Brigadier 注册）

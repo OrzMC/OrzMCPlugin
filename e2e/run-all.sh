@@ -4,18 +4,24 @@
 #   bash e2e/run-all.sh            # 全量（01-04 全部用例）
 #   bash e2e/run-all.sh -c 01 -c 03  # 只跑指定用例（前缀匹配）
 #   bash e2e/run-all.sh -h         # 帮助
-# 环境要求:
-#   - 测试服在线（~/papermc-test 或 ~/folia-test，端口统一 25565，RCON 25575/orztest2026）
-#   - 核心自动检测（进程），可用 ORZMC_CORE=folia|paper 显式指定
-#   - node + ~/minecraft-bot/node_modules（mineflayer）
+# 环境要求（2026-09-03 迁 MCSM 后：测试服 = MCSM 实例，路径/凭据全部环境注入，仓库零本机路径假设）:
+#   - 测试服在线（MCSM 实例映射 127.0.0.1:${ORZMC_TEST_PORT:-25565}）
+#   - ORZMC_CORE=paper|folia（必填显式——Docker 实例 java 进程在容器内，宿主 ps 不可见，无法自动检测）
+#   - ORZMC_TEST_DIR=<测试服根目录>（必填——MCSM 实例 = /Users/Shared/orzmc/mcsmanager/daemon/data/InstanceData/<uuid>）
+#   - ORZMC_RCON_MODE=http（默认）+ ORZMC_CONSOLE_URL/ORZMC_API_KEY（MCSM 面板 console API）或 =rcon（原生协议）
+#   - ORZMC_LOG_PATH / ORZMC_BACKUP_DIR 由入口注入（wrapper: 技能 scripts/e2e-mcsm-wrapper.sh）
+#   - node_modules（仓库内 npm install；无外部依赖）
+# ⚠️ 本机 MCSM 实例对接 = 技能 wrapper `scripts/e2e-mcsm-wrapper.sh [paper|folia] [run-all 参数]`
+#    （查实例状态 + 注入全部环境变量 + 调本脚本），仓库侧不感知 MCSM 布局
 set -uo pipefail
 
 E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CASES_DIR="$E2E_DIR/cases"
-if [ -z "${NODE_PATH:-}" ] && [ -d "$E2E_DIR/node_modules" ]; then
+if [ -d "$E2E_DIR/node_modules" ]; then
   NODE_PATH="$E2E_DIR/node_modules"
 else
-  NODE_PATH="${NODE_PATH:-$HOME/minecraft-bot/node_modules}"
+  echo "❌ 缺少依赖: $E2E_DIR/node_modules（请先执行 cd e2e && npm install）——套件依赖在仓库内（package.json/lock），不引用仓库外目录" >&2
+  exit 1
 fi
 REPORT_DIR="$E2E_DIR/reports"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
@@ -38,6 +44,14 @@ OrzMC 插件 E2E 测试套件
   04-maintenance.js     世界维护（$b 备份三阶段+落盘）
   05-groupmsg.js        群消息发送（白名单拦截/上下线/聚合/IP黑名单拦截，日志断言）
   06-permission-msg.js  权限/审核消息（申请发起/通过/晋升/拒绝/撤回，LP+op 自建）
+
+环境变量（入口注入，wrapper 见 orzmc 技能 scripts/e2e-mcsm-wrapper.sh）:
+  ORZMC_CORE=paper|folia          测试服核心（必填，显式指定）
+  ORZMC_TEST_DIR=<目录>           测试服根目录（必填，MCSM 实例 InstanceData/<uuid>）
+  ORZMC_TEST_PORT=25565           测试服端口（默认 25565）
+  ORZMC_RCON_MODE=http|rcon       控制台模式（默认 http=MCSM API）
+  ORZMC_CONSOLE_URL / ORZMC_API_KEY   http 模式的 console API 端点与 key
+  ORZMC_LOG_PATH / ORZMC_BACKUP_DIR  日志与备份目录（可省略则由 TEST_DIR 推断）
 EOF
 }
 
@@ -52,62 +66,52 @@ while getopts "c:rh" opt; do
   esac
 done
 
-# 前置检查（端口统一 25565/25575，核心自动检测）
+# 前置检查
 ORZMC_TEST_PORT="${ORZMC_TEST_PORT:-25565}"
 if ! nc -z 127.0.0.1 "$ORZMC_TEST_PORT" 2>/dev/null; then
-  echo "❌ 测试服未在线（127.0.0.1:${ORZMC_TEST_PORT}）——先启动 ~/papermc-test 或 ~/folia-test" >&2
+  echo "❌ 测试服未在线（127.0.0.1:${ORZMC_TEST_PORT}）——先经面板启动 MCSM 实例（或 wrapper 会提示）" >&2
   exit 1
 fi
-# 核心检测：ORZMC_CORE 显式指定 > 进程检测（2026-08-20 端口统一后无法靠端口区分核心）
-# ⚠️ 用 grep -c 而非 grep -q：set -o pipefail 下 grep -q 提前退出触发上游 SIGPIPE(141) → 误判失败
-# ⚠️ 进程检测依赖命令行含 <core>-test/<core>.*jar 路径片段（标准启动脚本满足）；非标准路径启动或
-#    双服同跑时可能误判（共享地图严禁同跑；同跑时固定优先 Folia）——一律可用 ORZMC_CORE 显式覆盖
-detect_core() {
-  if [ "$(ps aux | grep -v grep | grep -c '[f]olia-test/folia.*jar')" -gt 0 ]; then echo folia
-  elif [ "$(ps aux | grep -v grep | grep -c '[p]apermc-test/paper.*jar')" -gt 0 ]; then echo paper
-  else echo ""; fi
-}
-if [ -n "${ORZMC_CORE:-}" ]; then
-  # 显式指定：统一小写（macOS bash 3.2 无 ${var,,} 展开）
-  ORZMC_CORE="$(echo "$ORZMC_CORE" | tr '[:upper:]' '[:lower:]')"
-else
-  ORZMC_CORE="$(detect_core)"
-fi
-if [ -z "$ORZMC_CORE" ]; then
-  echo "❌ 无法自动识别测试服核心（folia/paper），用 ORZMC_CORE=folia|paper 显式指定" >&2
+# 核心：显式必填（2026-09-03 起无自动检测——Docker 实例 java 在容器内，宿主 ps 不可见）
+if [ -z "${ORZMC_CORE:-}" ]; then
+  echo "❌ 未指定测试服核心：export ORZMC_CORE=paper|folia（或直接用技能 wrapper scripts/e2e-mcsm-wrapper.sh）" >&2
   exit 1
 fi
-# 显式指定与实际运行核心不一致 → 警告（日志/备份将指向显式核心的测试服目录，便于快速定位）
-AUTO_CORE="$(detect_core)"
-if [ -n "$AUTO_CORE" ] && [ "$AUTO_CORE" != "$ORZMC_CORE" ]; then
-  echo "⚠️ 显式 ORZMC_CORE=${ORZMC_CORE} 与实际运行核心 ${AUTO_CORE} 不一致（路径将指向 ${ORZMC_CORE} 测试服目录）" >&2
-fi
-echo "✅ 检测到测试服核心: ${ORZMC_CORE}（端口 ${ORZMC_TEST_PORT}）"
-# 测试服目录映射（核心名 → 目录：folia→folia-test，paper→papermc-test，勿拼成 paper-test）
+ORZMC_CORE="$(echo "$ORZMC_CORE" | tr '[:upper:]' '[:lower:]')"
 case "$ORZMC_CORE" in
-  folia) TEST_DIR="$HOME/folia-test" ;;
-  paper) TEST_DIR="$HOME/papermc-test" ;;
-  *) TEST_DIR="" ;;
+  folia|paper) ;;
+  *) echo "❌ 非法 ORZMC_CORE=${ORZMC_CORE}（仅支持 folia|paper）" >&2; exit 1 ;;
 esac
+# 测试服目录：显式必填（MCSM 实例 = InstanceData/<uuid>，宿主侧目录）
+TEST_DIR="${ORZMC_TEST_DIR:-}"
 if [ -z "$TEST_DIR" ] || [ ! -d "$TEST_DIR" ]; then
-  echo "❌ 核心 ${ORZMC_CORE} 对应测试服目录不存在: ${TEST_DIR:-（非法核心名，仅支持 folia|paper）}（可用 ORZMC_CORE=folia|paper）" >&2
+  echo "❌ 未指定/不存在测试服目录 ORZMC_TEST_DIR=${TEST_DIR:-（空）}——MCSM 实例为 /Users/Shared/orzmc/mcsmanager/daemon/data/InstanceData/<uuid>（wrapper 自动注入）" >&2
   exit 1
 fi
-# 日志路径按核心推断（可 ORZMC_LOG_PATH 覆盖）
+echo "✅ 测试服: ${ORZMC_CORE}（端口 ${ORZMC_TEST_PORT}）目录: ${TEST_DIR}"
+# 日志路径：优先环境注入，否则按测试服目录推断（可 ORZMC_LOG_PATH 覆盖）
 if [ -z "${ORZMC_LOG_PATH:-}" ]; then
   ORZMC_LOG_PATH="$TEST_DIR/logs/latest.log"
 fi
 export ORZMC_LOG_PATH
-# RCON 端口统一 25575（可 ORZMC_RCON_PORT 覆盖）
-ORZMC_RCON_PORT="${ORZMC_RCON_PORT:-25575}"
-export ORZMC_RCON_PORT
-# 备份目录按核心推断（可 ORZMC_BACKUP_DIR 覆盖；04-maintenance 落盘断言仅 ORZMC_ASSERT_COMPLETE=1 时执行）
+# RCON 模式（默认 http = MCSM console API；rcon 模式需 ORZMC_RCON_PASS）
+export ORZMC_RCON_MODE="${ORZMC_RCON_MODE:-http}"
+export ORZMC_CONSOLE_URL ORZMC_API_KEY
+if [ "$ORZMC_RCON_MODE" = "http" ] && [ -z "${ORZMC_CONSOLE_URL:-}" ]; then
+  echo "❌ http 控制台模式缺少 ORZMC_CONSOLE_URL（由技能 wrapper e2e-mcsm-wrapper.sh 注入 MCSM console API 地址）" >&2
+  exit 1
+fi
+if [ "$ORZMC_RCON_MODE" = "rcon" ] && [ -z "${ORZMC_RCON_PASS:-}" ]; then
+  echo "❌ rcon 模式缺少 ORZMC_RCON_PASS（原生 RCON 密码；MCSM 实例场景请用默认 http 模式）" >&2
+  exit 1
+fi
+# 备份目录：优先环境注入，否则按测试服目录推断（04-maintenance 落盘断言仅 ORZMC_ASSERT_COMPLETE=1 时执行）
 if [ -z "${ORZMC_BACKUP_DIR:-}" ]; then
   ORZMC_BACKUP_DIR="$TEST_DIR/backup"
 fi
 export ORZMC_BACKUP_DIR
 if [ ! -d "$NODE_PATH" ]; then
-  echo "❌ 缺少 mineflayer 依赖: ${NODE_PATH}（请确认 ~/minecraft-bot/node_modules 存在）" >&2
+  echo "❌ 缺少 mineflayer 依赖: ${NODE_PATH}（cd e2e && npm install）" >&2
   exit 1
 fi
 
@@ -124,7 +128,7 @@ if [ -f "$TEMPLATE_REPO" ]; then
       echo "   测试服: $TEMPLATE_SERVER" >&2
       echo "   差异预览:" >&2
       diff "$TEMPLATE_REPO" "$TEMPLATE_SERVER" | head -15 >&2
-      echo "   修复: cp $TEMPLATE_REPO $TEMPLATE_SERVER && RCON '/config reload'" >&2
+      echo "   修复: cp $TEMPLATE_REPO $TEMPLATE_SERVER && 控制台 '/config reload'" >&2
       echo "   临时跳过: ORZMC_SKIP_TEMPLATE_CHECK=1" >&2
       if [ -z "${ORZMC_SKIP_TEMPLATE_CHECK:-}" ]; then
         exit 1

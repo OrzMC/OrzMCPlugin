@@ -54,6 +54,11 @@ public class ConfigManager {
         return configs.get(name);
     }
 
+    /** 配置对应的磁盘文件（未注册返回 {@code null}）。供 schema 升级做备份/损坏判定。 */
+    public File configFile(String name) {
+        return configFiles.get(name);
+    }
+
     /**
      * 落盘配置文件。synchronized 串行化共享 FileConfiguration 的并发写：
      * global/region 线程并发 save 同一文件会交叠写损坏 YAML 或丢更新（PermissionStore.save 场景）。

@@ -4,16 +4,20 @@ import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ChatConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.EntityTeleportConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ExploitHardeningConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.GamemodeCorrectionConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.LoginRateLimitConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PlayerNotifyConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PrisonConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.RankColorsConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.UpdateConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplateRenderer;
@@ -97,6 +101,27 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
     @Override
     public RankColorsConfig rankColors() {
         return RankColorsConfig.from(section("rank_colors"));
+    }
+
+    @Override
+    public GamemodeCorrectionConfig gamemodeCorrection() {
+        return GamemodeCorrectionConfig.from(section("gamemode-correction"));
+    }
+
+    @Override
+    public PrisonConfig prison() {
+        return PrisonConfig.from(section("prison"));
+    }
+
+    @Override
+    public UpdateConfig update() {
+        return UpdateConfig.from(section("update"));
+    }
+
+    @Override
+    public EntityTeleportConfig entityTeleport() {
+        // entity_teleport 两键在 config.yml 根级（合并重构后未段化），不走 section(name)
+        return EntityTeleportConfig.from(configService.getConfig("config"));
     }
 
     @Override

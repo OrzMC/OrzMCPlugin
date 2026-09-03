@@ -1,19 +1,33 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.bukkit.configuration.file.FileConfiguration;
 
 public final class ConfigService {
     private final OrzMC plugin;
     private final AdvancedConfigManager configManager;
+    private final ConfigUpgrader configUpgrader;
+    private final Function<String, InputStream> resourceProvider;
 
     public ConfigService(OrzMC plugin) {
+        this(plugin, plugin::getResource);
+    }
+
+    /**
+     * 测试可注入的默认资源读取器（默认为插件 jar 资源）。生产只走 {@link #ConfigService(OrzMC)}。
+     */
+    ConfigService(OrzMC plugin, Function<String, InputStream> resourceProvider) {
         this.plugin = plugin;
         this.configManager = new AdvancedConfigManager(plugin);
+        this.configUpgrader = new ConfigUpgrader(plugin.getLogger());
+        this.resourceProvider = resourceProvider;
     }
 
     public void setup() {
@@ -36,20 +50,11 @@ public final class ConfigService {
 
         configManager.setDefaults("guide_book", config -> {});
 
-        // 玩家名颜色（按权限等级）：仅缺失键写入默认值，不覆盖管理员修改（幂等）
-        configManager.getOrSetDefault("config", "rank_colors.enabled", true);
-        configManager.getOrSetDefault("config", "rank_colors.nametag_enabled", true);
-        configManager.getOrSetDefault("config", "rank_colors.tab_enabled", false);
-        configManager.getOrSetDefault("config", "rank_colors.op_color", "gold");
-        configManager.getOrSetDefault("config", "rank_colors.colors.admin", "red");
-        configManager.getOrSetDefault("config", "rank_colors.colors.builder", "green");
-        configManager.getOrSetDefault("config", "rank_colors.colors.member", "aqua");
-        configManager.getOrSetDefault("config", "rank_colors.colors.default", "gray");
+        // schema 自动升级（config/templates/easybot）：旧版安装自动备份→补缺→旧默认翻转→写回版本标记，
+        // 必须发生在任何 getConfig 消费之前，否则 ConfigHealthCheck 仍会对缺段持续告警。
+        upgradeSchemaFiles();
 
-        // 升级提示（审查 D 组）：默认值已调整的键只对新装服生效，存量 config.yml 已写入的旧值
-        // 不会被覆盖。仅当存量值仍是旧默认时才提示，避免对已手动调整的服务器产生噪声。
-        warnStaleDefaults();
-        // 升级提示（审查 D 组）：遗留的按功能拆分 YAML 不再读取，全部合并到 config.yml。
+        // 遗留的按功能拆分 YAML 不再读取，全部合并到 config.yml。
         // 文件仍在磁盘时配置会静默失效，须显式告警。
         warnLegacyConfigFiles();
 
@@ -62,27 +67,26 @@ public final class ConfigService {
         }
     }
 
-    /** 旧默认值已调整的键（键 → 旧默认值）：存量服务器值仍等于旧默认时提示手动迁移。 */
-    private void warnStaleDefaults() {
-        FileConfiguration cfg = configManager.getConfig("config");
-        if (cfg == null) return;
-        Map<String, String> flipped = Map.of(
-                "rank_colors.tab_enabled", "true",
-                "chat.max_messages_per_minute", "6",
-                "login_rate_limit.max_login_attempts_per_minute", "5",
-                "login_rate_limit.max_concurrent_per_ip", "3",
-                "player_notify.window_ms", "3000");
-        List<String> stale = new ArrayList<>();
-        for (Map.Entry<String, String> e : flipped.entrySet()) {
-            Object v = cfg.get(e.getKey());
-            if (v != null && String.valueOf(v).equals(e.getValue())) {
-                stale.add(e.getKey() + "（旧值 " + e.getValue() + "）");
+    /**
+     * 对 schema 文件执行自动升级。内置默认源取注入的 {@code resourceProvider}（生产 = 插件 jar 资源；
+     * 单测可注入 classpath 资源，使「升级补默认」路径可真实复现）。
+     */
+    private void upgradeSchemaFiles() {
+        for (Map.Entry<String, String> entry : ConfigSchema.SCHEMA_FILES.entrySet()) {
+            String name = entry.getKey();
+            FileConfiguration cfg = configManager.getConfig(name);
+            File file = configManager.configFile(name);
+            if (cfg == null || file == null) {
+                continue;
             }
-        }
-        if (!stale.isEmpty()) {
-            plugin.getLogger().warning("检测到配置项仍为旧默认值（新默认见 CHANGELOG，代码不覆盖已有配置）:");
-            for (String s : stale) {
-                plugin.getLogger().warning(" - " + s + " —— 如需应用新默认请在 config.yml 手动修改");
+            try (InputStream bundled = resourceProvider.apply(entry.getValue())) {
+                ConfigUpgrader.Outcome outcome = configUpgrader.upgrade(cfg, file, bundled);
+                if (outcome == ConfigUpgrader.Outcome.MIGRATED && !configManager.saveConfig(name)) {
+                    // 磁盘未落盘则下次启动会重新执行迁移（幂等，不丢数据），但需显式告知避免误以为已生效
+                    plugin.getLogger().warning("配置升级结果未能落盘（" + entry.getValue() + "），下次启动将重新执行升级");
+                }
+            } catch (java.io.IOException e) {
+                plugin.getLogger().warning("配置升级失败（" + entry.getValue() + "）: " + e.getMessage());
             }
         }
     }

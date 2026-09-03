@@ -3,7 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.features.server;
 import com.destroystokyo.paper.exception.ServerException;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import org.bukkit.event.server.ServerListPingEvent;
 import org.bukkit.event.server.ServerLoadEvent;
@@ -11,20 +11,20 @@ import org.bukkit.event.server.ServerLoadEvent;
 public final class ServerEventService {
     private final ExceptionAlertService exceptionAlertService;
     private final ServerFeedbackService feedbackService;
-    private final WorldMaintenanceService maintenanceService;
+    private final MaintenanceModeService maintenanceModeService;
     private final TypedConfigProvider configs;
     private final Notifier notifier;
 
     public ServerEventService(
             ServerFeedbackService feedbackService,
-            WorldMaintenanceService maintenanceService,
+            MaintenanceModeService maintenanceModeService,
             TypedConfigProvider configs,
             Notifier notifier) {
         this.configs = configs;
         this.notifier = notifier;
         this.exceptionAlertService = new ExceptionAlertService(configs, notifier);
         this.feedbackService = feedbackService;
-        this.maintenanceService = maintenanceService;
+        this.maintenanceModeService = maintenanceModeService;
     }
 
     public void handleException(ServerException exception) {
@@ -38,7 +38,7 @@ public final class ServerEventService {
     }
 
     public void applyMaintenanceMotd(ServerListPingEvent event) {
-        if (!maintenanceService.isRunning()) {
+        if (!maintenanceModeService.isActive()) {
             return;
         }
         event.motd(feedbackService.buildMaintenanceMotd());

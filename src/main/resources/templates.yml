@@ -1,13 +1,17 @@
 # ==================================================
 #             配置消息模板
 # ==================================================
-config-version: 2
+
+# 模板 schema 版本：插件启动时若磁盘版本低于内置版本，会自动补齐缺失模板键并升级
+# （原文件备份为 templates.yml.bak）。版本号由插件维护，无需手动修改。
+config-version: 11
 
 templates:
   format:
     tnt_alert: CODE_BLOCK
     exception_alert: PLAIN
     geoip_block: CODE_BLOCK
+    geoip_unverifiable: CODE_BLOCK
     command_output: CODE_BLOCK
     command_help: CODE_BLOCK
     command_players: CODE_BLOCK
@@ -46,6 +50,8 @@ templates:
     review_rejected: PLAIN
     rank_promoted: PLAIN
     rank_demoted: PLAIN
+    prison_imprisoned: PLAIN
+    prison_released: PLAIN
     rank_status: CODE_BLOCK
     command_review_list: CODE_BLOCK
     command_review_list_empty: PLAIN
@@ -74,6 +80,8 @@ templates:
   review_rejected: "❌ [申请拒绝] {player}\n---------------------------------\n{summary}\n---------------------------------\n审核人：{reviewer}"
   rank_promoted: "🎉 {player} 权限已升级为「{group}」"
   rank_demoted: "⬇️ {player} 权限已被降级为「{group}」"
+  prison_imprisoned: "🔒 {player} 已被关入牢房（原组 {group}）"
+  prison_released: "🔓 {player} 已解除坐牢（恢复组 {group}）"
   rank_status: "{message}"
   command_review_list: "{message}"
   command_review_list_empty: "当前没有待审核的申请。"
@@ -95,7 +103,8 @@ templates:
   player_digest: "🎮 当前玩家({online_count}/{max_count})\n{join_summary}{quit_summary}{kick_summary}"
   # 群消息不再附堆栈摘要（{stack_summary} 仍保留在白名单供自定义模板使用）
   exception_alert: "⚠️ 服务器异常\n---------------------------------\n{message}"
-  geoip_block: "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}"
+  geoip_block: "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}\n你的地区({country_code})不在允许列表，如有疑问请联系管理员"
+  geoip_unverifiable: "{name} 地区解析服务暂时不可用，无法验证你的地区（IP:{ip}）。请稍后重新尝试登录，若持续出现请联系管理员"
   tnt_alert: "{msg}\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n触发:{actor} 方块:{block_type}"
   maintenance_backup_stage: "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}"
   maintenance_backup_done: "地图{label} 完成 用时:{duration_human}"
@@ -103,6 +112,13 @@ templates:
   maintenance_optimize_stage: "地图{label} 阶段:{stage}({stage_name}/{stage_i18n}) 进度:{percent}% {current}/{total} 速率:{rate_per}{rate_unit} 预计剩余:{eta_value}{eta_unit}"
   maintenance_optimize_done: "地图{label} 完成 用时:{duration_human}"
   maintenance_optimize_error: "地图{label} 失败 用时:{duration_human}"
+  # 维护场景文案 + 进度行（MOTD / 登录拦截 / 踢人统一渲染；2026-09-02 迁移自 config.yml maintenance 段，
+  # 原 config maintenance.backup/optimize/manual_maintenance_motd 键废弃）。进度行支持
+  # {stage} {percent} {eta} 占位符；场景模板若自带进度占位符则不再追加独立进度行。
+  maintenance_motd_backup: "服务器地图备份中，请稍后再试"
+  maintenance_motd_optimize: "服务器地图优化中，请稍后再试"
+  maintenance_motd_manual: "服务器维护中，请稍后再试"
+  maintenance_motd_progress_line: "进度：{stage} {percent}% 预计剩余 {eta}秒"
   stage_cn:
     Region: 区域
     Chunk: 区块
@@ -115,38 +131,6 @@ templates:
     world: 主世界
     world_nether: 下界
     world_the_end: 末地
-  locale: zh-CN
-  i18n:
-    command:
-      en-US:
-        command_output: "{message}"
-        command_help: "{help}"
-        command_players: "------Online ({online_count}/{max_count})------\n{online_list}"
-        command_whitelist_header: "------Whitelist ({count})------"
-        command_whitelist_page: "{header}\nPage {page}/{total}\n{body}"
-        command_whitelist_cleanup: "------Whitelist Cleanup------\n{removed_list}"
-        command_whitelist_add_result: "{message}"
-        command_whitelist_remove_result: "{message}"
-        command_blacklist_list: "{patterns}"
-        command_blacklist_add: "{message}"
-        command_blacklist_remove: "{message}"
-        command_blacklist_error: "{message}"
-        command_admin_required: "{message}"
-        command_usage: "{message}"
-        command_backup: "{message}"
-        command_optimize: "{message}"
-        command_optimize_disabled: "{message}"
-    world_alias:
-      zh-CN:
-        world: 主世界
-        world_nether: 下界
-        world_the_end: 末地
-    stage_alias:
-      zh-CN:
-        Region: 区域
-        Chunk: 区块
-        File: 文件
-        Done: 完成
   coord:
     scale: 1.0
     precision: 2

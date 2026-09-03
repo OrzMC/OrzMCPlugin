@@ -6,7 +6,7 @@ import static org.mockito.Mockito.*;
 import com.destroystokyo.paper.exception.ServerException;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
-import com.jokerhub.paper.plugin.orzmc.features.maintenance.WorldMaintenanceService;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.testutil.ServiceTestBase;
 import net.kyori.adventure.text.Component;
@@ -25,7 +25,7 @@ class ServerEventServiceTest extends ServiceTestBase {
     private ServerFeedbackService feedbackService;
 
     @Mock
-    private WorldMaintenanceService maintenanceService;
+    private MaintenanceModeService maintenanceModeService;
 
     @Mock
     private TypedConfigProvider configs;
@@ -40,7 +40,7 @@ class ServerEventServiceTest extends ServiceTestBase {
 
     @BeforeEach
     void setUp() {
-        service = new ServerEventService(feedbackService, maintenanceService, configs, notifier);
+        service = new ServerEventService(feedbackService, maintenanceModeService, configs, notifier);
     }
 
     @Test
@@ -68,7 +68,7 @@ class ServerEventServiceTest extends ServiceTestBase {
 
     @Test
     void applyMaintenanceMotd_whenNotRunning_doesNothing() {
-        when(maintenanceService.isRunning()).thenReturn(false);
+        when(maintenanceModeService.isActive()).thenReturn(false);
 
         ServerListPingEvent pingEvent = mock(ServerListPingEvent.class);
         service.applyMaintenanceMotd(pingEvent);
@@ -78,7 +78,7 @@ class ServerEventServiceTest extends ServiceTestBase {
 
     @Test
     void applyMaintenanceMotd_whenRunning_setsMotd() {
-        when(maintenanceService.isRunning()).thenReturn(true);
+        when(maintenanceModeService.isActive()).thenReturn(true);
         when(feedbackService.buildMaintenanceMotd()).thenReturn(Component.text("维护中"));
 
         ServerListPingEvent pingEvent = mock(ServerListPingEvent.class);

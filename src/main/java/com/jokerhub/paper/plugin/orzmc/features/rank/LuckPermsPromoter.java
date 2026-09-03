@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import net.luckperms.api.LuckPerms;
@@ -72,13 +73,19 @@ public final class LuckPermsPromoter implements RankPromoter {
     private final PlayerNameResolver nameResolver;
     private final ServerScheduler scheduler;
     private final Executor asyncExecutor;
+    /**
+     * 坐牢（prison）判定端口（可空）：非 null 时升降级开头先查——坐牢玩家拒绝升降级，
+     * 防 normalizeSingleGroup 清掉 prison 节点造成「坐牢玩家被放回四级」漂移。
+     * 装配层传 {@code prisonGateway::isPrisoner}（LP 软依赖条件实例化，见 FeatureModule）。
+     */
+    private final Predicate<UUID> prisonCheck;
 
     public LuckPermsPromoter(PlayerNameResolver nameResolver) {
-        this(nameResolver, null, null);
+        this(nameResolver, null, null, null);
     }
 
     public LuckPermsPromoter(PlayerNameResolver nameResolver, ServerScheduler scheduler) {
-        this(nameResolver, scheduler, null);
+        this(nameResolver, scheduler, null, null);
     }
 
     /**
@@ -86,9 +93,23 @@ public final class LuckPermsPromoter implements RankPromoter {
      * @param asyncExecutor 非服务器线程执行器（升降级 LP 操作在此运行；null 时内联，测试用）
      */
     public LuckPermsPromoter(PlayerNameResolver nameResolver, ServerScheduler scheduler, Executor asyncExecutor) {
+        this(nameResolver, scheduler, asyncExecutor, null);
+    }
+
+    /**
+     * @param scheduler     回同步调度线程的执行器（仅 {@link #resolvePlayerId} 用；可 null）
+     * @param asyncExecutor 非服务器线程执行器（升降级 LP 操作在此运行；null 时内联，测试用）
+     * @param prisonCheck   坐牢判定端口（可 null；非 null 时坐牢玩家拒绝升降级）
+     */
+    public LuckPermsPromoter(
+            PlayerNameResolver nameResolver,
+            ServerScheduler scheduler,
+            Executor asyncExecutor,
+            Predicate<UUID> prisonCheck) {
         this.nameResolver = nameResolver;
         this.scheduler = scheduler;
         this.asyncExecutor = asyncExecutor;
+        this.prisonCheck = prisonCheck;
     }
 
     /** LuckPerms 是否已启用（软依赖检测）。 */
@@ -303,8 +324,19 @@ public final class LuckPermsPromoter implements RankPromoter {
         return supplyAsync(() -> promoteInternal(playerId));
     }
 
+    /** 玩家当前是否坐牢（未注入 prison 判定端口时一律 false）。 */
+    private boolean isPrisoner(UUID playerId) {
+        return prisonCheck != null && prisonCheck.test(playerId);
+    }
+
     /** {@link #promoteAsync} 主体（在非服务器线程执行，内部直接调 LP API，不做任何跨线程调度）。 */
     private String promoteInternal(UUID playerId) {
+        // 坐牢守卫：prison 组完全独立于四级 track，坐牢玩家拒绝升降级——一旦被下方
+        // normalizeSingleGroup 清掉 prison 继承节点，玩家会漂移回四级（防「坐牢变放假」）。
+        if (isPrisoner(playerId)) {
+            LOG.warning("promote 拒绝: 玩家正在坐牢，无法升降级 " + playerId);
+            return null;
+        }
         User user = loadUser(playerId);
         Track trk = track();
         if (user == null || trk == null) {
@@ -370,6 +402,11 @@ public final class LuckPermsPromoter implements RankPromoter {
 
     /** {@link #demoteAsync} 主体（在非服务器线程执行，内部直接调 LP API，不做任何跨线程调度）。 */
     private String demoteInternal(UUID playerId) {
+        // 坐牢守卫：同 promote（见 promoteInternal），防 normalizeSingleGroup 清掉 prison 节点
+        if (isPrisoner(playerId)) {
+            LOG.warning("demote 拒绝: 玩家正在坐牢，无法升降级 " + playerId);
+            return null;
+        }
         User user = loadUser(playerId);
         Track trk = track();
         if (user == null || trk == null) {

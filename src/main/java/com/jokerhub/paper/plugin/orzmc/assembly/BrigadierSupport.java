@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterce
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CooldownInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.PlayerOnlyInterceptor;
+import com.jokerhub.paper.plugin.orzmc.features.command.binding.PrisonDenyInterceptor;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
 import com.mojang.brigadier.Command;
@@ -14,6 +15,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 /**
  * Brigadier 命令注册的拦截器链助手（从 FeatureModule 抽离，纯静态无状态）。
@@ -87,5 +89,16 @@ final class BrigadierSupport {
     /** Build interceptors for hardcoded admin-only commands (blacklist, config). */
     static List<CommandInterceptor> adminInterceptors(String name) {
         return List.of(new AdminOnlyInterceptor(true), new CooldownInterceptor(name, 0));
+    }
+
+    /** 给开放命令拦截器链追加坐牢拒绝（prisonCheck 为 null 时原样返回）。 */
+    static List<CommandInterceptor> withPrisonDeny(
+            List<CommandInterceptor> interceptors, Predicate<Player> prisonCheck) {
+        if (prisonCheck == null) {
+            return interceptors;
+        }
+        List<CommandInterceptor> extended = new ArrayList<>(interceptors);
+        extended.add(new PrisonDenyInterceptor(prisonCheck));
+        return extended;
     }
 }

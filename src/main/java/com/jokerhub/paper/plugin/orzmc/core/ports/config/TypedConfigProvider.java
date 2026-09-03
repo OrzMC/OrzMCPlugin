@@ -3,16 +3,19 @@ package com.jokerhub.paper.plugin.orzmc.core.ports.config;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ChatConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.EntityTeleportConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ExploitHardeningConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.LoginRateLimitConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PlayerNotifyConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PrisonConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.RankColorsConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.UpdateConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import java.util.Map;
@@ -47,6 +50,18 @@ public interface TypedConfigProvider {
 
     /** 玩家名颜色（按权限等级）配置。 */
     RankColorsConfig rankColors();
+
+    /** 游戏模式矫正（权限组变化后）配置。 */
+    com.jokerhub.paper.plugin.orzmc.infra.config.configs.GamemodeCorrectionConfig gamemodeCorrection();
+
+    /** 坐牢（prison）配置：牢房坐标。 */
+    PrisonConfig prison();
+
+    /** 实体传送策略配置（config.yml 根级扁平键）。 */
+    EntityTeleportConfig entityTeleport();
+
+    /** 插件自更新配置（config.yml {@code update} 段）。 */
+    UpdateConfig update();
 
     MessageEnvelope renderEvent(String eventKey, Map<String, String> vars);
 

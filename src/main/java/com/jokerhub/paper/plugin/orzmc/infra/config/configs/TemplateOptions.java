@@ -9,34 +9,18 @@ public record TemplateOptions(
         String rateUnit,
         String etaUnit,
         Map<String, String> worldAlias,
-        Map<String, Map<String, String>> worldAliasLocalized,
         double coordScale,
         int coordPrecision,
-        String coordUnitLabel,
-        String locale,
-        Map<String, Map<String, String>> stageAliasLocalized) {
+        String coordUnitLabel) {
 
     public TemplateOptions(
             Map<String, String> stageCnMap,
             String rateUnit,
             String etaUnit,
             Map<String, String> worldAlias,
-            Map<String, Map<String, String>> worldAliasLocalized,
             double coordScale,
-            String coordUnitLabel,
-            String locale,
-            Map<String, Map<String, String>> stageAliasLocalized) {
-        this(
-                stageCnMap,
-                rateUnit,
-                etaUnit,
-                worldAlias,
-                worldAliasLocalized,
-                coordScale,
-                2,
-                coordUnitLabel,
-                locale,
-                stageAliasLocalized);
+            String coordUnitLabel) {
+        this(stageCnMap, rateUnit, etaUnit, worldAlias, coordScale, 2, coordUnitLabel);
     }
 
     public static TemplateOptions from(ConfigurationSection cfg) {
@@ -58,53 +42,12 @@ public record TemplateOptions(
                 if (v != null) worldAlias.put(k, v);
             }
         }
-        Map<String, Map<String, String>> worldAliasLocalized = new HashMap<>();
-        Object wal = cfg.get("templates.i18n.world_alias");
-        if (wal instanceof ConfigurationSection secw) {
-            for (String lang : secw.getKeys(false)) {
-                ConfigurationSection langSec = secw.getConfigurationSection(lang);
-                if (langSec != null) {
-                    Map<String, String> map = new HashMap<>();
-                    for (String k : langSec.getKeys(false)) {
-                        String v = langSec.getString(k);
-                        if (v != null) map.put(k, v);
-                    }
-                    worldAliasLocalized.put(lang, map);
-                }
-            }
-        }
         worldAlias.putIfAbsent("world", "主世界");
         worldAlias.putIfAbsent("world_nether", "下界");
         worldAlias.putIfAbsent("world_the_end", "末地");
-        String locale = cfg.getString("templates.locale", "zh-CN");
-        Map<String, Map<String, String>> stageAliasLocalized = new HashMap<>();
-        Object sal = cfg.get("templates.i18n.stage_alias");
-        if (sal instanceof ConfigurationSection secs) {
-            for (String lang : secs.getKeys(false)) {
-                ConfigurationSection langSec = secs.getConfigurationSection(lang);
-                if (langSec != null) {
-                    Map<String, String> map = new HashMap<>();
-                    for (String k : langSec.getKeys(false)) {
-                        String v = langSec.getString(k);
-                        if (v != null) map.put(k, v);
-                    }
-                    stageAliasLocalized.put(lang, map);
-                }
-            }
-        }
         double coordScale = cfg.getDouble("templates.coord.scale", 1.0);
         int coordPrecision = cfg.getInt("templates.coord.precision", 2);
         String coordUnitLabel = cfg.getString("templates.coord.unit_label", "block");
-        return new TemplateOptions(
-                m,
-                rate,
-                eta,
-                worldAlias,
-                worldAliasLocalized,
-                coordScale,
-                coordPrecision,
-                coordUnitLabel,
-                locale,
-                stageAliasLocalized);
+        return new TemplateOptions(m, rate, eta, worldAlias, coordScale, coordPrecision, coordUnitLabel);
     }
 }

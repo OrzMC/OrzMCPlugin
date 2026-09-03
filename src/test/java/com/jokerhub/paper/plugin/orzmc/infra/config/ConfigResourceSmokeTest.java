@@ -2,8 +2,8 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.EntityTeleportConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MainConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Portals;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Styles;
@@ -28,7 +28,7 @@ public class ConfigResourceSmokeTest {
     }
 
     @Test
-    public void testMainConfigResource() throws Exception {
+    public void testEntityTeleportConfigResource() throws Exception {
         YamlConfiguration cfg = load("config.yml");
         // Test each section
         Assertions.assertNotNull(WhitelistConfig.from(cfg.getConfigurationSection("whitelist")));
@@ -37,8 +37,8 @@ public class ConfigResourceSmokeTest {
         Assertions.assertNotNull(TntConfig.from(cfg.getConfigurationSection("tnt")));
         Assertions.assertNotNull(IpWhitelist.from(cfg.getConfigurationSection("geoip")));
         Assertions.assertNotNull(CommandPolicies.from(cfg.getConfigurationSection("command_policies")));
-        // Legacy MainConfig reads flat keys — verify it at least doesn't crash
-        Assertions.assertNotNull(MainConfig.from(cfg));
+        // EntityTeleportConfig reads config.yml 根级扁平键 — verify it at least doesn't crash
+        Assertions.assertNotNull(EntityTeleportConfig.from(cfg));
     }
 
     @Test

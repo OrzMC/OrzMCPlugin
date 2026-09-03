@@ -9,6 +9,7 @@ import net.luckperms.api.LuckPerms;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.node.Node;
 import net.luckperms.api.node.types.InheritanceNode;
+import net.luckperms.api.node.types.PermissionNode;
 import net.luckperms.api.track.Track;
 
 /**
@@ -38,6 +39,14 @@ public final class LuckPermsBootstrap {
     private static final List<String[]> INHERITANCE = List.of(
             new String[] {"member", "default"}, new String[] {"builder", "member"}, new String[] {"admin", "builder"});
 
+    /**
+     * 坐牢组（完全独立于四级 track，见 {@code features.prison.PrisonLpGateway#PRISON_GROUP}）。
+     *
+     * <p>不参与继承链（无 parent）、不在 track「rank」；只给 {@code essentials.msg}（私聊）权限，
+     * 其余全部禁言——作弊玩家进牢房后无法使用任何命令，但可私聊申诉/沟通。</p>
+     */
+    private static final String PRISON_GROUP = "prison";
+
     private final LuckPerms api;
     private final Logger logger;
 
@@ -46,9 +55,63 @@ public final class LuckPermsBootstrap {
         this.logger = logger;
     }
 
-    /** 启动初始化：先补组（含继承校正）、再补 track（track 链引用组对象，须组先就绪；幂等）。 */
+    /** 启动初始化：先补四级组（含继承校正）、再补 prison 坐牢组、再补 track（幂等）。 */
     public void initialize() {
-        ensureGroups().thenRun(this::ensureTrack);
+        ensureGroups().thenCompose(v -> ensurePrisonGroup()).thenRun(this::ensureTrack);
+    }
+
+    /** 确保 prison 坐牢组存在且带 essentials.msg 权限（幂等；缺失建组，已存在只补权限，不动其它）。 */
+    private CompletableFuture<Void> ensurePrisonGroup() {
+        Group existing = api.getGroupManager().getGroup(PRISON_GROUP);
+        if (existing == null) {
+            return createPrisonGroup();
+        }
+        return ensurePrisonPermission(existing);
+    }
+
+    private CompletableFuture<Void> createPrisonGroup() {
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        api.getGroupManager()
+                .createAndLoadGroup(PRISON_GROUP)
+                .thenCompose(group -> {
+                    group.data()
+                            .add(api.getNodeBuilderRegistry()
+                                    .forPermission()
+                                    .permission("essentials.msg")
+                                    .build());
+                    return api.getGroupManager().saveGroup(group);
+                })
+                .whenComplete((v, err) -> {
+                    if (err != null) {
+                        logger.warning("[OrzMC] 权限初始化：创建 prison 坐牢组失败 - " + err);
+                    } else {
+                        logger.info("[OrzMC] 权限初始化：已创建 prison 坐牢组（独立组，仅 essentials.msg）");
+                    }
+                    done.complete(null); // 组失败不阻塞后续（track 建链时跳过缺失组）
+                });
+        return done;
+    }
+
+    /** 已存在 prison 组时只保证 essentials.msg 权限存在（幂等，不覆盖线上其它权限）。 */
+    private CompletableFuture<Void> ensurePrisonPermission(Group group) {
+        for (Node node : group.data().toCollection()) {
+            if (node instanceof PermissionNode pn && "essentials.msg".equals(pn.getPermission())) {
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        group.data()
+                .add(api.getNodeBuilderRegistry()
+                        .forPermission()
+                        .permission("essentials.msg")
+                        .build());
+        api.getGroupManager().saveGroup(group).whenComplete((v, err) -> {
+            if (err != null) {
+                logger.warning("[OrzMC] 权限初始化：prison 组补 essentials.msg 失败 - " + err);
+            }
+            done.complete(null);
+        });
+        return done;
     }
 
     private CompletableFuture<Void> ensureGroups() {

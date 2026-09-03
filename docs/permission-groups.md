@@ -12,11 +12,31 @@
 3. **不含管理侧**：任何组的通配符都避开管理分支（worldedit.reload、worldguard.region.bypass、essentials.gamemode.others 等）
 4. **权限组内其它细节由线上自管**：本表只保证「定位功能可用」，不覆盖线上自定义
 
-## L0 default（访客）— 生存基础体验（13 项）
+## P0 prison（坐牢组，作弊玩家）— 独立组，不参与四级 track
+
+> 2026-09-02 新增（坐牢功能）：作弊玩家由 `/prison <玩家> on` 强制关入独立 `prison` 组，**完全独立于四级 track**——不在 default→member→builder→admin 继承链、不在 track「rank」晋升链。玩家重进仍保持 prison（不触发任何四级晋升/回归），释放后按元数据恢复原组与原位置。
+
+| 项 | 值 |
+|:--|:--|
+| 组名 | `prison`（LuckPerms 组，LuckPermsBootstrap 启动时幂等自动创建） |
+| 继承 | **无 parent**（独立组，不与 default 组叠加任何权限） |
+| 权限 | **空 + `essentials.msg`**（仅保留私聊申诉/沟通，其余命令全部不可用；公聊走 Paper 默认放行） |
+| 牢房坐标 | `prison.cell_location`（config.yml，格式 `world,x,y,z[,yaw,pitch]`，默认 `world,0,100,0,0,0`；未配置/世界未加载回退玩家当前世界出生点） |
+| 命令 | `/prison <玩家> on`（关入）/ `/prison <玩家> off`（释放）——仅 `orzmc.admin`/OP 可用（`adminInterceptors`） |
+| 原组记忆 | LP 用户元数据 `prisoner_original_group`（坐牢前四级组，不在 track 回退 primary group，再回退 default）+ `prisoner_original_location`（坐牢前位置，玩家在线才记录） |
+| 防自动回四级 | ① `RankService.checkPromotion` 检测到 prison 玩家直接跳过；② 玩家上线 `OrzPrisonEvent` 强制传回牢房；③ `LuckPermsBootstrap`/升降级矫正均不触碰 prison 玩家 |
+| 释放 | `/prison <玩家> off`：LP 恢复原组 + 清除两条元数据 + 在线玩家传回原位置（缺失回出生点） |
+
+> 同步/运维要点：
+> - **无需手动 LP 命令建组**：LuckPermsBootstrap 启动时幂等补齐（缺失建组 + 补 `essentials.msg`；已存在只补权限、不动其它节点）。
+> - **切勿给 prison 组加 `default` parent**——否则坐牢玩家恢复访客权限，坐牢形同虚设。
+> - **牢房需配置为封闭空间**（如 bedrock 笼子：四面/顶部/底部全封闭 + 权限全禁使其无法破坏/放置），默认值 `world,0,100,0` 仅示例，**不可直接用于线上**（露天坐标坐牢玩家仍可被他人搭路/干扰，且空中坐标需按世界 `minHeight~maxHeight` 校验，越界自动回退出生点）。
+> - 坐牢/释放的 LP 操作在异步执行器执行（服务器调度线程同步等 LP future 会自锁，见 `docs/dev/folia-luckperms-gotchas.md`）。
+
+## L0 default（访客）— 生存基础体验（22 项）
 
 | 权限节点 | 验证指令 | 预期 |
 |:--|:--|:--|
-| `ls.bypass` | `lp group default permission check ls.bypass` | true |
 | `essentials.afk` | `/afk` | 「你暂时离开了」 |
 | `essentials.back` | `/back`（死亡后） | 传送回死亡点 |
 | `essentials.msg` | `/msg <玩家> hi` | 对方收到 |
@@ -29,10 +49,20 @@
 | `ezshops.shop.buy` | 商店点购买 | 购买成功 |
 | `ezshops.shop.sell` | 商店点出售 | 出售成功 |
 | `ezshops.playershop.browse` | `/playershops` | 浏览玩家商店 |
+| `essentials.rules` | `/rules` | 显示服务器规则（2026-08-30 新增） |
+| `essentials.motd` | `/motd` | 显示欢迎语（2026-08-30 新增） |
+| `essentials.list` | `/list` | 在线玩家列表（2026-08-30 新增） |
+| `essentials.depth` | `/depth` | 显示当前深度（2026-08-30 新增） |
+| `essentials.compass` | `/compass` | 指南针指向出生点（2026-08-30 新增） |
+| `essentials.getpos` | `/getpos` | 显示当前坐标（2026-08-30 新增） |
+| `essentials.recipe` | `/recipe stone` | 显示合成配方（2026-08-30 新增） |
+| `essentials.hat` | `/hat` | 手持物品戴头上（2026-08-30 新增） |
+| `essentials.near` | `/near` | 显示附近玩家（2026-08-30 新增） |
+| `essentials.seen` | `/seen <玩家>` | 查看玩家最后在线时间（2026-08-30 新增） |
 
-> 剔除项：`getmehome.user`（家功能属 member，default 不给）、`deathchest.command.report`（管理命令，位于 DeathChest admin 包）、`essentials.reply`（无此权限，/reply 随 /msg）。
+> 剔除项：`getmehome.user`（家功能属 member，default 不给——**2026-08-30 决策：保持插件默认可用**，如需收紧再显式 false）、`deathchest.command.report`（管理命令，位于 DeathChest admin 包）、`essentials.reply`（无此权限，/reply 随 /msg）。**`essentials.nick` 不授予任何组**（2026-08-30 决策：离线服昵称=身份混淆风险，不开放）。
 
-## L1 member（成员）— 完整玩家功能（14 项）
+## L1 member（成员）— 完整玩家功能（19 项）
 
 | 权限节点 | 验证指令 | 预期 |
 |:--|:--|:--|
@@ -40,20 +70,25 @@
 | `essentials.tpa` | `/tpa <玩家>` | 传送请求发出 |
 | `essentials.tpaccept` | `/tpaccept` | 接受传送请求（2026-08-18 补：漏配导致「没有授受传送请求的权限」——tpa 发送时 Essentials 检查目标玩家 tpaccept 权限） |
 | `essentials.tpahere` | `/tpahere <玩家>` | 邀请对方 |
+| `essentials.tpdeny` | `/tpdeny` | 拒绝传送请求（2026-08-30 新增：有 tpa 必须有拒绝） |
+| `essentials.tpacancel` | `/tpacancel` | 取消发出的传送请求（2026-08-30 新增） |
 | `essentials.warp` | `/warp test` | 传送到传送点 |
 | `essentials.warp.list` | `/warp` | 列出传送点（2026-08-08 验收补：/warp 无参需 list） |
 | `essentials.kit` | `/kit` | 显示可用补给包 |
 | `essentials.mail` | `/mail` | 邮件基础 |
 | `essentials.mail.send` | `/mail send <玩家> hi` | 发送成功（2026-08-08 验收补：send 为独立子权限） |
+| `essentials.ptime` | `/ptime day` | 设置个人时间（2026-08-30 新增） |
+| `essentials.pweather` | `/pweather clear` | 设置个人天气（2026-08-30 新增） |
 | `griefprevention.createclaims` | 木铲圈地 | 成功圈地 |
+| `griefprevention.abandonclaim` | `/abandonclaim` | 放弃单个领地（2026-08-30 新增；plugin.yml 无此节点，GP 默认 claims 含弃地） |
 | `griefprevention.trapped` | `/trapped` | 触发卡死传送 |
 | `ezshops.playershop.create` | 牌子创建商店 | 创建成功 |
 | `ezshops.playershop.buy` | 玩家商店购买 | 购买成功 |
 | `ezshops.playershop.sell` | 玩家商店出售 | 出售成功 |
 
-> 剔除项：`essentials.spawn`（继承自 default，不重复列）；5 个 `getmehome.command.*` 分列节点 → 合并为 `getmehome.user`（省 5 项）。
+> 剔除项：`essentials.spawn`（继承自 default，不重复列）；5 个 `getmehome.command.*` 分列节点 → 合并为 `getmehome.user`（省 5 项）。**`/kit` 维持 member 专属**（2026-08-30 决策：default 不发基础 kit）。
 
-## L2 builder（建造者）— WE/WG 裁剪子集 + 建造便利 + Litematica 投影（33 项）
+## L2 builder（建造者）— WE/WG 裁剪子集 + 建造便利 + Litematica 投影（37 项）
 
 | 权限节点 | 验证指令 | 预期 |
 |:--|:--|:--|
@@ -84,12 +119,18 @@
 | `essentials.gamemode.survival` | `/gamemode survival` | 切回生存 |
 | `essentials.gamemode.others` | `/gamemode creative NoSuchPlayer` | ⚠️ **显式 false（08-12 实测：父权限含 .others，必须显式拒绝防改他人模式）** |
 | `essentials.fly` | `/fly` | 飞行开启 |
+| `essentials.speed` | `/speed 3` | 设置飞行/行走速度（2026-08-30 新增，配合 /fly） |
 | `essentials.heal` | `/heal` | 恢复满血（无 heal.others） |
 | `essentials.workbench` | `/workbench` | 打开随身工作台（含 /craft 别名） |
 | `essentials.top` | `/top` | 传送到地表 |
+| `f3f4perms.use` | F3+F4 热键 | 切换游戏模式（2026-08-30 新增：builder 开放热键，配合 /gamemode 命令双路径） |
 | `minecraft.command.setblock` | `/setblock ~ ~ ~ stone` | 放置成功（**Litematica 粘贴核心**） |
 | `minecraft.command.fill` | `/fill ~ ~ ~ ~5 ~ ~5 stone` | 填充成功（Litematica 连续区域） |
 | `minecraft.command.data` | `/data get block ~ ~ ~` | 读取方块 NBT（Litematica NBT 恢复） |
+| `grim.exempt.fastbreak` | `lp group builder permission check grim.exempt.fastbreak` | true（GrimAC FastBreak 检测豁免） |
+| `grim.exempt.airliquidbreak` | `lp group builder permission check grim.exempt.airliquidbreak` | true（GrimAC AirLiquidBreak 检测豁免） |
+
+> **GrimAC 挖掘类豁免（2026-09-02 新增，老板拍板）**：builder 及以上（admin 经继承自动获得）豁免 `fastbreak` + `airliquidbreak` 两个挖掘类检测——**仅限挖掘类，`grim.exempt` 全豁免及其它 per-check 豁免一律不授予**。背景：Tweakeroo 等客户端辅助模组的 Fast Block Break（快速破方块）在生存模式触发 GrimAC FastBreak 误报（线上实测 xiaofeng612 50 次 / yuan30908 34 次 + AirLiquidBreak 681 次，Misc kick 阈值 25/300s 会被误踢）；WorldEdit 为服务器侧改方块（不走玩家挖掘数据包）不触发任何 GrimAC 检测，**无需豁免**。本地测试服 2026-09-02 已实测：builder 组快速挖掘零 FastBreak 记录、default 组 100% 触发、Simulation/Timer 等核心检测不受影响。同步命令见决策记录。
 
 > **Litematica 投影粘贴支持（2026-08-12 新增，方案 A）**
 > - 需求来源：玩家客户端 Litematica 模组 Paste 功能（官方 wiki Schematic Pasting）
@@ -99,7 +140,7 @@
 > - 安全前置：三端 `enable-command-block=false`（命令方块禁用）→ 无法借 /setblock 放置可执行命令方块，无权限提升风险
 > - 合并说明：`worldguard.region.claim` + `claim.own` → `claim.*`（省 1）；`essentials.craft` 无此权限（/craft 是 /workbench 别名，已剔除）；**fly/gamemode 归属 builder（增量原则）——admin 经继承自动获得**。
 
-## L3 admin（管理员）— 管理命令（32 项，**无 `*`、无 luckperms.\*、无 op**）
+## L3 admin（管理员）— 管理命令（37 项，**无 `*`、无 luckperms.\*、无 op**）
 
 | 权限节点 | 验证指令 | 预期 |
 |:--|:--|:--|
@@ -121,6 +162,7 @@
 | `essentials.ban` | `/ban <玩家>` | Essentials 封禁 |
 | `essentials.unban` | `/unban <玩家>` | Essentials 解封 |
 | `essentials.gamemode` | `/gamemode creative <玩家>` | 改他人模式 |
+| `essentials.gamemode.spectator` | `/gamemode spectator` | 自身切观察模式（2026-08-29 实测补：builder 继承只有 creative/survival，admin 需显式 spectator） |
 | `essentials.give` | `/give <玩家> stone 1` | 发放物品 |
 | `essentials.tp` | `/tp <玩家>` | 传送他人 |
 | `essentials.time` | `/time` | 时间基础 |
@@ -135,10 +177,44 @@
 | `ezshops.playershop.admin` | 管理他人商店 | 成功 |
 | `deathchest.admin` | `/deathchest` 管理命令 | 成功 |
 | `bod.bypass` | 死亡回档豁免 | 成功 |
+| `essentials.mute` | `/mute <玩家>` | 禁言（2026-08-30 新增：含 /unmute 解禁，Essentials 复用同一权限） |
+| `essentials.tempban` | `/tempban <玩家> 1h` | 临时封禁（2026-08-30 新增） |
+| `essentials.banip` | `/ban-ip <IP>` | IP 封禁（2026-08-30 新增） |
+| `essentials.unbanip` | `/unban-ip <IP>` | IP 解封（2026-08-30 新增） |
 
-> 剔除项：`essentials.teleport`（无此权限，/tp 已含）、`essentials.unbanip` 等未列（无功能需求）。
+> 剔除项：`essentials.teleport`（无此权限，/tp 已含）。
+
+## 2026-08-30 重规划决策记录（老板审核通过）
+
+基于全量插件清单（references/plugin-inventory.md，21 插件）重规划，老板拍板 6 项：
+
+| # | 决策点 | 结论 |
+|:--|:--|:--|
+| 1 | /nick 昵称 | **不开放**（离线服身份混淆风险），`essentials.nick` 不授予任何组 |
+| 2 | /kit 归属 | **维持 member** 专属 |
+| 3 | admin 运营工具 | **补 /mute /unmute（复用 mute 权限）/tempban /ban-ip /unban-ip** |
+| 4 | GP siege（攻城）| **保持默认开**（现状） |
+| 5 | GetMeHome 家功能 default 可用 | **保持默认**（现状），如需收紧再显式 false |
+| 6 | F3F4Perms 热键 | **builder 开放** `f3f4perms.use`（F3+F4 切模式双路径） |
+
+本次新增汇总：L0 +10（rules/motd/list/depth/compass/getpos/recipe/hat/near/seen）、L1 +5（tpdeny/tpacancel/ptime/pweather/abandonclaim）、L2 +2（speed/f3f4perms.use）、L3 +4（mute/tempban/banip/unbanip）。维持不授：worldedit.limit（100 万硬上限）、luckperms.*、worldedit.setnbt（仅 admin）。
 
 **高危节点（明确不授予任何组）**：`*`、`luckperms.*`、`minecraft.command.op`、`bukkit.command.op`、`essentials.stop`、`essentials.reload`。
+
+## 2026-09-02 GrimAC 挖掘类豁免决策记录（老板拍板）
+
+**背景**：玩家使用 Tweakeroo 等客户端辅助模组的 Fast Block Break，在生存模式触发 GrimAC FastBreak/AirLiquidBreak 误报（线上库实测：xiaofeng612 FastBreak 50 次/7 分钟、yuan30908 FastBreak 34 + AirLiquidBreak 681 次，超过 Misc kick 阈值 25 次/300s 会被误踢）。WorldEdit 为服务器侧 API 改方块、不产生玩家挖掘数据包，**不触发任何 GrimAC 检测、无需豁免**（joker 本地+线上大量 WE 操作零挖掘类违规实证）。
+
+**决策**：
+1. **豁免范围**：仅 `grim.exempt.fastbreak` + `grim.exempt.airliquidbreak` 两个挖掘类 per-check 权限，授予 **builder 组**（admin 经继承自动获得）。default/member **不授予**。
+2. **不授予**：`grim.exempt`（全豁免）、`grim.nosetback`、`grim.disabled`、`grim.nomodifypacket` 及任何其它 per-check 豁免（含战斗类 Reach/Hitboxes 等）——维持 2026-08-31「高危节点任何组不授」决策。
+3. **同步命令**（三端 LP 执行，RCON 无回显 → `lp export` 快照验证）：
+   ```
+   lp group builder permission set grim.exempt.fastbreak true
+   lp group builder permission set grim.exempt.airliquidbreak true
+   ```
+4. **验证**（本地测试服 2026-09-02 实测通过）：对照组 default 组快速挖掘 8/8 触发 FastBreak；builder 组（FastBreakA）快速挖掘 7 次零新增记录；Simulation/Timer 等核心检测照常。测试脚本 `~/minecraft-bot/fastbreak-test.js`。
+5. **坑**：LP `parent add` 对未登录过（LP 无记录）的玩家**静默失败**——必须先让玩家登录一次或确认用户存在再授权限。
 
 ## 验证方法总纲
 
@@ -166,7 +242,7 @@
 | L0 | `essentials.pay` | `/pay TestNewbie 1` | ✅ 放行（目标离线提示） |
 | L0 | `essentials.msg` | `/msg TestNewbie hi` | ⚠️ 反垃圾拦截（「移动后才能聊天」——非权限问题） |
 | L0 | `essentials.spawn` | `/spawn` | ❌ Unknown（26.2 兼容已知，权限节点已配） |
-| L0 | `ls.bypass`/`bod.back`/`ezshops.*` | LP check + GUI 命令 | ✅ true |
+| L0 | `bod.back`/`ezshops.*` | LP check + GUI 命令 | ✅ true |
 | L1 | `getmehome.user` | `/sethome` `/home` `/listhomes` `/delhome` | ✅ 全部成功（父权限展开） |
 | L1 | `essentials.tpa`/`tpahere` | `/tpa TestNewbie` | ✅ 放行（目标离线） |
 | L1 | `essentials.warp.list` | `/warp` | ✅ 复测放行（初测缺 list 被拒→修复） |

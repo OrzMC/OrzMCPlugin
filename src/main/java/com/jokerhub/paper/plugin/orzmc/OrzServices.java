@@ -5,6 +5,7 @@ import com.jokerhub.paper.plugin.orzmc.assembly.FeatureModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.MaintenanceModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.PlatformModule;
 import com.jokerhub.paper.plugin.orzmc.assembly.PortalModule;
+import com.jokerhub.paper.plugin.orzmc.assembly.UpdateModule;
 import com.jokerhub.paper.plugin.orzmc.features.botcommands.BotCommandDependencies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 
@@ -30,6 +31,7 @@ public final class OrzServices {
     private final BotModule botModule;
     private final PortalModule portalModule;
     private final MaintenanceModule maintenanceModule;
+    private final UpdateModule updateModule;
     private final FeatureModule featureModule;
 
     private OrzServices(
@@ -37,11 +39,13 @@ public final class OrzServices {
             BotModule botModule,
             PortalModule portalModule,
             MaintenanceModule maintenanceModule,
+            UpdateModule updateModule,
             FeatureModule featureModule) {
         this.platformModule = platformModule;
         this.botModule = botModule;
         this.portalModule = portalModule;
         this.maintenanceModule = maintenanceModule;
+        this.updateModule = updateModule;
         this.featureModule = featureModule;
     }
 
@@ -57,8 +61,11 @@ public final class OrzServices {
         // Phase 3: 维护模块（依赖 Platform + Bot 的 Notifier）
         MaintenanceModule maintenance = new MaintenanceModule(platform, bot);
 
+        // Phase 3.5: 插件自更新模块（依赖 Platform）
+        UpdateModule update = new UpdateModule(platform);
+
         // Phase 4: 功能模块（依赖所有其他模块）
-        FeatureModule feature = new FeatureModule(platform, bot, portal, maintenance);
+        FeatureModule feature = new FeatureModule(platform, bot, portal, maintenance, update);
 
         // Phase 5: 一次性注入 BotCommandService 的全部跨模块依赖（维护/黑名单/审核/权限/日志窗口/命令守卫）。
         // 必须在 botModule.setup()（连接 WebSocket）之前完成，避免半初始化窗口
@@ -73,7 +80,7 @@ public final class OrzServices {
                         .commandGuardService(platform.commandGuardService())
                         .commandAuditService(platform.commandAuditService()));
 
-        return new OrzServices(platform, bot, portal, maintenance, feature);
+        return new OrzServices(platform, bot, portal, maintenance, update, feature);
     }
 
     public void setupAll(OrzMC plugin) {
@@ -81,6 +88,7 @@ public final class OrzServices {
         botModule.setup();
         portalModule.setup();
         maintenanceModule.setup();
+        updateModule.setup();
 
         // 注册事件监听器和命令
         featureModule.setupEventListeners(plugin);
@@ -102,6 +110,7 @@ public final class OrzServices {
         botModule.tearDown();
         portalModule.tearDown();
         maintenanceModule.tearDown();
+        updateModule.tearDown();
         platformModule.tearDown();
     }
 

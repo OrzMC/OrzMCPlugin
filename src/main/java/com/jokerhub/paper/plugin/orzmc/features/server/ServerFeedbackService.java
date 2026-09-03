@@ -2,8 +2,11 @@ package com.jokerhub.paper.plugin.orzmc.features.server;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.features.botcommands.OrzUserCmd;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService.MaintenanceProgress;
+import com.jokerhub.paper.plugin.orzmc.features.maintenance.MaintenanceModeService.MaintenanceReason;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Templates;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
@@ -17,11 +20,17 @@ public final class ServerFeedbackService {
     private final ServerFacade server;
     private final TypedConfigProvider configs;
     private final OrzTextStyles styles;
+    private final MaintenanceModeService maintenanceModeService;
 
-    public ServerFeedbackService(ServerFacade server, TypedConfigProvider configs, OrzTextStyles styles) {
+    public ServerFeedbackService(
+            ServerFacade server,
+            TypedConfigProvider configs,
+            OrzTextStyles styles,
+            MaintenanceModeService maintenanceModeService) {
         this.server = server;
         this.configs = configs;
         this.styles = styles;
+        this.maintenanceModeService = maintenanceModeService;
     }
 
     public String buildServerLoadMessage(ServerLoadEvent event) {
@@ -45,9 +54,13 @@ public final class ServerFeedbackService {
     }
 
     public Component buildMaintenanceMotd() {
-        MaintenanceConfig maintenance = configs.maintenance();
         BotConfig botConfig = configs.bot();
-        String msg = maintenance.backupMaintenanceMotd();
+        MaintenanceReason reason = maintenanceModeService.reason();
+        // 进度快照取一次：场景文案渲染与进度行拼接用同一快照，避免两次读不同快照拼出不一致 MOTD
+        MaintenanceProgress progress = maintenanceModeService.progress();
+        // 统一渲染入口：场景文案（templates.yml maintenance_motd_*）+ 进度行（maintenance_motd_progress_line）
+        Templates templates = configs.templates();
+        String msg = MaintenanceModeService.renderMotdText(reason, templates, progress);
         String discordLink = botConfig.discordServerLink();
         String qqGroupId = botConfig.qqGroupId();
         TextComponent.Builder motdBuilder = Component.text();

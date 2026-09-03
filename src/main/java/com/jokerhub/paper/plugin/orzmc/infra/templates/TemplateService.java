@@ -24,6 +24,7 @@ public final class TemplateService {
         if ("player_digest".equals(eventKey)) return templates.playerDigest();
         if ("exception_alert".equals(eventKey)) return templates.exceptionAlert();
         if ("geoip_block".equals(eventKey)) return templates.geoipBlock();
+        if ("geoip_unverifiable".equals(eventKey)) return templates.geoipUnverifiable();
         if ("tnt_alert".equals(eventKey)) return templates.tntAlert();
         if ("maintenance_backup_stage".equals(eventKey)) return templates.maintenanceBackupStage();
         if ("maintenance_backup_done".equals(eventKey)) return templates.maintenanceBackupDone();

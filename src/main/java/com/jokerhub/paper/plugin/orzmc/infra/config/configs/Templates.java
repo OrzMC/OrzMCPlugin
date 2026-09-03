@@ -9,6 +9,7 @@ public record Templates(
         String playerDigest,
         String exceptionAlert,
         String geoipBlock,
+        String geoipUnverifiable,
         String tntAlert,
         String maintenanceBackupStage,
         String maintenanceBackupDone,
@@ -19,7 +20,18 @@ public record Templates(
         String serverLoad,
         String serverStop,
         String whitelistBlock,
-        String whitelistToggleAlert) {
+        String whitelistToggleAlert,
+        String maintenanceMotdBackup,
+        String maintenanceMotdOptimize,
+        String maintenanceMotdManual,
+        String maintenanceMotdProgressLine) {
+
+    /** 维护场景文案默认值（templates.yml {@code maintenance_motd_*}）：统一渲染入口后 MOTD/登录拦截/踢人共文案，
+     *  默认带场景词，保证备份/优化/手动仍可区分（2026-09-02 review）。 */
+    public static final String DEFAULT_MAINTENANCE_MOTD_BACKUP = "服务器地图备份中，请稍后再试";
+
+    public static final String DEFAULT_MAINTENANCE_MOTD_OPTIMIZE = "服务器地图优化中，请稍后再试";
+    public static final String DEFAULT_MAINTENANCE_MOTD_MANUAL = "服务器维护中，请稍后再试";
 
     public static Templates from(ConfigurationSection cfg) {
         String base = "templates";
@@ -38,7 +50,10 @@ public record Templates(
         String exceptionAlert =
                 cfg.getString(base + ".exception_alert", "⚠️ 服务器异常\n---------------------------------\n{message}");
         String geoipBlock = cfg.getString(
-                base + ".geoip_block", "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}");
+                base + ".geoip_block",
+                "{name}({ip}) 地区:{country_code} 不在允许列表({allow_list})\n{address_info}\n你的地区({country_code})不在允许列表，如有疑问请联系管理员");
+        String geoipUnverifiable = cfg.getString(
+                base + ".geoip_unverifiable", "{name} 地区解析服务暂时不可用，无法验证你的地区（IP:{ip}）。请稍后重新尝试登录，若持续出现请联系管理员");
         String tntAlert = cfg.getString(
                 base + ".tnt_alert",
                 "{msg}\n世界:{world_alias} 坐标:{x_unit},{y_unit},{z_unit}({coord_unit})\n触发:{actor} 方块:{block_type}");
@@ -57,6 +72,15 @@ public record Templates(
         String whitelistBlock = cfg.getString(base + ".whitelist_block", "🙅🏻‍♂️ {message}");
         String whitelistToggleAlert = cfg.getString(
                 base + ".whitelist_toggle_alert", "⚠️ 服务器异常\n---------------------------------\n{message}");
+        // 维护场景文案 + 进度行（MOTD / 登录拦截 / 踢人统一渲染入口读取，2026-09-02 迁移自 config.yml maintenance 段）
+        String maintenanceMotdBackup =
+                cfg.getString(base + ".maintenance_motd_backup", DEFAULT_MAINTENANCE_MOTD_BACKUP);
+        String maintenanceMotdOptimize =
+                cfg.getString(base + ".maintenance_motd_optimize", DEFAULT_MAINTENANCE_MOTD_OPTIMIZE);
+        String maintenanceMotdManual =
+                cfg.getString(base + ".maintenance_motd_manual", DEFAULT_MAINTENANCE_MOTD_MANUAL);
+        String maintenanceMotdProgressLine =
+                cfg.getString(base + ".maintenance_motd_progress_line", "进度：{stage} {percent}% 预计剩余 {eta}秒");
         return new Templates(
                 join,
                 quit,
@@ -64,6 +88,7 @@ public record Templates(
                 digest,
                 exceptionAlert,
                 geoipBlock,
+                geoipUnverifiable,
                 tntAlert,
                 mbStage,
                 mbDone,
@@ -74,6 +99,10 @@ public record Templates(
                 serverLoad,
                 serverStop,
                 whitelistBlock,
-                whitelistToggleAlert);
+                whitelistToggleAlert,
+                maintenanceMotdBackup,
+                maintenanceMotdOptimize,
+                maintenanceMotdManual,
+                maintenanceMotdProgressLine);
     }
 }

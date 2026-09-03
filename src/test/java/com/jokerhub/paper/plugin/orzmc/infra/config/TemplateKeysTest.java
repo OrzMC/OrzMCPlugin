@@ -2,31 +2,27 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.InputStream;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
 class TemplateKeysTest {
 
     @Test
     void all_containsAllKnownKeys() {
-        assertTrue(TemplateKeys.ALL.length >= 34, "Should have at least 34 template event keys");
+        assertTrue(TemplateKeys.ALL.length >= 43, "Should have at least 43 template event keys");
     }
 
     @Test
-    void commandKeys_containsCommandTemplates() {
-        assertTrue(TemplateKeys.COMMAND_KEYS.length >= 17, "Should have at least 17 command template keys");
-    }
-
-    @Test
-    void allKeys_inCommandKeysSubset() {
-        for (String key : TemplateKeys.COMMAND_KEYS) {
-            boolean found = false;
-            for (String all : TemplateKeys.ALL) {
-                if (all.equals(key)) {
-                    found = true;
-                    break;
-                }
-            }
-            assertTrue(found, "Command key " + key + " should be in ALL array");
+    void all_keysHaveDefaultsInBundledTemplates() {
+        // ALL 由 ConfigHealthCheck 全量校验；内置 templates.yml 默认必须覆盖每个 key，
+        // 否则全新安装会在启动健康检查处持续告警。
+        InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("templates.yml");
+        assertNotNull(in, "classpath templates.yml missing");
+        var bundled = YamlConfiguration.loadConfiguration(
+                new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+        for (String key : TemplateKeys.ALL) {
+            assertTrue(bundled.contains("templates." + key), "内置 templates.yml 缺默认模板: templates." + key);
         }
     }
 
@@ -54,6 +50,7 @@ class TemplateKeysTest {
     @Test
     void securityKeys_present() {
         assertEquals("geoip_block", TemplateKeys.GEOIP_BLOCK);
+        assertEquals("geoip_unverifiable", TemplateKeys.GEOIP_UNVERIFIABLE);
         assertEquals("whitelist_block", TemplateKeys.WHITELIST_BLOCK);
         assertEquals("command_guard_blocked", TemplateKeys.COMMAND_GUARD_BLOCKED);
         assertEquals("security_audit", TemplateKeys.SECURITY_AUDIT);

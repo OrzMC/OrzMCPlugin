@@ -1,7 +1,10 @@
 # ==================================================
 #              OrzMC 核心配置 (合并)
 # ==================================================
-config-version: 2
+
+# 配置 schema 版本：插件启动时若磁盘版本低于内置版本，会自动补齐缺失默认键并升级
+# （原文件备份为 config.yml.bak）。版本号由插件维护，无需手动修改。
+config-version: 11
 
 # ==================================================
 #             服务器白名单配置
@@ -12,7 +15,6 @@ whitelist:
   pagination_delay_ticks: 5
   # 白名单踢出消息（当 force_whitelist=true 且玩家不在名单中时显示）
   kick_message:
-    qq_group_id: ''
     title: "可以在这里提示用户关注UP主帐号，进行私域建设"
     ups:
       - platform: 'YouTube'
@@ -27,7 +29,9 @@ maintenance:
   optimize_enabled: false
   optimize_tick_time_threshold: 300
   backup_retention_count: 5
-  backup_maintenance_motd: "服务器维护中，稍后再试"
+  # 维护场景文案与进度行已迁移到 templates.yml（maintenance_motd_backup/optimize/manual/
+  # maintenance_motd_progress_line，2026-09-02）：MOTD / 登录拦截 / 踢人统一读取模板渲染，
+  # 支持占位符 {stage} {percent} {eta}；本段不再含 motd 键。
   # 定时自动备份间隔（小时）：0 = 关闭；>0 表示每 N 小时自动备份一次。
   # 该字段支持 /config reload 热重载：修改后无需重启，下一个检查点（每分钟）即生效。
   backup_interval_hours: 0
@@ -42,22 +46,9 @@ tnt:
   # TNT/爆炸告警聚合窗口(ms)：同一区域(128×128×64区块)同类型事件在窗口内合并为一条告警(带 ×N 和首个坐标)；
   # 既是突发合并也限制持续刷屏频率。单发事件仍立即发，不受窗口延迟。
   notify_aggregate_ms: 3000
-  whitelist:
-    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world' }
-    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_nether' }
-    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_the_end' }
-  exempt_entities:
-    - CREEPER
-    - FIREBALL
-    - BREEZE
-    - WIND_CHARGE
-    - BREEZE_WIND_CHARGE
-    - ENDER_DRAGON
-    - END_CRYSTAL
-    - WITHER
-    - WITHER_SKULL
-    - SLIME
-    - STRAY
+  # 放行区域列表（空 = 全图禁止 TNT 放置/点燃；条目格式 {minX,maxX,minY,maxY,minZ,maxZ,world}）
+  whitelist: []
+  # 豁免实体由代码内置兜底（TntEventService.DEFAULT_EXEMPT_ENTITIES 11 项），如需自定义在此填 EntityType 大写名列表
 
 # ==================================================
 #                IP 地区白名单
@@ -245,3 +236,47 @@ rank_colors:
     builder: "green"
     member: "aqua"
     default: "gray"
+
+# ==================================================
+#          坐牢（作弊玩家，2026-09-02）
+# ==================================================
+# 作弊玩家强制进入独立 prison 组（完全独立于四级 track：不继承、不在晋升链），
+# 仅保留 essentials.msg 私聊权限，其余全部禁用；重进仍保持 prison 并强制传回牢房。
+prison:
+  # 牢房传送坐标（world,x,y,z[,yaw,pitch]）；未配置/世界未加载时回退玩家当前世界出生点
+  cell_location: "world,0,100,0,0,0"
+
+# ==================================================
+#          游戏模式矫正（权限组变化后，2026-08-29）
+# ==================================================
+# 玩家被降级后若当前游戏模式（创造/观察/冒险）已无对应权限，自动切回生存，
+# 杜绝「普通玩家保留创造能力」的权限漏洞。三级触发：
+#   审核通过 / 手动升降级 / LP 权限重算（覆盖手动 lp 命令）/ 登录兜底（覆盖离线期间被改组）。
+# 矫正前先检查 Essentials 对应 gamemode 权限，有权限则不处理。
+gamemode-correction:
+  # 总开关：关闭后不做任何矫正
+  enabled: true
+  # 防抖窗口(ms)：同一玩家在该窗口内不重复矫正（LP 重算事件可能连发）
+  debounce-ms: 2000
+  # 观察模式玩家切生存前是否先处理安全位置（低于世界 minHeight+10 或脚下不安全
+  # → 传送回床点/世界出生点，防虚空坠落/卡墙窒息）
+  teleport-to-spawn-on-spectator-fix: true
+
+# ==================================================
+#              插件自更新（2026-09-03）
+# ==================================================
+# 插件在启用后异步查询 Hangar 项目通道最新版本；发现新版本时按下方策略自动下载到
+# plugins/update/（Paper 重启时自动应用并删除旧 jar）。下载前按 Hangar 返回的
+# sha256 校验，校验失败不落盘。全部网络/文件 IO 在异步线程执行，不阻塞服务器主线程。
+update:
+  # 自更新总开关：false 时启动/周期不再自动检查（/update check|now 仍可手动使用）
+  enabled: true
+  # 更新通道：release=正式版（推荐，稳定）| beta=开发版（-dev 构建）
+  # 对应 CI 发布规则：tag → release 通道；main push → beta 通道
+  channel: release
+  # 自动检查间隔（小时）；0 = 仅启用时检查一次
+  check_interval_hours: 12
+  # 发现新版本后自动下载到 plugins/update/（下次重启生效）；
+  # false = 仅控制台提示有新版 + 管理员执行 /update now 手动下载
+  auto_download: false
+
