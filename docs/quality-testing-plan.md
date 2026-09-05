@@ -1,17 +1,14 @@
 # OrzMC 插件测试计划与质量体系
 
-> **版本**：v1.0（2026-08-19）
+> **状态：现行**（测试策略手册）｜版本：v1.1（2026-09-03）
 > **适用范围**：OrzMCPlugin 全部功能（Paper 26.x + Folia 双运行时）
-> **基线**：main@f79e165（#197 群消息样式统一），OrzMC 1.0.18-dev.302
-> **配套**：[功能测试用例（E2E）](test-cases.md) · [Folia 适配验收清单](folia-acceptance.md)
+> **配套**：现行自动化 E2E 套件见 [e2e/README.md](../e2e/README.md)；历史验收快照（已归档）见 [docs/README.md](README.md)「历史快照」节
 
 ---
 
-## 一、功能点全图（代码核对版）
+## 一、测试覆盖地图（功能模块 × 测试层）
 
-> 与 `features.md` 的差异：本节为 2026-08-19 从源码 `features/` 目录逐模块核对的最新清单，
-> 补齐了 features.md 未收录的**安全加固四大模块**（guard/chat/login_rate_limit/exploit_hardening）、
-> 命令审计、定时备份、上下线通知聚合等新功能。
+> 功能细节以 [features.md](features.md) 为**唯一权威**（含 guard/chat/login_rate_limit/exploit_hardening/prison/update 等全部模块）；本节只记录「功能模块 → 测试层覆盖」矩阵供质量追踪，不复述实现。
 
 ### 1.1 领域模块总览（16 个）
 
@@ -34,7 +31,9 @@
 | **chat** | ChatSpamFilterService | 聊天限流（20 条/分钟）；链接检测；重复消息检测 | 单测+集成 |
 | **command** | CommandFeedbackService + 拦截器链 | PlayerOnly/AdminOnly/Cooldown 三拦截器；命令反馈；/config 子命令 | 单测 |
 
-### 1.2 安全加固四大模块（features.md 未收录，2026-08 新增）
+### 1.2 安全加固四大模块（测试覆盖要点）
+
+> 功能细节见 features.md §5.5–5.8；下表仅列测试覆盖。
 
 | 模块 | 配置节 | 拦截点 | 行为 | 测试状态 |
 |:--|:--|:--|:--|:--|
@@ -43,15 +42,9 @@
 | 进服限流 | `login_rate_limit` | AsyncPlayerPreLoginEvent | 每 IP 20 次/分登录尝试；同 IP 并发上限 5；私信管理员 | ✅ 单测覆盖（LoginRateLimit 2 类） |
 | 漏洞加固 | `exploit_hardening` | 书页/物品属性/实体生成 | 书 100 页上限；物品 6 属性修饰符上限；单区块 128 实体上限 | ✅ 单测覆盖（ExploitHardening 2 类） |
 
-### 1.3 命令清单（11 Bot 命令 + 9 游戏命令 + /config）
+### 1.3 命令与配置覆盖索引
 
-Bot 命令：`$l` 在线 / `$w` 白名单 / `$h` 帮助 / `$a` 加白 / `$r` 移白 / `$b` 备份 / `$o` 优化 / `$e` 控制台 / `$d` 黑名单 / `$v` 审核 / `$p` 升降级
-
-游戏命令：`/tpbow` `/guide` `/menu` `/bot` `/portal` `/blacklist` `/config` `/rank` `/apply` `/review` `/orzdebug`
-
-### 1.4 配置面（6 配置文件 + 25+ 运行时配置项）
-
-config.yml（白名单/维护/TNT/GeoIP/实体传送/命令策略/安全加固四模块）· easybot.yml · templates.yml（50+ 模板）· permission.yml · portals.yml · access_rules.yml · guide_book.yml
+Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯一权威（Bot 命令见其 §2.2、运行时配置项见 §十、游戏内指令总表见 §十一）；本节不再维护第二份清单，仅提示测试覆盖已对齐上述章节。
 
 ---
 
@@ -170,23 +163,16 @@ config.yml（白名单/维护/TNT/GeoIP/实体传送/命令策略/安全加固�
 
 ### 5.1 目录结构（e2e/ 随插件仓库版本化）
 
-```
-plugin/e2e/
-├── README.md            # 使用说明（触发条件/环境/执行/报告）
-├── run-all.sh           # 一键全量入口（-h 帮助 / -c 指定用例 / -r 生成报告）
-├── lib/
-│   ├── rcon.js          # 原生 RCON 客户端（$ 安全）
-│   ├── bot.js           # mineflayer bot 工厂（粒子 patch/登录/等待）
-│   └── report.sh        # 报告聚合（PASS/FAIL 汇总）
-└── cases/
-    ├── 01-bot-cmds.js       # $h/$l/$w/$a/$r/$d/$b/$o/$e/$v/$p
-    ├── 02-player-cmds.js    # /guide /menu /bot /config /rank /apply /review
-    ├── 03-security.js       # 黑名单拦截 / 限流 / 聊天过滤 / 命令守卫
-    ├── 04-maintenance.js    # $b 备份三阶段 / 维护踢出 / 维护拒登
-    ├── 05-notify.js         # 上下线通知 / KICK / 聚合摘要
-    ├── 06-portal.js         # /portal 创建/移除（bot 部分链路）
-    └── 07-tpbow.js          # 传送弓获取/权限边界
-```
+用例清单与逐项断言数以 [e2e/README.md](../e2e/README.md) 为**唯一权威**（改动 `e2e/cases/` 必须同步该文件）。当前六类用例概览：
+
+| 用例 | 覆盖 |
+|:--|:--|
+| `01-bot-cmds.js` | $h/$l/$w/$a/$r/$d/$e Bot 命令全链路（写操作带还原） |
+| `02-player-cmds.js` | /guide /menu /bot /rank /apply /config 权限隔离、新手书自动发放 |
+| `03-security.js` | IP 黑名单登录拦截 / 聊天过滤 / 命令守卫 |
+| `04-maintenance.js` | $b 备份三阶段 + 落盘 + 服务恢复 |
+| `05-groupmsg.js` | 群消息发送（白名单拦截/上下线/聚合/IP 拦截，日志断言） |
+| `06-permission-msg.js` | 权限/审核消息全链路（申请/通过/晋升/拒绝/撤回） |
 
 ### 5.2 用例规范（每个用例脚本约定）
 
@@ -209,20 +195,20 @@ bash e2e/run-all.sh -h              # 帮助
 | 任务 | 计划 | 内容 |
 |:--|:--|:--|
 | **插件质量周报** | 每周一 9:30 | `gradlew test integrationTest jacocoTestReport` → 解析用例数/覆盖率 → GitHub API 拉最近 CI 通过率 → 飞书表格报告（对比上周基线） |
-| **E2E 回归** | 迭代合并后手动/PR 触发 | run-all.sh 全量 → 报告落盘 docs/e2e-reports/ |
+| **E2E 回归** | 迭代合并后手动/PR 触发 | run-all.sh 全量 → 报告归档至 [docs/reports/](README.md)（见 docs/README「历史快照」节） |
 
 ---
 
-## 六、路线图
+## 六、路线图（2026-09-03 复核）
 
 | 阶段 | 内容 | 状态 |
 |:--|:--|:--|
 | P0 基线建立 | 功能全图 + 覆盖率基线 + 薄弱模块定位 | ✅ 2026-08-19 |
-| P1 单测补强 | maintenance/paging/ws/review/teleport 补测至 ≥75% | ⬜ 待排期 |
-| P2 E2E 套件 | e2e/ 框架 + 7 类用例脚本化 + run-all.sh | 🔄 进行中 |
-| P3 指标自动化 | 质量周报 cron + CI 门禁强化（覆盖率 75% + BRANCH 70%） | ⬜ |
-| P4 CI 深度集成 | folia-smoke 转必须；nightly E2E job（需测试服常驻方案） | ⬜ 远期 |
+| P1 单测补强 | 薄弱模块补测；单测 1600+ 用例、覆盖率 ≥75%（当前 78%） | ✅（CI jacoco 门禁 + codecov 合并覆盖率已落地） |
+| P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2，[验收报告](reports/e2e-test-report-20260820.md)） |
+| P3 指标自动化 | 质量周报 cron（CI 覆盖率门禁已落地；周报 cron 未排期） | 🔄 |
+| P4 CI 深度集成 | folia-smoke 已转必须门禁（✅）；nightly E2E job 仍需测试服常驻方案 | 🔄 远期 |
 
 ---
 
-*维护：功能变更/新模块须同步本节（功能全图 + 用例矩阵 + 指标基线）。*
+*维护：功能变更须同步 [features.md](features.md)（唯一权威）与 [e2e/README.md](../e2e/README.md)（用例清单）；本页只维护「测试层覆盖 × 状态」。*

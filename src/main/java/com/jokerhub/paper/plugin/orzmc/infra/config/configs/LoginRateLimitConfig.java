@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config.configs;
 
+import java.util.List;
 import org.bukkit.configuration.ConfigurationSection;
 
 /**
@@ -34,5 +35,27 @@ public record LoginRateLimitConfig(
         }
         return new LoginRateLimitConfig(
                 cfg.getBoolean("enabled", true), freq, concurrent, cfg.getBoolean("notify_admins", true), msg);
+    }
+
+    /**
+     * 启动健康校验：段缺失为建议（默认配置完整可用，升级安装才会缺此段）；
+     * 限流/文案约束与 {@code from} 内 clamp 口径一致。
+     */
+    public static void validate(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            // 降级为建议：默认配置完整可用，升级安装（config.yml 存在故未复制新默认值）会缺此段
+            issues.add("建议: config.yml 缺失 login_rate_limit 配置段，将使用默认配置（进服限流开启）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: login_rate_limit.enabled 需为布尔值");
+        int freq = section.getInt("max_login_attempts_per_minute", 20);
+        if (freq < 1) issues.add("非法: login_rate_limit.max_login_attempts_per_minute 不得小于 1");
+        int conc = section.getInt("max_concurrent_per_ip", 5);
+        if (conc < 1) issues.add("非法: login_rate_limit.max_concurrent_per_ip 不得小于 1");
+        Object na = section.get("notify_admins");
+        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: login_rate_limit.notify_admins 需为布尔值");
+        String msg = section.getString("message", "");
+        if (msg.isBlank()) issues.add("缺失: login_rate_limit.message 不可为空");
     }
 }

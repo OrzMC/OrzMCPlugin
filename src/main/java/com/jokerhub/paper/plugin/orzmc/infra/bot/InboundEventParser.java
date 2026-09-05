@@ -239,11 +239,12 @@ final class InboundEventParser {
 
     private boolean isInboundTargetAllowed(EasyBotConfig cfg, String platform, String target) {
         EasyBotConfig.PlatformEntry entry = cfg.platforms().get(platform);
-        return entry != null
-                && entry.enabled()
-                && (target.equals(entry.adminGroup())
-                        || target.equals(entry.playerGroup())
-                        || target.equals(entry.adminDm()));
+        // 内联判定已抽为 ImMessageRouter 共享（EasyBot/Builtin 双 driver 同一语义，方案 §6）
+        return entry != null && ImMessageRouter.isInboundAllowed(toConversation(entry), target);
+    }
+
+    private static ImConversation toConversation(EasyBotConfig.PlatformEntry entry) {
+        return new ImConversation(entry.enabled(), entry.adminGroup(), entry.playerGroup(), entry.adminDm());
     }
 
     private static String normalizeTarget(String platform, String chatId) {

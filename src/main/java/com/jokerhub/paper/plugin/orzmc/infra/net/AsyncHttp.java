@@ -1,5 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.net;
 
+import java.net.Proxy;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,12 +18,28 @@ public final class AsyncHttp {
     private static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofSeconds(3);
     private static final int DEFAULT_MAX_RETRIES = 3;
     private static final long BASE_BACKOFF_MS = 500;
-    private static final ConcurrentMap<Duration, HttpClient> CLIENTS = new ConcurrentHashMap<>();
+    /** HTTP 客户端缓存键：超时 + 代理（D13：国内服务器经代理直连 TG/DC）。 */
+    private record ClientKey(Duration timeout, Proxy proxy) {}
 
+    private static final ConcurrentMap<ClientKey, HttpClient> CLIENTS = new ConcurrentHashMap<>();
+
+    /** 直连（无代理）客户端。 */
     private static HttpClient client(Duration connectTimeout) {
+        return client(connectTimeout, null);
+    }
+
+    private static HttpClient client(Duration connectTimeout, Proxy proxy) {
         Duration timeout = connectTimeout == null ? DEFAULT_CONNECT_TIMEOUT : connectTimeout;
-        return CLIENTS.computeIfAbsent(
-                timeout, value -> HttpClient.newBuilder().connectTimeout(value).build());
+        ClientKey key = new ClientKey(timeout, proxy);
+        return CLIENTS.computeIfAbsent(key, k -> {
+            HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(k.timeout());
+            if (k.proxy() != null
+                    && !Proxy.NO_PROXY.equals(k.proxy())
+                    && k.proxy().address() instanceof java.net.InetSocketAddress addr) {
+                builder.proxy(ProxySelector.of(addr));
+            }
+            return builder.build();
+        });
     }
 
     private static <T> CompletableFuture<HttpResponse<T>> sendWithRetry(
@@ -75,7 +93,18 @@ public final class AsyncHttp {
             Duration connectTimeout,
             Duration requestTimeout,
             Integer maxRetries) {
-        HttpClient c = client(connectTimeout);
+        return get(url, headers, connectTimeout, requestTimeout, maxRetries, null);
+    }
+
+    /** GET（可指定代理；D13 国内服务器访问 TG/DC 经代理，proxy 为 null 等价直连）。 */
+    public static CompletableFuture<HttpResponse<String>> get(
+            String url,
+            Map<String, String> headers,
+            Duration connectTimeout,
+            Duration requestTimeout,
+            Integer maxRetries,
+            Proxy proxy) {
+        HttpClient c = client(connectTimeout, proxy);
         HttpRequest req = buildGet(url, headers, requestTimeout);
         return sendWithRetry(
                 c, req, HttpResponse.BodyHandlers.ofString(), maxRetries == null ? DEFAULT_MAX_RETRIES : maxRetries);
@@ -109,7 +138,19 @@ public final class AsyncHttp {
             Duration connectTimeout,
             Duration requestTimeout,
             Integer maxRetries) {
-        HttpClient c = client(connectTimeout);
+        return postJson(url, json, headers, connectTimeout, requestTimeout, maxRetries, null);
+    }
+
+    /** POST JSON（可指定代理；D13，proxy 为 null 等价直连）。 */
+    public static CompletableFuture<HttpResponse<String>> postJson(
+            String url,
+            String json,
+            Map<String, String> headers,
+            Duration connectTimeout,
+            Duration requestTimeout,
+            Integer maxRetries,
+            Proxy proxy) {
+        HttpClient c = client(connectTimeout, proxy);
         HttpRequest.Builder b = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(requestTimeout == null ? DEFAULT_REQUEST_TIMEOUT : requestTimeout)

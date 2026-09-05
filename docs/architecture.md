@@ -57,7 +57,7 @@ PlatformModule
     - ConfigService, ConfigManager, ConfigHealthCheck
     - schema 自动升级（ConfigSchema / ConfigUpgrader / DefaultsMerger / LegacyDefaultFlips）：
       版本门控的备份→补缺→旧默认翻转→回写，规则见 [配置 Schema 升级治理规范](dev/config-schema-governance.md)
-    - `configs/` 子包中每个配置对应一个记录类（`BotConfig`, `Styles`, `TntConfig`, `WhitelistConfig`, `Portals`, `MainConfig`, `MaintenanceConfig`, `CommandPolicies`, `TemplateOptions`, `Templates`, `IpWhitelist`, `WhitelistKickMessage`）
+    - `configs/` 子包中每个配置段对应一个记录类（共 23 个：`BotConfig`, `Styles`, `TntConfig`, `WhitelistConfig`, `WhitelistKickMessage`, `Portals`, `MaintenanceConfig`, `CommandPolicies`, `CommandPolicy`, `TemplateOptions`, `Templates`, `ChatConfig`, `SecurityGuardConfig`, `LoginRateLimitConfig`, `ExploitHardeningConfig`, `RankColorsConfig`, `PrisonConfig`, `UpdateConfig`, `EntityTeleportConfig`, `GamemodeCorrectionConfig`, `IpWhitelist`, `PlayerNotifyConfig`, `EasyBotConfig`）
     - `SafeKeys` YAML 键名安全编码（解决 '.' 被识别为层级分隔的问题）
     - `PortalsWriter` 持久化传送门配置
 - **notify/** — 通知派发与限流
@@ -234,6 +234,47 @@ OrzServices.assemble(OrzMC)
     - UpdateModule 利用 PlatformModule 创建 UpdateService + UpdateCommandService（HangarClient / BuildInfo）
     - FeatureModule 利用所有模块创建 Feature 服务并注册命令/事件
 
+## AI 智能体编辑路径（改 X → 读 Y）
+
+> 供 AI 编码时按「最小必读集」取上下文，减少无关 token。各包更细锚点见对应 `package-info.java`。
+> 成本规则：先读 package-info（约 10 行）定位，再定向读下表的文件，勿整读全层。
+
+| 想改 | 必读文件（最小集） |
+|---|---|
+| 某特性命令的参数/权限/文案 | `assembly/<Feat>CommandRegistrar.java` + `features/<feat>/` 对应服务 + `features/command/binding/`（拦截器/文案） |
+| 增删一个命令组 | `assembly/FeatureCommandRegistrar.java`（协调器 groups 列表）+ 新建/删除 `assembly/<Feat>CommandRegistrar.java` + 对应 `features/<feat>/` 服务 |
+| **rank/review/prison 任一逻辑** | **三包同读**（`features/rank` + `features/review` + `features/prison`，属同一 LP 权限治理簇，见 package-info）+ `assembly/FeatureModule.java` 接线段 + LP 软依赖（`LuckPermsBootstrap`/`LuckPermsPromoter`/`LuckPermsPrisonStore`/Noop 降级）+ `events/OrzRankEvent`/`OrzRankDisplayEvent`/`OrzPrisonEvent` |
+| 新增/改一个配置字段 | `infra/config/configs/XxxConfig.java`（默认值+解析）+ `infra/config/ConfigHealthCheck.java` 对应 `validateXxxSection`（P2 计划下沉）+ 若需运行时重载则挂 `OrzConfigCommand.setXxxReload`（`FeatureModule.setupEventListeners`） |
+| 改命令冷却/权限策略 | `features/command/binding/`（拦截器链）+ `infra/config/configs/CommandPolicies` + `assembly/BrigadierSupport` |
+| 改 Bot `$` 命令 | `features/botcommands/<Xxx>CommandHandler.java` + 目标 `features/<feat>/` 服务；新增依赖时改 `BotCommandDependencies` + `OrzServices.assemble` 注入段 |
+| 改事件响应 | `events/OrzXxxEvent.java`（薄适配器）+ `features/<feat>/<Feat>EventService.java` |
+| 改启动装配/接线顺序 | `OrzServices.assemble/setupAll` + `assembly/FeatureModule.java` 构造函数（跨特性 DAG，勿乱动次序） |
+| 改群通知/站内消息文案模板 | `src/main/resources/templates.yml` + `features/<feat>/` 的渲染/Notifier + `infra/templates` |
+| 改配置 schema 迁移/旧默认翻转 | `infra/config/ConfigUpgrader.java` + `LegacyDefaultFlips.java` + `DefaultsMerger.java`（版本门控，勿手改存量文件） |
+| 新增一个 feature | 建 `features/<feat>/`（服务 + package-info）→ 需要事件则加 `events/OrzXxxEvent` → 命令则加 `assembly/<Feat>CommandRegistrar` + 注册进协调器 → `FeatureModule` 装配接线 → 配置段/默认/校验 → 测试 |
+
+## 模块边界与已知取舍
+
+> 完整路线图问题清单见 [roadmap/code-quality-roadmap.md](roadmap/code-quality-roadmap.md)；本文只记与「分层理解」直接相关的边界规则与决策。
+
+### orzmc-api 子模块边界（逻辑包跨模块分裂）
+
+逻辑包 `com.jokerhub.paper.plugin.orzmc.core.*` 实际分处两个模块：
+
+| 位置 | 内容 | 约束 |
+|:--|:--|:--|
+| `orzmc-api/`（独立 artifact，发布 Maven Local） | 纯 Java 资产：`core/bot`（MessageEnvelope/BotInboundHandler）、`core/ports/health`、`core/ports/server`（ServerLogger/ServerScheduler）、`assembly`（ServiceModule/Initializable） | **零 Bukkit import**（A4 已闭环并有 grep 核验）；可独立发布 |
+| 主模块 `src/.../core/ports/` | Bukkit 绑定端口：`server/ServerAccess`（返回 `org.bukkit.Server`）、`portal/*`（含 `Location`/`Player` 等）、`config/TypedConfigProvider` | 无法入纯模块，留在主模块 |
+
+**判据**：可发布为 SDK 的**稳定**资产 → orzmc-api；绑定 Bukkit 类型或**高频演进**的资产 → 主模块。典型对照：消息模型/调度端口稳定 → 已入 orzmc-api；配置模型每周演进（近 30 commit 改 50 次）→ 刻意留在 infra。
+
+### 已知取舍（决策记录）
+
+| # | 取舍 | 决策 | 原因 |
+|:--|:--|:--|:--|
+| A5 | `core/ports/config/TypedConfigProvider` 反向 import `infra.config.configs.*`（19 个记录类型） | **保留现状**（2026-09-03 复核） | 配置记录依赖 Bukkit `ConfigurationSection` 解析无法入纯 api；33+ 调用点直连 infra 记录已是现实；纯化将回退「校验随 schema 落位 record」（#250/#251）成果。缓解：建议补一条依赖方向守卫测试禁止 `core → infra` import，防止扩散 |
+| A7 | `enableForceWhitelist` 无条件覆盖服务器 gamemode | **待产品确认** | false 分支应「不触碰运维手动配置」还是「显式关闭」？主路径（默认 true）不受影响，等实际事故证据再改 |
+
 ## 设计原则
 
 - **分层清晰**：Feature 只编排业务，Infra 提供能力，Events/Commands 仅做转发
@@ -387,7 +428,7 @@ command_policies:
 | 命令 | `assembly/FeatureCommandRegistrar.java` | 命令协调器（薄，298 行）：编排各特性命令组 + 未独立化简单命令 |
 | 命令组 | `assembly/*CommandRegistrar.java` | 按特性拆分的命令注册器（portal/blacklist/review/rank/prison/config/update，均实现 `CommandGroup`） |
 | 命令 | `commands/` | 命令适配层（仅保留 OrzConfigCommand） |
-| 配置 | `infra/config/configs/` | 类型化配置记录类（15 个，含 EasyBotConfig） |
+| 配置 | `infra/config/configs/` | 类型化配置记录类（23 个，含 EasyBotConfig） |
 | 配置 | `src/main/resources/easybot.yml` | EasyBot IM Gateway 默认配置 |
 | 适配器 | `infra/bot/OrzEasyBot.java` | EasyBot 网关适配器（WS + HTTP） |
 | 拦截器 | `features/command/binding/` | 命令拦截器（5 个文件：4 拦截器 + CooldownRegistry） |

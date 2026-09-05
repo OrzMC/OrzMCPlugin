@@ -1,8 +1,16 @@
 name: Publish
 on:
   push:
+    # paths-ignore：纯文档/CI/流程变更不发版（beta 应对应验收过的功能集，不为文档噪音发版）
+    # 注意：docs/、*.md、.github/、AGENTS.md 类改动 push main 不触发发布；混合改动（含代码）仍发布
     branches:
       - main                # → Dev 发布 (beta channel)
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'CHANGELOG.md'
+      - '.github/**'
+      - 'e2e/**'
     tags:
       - '*.*.*'             # → Release 发布 (release channel, 纯 SemVer)
 

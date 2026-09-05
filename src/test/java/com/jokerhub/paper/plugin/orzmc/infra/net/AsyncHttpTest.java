@@ -4,15 +4,22 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -212,5 +219,50 @@ public class AsyncHttpTest {
             out.write(buf, 0, n);
         }
         bodyText.set(out.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void postJson_withProxy_routesRequestThroughProxy() throws Exception {
+        // 黑洞代理：只捕获请求行（absolute-form），证明 HTTP 请求确实经代理而非直连
+        ServerSocket proxySocket = new ServerSocket(0);
+        CountDownLatch seen = new CountDownLatch(1);
+        AtomicReference<String> requestLine = new AtomicReference<>();
+        Thread acceptor = new Thread(() -> {
+            try (Socket socket = proxySocket.accept()) {
+                socket.setSoTimeout(3000);
+                BufferedReader reader =
+                        new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                requestLine.set(reader.readLine());
+                seen.countDown();
+                socket.getOutputStream()
+                        .write("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n"
+                                .getBytes(StandardCharsets.UTF_8));
+                socket.getOutputStream().flush();
+            } catch (Exception ignored) {
+                // 测试路径：忽略读取异常即可
+            }
+        });
+        acceptor.setDaemon(true);
+        acceptor.start();
+
+        try {
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", proxySocket.getLocalPort()));
+            CompletableFuture<HttpResponse<String>> future = AsyncHttp.postJson(
+                    "http://127.0.0.1:9/proxy-target",
+                    "{}",
+                    Map.of(),
+                    Duration.ofSeconds(2),
+                    Duration.ofSeconds(2),
+                    0,
+                    proxy);
+
+            assertTrue(seen.await(5, TimeUnit.SECONDS), "请求未到达代理端口");
+            String line = requestLine.get();
+            assertNotNull(line, "代理未读到请求行");
+            assertTrue(line.contains("/proxy-target"), "代理应收到含目标的请求行: " + line);
+            future.get(3, TimeUnit.SECONDS); // 502 也属正常完成路径（不抛异常）
+        } finally {
+            proxySocket.close();
+        }
     }
 }

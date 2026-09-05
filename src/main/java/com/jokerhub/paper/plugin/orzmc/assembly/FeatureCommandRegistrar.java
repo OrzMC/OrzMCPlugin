@@ -9,6 +9,7 @@ import static io.papermc.paper.command.brigadier.Commands.literal;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzConfigCommand;
+import com.jokerhub.paper.plugin.orzmc.features.bot.ImAdminService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.PrisonDenyInterceptor;
@@ -23,6 +24,8 @@ import com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.security.AccessRuleService;
 import com.jokerhub.paper.plugin.orzmc.features.teleport.TeleportBowService;
 import com.jokerhub.paper.plugin.orzmc.features.update.UpdateCommandService;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.BuiltinImDriver;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -90,13 +93,18 @@ final class FeatureCommandRegistrar {
         this.prisonDenyInterceptor = prisonDenyCheck == null ? null : new PrisonDenyInterceptor(prisonDenyCheck);
         Supplier<CommandPolicies> cpSupplier = () -> commandPolicies;
         OrzTextStyles styles = platform.textStyles();
+        // IM 管理（/config im）：builtin 驱动存在才可投递测试；否则相关命令给引导
+        BotMessageService botSvc = botModule.botMessageService();
+        BuiltinImDriver builtin = botSvc instanceof BuiltinImDriver b ? b : null;
+        ImAdminService imAdmin =
+                new ImAdminService(styles, platform.configService(), botModule.healthAccessor(), builtin);
         this.groups = List.of(
                 new PortalCommandRegistrar(portalCommandService, styles, cpSupplier, prisonDenyCheck),
                 new BlacklistCommandRegistrar(accessRuleService, styles),
                 new ReviewCommandRegistrar(reviewCommandService, styles, cpSupplier, prisonDenyCheck),
                 new RankCommandRegistrar(rankCommandService, rankService, styles, cpSupplier, prisonDenyCheck),
                 new PrisonCommandRegistrar(prisonCommandService, styles),
-                new ConfigCommandRegistrar(orzConfigCommand, styles),
+                new ConfigCommandRegistrar(orzConfigCommand, styles, imAdmin),
                 new UpdateCommandRegistrar(updateCommandService, styles));
     }
 

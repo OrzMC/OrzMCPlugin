@@ -40,4 +40,23 @@ public record SecurityGuardConfig(
         }
         return new SecurityGuardConfig(enabled, List.copyOf(blocked), notifyAdmins, auditEnabled);
     }
+
+    /**
+     * 启动健康校验：段缺失为建议（默认配置完整可用，升级安装才会缺此段）；
+     * deny-list 类型与 {@code from} 读取口径一致。
+     */
+    public static void validate(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            issues.add("建议: config.yml 缺失 guard 配置段，将使用默认配置（危险命令拦截开启）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: guard.enabled 需为布尔值");
+        Object na = section.get("notify_admins");
+        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: guard.notify_admins 需为布尔值");
+        Object ae = section.get("audit_enabled");
+        if (ae != null && !(ae instanceof Boolean)) issues.add("类型错误: guard.audit_enabled 需为布尔值");
+        Object bl = section.get("blocked_commands");
+        if (bl != null && !(bl instanceof List<?>)) issues.add("类型错误: guard.blocked_commands 需为列表");
+    }
 }

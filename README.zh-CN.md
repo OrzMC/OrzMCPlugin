@@ -2,13 +2,13 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-990+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-1600+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
 通过 EasyBot 统一接入多平台机器人的 Paper / Folia 服务器管理插件
-> 🌐 [English](./README.md) | **简体中文**
+> 🌐 [English](README.md) | **简体中文**
 >
 > 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，同时支持
 > [Folia](https://papermc.io/software/folia)（已在 `paper-plugin.yml` 声明
@@ -36,7 +36,7 @@
 | 运行时配置 | 使用 /config 命令在游戏内管理 29 项配置，修改后热重载生效，无需重启服务器 |
 | OrzMC 菜单 | 游戏内呼出功能菜单，集成各项操作的便捷入口（开发中） |
 
-详情可阅读：[插件全部功能](./docs/features.md)
+详情可阅读：[插件全部功能](docs/features.md)
 
 ## 安装插件
 下载插件后，放到 PaperMC（或 Folia）服务端插件目录`plugins/`下，启动服务端后，插件会创建相同名称的数据目录。本插件在运行期间，配置被加载到内存中，服务端停止时会写回配置文件。
@@ -56,7 +56,7 @@ OrzMC 的机器人功能统一通过外部 EasyBot IM 网关接入。
 3. `api_key` 从 EasyBot 后台创建**客服类 API Key** 获取
 4. `admin_group` 等目标值非平台原生 ID，需从 EasyBot 后台的**会话管理**获取**会话 key**（如 `qq:conv_xxxxxxxx`）
 
-> 详细路由规则：[EasyBot 配置指南](./docs/features.md#25-easybot-网关配置指南)
+> 详细路由规则：[EasyBot 配置指南](docs/features.md#25-easybot-网关配置指南)
 
 ### 从旧版直连配置升级
 
@@ -85,5 +85,6 @@ OrzMC 的机器人功能统一通过外部 EasyBot IM 网关接入。
 
 ## 参与贡献
 - [贡献指南](CONTRIBUTING.md)（含开发说明、迭代规范）
-- [插件架构](./docs/architecture.md)
-- [更新日志](./CHANGELOG.md)
+- [**文档总索引**](docs/README.md)（按读者角色组织的全文档导航）
+- [插件架构](docs/architecture.md)
+- [更新日志](CHANGELOG.md)

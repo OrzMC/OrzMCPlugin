@@ -33,4 +33,23 @@ public record WhitelistKickMessage(String title, List<WhitelistKickMessageItem> 
         }
         return new WhitelistKickMessage(title, items);
     }
+
+    /**
+     * 启动健康校验（本 record 只管 {@code whitelist.kick_message} 子树）：
+     * 入参为 {@code whitelist} 段；whitelist 段缺失时跳过（由 {@link WhitelistConfig#validate} 报硬缺失）。
+     */
+    public static void validate(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            return;
+        }
+        ConfigurationSection kickSection = section.getConfigurationSection("kick_message");
+        if (kickSection == null) {
+            issues.add("缺失: whitelist.kick_message 未配置");
+            return;
+        }
+        String title = kickSection.getString("title", "");
+        if (title.isEmpty()) issues.add("缺失: whitelist.kick_message.title 不可为空");
+        List<?> ups = kickSection.getList("ups");
+        if (ups == null || ups.isEmpty()) issues.add("缺失: whitelist.kick_message.ups 至少需要一项");
+    }
 }

@@ -161,47 +161,27 @@ public class OrzEasyBot implements BotMessageService {
     // ---- 出站路由 ----------------------------------------------------------
 
     private void sendPublic(EasyBotConfig cfg, List<String> parts) {
-        List<String> targets = new ArrayList<>();
-        for (var entry : cfg.platforms().entrySet()) {
-            if (!entry.getValue().enabled()) {
-                continue;
-            }
-            String target = resolvePublicTarget(entry.getValue());
-            if (target != null && !target.isEmpty()) {
-                targets.add(target);
-            }
-        }
+        List<String> targets = ImMessageRouter.publicTargets(toConversations(cfg));
         if (!targets.isEmpty()) {
             httpSender.sendBatch(cfg, targets, parts);
         }
     }
 
     private void sendPrivate(EasyBotConfig cfg, List<String> parts) {
-        List<String> targets = new ArrayList<>();
-        for (var entry : cfg.platforms().entrySet()) {
-            if (!entry.getValue().enabled()) {
-                continue;
-            }
-            String target = entry.getValue().adminDm();
-            if (target != null && !target.isEmpty()) {
-                targets.add(target);
-            }
-        }
+        List<String> targets = ImMessageRouter.privateTargets(toConversations(cfg));
         if (!targets.isEmpty()) {
             httpSender.sendBatch(cfg, targets, parts);
         }
     }
 
-    /**
-     * 解析 PUBLIC 消息的目标 target。
-     * 优先使用 {@code playerGroup}，空则降级为 {@code adminGroup}。
-     */
-    private static String resolvePublicTarget(EasyBotConfig.PlatformEntry entry) {
-        String target = entry.playerGroup();
-        if (target == null || target.isEmpty()) {
-            target = entry.adminGroup();
+    /** EasyBotConfig 平台段 → 中性会话模型（供共享路由层使用，顺序与配置插入序一致）。 */
+    private static List<ImConversation> toConversations(EasyBotConfig cfg) {
+        List<ImConversation> result = new ArrayList<>();
+        for (var entry : cfg.platforms().entrySet()) {
+            EasyBotConfig.PlatformEntry p = entry.getValue();
+            result.add(new ImConversation(p.enabled(), p.adminGroup(), p.playerGroup(), p.adminDm()));
         }
-        return target;
+        return result;
     }
 
     // ---- WebSocket 生命周期（测试钩子）-------------------------------------

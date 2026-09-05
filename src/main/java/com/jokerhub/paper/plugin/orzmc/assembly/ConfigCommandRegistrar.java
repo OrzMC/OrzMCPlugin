@@ -7,6 +7,7 @@ import static io.papermc.paper.command.brigadier.Commands.argument;
 import static io.papermc.paper.command.brigadier.Commands.literal;
 
 import com.jokerhub.paper.plugin.orzmc.commands.OrzConfigCommand;
+import com.jokerhub.paper.plugin.orzmc.features.bot.ImAdminService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigPath;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
@@ -24,10 +25,12 @@ final class ConfigCommandRegistrar implements CommandGroup {
 
     private final OrzConfigCommand cfgCmd;
     private final OrzTextStyles styles;
+    private final ImAdminService imAdmin;
 
-    ConfigCommandRegistrar(OrzConfigCommand cfgCmd, OrzTextStyles styles) {
+    ConfigCommandRegistrar(OrzConfigCommand cfgCmd, OrzTextStyles styles, ImAdminService imAdmin) {
         this.cfgCmd = cfgCmd;
         this.styles = styles;
+        this.imAdmin = imAdmin;
     }
 
     /** Config: /config list|get|set|reset|dump|reload */
@@ -54,6 +57,7 @@ final class ConfigCommandRegistrar implements CommandGroup {
                     cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"list"});
                     return 1;
                 })))
+                .then(ImCommandRegistrar.build(imAdmin)) // IM 内建网关管理（/config im setup|status|bind|test，D12）
                 .then(literal("get")
                         .then(argument("path", StringArgumentType.greedyString())
                                 .suggests(pathSuggestions)

@@ -1,6 +1,5 @@
 package com.jokerhub.paper.plugin.orzmc.features.command.binding;
 
-import com.jokerhub.paper.plugin.orzmc.features.security.CommandPermissionService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicy;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.Component;

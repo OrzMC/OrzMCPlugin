@@ -3,6 +3,7 @@ on:
   pull_request:
     branches:
       - main
+      - develop
     types:
       - opened
       - reopened
@@ -11,6 +12,7 @@ on:
   push:
     branches:
       - main
+      - develop
 
 permissions:
   contents: read
@@ -169,3 +171,6 @@ jobs:
 
       - name: folia smoke
         run: ./gradlew foliaSmoke --stacktrace
+
+      - name: folia smoke (builtin backend, QQ no creds → D3 stop-group boot path)
+        run: ./gradlew foliaSmoke -PfoliaImBackend=builtin --stacktrace

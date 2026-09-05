@@ -354,6 +354,8 @@ tasks {
         description = "真实 Folia 无头冒烟：启动服务端 → 校验 OrzMC 加载 → stop → 断言干净退出"
         dependsOn("downloadFoliaJar", project.tasks.shadowJar)
         outputs.upToDateWhen { false } // 每次执行都真实启动，不因缓存跳过
+        // -PfoliaImBackend=builtin：跑「builtin 模式干净起服」变体（backend=builtin + QQ 无凭据 → D3 停群路径）
+        val builtinMode = providers.gradleProperty("foliaImBackend").orNull == "builtin"
         // 配置期解析（避免 doLast 内 Task.project 的执行期弃用告警 / 配置缓存不兼容）
         val runDir = project.layout.projectDirectory.dir("run-folia-smoke").asFile
         val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
@@ -368,6 +370,12 @@ tasks {
             // 故在隔离的 run-folia-smoke/ 内放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
             val orzmcDataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
             File(orzmcDataDir, "config.yml").writeText("guard:\n  blocked_commands: []\n")
+            if (builtinMode) {
+                // builtin 变体：backend=builtin 且 QQ 无凭据 → 应选 Unavailable 停群（D3）而非 EasyBot，验证该分支干净起服
+                File(orzmcDataDir, "im.yml").writeText(
+                    "backend: builtin\nplatforms:\n  qq:\n    enabled: false\n    app_id: ''\n    client_secret: ''\n"
+                )
+            }
 
             val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
             // 用 Java 25 toolchain 启动（Folia 26.2 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
@@ -396,7 +404,13 @@ tasks {
                 proc.waitFor(30, TimeUnit.SECONDS)
                 throw GradleException("OrzMC 插件未加载。日志尾部:\n${logTail(logFile)}")
             }
-            logger.lifecycle("OrzMC 已加载。发送 stop...")
+            logger.lifecycle("OrzMC 已加载。校验 builtin 停群分支日志...")
+            if (builtinMode && waitForLog(logFile, Regex("停用群功能|无可用平台|backend=builtin"), 15_000) < 0) {
+                proc.destroyForcibly()
+                proc.waitFor(30, TimeUnit.SECONDS)
+                throw GradleException("builtin 模式未见 D3 停群告警日志。日志尾部:\n${logTail(logFile)}")
+            }
+            logger.lifecycle("发送 stop...")
             proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
             proc.outputStream.flush()
             if (!proc.waitFor(90, TimeUnit.SECONDS)) {

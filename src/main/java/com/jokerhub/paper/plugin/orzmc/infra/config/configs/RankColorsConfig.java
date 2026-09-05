@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config.configs;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -75,5 +76,35 @@ public record RankColorsConfig(
             return NamedTextColor.nearestTo(hex);
         }
         return null;
+    }
+
+    /**
+     * 启动健康校验：段缺失为建议（默认配置完整可用，Tab 着色默认关闭）；
+     * 颜色接受范围与 {@link #parseColor} 同一口径（命名色或 CSS hex，含 #RRGGBB）。
+     */
+    public static void validate(ConfigurationSection section, List<String> issues) {
+        if (section == null) {
+            issues.add("建议: config.yml 缺失 rank_colors 配置段，将使用默认配置（Tab 着色默认关闭）");
+            return;
+        }
+        Object en = section.get("enabled");
+        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: rank_colors.enabled 需为布尔值");
+        Object nt = section.get("nametag_enabled");
+        if (nt != null && !(nt instanceof Boolean)) issues.add("类型错误: rank_colors.nametag_enabled 需为布尔值");
+        Object tab = section.get("tab_enabled");
+        if (tab != null && !(tab instanceof Boolean)) issues.add("类型错误: rank_colors.tab_enabled 需为布尔值");
+        String opColor = section.getString("op_color", "");
+        if (!opColor.isBlank() && parseColor(opColor) == null) {
+            issues.add("非法: rank_colors.op_color '" + opColor + "' 不是合法命名色或 #RRGGBB");
+        }
+        ConfigurationSection colorsSection = section.getConfigurationSection("colors");
+        if (colorsSection != null) {
+            for (String key : colorsSection.getKeys(false)) {
+                String raw = colorsSection.getString(key, "");
+                if (!raw.isBlank() && parseColor(raw) == null) {
+                    issues.add("非法: rank_colors.colors." + key + " '" + raw + "' 不是合法命名色或 #RRGGBB");
+                }
+            }
+        }
     }
 }

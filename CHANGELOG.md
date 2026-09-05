@@ -2,7 +2,23 @@
 
 ## [Unreleased]
 
+### 📝 文档
+- **Discord builtin 接入操作手册（真机验收版）**：`features.md` 新增 §2.9 Discord 平台接入手册（差异速览——开发者门户即时建 bot/MESSAGE CONTENT 特权 intent/会话粒度=频道/Gateway WS 出站免公网/代理出墙；阶段 A 平台侧——建应用+BOT、开 MESSAGE CONTENT INTENT、拉 bot 进服务器并建议 Administrator 角色；阶段 B 配置含全局 proxy；阶段 C 会话发现与绑定；阶段 D 验收清单；常见问题——@提及 snowflake 标记剥离/#4004 token 停用；出站域名 discord.com + gateway.discord.gg；能力边界）；§2.1 改述「QQ/飞书/Telegram/Discord 已落地」
+- **Telegram builtin 接入操作手册（真机验收版）**：`features.md` 新增 §2.8 Telegram 平台接入手册（差异速览——BotFather 即时创建/长轮询免公网入站/chat_id 负整数群语义/代理出墙 D13；阶段 A 平台侧——BotFather 建 bot+关 Privacy mode 收群普通消息；阶段 B 配置含全局 proxy 段；阶段 C 会话发现与绑定；阶段 D 验收清单；常见问题——@提及剥离/主动私聊限制/代理；出站域名 api.telegram.org；能力边界）；§2.1 改述「QQ/飞书/Telegram 已落地」；§2.6 跳转指引补 §2.8
+- **飞书 builtin 接入操作手册（真机验收版）**：`features.md` 新增 §2.7 飞书平台接入手册（差异速览/阶段 A 平台侧——企业自建应用+权限+长连接事件订阅/阶段 B 配置/阶段 C 会话发现与绑定/阶段 D 验收清单/常见问题/出站域名 R11/能力边界）；§2.1 改述双通道「QQ/飞书已落地」；§2.6 加跳转指引并同步 B4 期望日志为多平台通用文案（顺带 Provider 启用日志改为列出实际可用平台 qq/feishu）
+- **发布流程验证（2026-09-04）**：里程碑 PR（develop→main）原生 auto-merge 探针（纯文档，不发版）
+- **发布治理调整（2026-09-04）**：`publish.yml` 对纯文档/CI/流程改动（`docs/**`、`*.md`、`.github/**` 等）跳过发布；分支模型引入 `develop` 集成分支——日常 PR 合 develop（CI 照跑不发布），main 仅 owner 验收的里程碑与批准热修复（并 main = 一次 beta）；AGENTS.md 版本规则与开发流程同步（beta 应对应已验收功能集，不再为逐中间提交/纯文档发版）
+- **QQ builtin 接入操作手册定稿（真机验收版）**：`features.md` §2.6 重构为分阶段跟随式手册（0 概念速览 / 阶段 A 平台侧 / B 插件配置 / C 会话发现与绑定 / D 验收清单），每阶段附期望日志与完成标志；补 QQ 平台两项必需消息权限（群内全部消息、主动发言）与真机踩坑排查表；明确「改 im.yml 需重启、bind 即时生效」的生效边界
+- **IM 双通道用户指南**：`features.md` 新增 §2.6 builtin 内置直连配置指南（backend 切换/im.yml 凭据/`/config im` 命令/QQ 会话值/出站域名放行清单 R11/能力边界），§2.1 与 §2.5 改述双通道语义（文档纪律：行为/配置变更与代码同批）
+- **文档结构重组**：新增 [docs/README.md](docs/README.md) 文档导航（按读者角色 + 时效组织）；历史快照/验收/已完结路线图统一归档 `docs/reports/`（9 份，逐份加「状态：归档」头）；`code-quality-roadmap.md` 移入 `docs/roadmap/`；`commercialization.md`（商业策略）移出工作树（PUBLIC 仓库不放经营内容，可经 git 历史恢复）
+- **内容治理**：`features.md` 补齐 §5.5 危险命令拦截 / §5.6 聊天反垃圾 / §5.7 进服限流 / §5.8 漏洞加固 / §15.7 坐牢治理（prison）章节，修正 GeoIP 失败策略表述（默认 fail-close）；`quality-testing-plan.md` 功能清单去重收敛至 features.md、e2e 用例清单与实现对齐；文档与代码数量漂移修正（配置记录类 20/15→23）
+
 ### ✨ 新功能
+- **IM 双通道 + 内置直连（builtin）QQ adapter** — 在默认 EasyBot 网关通道之外提供插件内置直连（方案 docs/dev/im-gateway-inhouse.md）：
+  - `im.yml` 的 `backend: easybot|builtin` 全局切换（默认 easybot 零风险兜底；改后 `/config reload im` 或重启生效）；**无可用平台时停用群功能并告警，不自动回退**（D3）
+  - builtin QQ：出站 WS 网关（identify/resume/心跳/断线指数退避重连）+ 下行 REST（群/私聊，被动回复带 msg_id）+ 入站事件归一与角色判定（群主/管理员），业务层命令/通知语义与 EasyBot 通道一致；凭据经 `im.yml platforms.qq`（app_id/client_secret）换取 2h access_token 自动预刷新
+  - 会话绑定 `im_bindings.yml` + `/config im setup|status|bind|test` 管理命令（D10 仅控制台/游戏内 op）：bind 持久化即时生效；未绑定会话来消息只进控制台日志与 status 候选（D11），绑定后候选自动清除
+  - 能力边界：仅文本（D6）、发送尽力一次不重试（D7）、单凭据单实例（R3）；出站域名放行清单见 features.md §2.6（R11）
 - **插件自更新（基于 Hangar）** — 不再需要手动下载 jar 再丢进 `plugins/update/`：
   - `update.channel`（默认 `release` 正式版；`beta` 为 `-dev` 开发版）选择更新通道，启动后按 `update.check_interval_hours`（默认 12h）异步检查新版本，不卡主线程
   - 发现新版本时默认仅控制台提示，管理员 `/update check` 查询、`/update now` 手动下载；`update.auto_download: true` 后自动下载

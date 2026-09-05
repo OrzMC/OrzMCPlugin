@@ -1,0 +1,7 @@
+# IM 会话绑定（运行时数据文件，由 /orzmc im bind 维护；一般无需手写）
+#
+# 每个已启用平台三类会话（值为平台原生会话标识，与 EasyBot target 语义一致）：
+#   admin_group  —— 管理群（群主/管理员可发管理指令）
+#   player_group —— 玩家群（公开通知；留空降级 admin_group）
+#   admin_dm     —— 管理员私聊（仅下行 PRIVATE 通知）
+sessions: {}

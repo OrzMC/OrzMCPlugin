@@ -1,5 +1,17 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ChatConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ExploitHardeningConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.LoginRateLimitConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.PlayerNotifyConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.RankColorsConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplatePlaceholderValidator;
 import java.net.URI;
 import java.util.ArrayList;
@@ -8,8 +20,6 @@ import java.util.Locale;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -36,148 +46,18 @@ public final class ConfigHealthCheck {
             issues.add("config.yml 未加载");
             return;
         }
-        validateWhitelistSection(cfg.getConfigurationSection("whitelist"), issues);
-        validateMaintenanceSection(cfg.getConfigurationSection("maintenance"), issues);
-        validateTntSection(cfg.getConfigurationSection("tnt"), issues);
-        validatePlayerNotifySection(cfg.getConfigurationSection("player_notify"), issues);
-        validateGeoIpSection(cfg.getConfigurationSection("geoip"), issues);
-        validateCommandPoliciesSection(cfg.getConfigurationSection("command_policies"), issues);
-        validateGuardSection(cfg.getConfigurationSection("guard"), issues);
-        validateChatSection(cfg.getConfigurationSection("chat"), issues);
-        validateLoginRateLimitSection(cfg.getConfigurationSection("login_rate_limit"), issues);
-        validateExploitHardeningSection(cfg.getConfigurationSection("exploit_hardening"), issues);
-        validateRankColorsSection(cfg.getConfigurationSection("rank_colors"), issues);
-    }
-
-    private static void validateRankColorsSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            issues.add("建议: config.yml 缺失 rank_colors 配置段，将使用默认配置（Tab 着色默认关闭）");
-            return;
-        }
-        Object en = section.get("enabled");
-        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: rank_colors.enabled 需为布尔值");
-        Object nt = section.get("nametag_enabled");
-        if (nt != null && !(nt instanceof Boolean)) issues.add("类型错误: rank_colors.nametag_enabled 需为布尔值");
-        Object tab = section.get("tab_enabled");
-        if (tab != null && !(tab instanceof Boolean)) issues.add("类型错误: rank_colors.tab_enabled 需为布尔值");
-        String opColor = section.getString("op_color", "");
-        if (!opColor.isBlank() && !isValidRankColor(opColor)) {
-            issues.add("非法: rank_colors.op_color '" + opColor + "' 不是合法命名色或 #RRGGBB");
-        }
-        ConfigurationSection colorsSection = section.getConfigurationSection("colors");
-        if (colorsSection != null) {
-            for (String key : colorsSection.getKeys(false)) {
-                String raw = colorsSection.getString(key, "");
-                if (!raw.isBlank() && !isValidRankColor(raw)) {
-                    issues.add("非法: rank_colors.colors." + key + " '" + raw + "' 不是合法命名色或 #RRGGBB");
-                }
-            }
-        }
-    }
-
-    /** 与 {@code RankColorsConfig.parseColor} 同一接受范围：命名色或 CSS hex（含 #RRGGBB）。 */
-    private static boolean isValidRankColor(String raw) {
-        String trimmed = raw.trim();
-        return NamedTextColor.NAMES.value(trimmed.toLowerCase(Locale.ROOT)) != null
-                || TextColor.fromCSSHexString(trimmed) != null;
-    }
-
-    private static void validateWhitelistSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            issues.add("config.yml 缺失 whitelist 配置段");
-            return;
-        }
-        Object fw = section.get("force_whitelist");
-        if (!(fw instanceof Boolean)) issues.add("类型错误: whitelist.force_whitelist 需为布尔值");
-        int days = section.getInt("cleanup_inactive_days", 90);
-        if (days <= 0) issues.add("非法: whitelist.cleanup_inactive_days 必须为正数");
-        int ticks = section.getInt("pagination_delay_ticks", 5);
-        if (ticks < 0) issues.add("非法: whitelist.pagination_delay_ticks 不得为负数");
-        ConfigurationSection kickSection = section.getConfigurationSection("kick_message");
-        if (kickSection == null) {
-            issues.add("缺失: whitelist.kick_message 未配置");
-        } else {
-            String title = kickSection.getString("title", "");
-            if (title.isEmpty()) issues.add("缺失: whitelist.kick_message.title 不可为空");
-            List<?> ups = kickSection.getList("ups");
-            if (ups == null || ups.isEmpty()) issues.add("缺失: whitelist.kick_message.ups 至少需要一项");
-        }
-    }
-
-    private static void validateMaintenanceSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            issues.add("config.yml 缺失 maintenance 配置段");
-            return;
-        }
-        Object en = section.get("optimize_enabled");
-        if (!(en instanceof Boolean)) issues.add("类型错误: maintenance.optimize_enabled 需为布尔值");
-        int thr = section.getInt("optimize_tick_time_threshold", 300);
-        if (thr <= 0) issues.add("非法: maintenance.optimize_tick_time_threshold 必须为正数");
-        int retain = section.getInt("backup_retention_count", 5);
-        if (retain < 0) issues.add("非法: maintenance.backup_retention_count 不得为负数");
-        // 维护场景文案/进度行已迁 templates.yml（maintenance_motd_*，Templates record 有默认兜底），
-        // config.yml maintenance 段不再含 motd 键，故此处不再校验（2026-09-02 PR4）
-    }
-
-    private static void validateTntSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            issues.add("config.yml 缺失 tnt 配置段");
-            return;
-        }
-        Object enable = section.get("enable");
-        if (enable != null && !(enable instanceof Boolean)) issues.add("类型错误: tnt.enable 需为布尔值");
-        Object enableAnchor = section.get("enable_respawn_anchor");
-        if (enableAnchor != null && !(enableAnchor instanceof Boolean))
-            issues.add("类型错误: tnt.enable_respawn_anchor 需为布尔值");
-        int cd = section.getInt("place_cooldown", 0);
-        if (cd < 0) issues.add("非法: tnt.place_cooldown 不得为负数");
-        long agg = section.getLong("notify_aggregate_ms", 3000L);
-        if (agg <= 0) issues.add("非法: tnt.notify_aggregate_ms 必须为正数（≤0 会回退默认 3000ms，静默关闭防刷屏）");
-        Object wl = section.get("whitelist");
-        if (wl != null && !(wl instanceof List<?>)) issues.add("类型错误: tnt.whitelist 需为列表");
-        Object exempt = section.get("exempt_entities");
-        if (exempt != null && !(exempt instanceof List<?>)) issues.add("类型错误: tnt.exempt_entities 需为列表");
-    }
-
-    private static void validatePlayerNotifySection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            // 降级为建议：默认配置完整可用，仅升级安装（config.yml 存在故未复制新默认值）会缺此段，
-            // 属提示而非缺陷，避免升级后每次启动的持久告警
-            issues.add("建议: config.yml 缺失 player_notify 配置段，将使用默认配置（窗口 1000ms，三类通知启用）");
-            return;
-        }
-        for (String key : new String[] {"enabled_join", "enabled_quit", "enabled_kick"}) {
-            Object en = section.get(key);
-            if (en != null && !(en instanceof Boolean)) issues.add("类型错误: player_notify." + key + " 需为布尔值");
-        }
-        long window = section.getLong("window_ms", 1000L);
-        if (window <= 0) issues.add("非法: player_notify.window_ms 必须为正数（≤0 会回退默认 1000ms，静默关闭防刷屏）");
-        int maxList = section.getInt("max_list_items", 6);
-        if (maxList < 1) issues.add("非法: player_notify.max_list_items 不得小于 1");
-    }
-
-    private static void validateGeoIpSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            issues.add("config.yml 缺失 geoip 配置段");
-            return;
-        }
-        Object raw = section.get("allow_country_code");
-        if (raw == null) {
-            issues.add("建议: geoip.allow_country_code 未配置，默认允许所有地区");
-        } else if (raw instanceof java.util.List<?> list) {
-            for (Object o : list) {
-                if (o == null) {
-                    issues.add("非法: geoip.allow_country_code 不允许空项");
-                } else {
-                    String code = String.valueOf(o);
-                    if (!code.matches("^[A-Z]{2}$")) {
-                        issues.add("非法: geoip.allow_country_code '" + code + "' 必须为大写两位国家码");
-                    }
-                }
-            }
-        } else {
-            issues.add("类型错误: geoip.allow_country_code 需为列表");
-        }
+        WhitelistConfig.validate(cfg.getConfigurationSection("whitelist"), issues);
+        WhitelistKickMessage.validate(cfg.getConfigurationSection("whitelist"), issues);
+        MaintenanceConfig.validate(cfg.getConfigurationSection("maintenance"), issues);
+        TntConfig.validate(cfg.getConfigurationSection("tnt"), issues);
+        PlayerNotifyConfig.validate(cfg.getConfigurationSection("player_notify"), issues);
+        IpWhitelist.validate(cfg.getConfigurationSection("geoip"), issues);
+        CommandPolicies.validate(cfg.getConfigurationSection("command_policies"), issues);
+        SecurityGuardConfig.validate(cfg.getConfigurationSection("guard"), issues);
+        ChatConfig.validate(cfg.getConfigurationSection("chat"), issues);
+        LoginRateLimitConfig.validate(cfg.getConfigurationSection("login_rate_limit"), issues);
+        ExploitHardeningConfig.validate(cfg.getConfigurationSection("exploit_hardening"), issues);
+        RankColorsConfig.validate(cfg.getConfigurationSection("rank_colors"), issues);
     }
 
     private static void validateAccessRules(FileConfiguration cfg, List<String> issues) {
@@ -235,110 +115,6 @@ public final class ConfigHealthCheck {
                 }
             }
         }
-    }
-
-    private static void validateCommandPoliciesSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            issues.add("config.yml 缺失 command_policies 配置段");
-            return;
-        }
-        for (String key : section.getKeys(false)) {
-            ConfigurationSection s = section.getConfigurationSection(key);
-            if (s == null) {
-                issues.add("非法: command_policies." + key + " 需为对象");
-                continue;
-            }
-            Object cd = s.get("cooldown_secs");
-            if (cd != null) {
-                try {
-                    int val = Integer.parseInt(String.valueOf(cd));
-                    if (val < 0) issues.add("非法: command_policies." + key + ".cooldown_secs 不得为负数");
-                } catch (Exception e) {
-                    issues.add("类型错误: command_policies." + key + ".cooldown_secs 需为数字");
-                }
-            }
-            Object ao = s.get("admin_only");
-            if (ao != null && !(ao instanceof Boolean))
-                issues.add("类型错误: command_policies." + key + ".admin_only 需为布尔值");
-        }
-    }
-
-    private static void validateGuardSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            issues.add("建议: config.yml 缺失 guard 配置段，将使用默认配置（危险命令拦截开启）");
-            return;
-        }
-        Object en = section.get("enabled");
-        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: guard.enabled 需为布尔值");
-        Object na = section.get("notify_admins");
-        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: guard.notify_admins 需为布尔值");
-        Object ae = section.get("audit_enabled");
-        if (ae != null && !(ae instanceof Boolean)) issues.add("类型错误: guard.audit_enabled 需为布尔值");
-        Object bl = section.get("blocked_commands");
-        if (bl != null && !(bl instanceof List<?>)) issues.add("类型错误: guard.blocked_commands 需为列表");
-    }
-
-    private static void validateChatSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            // 降级为建议：默认配置完整可用，升级安装（config.yml 存在故未复制新默认值）会缺此段，
-            // 属提示而非缺陷，避免升级后每次启动的持久告警
-            issues.add("建议: config.yml 缺失 chat 配置段，将使用默认配置（聊天反垃圾开启）");
-            return;
-        }
-        Object en = section.get("enabled");
-        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: chat.enabled 需为布尔值");
-        int max = section.getInt("max_messages_per_minute", 20);
-        if (max < 1) issues.add("非法: chat.max_messages_per_minute 不得小于 1");
-        Object dl = section.get("detect_links");
-        if (dl != null && !(dl instanceof Boolean)) issues.add("类型错误: chat.detect_links 需为布尔值");
-        Object dr = section.get("detect_repeat");
-        if (dr != null && !(dr instanceof Boolean)) issues.add("类型错误: chat.detect_repeat 需为布尔值");
-        String msg = section.getString("message", "");
-        if (msg.isBlank()) issues.add("缺失: chat.message 不可为空");
-    }
-
-    private static void validateLoginRateLimitSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            // 降级为建议：默认配置完整可用，升级安装（config.yml 存在故未复制新默认值）会缺此段
-            issues.add("建议: config.yml 缺失 login_rate_limit 配置段，将使用默认配置（进服限流开启）");
-            return;
-        }
-        Object en = section.get("enabled");
-        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: login_rate_limit.enabled 需为布尔值");
-        int freq = section.getInt("max_login_attempts_per_minute", 20);
-        if (freq < 1) issues.add("非法: login_rate_limit.max_login_attempts_per_minute 不得小于 1");
-        int conc = section.getInt("max_concurrent_per_ip", 5);
-        if (conc < 1) issues.add("非法: login_rate_limit.max_concurrent_per_ip 不得小于 1");
-        Object na = section.get("notify_admins");
-        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: login_rate_limit.notify_admins 需为布尔值");
-        String msg = section.getString("message", "");
-        if (msg.isBlank()) issues.add("缺失: login_rate_limit.message 不可为空");
-    }
-
-    private static void validateExploitHardeningSection(ConfigurationSection section, List<String> issues) {
-        if (section == null) {
-            // 降级为建议：默认配置完整可用，升级安装（config.yml 存在故未复制新默认值）会缺此段
-            issues.add("建议: config.yml 缺失 exploit_hardening 配置段，将使用默认配置（漏洞加固开启）");
-            return;
-        }
-        Object en = section.get("enabled");
-        if (en != null && !(en instanceof Boolean)) issues.add("类型错误: exploit_hardening.enabled 需为布尔值");
-        for (String key : List.of("book_enabled", "item_enabled", "entity_enabled")) {
-            Object flag = section.get(key);
-            if (flag != null && !(flag instanceof Boolean)) {
-                issues.add("类型错误: exploit_hardening." + key + " 需为布尔值");
-            }
-        }
-        Object na = section.get("notify_admins");
-        if (na != null && !(na instanceof Boolean)) issues.add("类型错误: exploit_hardening.notify_admins 需为布尔值");
-        int pages = section.getInt("book_max_pages", 100);
-        if (pages < 1) issues.add("非法: exploit_hardening.book_max_pages 不得小于 1");
-        int attrs = section.getInt("item_max_attribute_modifiers", 6);
-        if (attrs < 1) issues.add("非法: exploit_hardening.item_max_attribute_modifiers 不得小于 1");
-        int entities = section.getInt("entity_max_per_chunk", 128);
-        if (entities < 1) issues.add("非法: exploit_hardening.entity_max_per_chunk 不得小于 1");
-        String msg = section.getString("message", "");
-        if (msg.isBlank()) issues.add("缺失: exploit_hardening.message 不可为空");
     }
 
     /** 校验 EasyBot 网关 scheme：非本机地址用明文 http/ws 时提示改用加密协议。 */

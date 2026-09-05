@@ -3,7 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.features.portal;
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalInfo;
 import com.jokerhub.paper.plugin.orzmc.core.ports.portal.PortalPort;
 import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
-import com.jokerhub.paper.plugin.orzmc.features.security.CommandPermissionService;
+import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandPermissionService;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;

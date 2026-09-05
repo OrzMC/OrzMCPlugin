@@ -1,9 +1,9 @@
 # OrzMC 插件 Folia 适配评估与迁移路线
 
+> **状态：现行参考**（迁移已完成并双核心验收，本文保留为 Folia 开发决策/验证方式参考）｜最后更新：2026-08-26
+>
 > 定位：Folia 适配的**现状缺口清单 + 决策记录 + 分 PR 落地计划**。所有改动按本文件
 > 决策逐批执行，每批独立走 PR（分支 → CI 绿 → merge）。
->
-> 最后更新：2026-08-18
 
 ---
 
@@ -189,7 +189,7 @@ runPaper.folia.registerTask {
 
 **真实 Folia 验收**：`./gradlew runFolia` 手动冒烟（启动加载 → 白名单 `$w` → TNT 爆炸 →
 传送弓 → 建门/拆门 → `$b` 备份），无 `IllegalThreadStateException`/死锁。
-已固化为逐项清单：**[docs/folia-acceptance.md](folia-acceptance.md)**（FA-01~07 无头已验 ✅ +
+已固化为逐项清单：**[docs/folia-acceptance.md](reports/folia-acceptance.md)**（FA-01~07 无头已验 ✅ +
 TC-F1~F6 真实环境待验 ⬜，含通过标准与失败判据）。
 
 ### D7 并发安全（Folia 下事件按 region 并发暴露的共享状态）

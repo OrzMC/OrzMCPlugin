@@ -1,0 +1,75 @@
+# main → develop 反向同步（事件驱动，无轮询）
+#
+# 语义：main 单独承载的提交（hotfix / 纯文档 / CI 直合 main / tag 版本号 bump 等）需同步进 develop，
+# 保证 develop ⊇ main，否则下次 develop→main 里程碑会因两侧同文件各自演进冲突（#293 教训）。
+#
+# 机制：push main → 比较两分支内容，main 确有领先内容时自动开反向 PR（head=main base=develop）
+# 并 enable 原生 auto-merge（squash）→ 分支保护的 CI（build + folia-smoke）绿后 GitHub 自动合并。
+# 里程碑（develop→main）合并后两分支内容一致 → diff 为空自动跳过，不产生空 PR 噪音。
+#
+# 说明：
+# - auto-merge 须用个人级 PAT（secrets.BOT_PAT）；Actions 内 GITHUB_TOKEN 无法 enable auto-merge（实测）。
+# - 反向同步方向不触发本 workflow（本 workflow 只听 push main），也无发布（publish 只听 main）。
+name: main→develop 反向同步
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: main-develop-sync
+  cancel-in-progress: false   # 连续 main push 不互相取消：PR head=main 始终反映最新 main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 需要完整历史以 diff 两分支
+
+      - name: 若无内容差异则跳过
+        run: |
+          git fetch origin develop --quiet
+          if git diff --quiet origin/main origin/develop; then
+            echo "两分支内容一致，无需同步（里程碑合并后即此态）"
+            exit 0
+          fi
+          echo "main 有 develop 缺失内容，继续同步"
+
+      - name: 创建/复用反向同步 PR 并 enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          set -euo pipefail
+          # 复用已存在且未合并的同步 PR（多次 main push 幂等）
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head main \
+                 --state open --json number,title -q \
+                 '.[] | select(.title | startswith("chore(sync):")) | .number' | head -1)"
+          if [ -z "$pr" ]; then
+            pr="$(gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head main \
+                  --title "chore(sync): main → develop 自动同步" \
+                  --body "自动同步 PR：main 有 develop 缺失的提交（hotfix/文档/CI 直合）。CI 绿后经原生 auto-merge 自动合并。若冲突请人工解决后合并。")"
+            echo "已创建同步 PR: $pr"
+          else
+            echo "复用已有同步 PR: $pr"
+          fi
+
+          # 内容冲突时不 auto-merge，留人工处理（PR 保持打开并注明）
+          state="$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json mergeable,mergeStateStatus \
+                   -q '"\(.mergeable):\(.mergeStateStatus)"')"
+          case "$state" in
+            MERGEABLE:*) gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --auto --squash
+                         echo "✅ 已 enable auto-merge（CI 绿后自动合并）" ;;
+            *)
+              gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" \
+                --body "⚠️ 同步 PR 当前不可合并（$state）。已跳过 auto-merge，请人工解决冲突/检查后合并。"
+              echo "⚠️ PR 不可合并（$state），已跳过 auto-merge" ;;
+          esac
