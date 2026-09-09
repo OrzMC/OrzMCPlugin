@@ -187,6 +187,9 @@ gamemode:
 # --- review.* (/apply command copy; P2f2, follows the executing player's language.
 #     Type displayName is config data and is not migrated) ---
 review:
+  type:
+    builder-promotion: "Builder promotion"
+    admin-promotion: "Admin promotion"
   list_header: "Available applications:"
   no_types: "There are no review types you can apply for right now."
   type_unknown: "Unknown application type: {type} (run /apply to see available types)"
