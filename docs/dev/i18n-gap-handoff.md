@@ -15,6 +15,7 @@
 - 键命名空间：`cmd.desc.<name>`、`cmd.error.*`、`cmd.<topic>_<verb>`；MessageKeys 常量同步；语言包尾部追加（串行链式合入）。
 
 ## 已完成（按时间倒序）
+- PR #423 @ f66ca11：G3b-2 review 摘要渲染层语言化（summary_prefix/reason_sep 词表，4 UI 处，zh 逐字保持）
 - PR #422 @ b42bfa9：G3b review type 展示名词表化（review.type.<id>；ReviewService 9 处 + ReviewCommandService/RankCommandService/ReviewCommandHandler；PlayerRankDisplayService 系玩家昵称豁免；summary 前缀 zh 动词残留 G3b-2 记录）
 - PR #421 @ 4c3433a：G6c OrzConfigCommand 主树 31 键 cmd.config.*（C 面收口；parseValue 异常不再 UI 直显；registry cp.description() 豁免）
 - PR #420 @ 68375da：G6b /config im status/setup 面板行（25 键 cmd.config_im_panel_*/setup_*/state.* 词表；describe 实例化；lastError 原样）
@@ -42,6 +43,13 @@
 
 ## 语言包现状
 zh-CN/en-US 双语 parity（I18nCatalogConsistencyTest）；common.* P1、cmd.* P6 起始；改语言包 PR 串行。
+
+## D 面（未豁免但非低影响——独立工程评估，2026-09-09 复核）
+原标「豁免 D」现复核为**配置帮助/健康数据面**，如需 i18n 化属大工程（预计 2-3 PR）：
+- D1：ConfigPath.all() 70 条 desc → 语言包键（zh 值=现说明原样迁移 + en 翻译；ConfigPath API description→按 lang resolve；消费者仅 OrzConfigCommand list/get + ConfigPathTest）
+- D2：ConfigHealthCheck + 20+ 配置 record validate() 的 issues.add 中文消息 → 键化（health 无 sender → R1 default_lang 决议；issues 文案存 health 前需带语言或 health 面板层 resolve）
+- D3：ConfigUpgrader/TemplatesBodyMigration log 消息维持豁免（logger 面）
+- 建议：独立会话承接（大工程需交接续作），或决策「配置帮助/健康报告为 admin 数据文档保持 zh」并文档化入 i18n-plan §8。
 
 ## 下一棒开场指令
 「读 docs/dev/i18n-gap-handoff.md，从卡 G2 开始：checkout 分支（基 origin/develop），处理 FeatureCommandRegistrar/FeatureModule 中文直出，
