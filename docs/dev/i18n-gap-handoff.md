@@ -19,7 +19,7 @@
 - [x] **P7-B** 复核修正：分页已走 paginatePages 键化 → 删 dead paginate（#426 @ d7b6ed7）
 - [x] **P7-C** $e 回显（#427 @ 28579e7）：assemble {count} 模板参数（bot.e.truncated）+ execStateText（bot.e.exec_ok/not_found）；ExecResult.message 仅 logger 消费
 - [x] **P7-D**（核心子集 #428 @ 34a5c64）：WorldMaintenanceService 注入 i18n；mode 词（maintenance.mode.backup/optimize）+ 时长单位词（duration.ms/hour/min/sec）；formatDuration 实例化；eventKey 判断改 backupMode；事件 {label}/{duration_human} 不再 zh 硬注入
-- [ ] **P7-D2**（剩余低频直行，可选）：224「正在{label}地图…」216「地图{label}失败」197 损坏区块 321/325/331/338 备份失败/目录行 → maintenance.cmd.* 模板键（群 $b/$o 兜底行；触发低频，en 下偶现中文句）
+- [x] **P7-D2**（#430 @ 8fa046d）：maintenance.cmd.* 8 键；mt() null 回退 zh—— P7 三审候选全部清零
 - [x] **P7-E** 撤销（审计误报）：UnavailableBotMessageService/BotMessageServiceProvider 文本均为控制台启动告警（logger 豁免）
 - P7 收尾：audit 文档勾验 + CHANGELOG + 真机视觉对照
 

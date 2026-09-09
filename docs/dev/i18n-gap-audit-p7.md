@@ -33,7 +33,7 @@
 | B 分页 | 复核修正：分页已走 paginatePages 键化；删 dead paginate | #426 |
 | C $e 回显 | assemble {count} 模板 + execStateText | #427 |
 | D 维护 label/duration | mode/时长词表 + formatDuration 实例化（eventKey 改布尔） | #428 |
-| D2 低频直行（正在/失败/损坏区块/目录行） | **可选遗留**（记录）：触发低频，en 下偶现中文句；如需做 → maintenance.cmd.* 模板键 |
+| D2 维护低频直行 | maintenance.cmd.* 8 键（starting/chunk/map_failed/dir/no_zip…；mt() null 回退 zh） | #430 |
 | E IM 停用引导 | **撤销（审计误报）**：UnavailableBotMessageService/BotMessageServiceProvider 文本均为控制台启动告警（logger 面豁免），非群回复 |
 | F 数据/边界 | 维持豁免（portal label/worldAlias/review type fallback） | — |
 
