@@ -65,6 +65,25 @@ public class WorldMaintenanceService {
         return i18n.msg(i18n.langFor(), key);
     }
 
+    /** 维护直行文案（P7-D2）；i18n 未注入（测试）回落原 zh 直文本。 */
+    private String mt(String key, String zhFallback) {
+        if (i18n == null) {
+            return zhFallback;
+        }
+        return i18n.msg(i18n.langFor(), key);
+    }
+
+    private String mt(String key, String zhFallback, java.util.Map<String, String> vars) {
+        if (i18n == null) {
+            String out = zhFallback;
+            for (java.util.Map.Entry<String, String> e : vars.entrySet()) {
+                out = out.replace("{" + e.getKey() + "}", e.getValue());
+            }
+            return out;
+        }
+        return i18n.msg(i18n.langFor(), key, vars);
+    }
+
     public MaintenanceModeService maintenanceModeService() {
         return maintenanceModeService;
     }
@@ -217,7 +236,10 @@ public class WorldMaintenanceService {
                     || s.contains("corrupted length field")) {
                 chunkErrorCount.incrementAndGet();
                 if (chunkErrorCount.get() == 1) {
-                    callback.accept("发现" + label + "目标包含损坏区块，将安全保留原始数据（不丢失）...");
+                    callback.accept(mt(
+                            "maintenance.cmd.chunk_found",
+                            "发现{mode}目标包含损坏区块，将安全保留原始数据（不丢失）...",
+                            java.util.Map.of("mode", label)));
                 }
                 return Unit.INSTANCE;
             }
@@ -236,7 +258,7 @@ public class WorldMaintenanceService {
                                 formatDuration(durationMs)));
                 callback.accept(err.message());
                 notifier.event(errKey, err);
-                callback.accept("地图" + label + "失败");
+                callback.accept(mt("maintenance.cmd.map_failed", "地图{mode}失败", java.util.Map.of("mode", label)));
             }
             return Unit.INSTANCE;
         };
@@ -245,7 +267,10 @@ public class WorldMaintenanceService {
     private void runOptimizerJob(
             boolean backupMode, Path input, Path outputOrNull, long tickTimeThreshold, Consumer<String> callback) {
         String label = modeWord(backupMode);
-        callback.accept("正在" + label + "地图，请稍等......");
+        callback.accept(
+                backupMode
+                        ? mt("maintenance.cmd.starting_backup", "正在备份地图，请稍等......")
+                        : mt("maintenance.cmd.starting_optimize", "正在优化地图，请稍等......"));
         DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
         RealFileSystem fs = RealFileSystem.INSTANCE;
         DefaultOptimizer.INSTANCE.run(input, outputOrNull, builder -> {
@@ -341,24 +366,30 @@ public class WorldMaintenanceService {
                     File worldBackupDir = new File(server.server().getWorldContainer(), "backup");
                     if (!worldBackupDir.exists() && !worldBackupDir.mkdirs()) {
                         server.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
-                        callback.accept("地图备份失败");
+                        callback.accept(mt("maintenance.cmd.backup_failed", "地图备份失败"));
                         return;
                     }
                     Path input = worldDir.toPath();
-                    callback.accept("服务器地图目录：" + input);
+                    callback.accept(mt(
+                            "maintenance.cmd.world_dir",
+                            "服务器地图目录：{dir}",
+                            java.util.Map.of("dir", String.valueOf(input))));
                     // 中间目录放备份结果目录（backup/tempDir）：backup-core 0.3.x 校验要求
                     // output 与 input（世界目录）不重叠——backup/ 是世界目录的兄弟路径，天然满足；
                     // zip 由 backup-core 写到 output 父目录（backup/），无需移动。
                     // 崩溃/断电残留由启动清理兜底（cleanupStaleBackupTemp）。
                     Path output = worldBackupDir.toPath().resolve("tempDir");
-                    callback.accept("地图备份目录：" + worldBackupDir);
+                    callback.accept(mt(
+                            "maintenance.cmd.backup_dir",
+                            "地图备份目录：{dir}",
+                            java.util.Map.of("dir", String.valueOf(worldBackupDir))));
                     long before = latestBackupZipMtime(worldBackupDir);
                     runOptimizerJob(true, input, output, tickTimeThreshold, callback);
                     if (latestBackupZipMtime(worldBackupDir) <= before) {
                         // backup-core 完成但 backup/ 无新 zip（压缩失败被内部吞掉等）：
                         // 明确报失败且跳过 prune——旧备份是唯一可靠副本，不能误删
                         server.logger().severe("备份文件未落盘: " + worldBackupDir.getAbsolutePath());
-                        callback.accept("地图备份失败（备份文件未生成，请检查服务器日志与磁盘空间）");
+                        callback.accept(mt("maintenance.cmd.no_zip_produced", "地图备份失败（备份文件未生成，请检查服务器日志与磁盘空间）"));
                         return;
                     }
                     pruneOldZipsWithLogger(worldBackupDir, retainCount, server.logger());
