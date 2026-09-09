@@ -563,6 +563,22 @@ cmd:
   config_im_err_chat_type: "chat_type only supports group|user"
   config_im_err_chat_id: "chat_id must not be empty"
   config_im_err_role: "role only supports admin_group|player_group|admin_dm"
-
-
-
+# --- botstatus.* (/bot status panel; P7-A. R1 default_lang) ---
+botstatus:
+  state:
+    enabled: "Enabled"
+    disabled: "Disabled"
+    ws_ok: "WS ok"
+    ws_not_ok: "WS down"
+    http_ok: "HTTP ok"
+    http_unknown: "HTTP unknown"
+    http_not_ok: "HTTP down"
+    connected: "Connected"
+    disconnected: "Disconnected"
+    not_checked: "Not checked"
+    healthy: "Healthy"
+    unhealthy: "Unhealthy"
+  failed_platforms: "Failed platforms:"
+  failed_platforms_ratio: "Failed platforms ({failed}/{total}):"
+  hover_details: "Click for {label} details"
+  error_prefix: "Error: "

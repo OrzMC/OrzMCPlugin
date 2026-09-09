@@ -1,6 +1,8 @@
 package com.jokerhub.paper.plugin.orzmc.features.bot;
 
 import com.jokerhub.paper.plugin.orzmc.core.ports.health.HealthStatus;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,10 +20,17 @@ public final class BotStatusService {
 
     private final OrzTextStyles styles;
     private final HealthStatus health;
+    private final I18nService i18n;
 
-    public BotStatusService(OrzTextStyles styles, HealthStatus health) {
+    public BotStatusService(OrzTextStyles styles, HealthStatus health, I18nService i18n) {
         this.styles = styles;
         this.health = health;
+        this.i18n = i18n;
+    }
+
+    /** /bot 为运维命令：状态文案按 default_lang（R1）决议；i18n 未注入时回落词表 key（测试 zh 注入全覆盖）。 */
+    private String t(String key) {
+        return i18n == null ? key : i18n.msg(i18n.langFor(), key);
     }
 
     /**
@@ -30,12 +39,16 @@ public final class BotStatusService {
      */
     public Component buildMinimalMessage() {
         HealthStatus.Entry e = health.get("easybot");
-        Component enabled = e.enabled() ? styles.success("enabled") : styles.error("disabled");
+        Component enabled = e.enabled()
+                ? styles.success(t(MessageKeys.BOTSTATUS_STATE_ENABLED))
+                : styles.error(t(MessageKeys.BOTSTATUS_STATE_DISABLED));
         Component http = httpWord(e);
         if (httpAbnormal(e)) {
             http = attachDetail(http, "http", HTTP_DETAIL);
         }
-        Component ws = e.wsConnected() ? styles.success("wsOk") : styles.error("wsNotOk");
+        Component ws = e.wsConnected()
+                ? styles.success(t(MessageKeys.BOTSTATUS_STATE_WS_OK))
+                : styles.error(t(MessageKeys.BOTSTATUS_STATE_WS_NOT_OK));
         if (!e.wsConnected()) {
             ws = attachDetail(ws, "websocket", WS_DETAIL);
         }
@@ -54,8 +67,11 @@ public final class BotStatusService {
         lines.add(detailLabel("HTTP", httpState(e)));
         if (e.deliveryFailed() > 0) {
             boolean allFailed = e.deliveryTotal() > 0 && e.deliveryFailed() >= e.deliveryTotal();
-            String header =
-                    e.deliveryTotal() > 0 ? "失败平台 (" + e.deliveryFailed() + "/" + e.deliveryTotal() + "):" : "失败平台:";
+            String header = e.deliveryTotal() > 0
+                    ? t(MessageKeys.BOTSTATUS_FAILED_PLATFORMS_RATIO)
+                            .replace("{failed}", String.valueOf(e.deliveryFailed()))
+                            .replace("{total}", String.valueOf(e.deliveryTotal()))
+                    : t(MessageKeys.BOTSTATUS_FAILED_PLATFORMS);
             lines.add(allFailed ? styles.error(header) : styles.warn(header));
             if (e.deliveryTargets() != null) {
                 for (String target : e.deliveryTargets()) {
@@ -71,15 +87,25 @@ public final class BotStatusService {
     public Component buildWsDetail() {
         HealthStatus.Entry e = health.get("easybot");
         List<Component> lines = new ArrayList<>();
-        lines.add(detailLabel("WS", e.wsConnected() ? styles.success("已连接") : styles.error("已断开")));
+        lines.add(detailLabel(
+                "WS",
+                e.wsConnected()
+                        ? styles.success(t(MessageKeys.BOTSTATUS_STATE_CONNECTED))
+                        : styles.error(t(MessageKeys.BOTSTATUS_STATE_DISCONNECTED))));
         appendErrorIfAny(lines, e);
         return joinLines(lines);
     }
 
     /** 给状态词附加「点击查看详情」交互。 */
-    private static Component attachDetail(Component word, String label, String command) {
+    private Component attachDetail(Component word, String label, String command) {
         return word.clickEvent(ClickEvent.runCommand(command))
-                .hoverEvent(HoverEvent.showText(Component.text("点击查看" + label + "详情")));
+                .hoverEvent(HoverEvent.showText(Component.text(
+                        i18n == null
+                                ? "点击查看" + label + "详情"
+                                : i18n.msg(
+                                        i18n.langFor(),
+                                        MessageKeys.BOTSTATUS_HOVER_DETAILS,
+                                        java.util.Map.of("label", label)))));
     }
 
     /**
@@ -88,9 +114,11 @@ public final class BotStatusService {
      */
     private TextComponent httpWord(HealthStatus.Entry e) {
         if (!e.httpChecked()) {
-            return styles.warn("httpUnknown");
+            return styles.warn(t(MessageKeys.BOTSTATUS_STATE_HTTP_UNKNOWN));
         }
-        return httpHealthy(e) ? styles.success("httpOk") : styles.error("httpNotOk");
+        return httpHealthy(e)
+                ? styles.success(t(MessageKeys.BOTSTATUS_STATE_HTTP_OK))
+                : styles.error(t(MessageKeys.BOTSTATUS_STATE_HTTP_NOT_OK));
     }
 
     private static boolean httpAbnormal(HealthStatus.Entry e) {
@@ -107,14 +135,16 @@ public final class BotStatusService {
 
     private TextComponent httpState(HealthStatus.Entry e) {
         if (!e.httpChecked()) {
-            return styles.warn("未检查");
+            return styles.warn(t(MessageKeys.BOTSTATUS_STATE_NOT_CHECKED));
         }
-        return httpHealthy(e) ? styles.success("正常") : styles.error("异常");
+        return httpHealthy(e)
+                ? styles.success(t(MessageKeys.BOTSTATUS_STATE_HEALTHY))
+                : styles.error(t(MessageKeys.BOTSTATUS_STATE_UNHEALTHY));
     }
 
     private void appendErrorIfAny(List<Component> lines, HealthStatus.Entry e) {
         if (e.lastError() != null && !e.lastError().isEmpty()) {
-            lines.add(styles.error("错误: " + e.lastError()));
+            lines.add(styles.error(t(MessageKeys.BOTSTATUS_ERROR_PREFIX) + e.lastError()));
         }
     }
 
