@@ -349,6 +349,9 @@ bot:
     empty_whitelist: "(no whitelisted players)"
   e:
     overflow: "⚠️ Log buffer overflow; output may be incomplete."
+    truncated: "… (output too long — truncated; {count} lines total)"
+    exec_ok: "Command executed: {cmd}"
+    exec_not_found: "Command not found or execution failed: {cmd}"
   p:
     svc_unavailable: "Permission service is unavailable."
     no_lp: "LuckPerms was not detected; permission management is unavailable."

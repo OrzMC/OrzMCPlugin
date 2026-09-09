@@ -341,6 +341,9 @@ bot:
     empty_whitelist: "(暂无白名单玩家)"
   e:
     overflow: "⚠️ 日志缓冲溢出，输出可能不完整"
+    truncated: "…（输出过长，已截断，共 {count} 行）"
+    exec_ok: "命令已执行: {cmd}"
+    exec_not_found: "命令不存在或执行失败: {cmd}"
   p:
     svc_unavailable: "权限服务不可用"
     no_lp: "未检测到 LuckPerms，权限管理功能不可用"
