@@ -15,6 +15,7 @@
 - 键命名空间：`cmd.desc.<name>`、`cmd.error.*`、`cmd.<topic>_<verb>`；MessageKeys 常量同步；语言包尾部追加（串行链式合入）。
 
 ## 已完成（按时间倒序）
+- PR #422 @ b42bfa9：G3b review type 展示名词表化（review.type.<id>；ReviewService 9 处 + ReviewCommandService/RankCommandService/ReviewCommandHandler；PlayerRankDisplayService 系玩家昵称豁免；summary 前缀 zh 动词残留 G3b-2 记录）
 - PR #421 @ 4c3433a：G6c OrzConfigCommand 主树 31 键 cmd.config.*（C 面收口；parseValue 异常不再 UI 直显；registry cp.description() 豁免）
 - PR #420 @ 68375da：G6b /config im status/setup 面板行（25 键 cmd.config_im_panel_*/setup_*/state.* 词表；describe 实例化；lastError 原样）
 - PR #419 @ f65014b：G6a /config im 子树 + desc.config（ConfigCommandRegistrar desc、ImCommandRegistrar 3 usage、ImAdminService 绑定/投递/权限/校验 15 键 cmd.config_im_*/cmd.console_op_only；bindError 实例化；ImAdminService 注入 i18n）。教训：本地最后一次 patch 后漏跑 spotlessApply → CI spotlessCheck 红一次（补 style commit）
@@ -36,7 +37,7 @@
 - [ ] **G4u** UpdateCommandService /update 状态输出（4-5 条 styles.success 中文）+ UpdateCommandRegistrar desc
 - [ ] **G5** B 面：builtin 未绑定会话绑定引导文本语言包化（Qq/Telegram/Feishu/Discord InboundProcessor 同构；公共渲染点或 4 平台键）
 - [ ] **G6** C 面 /config 树（量最大）：ConfigCommandRegistrar 26 + ImCommandRegistrar 14 + ImAdminService 24 + OrzConfigCommand 46（/config 各子树说明）+ /orzdebug；可能拆 2-3 卡
-- [ ] 真机双语验证（/help desc zh↔en、/apply /rank /update 提示）→ docs 更新 i18n-plan §8 台账 + features 小节 + CHANGELOG
+- [ ] **收尾（待做）**：① 真机双语验证（/help desc、/apply 类型名、/rank、/update、/config 树 zh↔en）；② docs 更新 i18n-plan §8 台账 + features 语言小节 + CHANGELOG「i18n P6 补齐」；③ handoff 终态（本任务归档）
 - 豁免面（不补，记录在案）：logger/异常/内部健康描述（ConfigPath/ConfigHealthCheck/ConfigUpgrader）、config 校验消息、数据内容（templates/guidebook/config 值）、平台适配器内部状态。
 
 ## 语言包现状
