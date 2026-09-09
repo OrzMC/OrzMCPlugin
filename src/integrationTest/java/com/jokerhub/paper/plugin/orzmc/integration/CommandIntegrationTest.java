@@ -139,7 +139,7 @@ public class CommandIntegrationTest {
         }
         MessageEnvelope envelope = got.get();
         Assertions.assertNotNull(envelope, "Bot command should produce response");
-        Assertions.assertTrue(envelope.message().contains("ws"), "Status should show ws state");
+        Assertions.assertTrue(envelope.message().contains("WS"), "Status should show ws state");
     }
 
     @Test

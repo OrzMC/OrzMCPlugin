@@ -555,6 +555,22 @@ cmd:
   config_im_err_chat_type: "chat_type 仅支持 group|user"
   config_im_err_chat_id: "chat_id 不能为空"
   config_im_err_role: "role 仅支持 admin_group|player_group|admin_dm"
-
-
-
+# --- botstatus.*（/bot 状态面板；P7-A。R1 default_lang） ---
+botstatus:
+  state:
+    enabled: "已启用"
+    disabled: "已禁用"
+    ws_ok: "WS 正常"
+    ws_not_ok: "WS 异常"
+    http_ok: "HTTP 正常"
+    http_unknown: "HTTP 未知"
+    http_not_ok: "HTTP 异常"
+    connected: "已连接"
+    disconnected: "已断开"
+    not_checked: "未检查"
+    healthy: "正常"
+    unhealthy: "异常"
+  failed_platforms: "失败平台:"
+  failed_platforms_ratio: "失败平台 ({failed}/{total}):"
+  hover_details: "点击查看{label}详情"
+  error_prefix: "错误: "

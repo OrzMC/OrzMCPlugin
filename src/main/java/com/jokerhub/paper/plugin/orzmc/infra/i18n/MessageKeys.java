@@ -324,4 +324,20 @@ public final class MessageKeys {
     public static final String CMD_CONFIG_RELOAD_ALL_OK = "cmd.config.reload_all_ok";
     public static final String CMD_CONFIG_DUMP_TITLE = "cmd.config.dump_title";
     public static final String CMD_CONFIG_DUMP_DEFAULT = "cmd.config.dump_default";
+    public static final String BOTSTATUS_STATE_ENABLED = "botstatus.state.enabled";
+    public static final String BOTSTATUS_STATE_DISABLED = "botstatus.state.disabled";
+    public static final String BOTSTATUS_STATE_WS_OK = "botstatus.state.ws_ok";
+    public static final String BOTSTATUS_STATE_WS_NOT_OK = "botstatus.state.ws_not_ok";
+    public static final String BOTSTATUS_STATE_HTTP_OK = "botstatus.state.http_ok";
+    public static final String BOTSTATUS_STATE_HTTP_UNKNOWN = "botstatus.state.http_unknown";
+    public static final String BOTSTATUS_STATE_HTTP_NOT_OK = "botstatus.state.http_not_ok";
+    public static final String BOTSTATUS_STATE_CONNECTED = "botstatus.state.connected";
+    public static final String BOTSTATUS_STATE_DISCONNECTED = "botstatus.state.disconnected";
+    public static final String BOTSTATUS_STATE_NOT_CHECKED = "botstatus.state.not_checked";
+    public static final String BOTSTATUS_STATE_HEALTHY = "botstatus.state.healthy";
+    public static final String BOTSTATUS_STATE_UNHEALTHY = "botstatus.state.unhealthy";
+    public static final String BOTSTATUS_FAILED_PLATFORMS = "botstatus.failed_platforms";
+    public static final String BOTSTATUS_FAILED_PLATFORMS_RATIO = "botstatus.failed_platforms_ratio";
+    public static final String BOTSTATUS_HOVER_DETAILS = "botstatus.hover_details";
+    public static final String BOTSTATUS_ERROR_PREFIX = "botstatus.error_prefix";
 }

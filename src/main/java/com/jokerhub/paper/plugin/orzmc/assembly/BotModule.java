@@ -48,7 +48,7 @@ public final class BotModule implements ServiceModule {
 
         // BotStatusService
         this.healthAccessor = new HealthAccessor(healthRegistry);
-        this.botStatusService = new BotStatusService(platform.textStyles(), healthAccessor);
+        this.botStatusService = new BotStatusService(platform.textStyles(), healthAccessor, platform.i18nService());
     }
 
     @Override
