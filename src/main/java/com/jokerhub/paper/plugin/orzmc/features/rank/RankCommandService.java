@@ -127,6 +127,6 @@ public final class RankCommandService {
         return i18n.msg(
                 i18n.langFor(),
                 MessageKeys.RANK_TYPE_ENTRY,
-                Map.of("name", type.displayName(), "key", type.commandKey()));
+                Map.of("name", i18n.msg(i18n.langFor(), "review.type." + type.id()), "key", type.commandKey()));
     }
 }

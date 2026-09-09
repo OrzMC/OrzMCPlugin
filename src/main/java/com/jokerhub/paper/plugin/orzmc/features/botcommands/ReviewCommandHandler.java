@@ -69,7 +69,7 @@ final class ReviewCommandHandler extends BotCommandContext {
             String typeName = reviewService
                     .get()
                     .typeById(r.typeId())
-                    .map(t -> t.displayName())
+                    .map(t -> I18nServiceHolder.msg("review.type." + t.id()))
                     .orElse(r.typeId());
             String playerName = playerNameOf(r);
             RankService rank = rankService.get();
@@ -81,7 +81,7 @@ final class ReviewCommandHandler extends BotCommandContext {
             String summary = reviewService
                     .get()
                     .typeById(r.typeId())
-                    .map(t -> t.summarize(r.data()))
+                    .map(t -> summaryText(t, r.data()))
                     .orElse("");
             lines.add(I18nServiceHolder.msg(
                     "bot.v.list_item",
@@ -160,6 +160,17 @@ final class ReviewCommandHandler extends BotCommandContext {
                 emitMsg(callback, "command_review_error", reviewError(t.getMessage()));
             }
         });
+    }
+
+    /** $v 列表摘要（群 R1）：前缀词表 + 类型词表 + 理由分隔随语言。 */
+    private static String summaryText(
+            com.jokerhub.paper.plugin.orzmc.features.review.ReviewType type, java.util.Map<String, String> data) {
+        String reason = data.get("reason");
+        boolean hasReason = reason != null && !reason.isBlank();
+        String prefix = I18nServiceHolder.msg("review.summary_prefix"); // zh「申请」/ en "Applying for "（自带尾空格）
+        String label = I18nServiceHolder.msg("review.type." + type.id());
+        String sep = hasReason ? I18nServiceHolder.msg("review.reason_sep") : ""; // zh「：」/ en ": "
+        return prefix + label + sep + (hasReason ? reason : "");
     }
 
     private String playerNameOf(ReviewRequest r) {

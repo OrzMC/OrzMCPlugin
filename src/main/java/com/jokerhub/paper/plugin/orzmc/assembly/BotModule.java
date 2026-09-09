@@ -28,8 +28,11 @@ public final class BotModule implements ServiceModule {
 
     public BotModule(PlatformModule platform) {
         this.healthRegistry = new HealthRegistry();
-        // Phase A: 先创建 BotCommandService（核心依赖来自 PlatformModule）
-        this.botCommandService = new BotCommandService(platform.serverFacade(), platform.configs());
+        // Phase A: 先创建 BotCommandService（核心依赖来自 PlatformModule）。
+        // 必须注入真实 I18nService（PlatformModule 已装配）：否则 BotCommandFeedbackService 回落 zh
+        // fallback，$h / $cmd ? 等群帮助恒中文（2026-09-08 #41x 缺陷：$ 帮助不随 default_lang）。
+        this.botCommandService =
+                new BotCommandService(platform.serverFacade(), platform.configs(), platform.i18nService());
 
         // Phase C: 创建 BotMessageService（以 BotCommandService 作为 BotInboundHandler）
         this.botMessageService = BotMessageServiceProvider.create(
@@ -45,7 +48,7 @@ public final class BotModule implements ServiceModule {
 
         // BotStatusService
         this.healthAccessor = new HealthAccessor(healthRegistry);
-        this.botStatusService = new BotStatusService(platform.textStyles(), healthAccessor);
+        this.botStatusService = new BotStatusService(platform.textStyles(), healthAccessor, platform.i18nService());
     }
 
     @Override

@@ -1,7 +1,10 @@
 package com.jokerhub.paper.plugin.orzmc.features.update;
 
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import java.util.Map;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -18,11 +21,18 @@ public final class UpdateCommandService {
     private final ServerFacade server;
     private final UpdateService updates;
     private final OrzTextStyles styles;
+    private final I18nService i18n;
 
-    public UpdateCommandService(ServerFacade server, UpdateService updates, OrzTextStyles styles) {
+    public UpdateCommandService(ServerFacade server, UpdateService updates, OrzTextStyles styles, I18nService i18n) {
         this.server = server;
         this.updates = updates;
         this.styles = styles;
+        this.i18n = i18n;
+    }
+
+    /** /update 为管理命令：状态文案按 default_lang（R1）决议。 */
+    private String m(String key, Map<String, String> vars) {
+        return i18n.msg(i18n.langFor(), key, vars);
     }
 
     /** /update check：只查询当前通道是否有新版本。 */
@@ -37,38 +47,54 @@ public final class UpdateCommandService {
 
     private Component describeCheck(UpdateService.CheckOutcome outcome, Throwable err) {
         if (err != null) {
-            return styles.error("检查更新失败：" + err.getMessage());
+            return styles.error(
+                    m(MessageKeys.CMD_UPDATE_CHECK_FAILED_REASON, Map.of("reason", String.valueOf(err.getMessage()))));
         }
         if (outcome == null) {
-            return styles.error("检查更新失败，请查看控制台日志");
+            return styles.error(m(MessageKeys.CMD_UPDATE_CHECK_FAILED, Map.of()));
         }
         return switch (outcome.state()) {
-            case CHECK_FAILED -> styles.error("检查更新失败，请查看控制台日志");
+            case CHECK_FAILED -> styles.error(m(MessageKeys.CMD_UPDATE_CHECK_FAILED, Map.of()));
             case UNKNOWN_LOCAL ->
-                styles.error(
-                        "无法识别当前运行版本（构建信息缺失）；Hangar 最新版本 " + outcome.latest().version());
-            case AVAILABLE -> styles.success("发现新版本 " + outcome.latest().version() + "。执行 /update now 下载，重启服务器后生效");
+                styles.error(m(
+                        MessageKeys.CMD_UPDATE_UNKNOWN_LOCAL,
+                        Map.of("version", String.valueOf(outcome.latest().version()))));
+            case AVAILABLE ->
+                styles.success(m(
+                        MessageKeys.CMD_UPDATE_AVAILABLE,
+                        Map.of("version", String.valueOf(outcome.latest().version()))));
             case UP_TO_DATE ->
                 styles.info(
                         outcome.latest() == null
-                                ? "当前通道无可用版本信息"
-                                : "已是最新版本 " + outcome.latest().version() + "（本地 " + updates.currentVersion() + "）");
+                                ? m(MessageKeys.CMD_UPDATE_NO_CHANNEL_INFO, Map.of())
+                                : m(
+                                        MessageKeys.CMD_UPDATE_UP_TO_DATE,
+                                        Map.of(
+                                                "version",
+                                                        String.valueOf(
+                                                                outcome.latest().version()),
+                                                "current", String.valueOf(updates.currentVersion()))));
         };
     }
 
     private Component describeDownload(UpdateService.DownloadOutcome outcome, Throwable err) {
         if (err != null) {
-            return styles.error("下载失败：" + err.getMessage());
+            return styles.error(m(
+                    MessageKeys.CMD_UPDATE_DOWNLOAD_FAILED_REASON, Map.of("reason", String.valueOf(err.getMessage()))));
         }
         if (outcome == null) {
-            return styles.error("下载失败，请查看控制台日志");
+            return styles.error(m(MessageKeys.CMD_UPDATE_DOWNLOAD_FAILED, Map.of()));
         }
         return switch (outcome.state()) {
-            case DOWNLOADED -> styles.success("新版本已下载到 " + outcome.detail() + "，重启服务器后生效");
-            case ALREADY_DOWNLOADED -> styles.info(outcome.detail());
-            case NO_UPDATE -> styles.info(outcome.detail());
-            case BUSY -> styles.warn(outcome.detail());
-            case FAILED -> styles.error("下载失败：" + outcome.detail());
+            case DOWNLOADED ->
+                styles.success(m(MessageKeys.CMD_UPDATE_DOWNLOADED, Map.of("path", String.valueOf(outcome.detail()))));
+            case ALREADY_DOWNLOADED -> styles.info(m(MessageKeys.CMD_UPDATE_ALREADY_DOWNLOADED, Map.of()));
+            case NO_UPDATE -> styles.info(m(MessageKeys.CMD_UPDATE_NO_UPDATE, Map.of()));
+            case BUSY -> styles.warn(m(MessageKeys.CMD_UPDATE_BUSY, Map.of()));
+            case FAILED ->
+                styles.error(m(
+                        MessageKeys.CMD_UPDATE_DOWNLOAD_FAILED_REASON,
+                        Map.of("reason", String.valueOf(outcome.detail()))));
         };
     }
 

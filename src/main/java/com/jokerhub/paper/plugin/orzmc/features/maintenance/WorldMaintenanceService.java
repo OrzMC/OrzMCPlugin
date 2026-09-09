@@ -6,6 +6,7 @@ import com.jokerhub.orzmc.world.*;
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TemplateOptions;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
 import com.jokerhub.paper.plugin.orzmc.infra.notify.Notifier;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
@@ -31,17 +32,56 @@ public class WorldMaintenanceService {
     /** 维护模式状态机：备份/优化执行时驱动进入/进度/退出（独立于本服务的 running 生命周期）。 */
     private final MaintenanceModeService maintenanceModeService;
 
+    private final I18nService i18n;
+
     public WorldMaintenanceService(
             ServerFacade server,
             TypedConfigProvider configs,
             OrzTextStyles styles,
             Notifier notifier,
-            MaintenanceModeService maintenanceModeService) {
+            MaintenanceModeService maintenanceModeService,
+            I18nService i18n) {
         this.server = server;
         this.configs = configs;
         this.styles = styles;
         this.notifier = notifier;
         this.maintenanceModeService = maintenanceModeService;
+        this.i18n = i18n;
+    }
+
+    /** 维护模式名（备份/优化）词表（P7-D，R1 default_lang）；i18n 未注入回落 zh 直名。 */
+    private String modeWord(boolean backupMode) {
+        if (i18n == null) {
+            return backupMode ? "备份" : "优化";
+        }
+        return i18n.msg(i18n.langFor(), backupMode ? "maintenance.mode.backup" : "maintenance.mode.optimize");
+    }
+
+    /** 时长单位词（P7-D）；i18n 未注入回落 zh。 */
+    private String durWord(String keyZh, String key) {
+        if (i18n == null) {
+            return keyZh;
+        }
+        return i18n.msg(i18n.langFor(), key);
+    }
+
+    /** 维护直行文案（P7-D2）；i18n 未注入（测试）回落原 zh 直文本。 */
+    private String mt(String key, String zhFallback) {
+        if (i18n == null) {
+            return zhFallback;
+        }
+        return i18n.msg(i18n.langFor(), key);
+    }
+
+    private String mt(String key, String zhFallback, java.util.Map<String, String> vars) {
+        if (i18n == null) {
+            String out = zhFallback;
+            for (java.util.Map.Entry<String, String> e : vars.entrySet()) {
+                out = out.replace("{" + e.getKey() + "}", e.getValue());
+            }
+            return out;
+        }
+        return i18n.msg(i18n.langFor(), key, vars);
     }
 
     public MaintenanceModeService maintenanceModeService() {
@@ -75,10 +115,10 @@ public class WorldMaintenanceService {
      * </ul>
      * 秒数按四舍五入取整（154901ms → 155s → {@code 2分35秒}）；负值按 0 处理。
      */
-    public static String formatDuration(long ms) {
+    public String formatDuration(long ms) {
         long safeMs = Math.max(0, ms);
         if (safeMs < 1000) {
-            return safeMs + "毫秒";
+            return safeMs + durWord("毫秒", "maintenance.duration.ms");
         }
         long totalSec = Math.round(safeMs / 1000.0);
         long hours = totalSec / 3600;
@@ -86,18 +126,19 @@ public class WorldMaintenanceService {
         long seconds = totalSec % 60;
         StringBuilder sb = new StringBuilder();
         if (hours > 0) {
-            sb.append(hours).append("小时");
+            sb.append(hours).append(durWord("小时", "maintenance.duration.hour"));
         }
         if (minutes > 0 || (hours > 0 && seconds > 0)) {
-            sb.append(minutes).append("分");
+            sb.append(minutes).append(durWord("分", "maintenance.duration.min"));
         }
         if (seconds > 0 || (hours == 0 && minutes == 0)) {
-            sb.append(seconds).append("秒");
+            sb.append(seconds).append(durWord("秒", "maintenance.duration.sec"));
         }
         return sb.toString();
     }
 
-    private Function1<ProgressEvent, Unit> progressHandler(String label, Consumer<String> callback) {
+    private Function1<ProgressEvent, Unit> progressHandler(boolean backupMode, Consumer<String> callback) {
+        String label = modeWord(backupMode);
         return progressEvent -> {
             Long current = progressEvent.getCurrent();
             Long total = progressEvent.getTotal();
@@ -144,12 +185,12 @@ public class WorldMaintenanceService {
             // 同步推进度到维护模式状态机：MOTD/登录拦截按此渲染「阶段+百分比+预计剩余」
             long etaSeconds = Math.max(0, Math.round(etaMs / 1000.0));
             maintenanceModeService.updateProgress(stageI18n, percent, etaSeconds);
-            String eventKey = "备份".equals(label) ? "maintenance_backup_stage" : "maintenance_optimize_stage";
+            String eventKey = backupMode ? "maintenance_backup_stage" : "maintenance_optimize_stage";
             MessageEnvelope env = configs.renderEvent(eventKey, vars);
             server.logger().info(env.message());
             if (progressEvent.getStage() == ProgressStage.Done) {
                 long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
-                String doneKey = "备份".equals(label) ? "maintenance_backup_done" : "maintenance_optimize_done";
+                String doneKey = backupMode ? "maintenance_backup_done" : "maintenance_optimize_done";
                 MessageEnvelope done = configs.renderEvent(
                         doneKey,
                         java.util.Map.of(
@@ -182,7 +223,8 @@ public class WorldMaintenanceService {
         return Math.max(1, Runtime.getRuntime().availableProcessors());
     }
 
-    private Function1<Object, Unit> errorHandler(String label, Consumer<String> callback) {
+    private Function1<Object, Unit> errorHandler(boolean backupMode, Consumer<String> callback) {
+        String label = modeWord(backupMode);
         return obj -> {
             server.logger().warning(String.valueOf(obj));
             String s = String.valueOf(obj);
@@ -194,14 +236,17 @@ public class WorldMaintenanceService {
                     || s.contains("corrupted length field")) {
                 chunkErrorCount.incrementAndGet();
                 if (chunkErrorCount.get() == 1) {
-                    callback.accept("发现" + label + "目标包含损坏区块，将安全保留原始数据（不丢失）...");
+                    callback.accept(mt(
+                            "maintenance.cmd.chunk_found",
+                            "发现{mode}目标包含损坏区块，将安全保留原始数据（不丢失）...",
+                            java.util.Map.of("mode", label)));
                 }
                 return Unit.INSTANCE;
             }
             // 致命错误（压缩失败/输出失败等）：限频 1 次完整失败通知，避免重复刷屏
             if (fatalErrorReported.compareAndSet(false, true)) {
                 long durationMs = Math.max(0, System.currentTimeMillis() - startMs);
-                String errKey = "备份".equals(label) ? "maintenance_backup_error" : "maintenance_optimize_error";
+                String errKey = backupMode ? "maintenance_backup_error" : "maintenance_optimize_error";
                 MessageEnvelope err = configs.renderEvent(
                         errKey,
                         java.util.Map.of(
@@ -213,7 +258,7 @@ public class WorldMaintenanceService {
                                 formatDuration(durationMs)));
                 callback.accept(err.message());
                 notifier.event(errKey, err);
-                callback.accept("地图" + label + "失败");
+                callback.accept(mt("maintenance.cmd.map_failed", "地图{mode}失败", java.util.Map.of("mode", label)));
             }
             return Unit.INSTANCE;
         };
@@ -221,18 +266,21 @@ public class WorldMaintenanceService {
 
     private void runOptimizerJob(
             boolean backupMode, Path input, Path outputOrNull, long tickTimeThreshold, Consumer<String> callback) {
-        callback.accept("正在" + (backupMode ? "备份" : "优化") + "地图，请稍等......");
-        String label = backupMode ? "备份" : "优化";
+        String label = modeWord(backupMode);
+        callback.accept(
+                backupMode
+                        ? mt("maintenance.cmd.starting_backup", "正在备份地图，请稍等......")
+                        : mt("maintenance.cmd.starting_optimize", "正在优化地图，请稍等......"));
         DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
         RealFileSystem fs = RealFileSystem.INSTANCE;
         DefaultOptimizer.INSTANCE.run(input, outputOrNull, builder -> {
             builder.setFilter(new FilterOptions(tickTimeThreshold, false, true));
             builder.setOutputOptions(new OutputOptions(!backupMode, backupMode, true, true, false));
             builder.setProgress(new ProgressOptions(100L, 1000L, event -> {
-                progressHandler(label, callback).invoke(event);
+                progressHandler(backupMode, callback).invoke(event);
             }));
             builder.setRuntime(new RuntimeOptions(cpuParallelism()));
-            builder.setHooks(new Hooks(errorHandler(label, callback), null, null));
+            builder.setHooks(new Hooks(errorHandler(backupMode, callback), null, null));
             // IOOptions 第三参 syncOnFinalize=true（0.3.0+ API，与默认一致）：跳过 finalize 后
             // 逐 region fsync（更快）；zip 由 backup-core 写到 output 父目录（backup/）
             builder.setIo(new IOOptions(fs, mcaIOFactory, true));
@@ -318,24 +366,30 @@ public class WorldMaintenanceService {
                     File worldBackupDir = new File(server.server().getWorldContainer(), "backup");
                     if (!worldBackupDir.exists() && !worldBackupDir.mkdirs()) {
                         server.logger().warning("创建地图备份目录失败: " + worldBackupDir.getAbsolutePath());
-                        callback.accept("地图备份失败");
+                        callback.accept(mt("maintenance.cmd.backup_failed", "地图备份失败"));
                         return;
                     }
                     Path input = worldDir.toPath();
-                    callback.accept("服务器地图目录：" + input);
+                    callback.accept(mt(
+                            "maintenance.cmd.world_dir",
+                            "服务器地图目录：{dir}",
+                            java.util.Map.of("dir", String.valueOf(input))));
                     // 中间目录放备份结果目录（backup/tempDir）：backup-core 0.3.x 校验要求
                     // output 与 input（世界目录）不重叠——backup/ 是世界目录的兄弟路径，天然满足；
                     // zip 由 backup-core 写到 output 父目录（backup/），无需移动。
                     // 崩溃/断电残留由启动清理兜底（cleanupStaleBackupTemp）。
                     Path output = worldBackupDir.toPath().resolve("tempDir");
-                    callback.accept("地图备份目录：" + worldBackupDir);
+                    callback.accept(mt(
+                            "maintenance.cmd.backup_dir",
+                            "地图备份目录：{dir}",
+                            java.util.Map.of("dir", String.valueOf(worldBackupDir))));
                     long before = latestBackupZipMtime(worldBackupDir);
                     runOptimizerJob(true, input, output, tickTimeThreshold, callback);
                     if (latestBackupZipMtime(worldBackupDir) <= before) {
                         // backup-core 完成但 backup/ 无新 zip（压缩失败被内部吞掉等）：
                         // 明确报失败且跳过 prune——旧备份是唯一可靠副本，不能误删
                         server.logger().severe("备份文件未落盘: " + worldBackupDir.getAbsolutePath());
-                        callback.accept("地图备份失败（备份文件未生成，请检查服务器日志与磁盘空间）");
+                        callback.accept(mt("maintenance.cmd.no_zip_produced", "地图备份失败（备份文件未生成，请检查服务器日志与磁盘空间）"));
                         return;
                     }
                     pruneOldZipsWithLogger(worldBackupDir, retainCount, server.logger());

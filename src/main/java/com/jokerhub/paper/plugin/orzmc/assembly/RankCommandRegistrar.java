@@ -8,15 +8,18 @@ import static com.jokerhub.paper.plugin.orzmc.assembly.BrigadierSupport.withPris
 import static io.papermc.paper.command.brigadier.Commands.argument;
 import static io.papermc.paper.command.brigadier.Commands.literal;
 
+import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.rank.RankCommandService;
 import com.jokerhub.paper.plugin.orzmc.features.rank.RankService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.papermc.paper.command.brigadier.Commands;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -32,6 +35,7 @@ final class RankCommandRegistrar implements CommandGroup {
     private final Supplier<CommandPolicies> cpSupplier;
     private final Predicate<Player> prisonCheck;
     private final I18nService i18n;
+    private final CommandFeedbackService feedback;
 
     RankCommandRegistrar(
             RankCommandService rankCommandService,
@@ -46,6 +50,7 @@ final class RankCommandRegistrar implements CommandGroup {
         this.cpSupplier = cpSupplier;
         this.prisonCheck = prisonCheck;
         this.i18n = i18n;
+        this.feedback = new CommandFeedbackService(i18n);
     }
 
     @Override
@@ -65,7 +70,8 @@ final class RankCommandRegistrar implements CommandGroup {
                                     String playerName = ctx.getArgument("player", String.class);
                                     UUID id = rankService.resolvePlayerId(playerName);
                                     if (id == null) {
-                                        sender.sendMessage(styles.error("找不到玩家: " + playerName));
+                                        sender.sendMessage(styles.error(feedback.defaultMessage(
+                                                MessageKeys.CMD_RANK_PLAYER_NOT_FOUND, Map.of("player", playerName))));
                                         return 1;
                                     }
                                     renderRankResult(sender, rankCommandService.statusOf(id));
@@ -75,14 +81,14 @@ final class RankCommandRegistrar implements CommandGroup {
                         .executes(guardedExec("rank", rankInterceptors, ctx -> {
                             var sender = ctx.getSource().getSender();
                             if (!(sender instanceof Player player)) {
-                                sender.sendMessage(styles.error("仅玩家可用"));
+                                sender.sendMessage(styles.error(feedback.playerRequiredMessage(sender)));
                                 return 1;
                             }
                             renderRankResult(sender, rankCommandService.status(player));
                             return 1;
                         }))
                         .build(),
-                "查询权限组与晋升进度",
+                feedback.commandDescription(MessageKeys.CMD_DESC_RANK),
                 List.of("rank"));
     }
 

@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.I18nConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,7 +43,7 @@ class OrzConfigCommandTest {
         when(textStyles.colorInfo()).thenReturn(TextColor.fromCSSHexString("#55AAFF"));
         when(textStyles.colorWarn()).thenReturn(TextColor.fromCSSHexString("#FFAA00"));
 
-        cmd = new OrzConfigCommand(configService, textStyles);
+        cmd = new OrzConfigCommand(configService, textStyles, () -> {}, zhI18n());
     }
 
     // ---------------------------------------------------------------
@@ -160,7 +162,7 @@ class OrzConfigCommandTest {
     void set_wrongType_showsTypeHelp() {
         // Boolean parseValue throws IllegalArgumentException for invalid input
         cmd.onCommand(sender, command, "orzmc", new String[] {"set", "tnt.enable", "not_a_boolean"});
-        verify(textStyles).error(contains("Boolean 类型需要"));
+        verify(textStyles).error(contains("无法解析为 Boolean 类型"));
     }
 
     @Test
@@ -643,6 +645,18 @@ class OrzConfigCommandTest {
     void set_wrongBooleanValue_showsTypeHelp() {
         // Boolean parseValue throws IllegalArgumentException with type guidance
         cmd.onCommand(sender, command, "orzmc", new String[] {"set", "tnt.enable", "bogus"});
-        verify(textStyles).error(contains("Boolean 类型需要"));
+        verify(textStyles).error(contains("无法解析为 Boolean 类型"));
+    }
+
+    private static I18nService zhI18n() {
+        try {
+            return new I18nService(
+                    OrzConfigCommandTest.class.getClassLoader(),
+                    java.nio.file.Files.createTempDirectory("orzmc-config-i18n"),
+                    () -> I18nConfig.DEFAULT,
+                    null);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

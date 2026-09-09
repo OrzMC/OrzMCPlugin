@@ -41,8 +41,8 @@ public final class UpdateModule implements ServiceModule {
     UpdateModule(PlatformModule platform, UpdateService updateService) {
         this.platform = platform;
         this.updateService = updateService;
-        this.updateCommandService =
-                new UpdateCommandService(platform.serverFacade(), updateService, platform.textStyles());
+        this.updateCommandService = new UpdateCommandService(
+                platform.serverFacade(), updateService, platform.textStyles(), platform.i18nService());
     }
 
     private static UpdateService buildUpdateService(PlatformModule platform) {

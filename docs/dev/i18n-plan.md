@@ -1,6 +1,6 @@
 # 多语言（i18n）方案 v2：中英双语起步、可扩展语言包
 
-> **状态：一期实施完成（P0–P5 已全部合入 develop；完成台账见 §8）**｜**最后更新**：2026-09-08
+> **状态：一期实施完成（P0–P5）+ P6 遗留补齐（#414–#423）已全部合入 develop；完成台账见 §8**｜**最后更新**：2026-09-09
 > **范围**：一期英文 + 中文；架构上预留第三语言扩展（新增语言 = 加一个 yml 资源，业务代码零改动）。
 > **配套**：本方案为计划文档；实施按 §5 拆 PR，当前进行 P0 基础设施。
 
@@ -247,7 +247,14 @@ public final class I18nService {
 | P4d-2 | Templates 记录 vestige 收编删除 | #397 |
 | P5 | 孤儿键清理/var 值词汇（serverlife/audit/playermode）/Paginator 空态//blacklist 域/文档同步 | #399–#404 |
 
-代码侧 P5 全完成；**残余**：真机双语冒烟（owner，含 13→14 升级对照，见交接「未完成清单 1」）+ en 校对（D7）。
+P6 遗留补齐（2026-09-08/09，#414–#423）：$ 群帮助装配断点（#414）；游戏命令面 desc/提示（#415–#418，cmd.desc.*/cmd.update_*）；运维 /config 树（#419–#421，cmd.config_*/cmd.config_im_*，R1）；review type 展示名与摘要（#422–#423，review.type.<id>/summary_prefix）。真机双语冒烟已执行（一期收尾阶段，含 13→14 升级对照）。
+
+**i18n 边界豁免（2026-09-09 复核定稿）**：
+| 面 | 决策 |
+|:--|:--|
+| 配置帮助说明（`ConfigPath.all()` 70 条 description） | 数据文档豁免：admin 运维帮助数据，不随 default_lang；如需英文化另立 D1 工程（单一 PR 可控，见交接） |
+| 健康报告（`ConfigHealthCheck` + 20+ config record `validate().issues.add` 中文） | 半内部 admin 报告豁免：需 health 语言决议设计（D2 评估中，成本高收益低） |
+| logger/异常消息、数据内容（templates/guidebook/config 值）、平台适配器内部状态 | 豁免（非 UI 文案） |
 
 ## 附录 A：迁移示例（before → after）
 

@@ -8,9 +8,12 @@ import com.jokerhub.paper.plugin.orzmc.features.update.UpdateService.CheckOutcom
 import com.jokerhub.paper.plugin.orzmc.features.update.UpdateService.DownloadOutcome;
 import com.jokerhub.paper.plugin.orzmc.features.update.UpdateService.DownloadState;
 import com.jokerhub.paper.plugin.orzmc.features.update.UpdateService.State;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.I18nConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
 import com.jokerhub.paper.plugin.orzmc.infra.net.HangarClient.LatestVersion;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import org.bukkit.command.CommandSender;
@@ -50,8 +53,14 @@ class UpdateCommandServiceTest {
     private UpdateCommandService service;
 
     @BeforeEach
-    void setUp() {
-        service = new UpdateCommandService(server, updates, styles);
+    void setUp() throws Exception {
+        // 真实 zh I18nService（temp overlay）：cmd.update_* 渲染与语言包 zh 值逐字对齐
+        I18nService i18n = new I18nService(
+                UpdateCommandServiceTest.class.getClassLoader(),
+                Files.createTempDirectory("orzmc-update-i18n"),
+                () -> I18nConfig.DEFAULT,
+                null);
+        service = new UpdateCommandService(server, updates, styles, i18n);
         // console 回投走 runSync：内联执行，让 sender.sendMessage 在测试线程立即发生
         lenient()
                 .doAnswer(inv -> {
@@ -147,7 +156,7 @@ class UpdateCommandServiceTest {
 
         service.downloadNow(sender);
 
-        verify(styles).info("OrzMC-1.0.24-dev.361.jar 已下载（重启后生效）");
+        verify(styles).info("新版本已下载（重启后生效）");
     }
 
     @Test
