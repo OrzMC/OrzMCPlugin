@@ -102,10 +102,10 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         when(bukkitServer.getWorlds()).thenReturn(List.of(worldMock));
 
         service = new WorldMaintenanceService(
-                server, configs, mock(OrzTextStyles.class), mock(Notifier.class), new MaintenanceModeService());
+                server, configs, mock(OrzTextStyles.class), mock(Notifier.class), new MaintenanceModeService(), null);
     }
 
-    // ===== 静态方法（原有） =====
+    // ===== 静态方法（原有；formatDuration 已实例化 P7-D，i18n null 回落 zh 原样） =====
 
     @Test
     public void testPruneOldZips() throws Exception {
@@ -126,35 +126,35 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
 
     @Test
     public void formatDuration_milliseconds() {
-        Assertions.assertEquals("0毫秒", WorldMaintenanceService.formatDuration(0));
-        Assertions.assertEquals("854毫秒", WorldMaintenanceService.formatDuration(854));
-        Assertions.assertEquals("999毫秒", WorldMaintenanceService.formatDuration(999));
-        Assertions.assertEquals("0毫秒", WorldMaintenanceService.formatDuration(-5));
-        Assertions.assertEquals("0毫秒", WorldMaintenanceService.formatDuration(-1_000));
+        Assertions.assertEquals("0毫秒", service.formatDuration(0));
+        Assertions.assertEquals("854毫秒", service.formatDuration(854));
+        Assertions.assertEquals("999毫秒", service.formatDuration(999));
+        Assertions.assertEquals("0毫秒", service.formatDuration(-5));
+        Assertions.assertEquals("0毫秒", service.formatDuration(-1_000));
     }
 
     @Test
     public void formatDuration_seconds() {
-        Assertions.assertEquals("1秒", WorldMaintenanceService.formatDuration(1000));
-        Assertions.assertEquals("2秒", WorldMaintenanceService.formatDuration(1500));
-        Assertions.assertEquals("59秒", WorldMaintenanceService.formatDuration(59_000));
-        Assertions.assertEquals("1分", WorldMaintenanceService.formatDuration(59_600));
+        Assertions.assertEquals("1秒", service.formatDuration(1000));
+        Assertions.assertEquals("2秒", service.formatDuration(1500));
+        Assertions.assertEquals("59秒", service.formatDuration(59_000));
+        Assertions.assertEquals("1分", service.formatDuration(59_600));
     }
 
     @Test
     public void formatDuration_minutes() {
-        Assertions.assertEquals("1分", WorldMaintenanceService.formatDuration(60_000));
-        Assertions.assertEquals("2分35秒", WorldMaintenanceService.formatDuration(154_901));
-        Assertions.assertEquals("59分59秒", WorldMaintenanceService.formatDuration(3_599_000));
+        Assertions.assertEquals("1分", service.formatDuration(60_000));
+        Assertions.assertEquals("2分35秒", service.formatDuration(154_901));
+        Assertions.assertEquals("59分59秒", service.formatDuration(3_599_000));
     }
 
     @Test
     public void formatDuration_hours() {
-        Assertions.assertEquals("1小时", WorldMaintenanceService.formatDuration(3_600_000));
-        Assertions.assertEquals("1小时1分1秒", WorldMaintenanceService.formatDuration(3_661_000));
-        Assertions.assertEquals("2小时3分", WorldMaintenanceService.formatDuration(7_380_000));
-        Assertions.assertEquals("1小时0分5秒", WorldMaintenanceService.formatDuration(3_605_000));
-        Assertions.assertEquals("1小时", WorldMaintenanceService.formatDuration(3_599_500));
+        Assertions.assertEquals("1小时", service.formatDuration(3_600_000));
+        Assertions.assertEquals("1小时1分1秒", service.formatDuration(3_661_000));
+        Assertions.assertEquals("2小时3分", service.formatDuration(7_380_000));
+        Assertions.assertEquals("1小时0分5秒", service.formatDuration(3_605_000));
+        Assertions.assertEquals("1小时", service.formatDuration(3_599_500));
     }
 
     @Test
@@ -217,7 +217,7 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         when(held.plugin()).thenReturn(heldPlugin);
         heldServer = held;
         return new WorldMaintenanceService(
-                held, configs, mock(OrzTextStyles.class), mock(Notifier.class), new MaintenanceModeService());
+                held, configs, mock(OrzTextStyles.class), mock(Notifier.class), new MaintenanceModeService(), null);
     }
 
     @Test
@@ -273,8 +273,8 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
     @Test
     public void runExclusive_drivesMaintenanceModeEnterAndExit() {
         MaintenanceModeService mode = new MaintenanceModeService();
-        WorldMaintenanceService svc =
-                new WorldMaintenanceService(server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode);
+        WorldMaintenanceService svc = new WorldMaintenanceService(
+                server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode, null);
         AtomicBoolean sawActiveDuring = new AtomicBoolean(false);
         MaintenanceModeService.MaintenanceReason[] reasonDuring = new MaintenanceModeService.MaintenanceReason[1];
 
@@ -295,8 +295,8 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
     public void runExclusive_restoresManualAfterBackup() {
         // 手动维护期间备份照常执行：reason 被 BACKUP 覆盖，结束后恢复 MANUAL（wasManual 还原）
         MaintenanceModeService mode = new MaintenanceModeService();
-        WorldMaintenanceService svc =
-                new WorldMaintenanceService(server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode);
+        WorldMaintenanceService svc = new WorldMaintenanceService(
+                server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode, null);
         mode.enter(MaintenanceModeService.MaintenanceReason.MANUAL);
 
         svc.runExclusive(MaintenanceModeService.MaintenanceReason.BACKUP, () -> {}, null);
@@ -308,16 +308,16 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
     @Test
     public void progressHandler_updatesMaintenanceModeProgress() throws Exception {
         MaintenanceModeService mode = new MaintenanceModeService();
-        WorldMaintenanceService svc =
-                new WorldMaintenanceService(server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode);
+        WorldMaintenanceService svc = new WorldMaintenanceService(
+                server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode, null);
         // 反射取私有 progressHandler，用 mock ProgressEvent 驱动进度同步（真实备份链路已由 backup_* 覆盖）
         java.lang.reflect.Method m =
-                WorldMaintenanceService.class.getDeclaredMethod("progressHandler", String.class, Consumer.class);
+                WorldMaintenanceService.class.getDeclaredMethod("progressHandler", boolean.class, Consumer.class);
         m.setAccessible(true);
         @SuppressWarnings("unchecked")
         kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> handler =
                 (kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit>)
-                        m.invoke(svc, "备份", (Consumer<String>) msg -> {});
+                        m.invoke(svc, true, (Consumer<String>) msg -> {});
         ProgressEvent evt = mock(ProgressEvent.class);
         when(evt.getCurrent()).thenReturn(50L);
         when(evt.getTotal()).thenReturn(100L);
@@ -491,7 +491,7 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         OrzTextStyles echoStyles = mock(OrzTextStyles.class);
         when(echoStyles.warn(anyString())).thenAnswer(inv -> Component.text((String) inv.getArgument(0)));
         WorldMaintenanceService svc = new WorldMaintenanceService(
-                server, configs, echoStyles, mock(Notifier.class), new MaintenanceModeService());
+                server, configs, echoStyles, mock(Notifier.class), new MaintenanceModeService(), null);
         // Folia：踢人消费者投递到 region 线程的 scheduler.run——同步执行以捕获 p.kick 入参
         doAnswer(inv -> {
                     ((Consumer<ScheduledTask>) inv.getArgument(1)).accept(mock(ScheduledTask.class));

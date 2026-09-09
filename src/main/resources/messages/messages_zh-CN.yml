@@ -248,6 +248,14 @@ rank:
 
 # --- maintenance.cmd.*（/maintenance 状态；P2g1。运维文案默认语言 R1） ---
 maintenance:
+  mode:
+    backup: "备份"
+    optimize: "优化"
+  duration:
+    ms: "毫秒"
+    hour: "小时"
+    min: "分"
+    sec: "秒"
   cmd:
     busy_manual_enter: "当前正在执行地图备份/优化，无法手动进入维护模式"
     already_manual: "服务器已处于手动维护模式"
