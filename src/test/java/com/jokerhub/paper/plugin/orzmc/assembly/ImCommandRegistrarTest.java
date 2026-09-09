@@ -37,7 +37,8 @@ class ImCommandRegistrarTest {
     private static CommandDispatcher<CommandSourceStack> dispatcher() {
         // usage 分支渲染需非空文案：langFor/msg 打桩（无 MockitoExtension，无 strict 检查）
         org.mockito.Mockito.when(mockI18n.langFor()).thenReturn(com.jokerhub.paper.plugin.orzmc.infra.i18n.Lang.ZH_CN);
-        org.mockito.Mockito.when(mockI18n.msg(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
+        org.mockito.Mockito.when(
+                        mockI18n.msg(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn("usage");
         CommandDispatcher<CommandSourceStack> d = new CommandDispatcher<>();
         LiteralCommandNode<CommandSourceStack> im = ImCommandRegistrar.build(svc, mockI18n);
