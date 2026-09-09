@@ -15,6 +15,7 @@
 - 键命名空间：`cmd.desc.<name>`、`cmd.error.*`、`cmd.<topic>_<verb>`；MessageKeys 常量同步；语言包尾部追加（串行链式合入）。
 
 ## 已完成（按时间倒序）
+- PR #420 @ 68375da：G6b /config im status/setup 面板行（25 键 cmd.config_im_panel_*/setup_*/state.* 词表；describe 实例化；lastError 原样）
 - PR #419 @ f65014b：G6a /config im 子树 + desc.config（ConfigCommandRegistrar desc、ImCommandRegistrar 3 usage、ImAdminService 绑定/投递/权限/校验 15 键 cmd.config_im_*/cmd.console_op_only；bindError 实例化；ImAdminService 注入 i18n）。教训：本地最后一次 patch 后漏跑 spotlessApply → CI spotlessCheck 红一次（补 style commit）
 - PR #418 @ 747cf91：G3u UpdateCommandService /update 状态 12 键 cmd.update_*（describeCheck/download 模板化，不再透服务层 detail）
 - PR #417 @ fdf49ff：G3 Rank/Prison/Update/Blacklist Registrar desc×4 + 提示键（+ handoff 顺带刷新）

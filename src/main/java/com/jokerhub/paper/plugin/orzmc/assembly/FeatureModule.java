@@ -231,7 +231,10 @@ public final class FeatureModule implements ServiceModule {
                         maintenanceModule.worldMaintenanceService(),
                         platform.i18nService());
         this.orzConfigCommand = new OrzConfigCommand(
-                platform.configService(), platform.textStyles(), botModule.botMessageService()::reloadConfig);
+                platform.configService(),
+                platform.textStyles(),
+                botModule.botMessageService()::reloadConfig,
+                platform.i18nService());
         // 权限晋升（Rank）模块：时长（读服务器原生 stats 文件）+ 自动晋升 + 通用审核框架
         // permission.yml 两段式统一存储（config 阈值 / reviews 审核记录；权限组状态由 LP track 持有）
         var permissionStore =
