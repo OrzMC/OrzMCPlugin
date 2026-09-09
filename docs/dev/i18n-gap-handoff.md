@@ -15,14 +15,16 @@
 - 键命名空间：`cmd.desc.<name>`、`cmd.error.*`、`cmd.<topic>_<verb>`；MessageKeys 常量同步；语言包尾部追加（串行链式合入）。
 
 ## P7 进行（docs/dev/i18n-gap-audit-p7.md）
-- [x] **P7-A** /bot 面板 botstatus.* 词表（#425 @ 844dc66；R1；测试注入 zh；集成断言 WS 大写适配）
-- [ ] **P7-B** Paginator 页脚参数化/键化（$w/$v 分页「第 x/y 页」→ 接 bot.list.page_meta 或 Paginator 页脚参数）
-- [ ] **P7-C** $e 回显（ServerFacade ExecResult.message fallback + CommandOutputAssembler 截断提示）键化（先验消费通道）
+- [x] **P7-A** /bot 面板 botstatus.* 词表（#425 @ 844dc66）
+- [x] **P7-B** 复核修正：分页已走 paginatePages 键化 → 删 dead paginate（#426 @ d7b6ed7）
+- [x] **P7-C** $e 回显（#427 @ 28579e7）：assemble {count} 模板参数（bot.e.truncated）+ execStateText（bot.e.exec_ok/not_found）；ExecResult.message 仅 logger 消费
 - [ ] **P7-D** WorldMaintenanceService callback 文本（时长单位/结果行）——先厘清 callback 消费通道再定
 - [ ] **P7-E** UnavailableBotMessageService 停用引导词表（R1）
 - P7 收尾：audit 文档勾验 + CHANGELOG + 真机视觉对照
 
 ## 已完成（按时间倒序）
+- PR #427 @ 28579e7：P7-C $e 回显语言化
+- PR #426 @ d7b6ed7：P7-B 删 Paginator zh 页脚 dead code
 - PR #425 @ 844dc66：P7-A /bot 状态面板语言化（botstatus.* 15 键）
 - PR #423 @ f66ca11：G3b-2 review 摘要渲染层语言化（summary_prefix/reason_sep 词表，4 UI 处，zh 逐字保持）
 - PR #422 @ b42bfa9：G3b review type 展示名词表化（review.type.<id>；ReviewService 9 处 + ReviewCommandService/RankCommandService/ReviewCommandHandler；PlayerRankDisplayService 系玩家昵称豁免；summary 前缀 zh 动词残留 G3b-2 记录）
