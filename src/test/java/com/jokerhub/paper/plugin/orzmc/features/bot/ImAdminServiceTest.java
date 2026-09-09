@@ -75,7 +75,23 @@ class ImAdminServiceTest {
                 new HealthRegistry());
         builtin.candidates().record("qq:group:G-STRANGER");
         service = new ImAdminService(
-                new OrzTextStyles(stylesConfig()), configService, new HealthAccessor(new HealthRegistry()), builtin);
+                new OrzTextStyles(stylesConfig()),
+                configService,
+                new HealthAccessor(new HealthRegistry()),
+                builtin,
+                zhI18n());
+    }
+
+    private static com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService zhI18n() {
+        try {
+            return new com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService(
+                    ImAdminServiceTest.class.getClassLoader(),
+                    java.nio.file.Files.createTempDirectory("orzmc-im-admin-i18n"),
+                    () -> com.jokerhub.paper.plugin.orzmc.infra.config.configs.I18nConfig.DEFAULT,
+                    null);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static ConfigService stylesConfig() {
@@ -226,11 +242,11 @@ class ImAdminServiceTest {
 
     @Test
     void sessionValue_andBindError_shapeChecks() {
-        assertNull(ImAdminService.bindError("qq", "group", "G-1", "admin_group"));
-        assertNull(ImAdminService.bindError("qq", "user", "U-1", "admin_dm"));
+        assertNull(service.bindError("qq", "group", "G-1", "admin_group"));
+        assertNull(service.bindError("qq", "user", "U-1", "admin_dm"));
         assertEquals("group:G-1", ImAdminService.sessionValue("group", "G-1"));
         assertEquals("group:G-1", ImAdminService.sessionValue("group", "group:G-1"), "已带前缀原样使用");
-        assertTrue(ImAdminService.bindError("qq", "user", "U-1", "owner") != null);
+        assertTrue(service.bindError("qq", "user", "U-1", "owner") != null);
     }
 
     private static ServerLogger silentLogger() {

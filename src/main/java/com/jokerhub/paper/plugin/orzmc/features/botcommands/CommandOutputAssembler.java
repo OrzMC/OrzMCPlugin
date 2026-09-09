@@ -22,9 +22,11 @@ public final class CommandOutputAssembler {
      * @param syncLines 同步捕获的命令输出行（可能为空）
      * @param windowLogLines 日志时间窗内新增的行（可能为空）
      * @param maxLines 最大行数，超过则截断
+     * @param truncateTemplate 截断提示行模板（含 {@code {count}} 占位，由调用方按语言包提供；P7-C）
      * @return 组装后的多行文本；全部被过滤时返回空字符串
      */
-    public static String assemble(List<String> syncLines, List<String> windowLogLines, int maxLines) {
+    public static String assemble(
+            List<String> syncLines, List<String> windowLogLines, int maxLines, String truncateTemplate) {
         if (maxLines <= 0) {
             maxLines = 1;
         }
@@ -47,7 +49,7 @@ public final class CommandOutputAssembler {
             return String.join("\n", merged);
         }
         List<String> head = new ArrayList<>(merged.subList(0, maxLines));
-        head.add("…（输出过长，已截断，共 " + merged.size() + " 行）");
+        head.add(truncateTemplate.replace("{count}", String.valueOf(merged.size())));
         return String.join("\n", head);
     }
 

@@ -10,6 +10,7 @@ import static io.papermc.paper.command.brigadier.Commands.literal;
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
 import com.jokerhub.paper.plugin.orzmc.commands.OrzConfigCommand;
 import com.jokerhub.paper.plugin.orzmc.features.bot.ImAdminService;
+import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.AdminOnlyInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.PrisonDenyInterceptor;
@@ -28,6 +29,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.BotMessageService;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.BuiltinImDriver;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -62,6 +64,8 @@ final class FeatureCommandRegistrar {
     private final Predicate<Player> prisonDenyCheck;
     /** i18n 服务（拦截器提示按发送者语言渲染）。 */
     private final I18nService i18n;
+    /** 游戏命令反馈文案（P6：desc/提示语言包化）。 */
+    private final CommandFeedbackService feedback;
 
     /** 各特性命令组（一个文件一个特性）。 */
     private final List<CommandGroup> groups;
@@ -89,6 +93,7 @@ final class FeatureCommandRegistrar {
         this.platform = platform;
         this.botModule = botModule;
         this.i18n = platform.i18nService();
+        this.feedback = new CommandFeedbackService(i18n);
         this.guideService = guideService;
         this.menuCommandService = menuCommandService;
         this.teleportBowService = teleportBowService;
@@ -100,8 +105,8 @@ final class FeatureCommandRegistrar {
         // IM 管理（/config im）：builtin 驱动存在才可投递测试；否则相关命令给引导
         BotMessageService botSvc = botModule.botMessageService();
         BuiltinImDriver builtin = botSvc instanceof BuiltinImDriver b ? b : null;
-        ImAdminService imAdmin =
-                new ImAdminService(styles, platform.configService(), botModule.healthAccessor(), builtin);
+        ImAdminService imAdmin = new ImAdminService(
+                styles, platform.configService(), botModule.healthAccessor(), builtin, platform.i18nService());
         this.groups = List.of(
                 new PortalCommandRegistrar(portalCommandService, styles, cpSupplier, prisonDenyCheck, i18n),
                 new BlacklistCommandRegistrar(accessRuleService, styles, i18n),
@@ -146,7 +151,7 @@ final class FeatureCommandRegistrar {
             registerSimple(
                     commands,
                     "guide",
-                    "获取新手教程，更快的熟悉服务器",
+                    feedback.commandDescription(MessageKeys.CMD_DESC_GUIDE),
                     List.of(),
                     cpSupplier,
                     false,
@@ -154,7 +159,7 @@ final class FeatureCommandRegistrar {
             registerSimple(
                     commands,
                     "menu",
-                    "菜单展示",
+                    feedback.commandDescription(MessageKeys.CMD_DESC_MENU),
                     List.of(),
                     cpSupplier,
                     false,
@@ -162,7 +167,7 @@ final class FeatureCommandRegistrar {
             registerSimple(
                     commands,
                     "tpbow",
-                    "传送弓，射出的箭落地时会把自己传送到箭落地的位置",
+                    feedback.commandDescription(MessageKeys.CMD_DESC_TPBOW),
                     List.of("tpb"),
                     cpSupplier,
                     false,
@@ -182,7 +187,10 @@ final class FeatureCommandRegistrar {
                             .then(argument("cmd", StringArgumentType.greedyString())
                                     .executes(guardedExec("orzdebug", debugInterceptors, ctx -> {
                                         String cmd = ctx.getArgument("cmd", String.class);
-                                        ctx.getSource().getSender().sendMessage("debug 已受理（模拟 Bot 入站命令）");
+                                        ctx.getSource()
+                                                .getSender()
+                                                .sendMessage(
+                                                        feedback.defaultMessage(MessageKeys.CMD_ORZDEBUG_ACCEPTED));
                                         var inbound = botModule.botInboundHandler();
                                         platform.serverFacade().runAsync(() -> {
                                             try {
@@ -199,11 +207,13 @@ final class FeatureCommandRegistrar {
                                         return 1;
                                     })))
                             .executes(guardedExec("orzdebug", debugInterceptors, ctx -> {
-                                ctx.getSource().getSender().sendMessage("用法: /orzdebug <Bot命令>");
+                                ctx.getSource()
+                                        .getSender()
+                                        .sendMessage(feedback.defaultMessage(MessageKeys.CMD_ORZDEBUG_USAGE));
                                 return 1;
                             }))
                             .build(),
-                    "模拟群里用户发 Bot 命令（调试用）",
+                    feedback.commandDescription(MessageKeys.CMD_DESC_ORZDEBUG),
                     List.of());
 
             // ---- Maintenance: /maintenance on|off|status（手动维护模式）----
@@ -217,13 +227,21 @@ final class FeatureCommandRegistrar {
                             .then(literal("on").executes(guardedExec("maintenance", maintenanceInterceptors, ctx -> {
                                 String result = maintSvc.enterManual();
                                 CommandSender sender = ctx.getSource().getSender();
-                                sender.sendMessage(result == null ? styles.success("已进入手动维护模式") : styles.error(result));
+                                sender.sendMessage(
+                                        result == null
+                                                ? styles.success(
+                                                        feedback.defaultMessage(MessageKeys.CMD_MAINTENANCE_ON))
+                                                : styles.error(result));
                                 return 1;
                             })))
                             .then(literal("off").executes(guardedExec("maintenance", maintenanceInterceptors, ctx -> {
                                 String result = maintSvc.exitManual();
                                 CommandSender sender = ctx.getSource().getSender();
-                                sender.sendMessage(result == null ? styles.success("已退出维护模式") : styles.error(result));
+                                sender.sendMessage(
+                                        result == null
+                                                ? styles.success(
+                                                        feedback.defaultMessage(MessageKeys.CMD_MAINTENANCE_OFF))
+                                                : styles.error(result));
                                 return 1;
                             })))
                             .then(literal("status")
@@ -232,11 +250,14 @@ final class FeatureCommandRegistrar {
                                         return 1;
                                     })))
                             .executes(guardedExec("maintenance", maintenanceInterceptors, ctx -> {
-                                ctx.getSource().getSender().sendMessage(styles.info("用法: /maintenance on|off|status"));
+                                ctx.getSource()
+                                        .getSender()
+                                        .sendMessage(styles.info(
+                                                feedback.defaultMessage(MessageKeys.CMD_MAINTENANCE_USAGE)));
                                 return 1;
                             }))
                             .build(),
-                    "手动维护模式管理（on/off/status）",
+                    feedback.commandDescription(MessageKeys.CMD_DESC_MAINTENANCE),
                     List.of("mt"));
         });
     }
@@ -264,7 +285,7 @@ final class FeatureCommandRegistrar {
                             // 不依赖 PlayerOnlyInterceptor 顺序兜底：显式判断，控制台执行给友好反馈
                             CommandSender sender = ctx.getSource().getSender();
                             if (!(sender instanceof Player player)) {
-                                sender.sendMessage(platform.textStyles().error("仅玩家可用"));
+                                sender.sendMessage(platform.textStyles().error(feedback.playerRequiredMessage(sender)));
                                 return 1;
                             }
                             action.accept(player);
@@ -305,7 +326,7 @@ final class FeatureCommandRegistrar {
                             return 1;
                         })))
                         .build(),
-                "查看机器人健康状态",
+                feedback.commandDescription(MessageKeys.CMD_DESC_BOT),
                 List.of());
     }
 }

@@ -6,14 +6,17 @@ import static com.jokerhub.paper.plugin.orzmc.assembly.BrigadierSupport.requirem
 import static io.papermc.paper.command.brigadier.Commands.argument;
 import static io.papermc.paper.command.brigadier.Commands.literal;
 
+import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.prison.PrisonCommandService;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import org.bukkit.command.CommandSender;
 
@@ -23,11 +26,13 @@ final class PrisonCommandRegistrar implements CommandGroup {
     private final PrisonCommandService svc;
     private final OrzTextStyles styles;
     private final I18nService i18n;
+    private final CommandFeedbackService feedback;
 
     PrisonCommandRegistrar(PrisonCommandService svc, OrzTextStyles styles, I18nService i18n) {
         this.svc = svc;
         this.styles = styles;
         this.i18n = i18n;
+        this.feedback = new CommandFeedbackService(i18n);
     }
 
     /** 坐牢: /prison <玩家> on（关入）/ off（释放）。仅 OP/orzmc.admin 可用（adminInterceptors）。 */
@@ -52,11 +57,13 @@ final class PrisonCommandRegistrar implements CommandGroup {
                                     return 1;
                                 }))))
                         .executes(guardedExec("prison", interceptors, ctx -> {
-                            ctx.getSource().getSender().sendMessage(styles.info("用法: /prison <玩家> on|off"));
+                            ctx.getSource()
+                                    .getSender()
+                                    .sendMessage(styles.info(feedback.defaultMessage(MessageKeys.CMD_PRISON_USAGE)));
                             return 1;
                         }))
                         .build(),
-                "坐牢管理（作弊玩家强制进入 prison 组）",
+                feedback.commandDescription(MessageKeys.CMD_DESC_PRISON),
                 List.of());
     }
 
@@ -65,7 +72,9 @@ final class PrisonCommandRegistrar implements CommandGroup {
             CommandSender sender, java.util.concurrent.CompletableFuture<PrisonCommandService.Result> future) {
         future.whenComplete((result, err) -> {
             if (err != null) {
-                sender.sendMessage(styles.error("坐牢操作异常: " + (err.getMessage() == null ? "未知错误" : err.getMessage())));
+                sender.sendMessage(styles.error(feedback.defaultMessage(
+                        MessageKeys.CMD_PRISON_FAILED,
+                        Map.of("detail", err.getMessage() == null ? "" : err.getMessage()))));
             } else if (result instanceof PrisonCommandService.Result.Success s) {
                 sender.sendMessage(s.message());
             } else if (result instanceof PrisonCommandService.Result.Failure f) {

@@ -12,6 +12,7 @@ import com.jokerhub.paper.plugin.orzmc.features.security.PlayerNameRule;
 import com.jokerhub.paper.plugin.orzmc.features.security.PlayerNameRuleFeedback;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nServiceHolder;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -239,7 +240,7 @@ final class BlacklistCommandRegistrar implements CommandGroup {
                             return 1;
                         }))
                         .build(),
-                "IP黑名单与玩家名规则管理",
+                msg(MessageKeys.CMD_DESC_BLACKLIST),
                 List.of("bl"));
     }
 

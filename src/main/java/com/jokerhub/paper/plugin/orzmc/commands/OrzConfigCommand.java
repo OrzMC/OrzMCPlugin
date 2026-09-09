@@ -2,9 +2,10 @@ package com.jokerhub.paper.plugin.orzmc.commands;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigPath;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.Map;
-import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -28,6 +29,7 @@ public class OrzConfigCommand implements CommandExecutor {
     private final OrzTextStyles textStyles;
     private final Map<String, ConfigPath> registry;
     private final Runnable easyBotConfigReload;
+    private final I18nService i18n;
     private Runnable rankColorsReload = () -> {};
     private Runnable accessRulesReload = () -> {};
     private Runnable commandPoliciesReload = () -> {};
@@ -35,14 +37,32 @@ public class OrzConfigCommand implements CommandExecutor {
     private Runnable i18nCustomReload = () -> {};
 
     public OrzConfigCommand(ConfigService configService, OrzTextStyles textStyles) {
-        this(configService, textStyles, () -> {});
+        this(configService, textStyles, () -> {}, null);
     }
 
     public OrzConfigCommand(ConfigService configService, OrzTextStyles textStyles, Runnable easyBotConfigReload) {
+        this(configService, textStyles, easyBotConfigReload, null);
+    }
+
+    public OrzConfigCommand(
+            ConfigService configService, OrzTextStyles textStyles, Runnable easyBotConfigReload, I18nService i18n) {
         this.configService = configService;
         this.textStyles = textStyles;
         this.registry = ConfigPath.all();
         this.easyBotConfigReload = easyBotConfigReload == null ? () -> {} : easyBotConfigReload;
+        this.i18n = i18n;
+    }
+
+    /** /config 为运维命令：文案按 default_lang（R1）决议；i18n 未注入（测试/早期）时返回 key 本体。 */
+    private String t(String key) {
+        return t(key, Map.of());
+    }
+
+    private String t(String key, Map<String, String> vars) {
+        if (i18n == null) {
+            return key;
+        }
+        return i18n.msg(i18n.langFor(), key, vars);
     }
 
     /**
@@ -101,66 +121,65 @@ public class OrzConfigCommand implements CommandExecutor {
     // ---------------------------------------------------------------
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage(textStyles.error("用法: /config <子命令> [参数]"));
-        sender.sendMessage(textStyles.info("  list                     列出所有可调配置项"));
-        sender.sendMessage(textStyles.info("  get <路径>                查看配置值"));
-        sender.sendMessage(textStyles.info("  set <路径> <值>           修改配置并持久化"));
-        sender.sendMessage(textStyles.info("  reset <路径>              恢复默认值"));
-        sender.sendMessage(textStyles.info("  dump                     打印完整配置树"));
-        sender.sendMessage(textStyles.info("  reload [name]            重新加载配置文件"));
-        sender.sendMessage(textStyles.info("示例: /config get tnt.enable"));
+        sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_USAGE_TITLE)));
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_USAGE_LIST)));
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_USAGE_GET)));
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_USAGE_SET)));
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_USAGE_RESET)));
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_USAGE_DUMP)));
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_USAGE_RELOAD)));
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_USAGE_EXAMPLE)));
     }
 
     private void handleList(CommandSender sender) {
-        sender.sendMessage(
-                Component.text("=== 可运行时配置项 (" + registry.size() + " 项) ===").color(textStyles.colorSuccess()));
+        sender.sendMessage(textStyles.success(
+                t(MessageKeys.CMD_CONFIG_LIST_TITLE, Map.of("count", String.valueOf(registry.size())))));
         String lastConfig = null;
         for (Map.Entry<String, ConfigPath> entry : registry.entrySet()) {
             ConfigPath cp = entry.getValue();
             if (!cp.configName().equals(lastConfig)) {
                 lastConfig = cp.configName();
-                sender.sendMessage(
-                        Component.text(" [" + cp.configName() + ".yml]").color(textStyles.colorSuccess()));
+                sender.sendMessage(textStyles.success(" [" + cp.configName() + ".yml]"));
             }
             String current = readCurrentDisplay(cp);
-            sender.sendMessage(Component.text("  " + entry.getKey())
-                    .append(Component.text(" = " + current + "  "))
-                    .append(Component.text(cp.description()))
-                    .color(textStyles.colorInfo()));
+            // 说明 = 配置元数据（cp.description()，数据面豁免，不 i18n）
+            sender.sendMessage(textStyles.info("  " + entry.getKey() + " = " + current + "  " + cp.description()));
         }
     }
 
     private void handleGet(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(textStyles.error("用法: /orzmc config get <路径>"));
+            sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_GET_USAGE)));
             return;
         }
         String key = args[1];
         ConfigPath cp = registry.get(key);
         if (cp == null) {
-            sender.sendMessage(textStyles.error("未知配置路径: " + key));
+            sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_UNKNOWN_PATH, Map.of("path", key))));
             return;
         }
         FileConfiguration cfg = configService.getConfig(cp.configName());
         Object current = cfg == null ? null : cfg.get(cp.path());
+        sender.sendMessage(textStyles.info(" " + key + " = " + formatValue(current)));
         sender.sendMessage(
-                Component.text(" " + key + " = " + formatValue(current)).color(textStyles.colorInfo()));
-        sender.sendMessage(Component.text("  类型: " + typeDisplay(cp.type())).color(textStyles.colorInfo()));
+                textStyles.info(t(MessageKeys.CMD_CONFIG_FIELD_TYPE, Map.of("type", typeDisplay(cp.type())))));
+        sender.sendMessage(textStyles.info(
+                t(MessageKeys.CMD_CONFIG_FIELD_DEFAULT, Map.of("value", formatValue(cp.defaultValue())))));
         sender.sendMessage(
-                Component.text("  默认: " + formatValue(cp.defaultValue())).color(textStyles.colorInfo()));
-        sender.sendMessage(Component.text("  文件: " + cp.configName() + ".yml").color(textStyles.colorInfo()));
-        sender.sendMessage(Component.text("  说明: " + cp.description()).color(textStyles.colorInfo()));
+                textStyles.info(t(MessageKeys.CMD_CONFIG_FIELD_FILE, Map.of("file", cp.configName() + ".yml"))));
+        // 说明 = 配置元数据（cp.description()，数据面豁免）
+        sender.sendMessage(textStyles.info(t(MessageKeys.CMD_CONFIG_FIELD_DESC, Map.of("desc", cp.description()))));
     }
 
     private void handleSet(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(textStyles.error("用法: /orzmc config set <路径> <值>"));
+            sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_SET_USAGE)));
             return;
         }
         String key = args[1];
         ConfigPath cp = registry.get(key);
         if (cp == null) {
-            sender.sendMessage(textStyles.error("未知配置路径: " + key));
+            sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_UNKNOWN_PATH, Map.of("path", key))));
             return;
         }
         // Support multi-word values (e.g. strings with spaces)
@@ -171,56 +190,64 @@ public class OrzConfigCommand implements CommandExecutor {
         try {
             Object parsed = parseValue(rawValue.toString(), cp.type());
             if (parsed == null) {
-                sender.sendMessage(textStyles.error("值为空或不合法"));
+                sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_VALUE_EMPTY)));
                 return;
             }
             FileConfiguration cfg = configService.getConfig(cp.configName());
             if (cfg == null) {
-                sender.sendMessage(textStyles.error("配置文件未加载: " + cp.configName()));
+                sender.sendMessage(
+                        textStyles.error(t(MessageKeys.CMD_CONFIG_CFG_NOT_LOADED, Map.of("name", cp.configName()))));
                 return;
             }
             cfg.set(cp.path(), parsed);
             configService.saveConfig(cp.configName());
             configService.reloadConfig(cp.configName());
             notifyConfigReload(cp);
-            sender.sendMessage(textStyles.success("已设置: " + key + " = " + formatValue(parsed)));
+            sender.sendMessage(textStyles.success(
+                    t(MessageKeys.CMD_CONFIG_SET_OK, Map.of("key", key, "value", formatValue(parsed)))));
         } catch (NumberFormatException e) {
-            sender.sendMessage(textStyles.error("类型错误: " + key + " 需为 " + typeDisplay(cp.type()) + "，输入值无法解析"));
+            sender.sendMessage(textStyles.error(
+                    t(MessageKeys.CMD_CONFIG_TYPE_ERROR, Map.of("key", key, "type", typeDisplay(cp.type())))));
         } catch (IllegalArgumentException e) {
-            sender.sendMessage(textStyles.error(e.getMessage()));
+            // parseValue 异常统一为「无法解析」模板（Boolean/不支持类型文案不再 UI 直显）
+            sender.sendMessage(textStyles.error(
+                    t(MessageKeys.CMD_CONFIG_INVALID_VALUE, Map.of("key", key, "type", typeDisplay(cp.type())))));
         }
     }
 
     private void handleReset(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(textStyles.error("用法: /orzmc config reset <路径>"));
+            sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_RESET_USAGE)));
             return;
         }
         String key = args[1];
         ConfigPath cp = registry.get(key);
         if (cp == null) {
-            sender.sendMessage(textStyles.error("未知配置路径: " + key));
+            sender.sendMessage(textStyles.error(t(MessageKeys.CMD_CONFIG_UNKNOWN_PATH, Map.of("path", key))));
             return;
         }
         FileConfiguration cfg = configService.getConfig(cp.configName());
         if (cfg == null) {
-            sender.sendMessage(textStyles.error("配置文件未加载: " + cp.configName()));
+            sender.sendMessage(
+                    textStyles.error(t(MessageKeys.CMD_CONFIG_CFG_NOT_LOADED, Map.of("name", cp.configName()))));
             return;
         }
         cfg.set(cp.path(), cp.defaultValue());
         configService.saveConfig(cp.configName());
         configService.reloadConfig(cp.configName());
         notifyConfigReload(cp);
-        sender.sendMessage(textStyles.success("已恢复默认: " + key + " = " + formatValue(cp.defaultValue())));
+        sender.sendMessage(textStyles.success(
+                t(MessageKeys.CMD_CONFIG_RESET_OK, Map.of("key", key, "value", formatValue(cp.defaultValue())))));
     }
 
     private void handleReload(CommandSender sender, String[] args) {
         if (args.length >= 2) {
             if (configService.reloadConfig(args[1])) {
                 notifyConfigNameReload(args[1]);
-                sender.sendMessage(textStyles.success("配置文件 " + args[1] + " 已重新加载"));
+                sender.sendMessage(textStyles.success(t(MessageKeys.CMD_CONFIG_RELOAD_OK, Map.of("name", args[1]))));
             } else {
-                sender.sendMessage(textStyles.error("配置文件 " + args[1] + " 不存在"));
+                sender.sendMessage(
+                        textStyles.error(t(MessageKeys.CMD_CONFIG_RELOAD_NOT_FOUND, Map.of("name", args[1]))));
             }
         } else {
             configService.reloadAll();
@@ -229,7 +256,7 @@ public class OrzConfigCommand implements CommandExecutor {
             accessRulesReload.run();
             commandPoliciesReload.run();
             i18nCustomReload.run();
-            sender.sendMessage(textStyles.success("所有配置文件已重新加载"));
+            sender.sendMessage(textStyles.success(t(MessageKeys.CMD_CONFIG_RELOAD_ALL_OK)));
         }
     }
 
@@ -257,20 +284,18 @@ public class OrzConfigCommand implements CommandExecutor {
     }
 
     private void handleDump(CommandSender sender) {
-        sender.sendMessage(Component.text("=== 完整配置 Dump ===").color(textStyles.colorSuccess()));
+        sender.sendMessage(textStyles.success(t(MessageKeys.CMD_CONFIG_DUMP_TITLE)));
         String lastConfig = null;
         for (ConfigPath cp : registry.values()) {
             if (!cp.configName().equals(lastConfig)) {
                 lastConfig = cp.configName();
-                sender.sendMessage(
-                        Component.text(" [" + cp.configName() + ".yml]").color(textStyles.colorSuccess()));
+                sender.sendMessage(textStyles.success(" [" + cp.configName() + ".yml]"));
             }
             FileConfiguration cfg = configService.getConfig(cp.configName());
             Object current = cfg == null ? null : cfg.get(cp.path());
-            sender.sendMessage(Component.text("  " + cp.path())
-                    .append(Component.text(" = " + formatValue(current)))
-                    .append(Component.text("  (默认: " + formatValue(cp.defaultValue()) + ")"))
-                    .color(textStyles.colorInfo()));
+            sender.sendMessage(textStyles.info("  " + cp.path()
+                    + " = " + formatValue(current)
+                    + "  " + t(MessageKeys.CMD_CONFIG_DUMP_DEFAULT, Map.of("value", formatValue(cp.defaultValue())))));
         }
     }
 

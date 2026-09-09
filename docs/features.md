@@ -485,14 +485,16 @@
 
 > 大部分配置可通过 `/config` 命令在运行时修改并立即生效，无需重启服务器。
 
-### 语言本地化（i18n，一期完成）
+### 语言本地化（i18n，P0–P6 完成）
 
-插件内置中英双语语言包（`messages/messages_zh-CN.yml` / `messages_en-US.yml`），覆盖游戏内反馈、Bot 交互回复与群事件通知：
+插件内置中英双语语言包（`messages/messages_zh-CN.yml` / `messages_en-US.yml`），覆盖游戏内反馈、Bot 交互回复、群事件通知与运维命令面板：
 
 - **默认语言**：`config.yml` 的 `i18n.default_lang`（默认 `zh-CN`；`en-US` 即整体英文）；游戏内命令反馈优先跟随玩家客户端 locale（未装码回落默认语言）。
 - **Bot 平台**：可按平台配置 `i18n.platform_langs[平台]` 指定交互回复语言；群事件通知按默认语言渲染一次。
+- **命令描述（/help 可见）与运维 /config 面板**：随默认语言（R1）；`$h`/`$cmd ?` 群帮助随默认语言。
 - **服主覆盖**：数据目录 `messages_custom_<lang>.yml` 覆盖同 key（即时 reload 生效；空串 = 屏蔽该条消息），升级不覆盖存量正文定制（升级链自动迁移）。
-- 迁移方案与决策见 `docs/dev/i18n-plan.md`；实施交接见 `docs/dev/i18n-migration-handoff.md`。
+- **边界**：配置帮助说明（`/config list` 里的「说明」列）与健康报告为 admin 数据文档，保持内置中文不随语言切换（详见 `docs/dev/i18n-plan.md` §8 豁免表）。
+- 迁移方案与决策见 `docs/dev/i18n-plan.md`；P6 交接见 `docs/dev/i18n-gap-handoff.md`。
 
 ---
 

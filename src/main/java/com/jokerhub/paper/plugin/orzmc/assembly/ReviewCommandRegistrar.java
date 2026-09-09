@@ -8,14 +8,17 @@ import static com.jokerhub.paper.plugin.orzmc.assembly.BrigadierSupport.withPris
 import static io.papermc.paper.command.brigadier.Commands.argument;
 import static io.papermc.paper.command.brigadier.Commands.literal;
 
+import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.review.ReviewCommandService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.papermc.paper.command.brigadier.Commands;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -30,6 +33,7 @@ final class ReviewCommandRegistrar implements CommandGroup {
     private final Supplier<CommandPolicies> cpSupplier;
     private final Predicate<Player> prisonCheck;
     private final I18nService i18n;
+    private final CommandFeedbackService feedback;
 
     ReviewCommandRegistrar(
             ReviewCommandService reviewCommandService,
@@ -42,6 +46,7 @@ final class ReviewCommandRegistrar implements CommandGroup {
         this.cpSupplier = cpSupplier;
         this.prisonCheck = prisonCheck;
         this.i18n = i18n;
+        this.feedback = new CommandFeedbackService(i18n);
     }
 
     @Override
@@ -57,7 +62,7 @@ final class ReviewCommandRegistrar implements CommandGroup {
                         .executes(guardedExec("apply", applyInterceptors, ctx -> {
                             var sender = ctx.getSource().getSender();
                             if (!(sender instanceof Player player)) {
-                                sender.sendMessage(styles.error("仅玩家可用"));
+                                sender.sendMessage(styles.error(feedback.playerRequiredMessage(sender)));
                                 return 1;
                             }
                             renderReviewResult(sender, reviewCommandService.listTypes(player));
@@ -67,7 +72,7 @@ final class ReviewCommandRegistrar implements CommandGroup {
                         .then(literal("status").executes(guardedExec("apply", applyInterceptors, ctx -> {
                             var sender = ctx.getSource().getSender();
                             if (!(sender instanceof Player player)) {
-                                sender.sendMessage(styles.error("仅玩家可用"));
+                                sender.sendMessage(styles.error(feedback.playerRequiredMessage(sender)));
                                 return 1;
                             }
                             renderReviewResult(sender, reviewCommandService.status(player));
@@ -79,7 +84,8 @@ final class ReviewCommandRegistrar implements CommandGroup {
                                         .executes(guardedExec("apply", applyInterceptors, ctx -> {
                                             var sender = ctx.getSource().getSender();
                                             if (!(sender instanceof Player player)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
+                                                sender.sendMessage(
+                                                        styles.error(feedback.playerRequiredMessage(sender)));
                                                 return 1;
                                             }
                                             String type = ctx.getArgument("type", String.class);
@@ -91,7 +97,7 @@ final class ReviewCommandRegistrar implements CommandGroup {
                                 .executes(guardedExec("apply", applyInterceptors, ctx -> {
                                     var sender = ctx.getSource().getSender();
                                     if (!(sender instanceof Player player)) {
-                                        sender.sendMessage(styles.error("仅玩家可用"));
+                                        sender.sendMessage(styles.error(feedback.playerRequiredMessage(sender)));
                                         return 1;
                                     }
                                     String type = ctx.getArgument("type", String.class);
@@ -102,7 +108,8 @@ final class ReviewCommandRegistrar implements CommandGroup {
                                         .executes(guardedExec("apply", applyInterceptors, ctx -> {
                                             var sender = ctx.getSource().getSender();
                                             if (!(sender instanceof Player player)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
+                                                sender.sendMessage(
+                                                        styles.error(feedback.playerRequiredMessage(sender)));
                                                 return 1;
                                             }
                                             String type = ctx.getArgument("type", String.class);
@@ -112,7 +119,7 @@ final class ReviewCommandRegistrar implements CommandGroup {
                                             return 1;
                                         }))))
                         .build(),
-                "提交/查询/撤回审核申请（如 /apply builder [理由]）",
+                feedback.commandDescription(MessageKeys.CMD_DESC_APPLY),
                 List.of("apply"));
 
         // ---- /review approve|reject <name> — 管理员审核（替代 /rank approve|reject）----
@@ -125,7 +132,8 @@ final class ReviewCommandRegistrar implements CommandGroup {
                                         .executes(guardedExec("review", adminReviewInterceptors, ctx -> {
                                             var sender = ctx.getSource().getSender();
                                             if (!(sender instanceof Player admin)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
+                                                sender.sendMessage(
+                                                        styles.error(feedback.playerRequiredMessage(sender)));
                                                 return 1;
                                             }
                                             String name = ctx.getArgument("name", String.class);
@@ -138,7 +146,8 @@ final class ReviewCommandRegistrar implements CommandGroup {
                                         .executes(guardedExec("review", adminReviewInterceptors, ctx -> {
                                             var sender = ctx.getSource().getSender();
                                             if (!(sender instanceof Player admin)) {
-                                                sender.sendMessage(styles.error("仅玩家可用"));
+                                                sender.sendMessage(
+                                                        styles.error(feedback.playerRequiredMessage(sender)));
                                                 return 1;
                                             }
                                             String name = ctx.getArgument("name", String.class);
@@ -147,7 +156,7 @@ final class ReviewCommandRegistrar implements CommandGroup {
                                             return 1;
                                         }))))
                         .build(),
-                "管理员审核申请（/review approve|reject <玩家>）",
+                feedback.commandDescription(MessageKeys.CMD_DESC_REVIEW),
                 List.of("review"));
     }
 
@@ -163,7 +172,10 @@ final class ReviewCommandRegistrar implements CommandGroup {
     private void renderReviewResultAsync(CommandSender sender, CompletableFuture<ReviewCommandService.Result> future) {
         future.whenComplete((result, err) -> {
             if (err != null) {
-                sender.sendMessage(styles.error("审核处理异常: " + (err.getMessage() == null ? "未知错误" : err.getMessage())));
+                sender.sendMessage(styles.error(feedback.message(
+                        sender,
+                        MessageKeys.CMD_REVIEW_FAILED,
+                        Map.of("detail", err.getMessage() == null ? "" : err.getMessage()))));
             } else {
                 renderReviewResult(sender, result);
             }

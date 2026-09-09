@@ -22,11 +22,9 @@ public final class BotCommandFeedbackService {
     private static volatile I18nService service;
     private static volatile I18nService fallback;
 
-    /** 组合根注入（BotModule 装配时调用，含数据目录 overlay）。 */
+    /** 组合根注入（BotModule 装配时调用，含数据目录 overlay）；null 时复位（测试隔离用）。 */
     public static void init(I18nService i18n) {
-        if (i18n != null) {
-            service = i18n;
-        }
+        service = i18n;
     }
 
     private static I18nService i18n() {

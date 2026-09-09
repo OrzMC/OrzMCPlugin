@@ -27,11 +27,11 @@ class BotStatusServiceTest extends ServiceTestBase {
         when(health.get("easybot"))
                 .thenReturn(new HealthStatus.Entry(true, true, true, true, true, null, 0, 0, null, 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         Component msg = service.buildMinimalMessage();
         String plain = PlainTextComponentSerializer.plainText().serialize(msg);
 
-        assertEquals("enabled httpOk wsOk", plain);
+        assertEquals("已启用 HTTP 正常 WS 正常", plain);
         // 全部正常：三个词均不可点击
         long clickables =
                 msg.children().stream().filter(c -> c.clickEvent() != null).count();
@@ -46,11 +46,11 @@ class BotStatusServiceTest extends ServiceTestBase {
         when(health.get("easybot"))
                 .thenReturn(new HealthStatus.Entry(true, false, true, true, true, "HTTP 403", 0, 0, null, 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         Component msg = service.buildMinimalMessage();
         String plain = PlainTextComponentSerializer.plainText().serialize(msg);
 
-        assertEquals("enabled httpNotOk wsOk", plain);
+        assertEquals("已启用 HTTP 异常 WS 正常", plain);
         List<Component> clickables =
                 msg.children().stream().filter(c -> c.clickEvent() != null).toList();
         assertEquals(1, clickables.size());
@@ -68,11 +68,11 @@ class BotStatusServiceTest extends ServiceTestBase {
                 .thenReturn(new HealthStatus.Entry(
                         true, true, true, true, true, null, 1, 2, List.of("telegram:player-chat"), 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         Component msg = service.buildMinimalMessage();
         String plain = PlainTextComponentSerializer.plainText().serialize(msg);
 
-        assertEquals("enabled httpNotOk wsOk", plain);
+        assertEquals("已启用 HTTP 异常 WS 正常", plain);
         List<Component> clickables =
                 msg.children().stream().filter(c -> c.clickEvent() != null).toList();
         assertEquals(1, clickables.size());
@@ -87,11 +87,11 @@ class BotStatusServiceTest extends ServiceTestBase {
         when(health.get("easybot"))
                 .thenReturn(new HealthStatus.Entry(true, true, true, false, true, null, 0, 0, null, 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         Component msg = service.buildMinimalMessage();
         String plain = PlainTextComponentSerializer.plainText().serialize(msg);
 
-        assertEquals("enabled httpOk wsNotOk", plain);
+        assertEquals("已启用 HTTP 正常 WS 异常", plain);
         List<Component> clickables =
                 msg.children().stream().filter(c -> c.clickEvent() != null).toList();
         assertEquals(1, clickables.size());
@@ -105,11 +105,11 @@ class BotStatusServiceTest extends ServiceTestBase {
         HealthStatus health = mock(HealthStatus.class);
         when(health.get("easybot")).thenReturn(new HealthStatus.Entry(false, false, false, false, null, 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         Component msg = service.buildMinimalMessage();
         String plain = PlainTextComponentSerializer.plainText().serialize(msg);
 
-        assertEquals("disabled httpUnknown wsNotOk", plain);
+        assertEquals("已禁用 HTTP 未知 WS 异常", plain);
         // 禁用时 http 未检查、ws 断开，两者均可点击
         long clickables =
                 msg.children().stream().filter(c -> c.clickEvent() != null).count();
@@ -125,7 +125,7 @@ class BotStatusServiceTest extends ServiceTestBase {
                 .thenReturn(new HealthStatus.Entry(
                         true, true, true, true, true, "boom", 1, 2, List.of("telegram:player-chat"), 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         String plain = PlainTextComponentSerializer.plainText().serialize(service.buildHttpDetail());
 
         assertTrue(plain.contains("HTTP: 异常"), plain);
@@ -144,7 +144,7 @@ class BotStatusServiceTest extends ServiceTestBase {
                 .thenReturn(new HealthStatus.Entry(
                         true, true, true, true, true, null, 1, 0, List.of("telegram:player-chat"), 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         String plain = PlainTextComponentSerializer.plainText().serialize(service.buildHttpDetail());
 
         assertTrue(plain.contains("失败平台:"), plain);
@@ -161,7 +161,7 @@ class BotStatusServiceTest extends ServiceTestBase {
                 .thenReturn(new HealthStatus.Entry(
                         true, true, true, true, true, null, 2, 3, List.of("telegram:a", "discord:b"), 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         String plain = PlainTextComponentSerializer.plainText().serialize(service.buildHttpDetail());
 
         assertTrue(plain.contains("失败平台 (2/3):\ntelegram:a\ndiscord:b"), plain);
@@ -176,11 +176,23 @@ class BotStatusServiceTest extends ServiceTestBase {
         when(health.get("easybot"))
                 .thenReturn(new HealthStatus.Entry(true, true, true, false, true, "ws down", 0, 0, null, 0));
 
-        BotStatusService service = new BotStatusService(styles, health);
+        BotStatusService service = new BotStatusService(styles, health, zhI18n());
         String plain = PlainTextComponentSerializer.plainText().serialize(service.buildWsDetail());
 
         assertTrue(plain.contains("WS: 已断开"), plain);
         assertTrue(plain.contains("错误: ws down"), plain);
+    }
+
+    private static com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService zhI18n() {
+        try {
+            return new com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService(
+                    BotStatusServiceTest.class.getClassLoader(),
+                    java.nio.file.Files.createTempDirectory("orzmc-botstatus-i18n"),
+                    () -> com.jokerhub.paper.plugin.orzmc.infra.config.configs.I18nConfig.DEFAULT,
+                    null);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static void stubStyles(OrzTextStyles styles) {

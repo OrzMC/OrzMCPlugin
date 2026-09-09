@@ -5,9 +5,11 @@ import static com.jokerhub.paper.plugin.orzmc.assembly.BrigadierSupport.guardedE
 import static com.jokerhub.paper.plugin.orzmc.assembly.BrigadierSupport.requirement;
 import static io.papermc.paper.command.brigadier.Commands.literal;
 
+import com.jokerhub.paper.plugin.orzmc.features.command.CommandFeedbackService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.features.update.UpdateCommandService;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -20,11 +22,13 @@ final class UpdateCommandRegistrar implements CommandGroup {
     private final UpdateCommandService svc;
     private final OrzTextStyles styles;
     private final I18nService i18n;
+    private final CommandFeedbackService feedback;
 
     UpdateCommandRegistrar(UpdateCommandService svc, OrzTextStyles styles, I18nService i18n) {
         this.svc = svc;
         this.styles = styles;
         this.i18n = i18n;
+        this.feedback = new CommandFeedbackService(i18n);
     }
 
     /** Update: /update check|now（插件自更新，管理员专属）。 */
@@ -44,11 +48,13 @@ final class UpdateCommandRegistrar implements CommandGroup {
                             return 1;
                         })))
                         .executes(guardedExec("update", interceptors, ctx -> {
-                            ctx.getSource().getSender().sendMessage(styles.info("用法: /update check|now"));
+                            ctx.getSource()
+                                    .getSender()
+                                    .sendMessage(styles.info(feedback.defaultMessage(MessageKeys.CMD_UPDATE_USAGE)));
                             return 1;
                         }))
                         .build(),
-                "检查/应用 OrzMC 插件更新（下载到 plugins/update，重启生效）",
+                feedback.commandDescription(MessageKeys.CMD_DESC_UPDATE),
                 List.of("upd"));
     }
 }

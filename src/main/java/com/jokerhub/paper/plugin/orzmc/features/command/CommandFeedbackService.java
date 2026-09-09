@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.features.command;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.Lang;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
+import java.util.Map;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import org.bukkit.command.CommandSender;
@@ -43,8 +44,38 @@ public final class CommandFeedbackService {
         return Component.text(reason);
     }
 
-    private TextComponent tip(CommandSender sender, String key) {
+    /** 纯文本版「需要玩家执行」提示（供 styles.error 包装保留红色样式；拦截器走 Component 版）。 */
+    public String playerRequiredMessage(CommandSender sender) {
+        return resolve(sender, MessageKeys.COMMON_PLAYER_REQUIRED);
+    }
+
+    /** 游戏内命令注册期帮助描述（/help 可见；无 sender 语境 → default_lang，R1）。 */
+    public String commandDescription(String key) {
+        return i18n.msg(i18n.langFor(), key);
+    }
+
+    /** 管理/运维命令提示：按 default_lang（R1）渲染，与 desc 同源决议。 */
+    public String defaultMessage(String key) {
+        return i18n.msg(i18n.langFor(), key);
+    }
+
+    /** 带变量的管理/运维命令提示（R1）。 */
+    public String defaultMessage(String key, Map<String, String> vars) {
+        return i18n.msg(i18n.langFor(), key, vars);
+    }
+
+    /** 带变量的按 sender 决议渲染（P6 起供 Registrar 内联提示使用）。 */
+    public String message(CommandSender sender, String key, Map<String, String> vars) {
         Lang lang = sender instanceof Player player ? i18n.langFor(player) : i18n.langFor();
-        return Component.text(i18n.msg(lang, key));
+        return i18n.msg(lang, key, vars);
+    }
+
+    private String resolve(CommandSender sender, String key) {
+        Lang lang = sender instanceof Player player ? i18n.langFor(player) : i18n.langFor();
+        return i18n.msg(lang, key);
+    }
+
+    private TextComponent tip(CommandSender sender, String key) {
+        return Component.text(resolve(sender, key));
     }
 }

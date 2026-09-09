@@ -11,6 +11,7 @@ import com.jokerhub.paper.plugin.orzmc.features.bot.ImAdminService;
 import com.jokerhub.paper.plugin.orzmc.features.command.binding.CommandInterceptor;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigPath;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
@@ -60,7 +61,7 @@ final class ConfigCommandRegistrar implements CommandGroup {
                     cfgCmd.onCommand(ctx.getSource().getSender(), null, "config", new String[] {"list"});
                     return 1;
                 })))
-                .then(ImCommandRegistrar.build(imAdmin)) // IM 内建网关管理（/config im setup|status|bind|test，D12）
+                .then(ImCommandRegistrar.build(imAdmin, i18n)) // IM 内建网关管理（/config im setup|status|bind|test，D12）
                 .then(literal("get")
                         .then(argument("path", StringArgumentType.greedyString())
                                 .suggests(pathSuggestions)
@@ -110,6 +111,6 @@ final class ConfigCommandRegistrar implements CommandGroup {
                 }))
                 .build();
 
-        commands.register(node, "配置管理", List.of("cfg"));
+        commands.register(node, i18n.msg(i18n.langFor(), MessageKeys.CMD_DESC_CONFIG), List.of("cfg"));
     }
 }
