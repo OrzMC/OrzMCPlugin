@@ -340,4 +340,7 @@ public final class MessageKeys {
     public static final String BOTSTATUS_FAILED_PLATFORMS_RATIO = "botstatus.failed_platforms_ratio";
     public static final String BOTSTATUS_HOVER_DETAILS = "botstatus.hover_details";
     public static final String BOTSTATUS_ERROR_PREFIX = "botstatus.error_prefix";
+    public static final String BOT_E_TRUNCATED = "bot.e.truncated";
+    public static final String BOT_E_EXEC_OK = "bot.e.exec_ok";
+    public static final String BOT_E_EXEC_NOT_FOUND = "bot.e.exec_not_found";
 }

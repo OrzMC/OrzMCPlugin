@@ -75,7 +75,11 @@ final class ConsoleCommandHandler extends BotCommandContext {
             if (capture == null) {
                 // 未注入日志窗口服务：退化为仅返回执行状态
                 ServerFacade.ConsoleCommandResult result = server.executeConsoleCommand(rawArgs);
-                emit(callback, "command_output", Map.of("message", result.message()), result.message());
+                emit(
+                        callback,
+                        "command_output",
+                        Map.of("message", execStateText(result, rawArgs)),
+                        execStateText(result, rawArgs));
                 return;
             }
             // 先取水位再执行，命令执行期间的日志行才能落入窗口
@@ -88,7 +92,10 @@ final class ConsoleCommandHandler extends BotCommandContext {
                     () -> {
                         List<String> windowLogLines = capture.drainSince(watermark);
                         String assembled = CommandOutputAssembler.assemble(
-                                result.outputLines(), windowLogLines, CONSOLE_OUTPUT_MAX_LINES);
+                                result.outputLines(),
+                                windowLogLines,
+                                CONSOLE_OUTPUT_MAX_LINES,
+                                I18nServiceHolder.msg("bot.e.truncated"));
                         // 缺口检测独立于输出内容：即使窗口内有效行全被驱逐/过滤也要提示
                         String message;
                         if (capture.hasGapSince(watermark)) {
@@ -96,11 +103,17 @@ final class ConsoleCommandHandler extends BotCommandContext {
                                     ? I18nServiceHolder.msg("bot.e.overflow")
                                     : I18nServiceHolder.msg("bot.e.overflow") + "\n" + assembled;
                         } else {
-                            message = assembled.isEmpty() ? result.message() : assembled;
+                            message = assembled.isEmpty() ? execStateText(result, rawArgs) : assembled;
                         }
                         emit(callback, "command_output", Map.of("message", message), message);
                     },
                     CONSOLE_OUTPUT_COLLECT_TICKS);
         });
+    }
+
+    /** $e 执行状态回显（P7-C）：命令已执行 / 命令不存在（群 R1，模板 {cmd}）。 */
+    private static String execStateText(ServerFacade.ConsoleCommandResult result, String rawArgs) {
+        String key = result.dispatched() ? "bot.e.exec_ok" : "bot.e.exec_not_found";
+        return I18nServiceHolder.msg(key, Map.of("cmd", rawArgs));
     }
 }
