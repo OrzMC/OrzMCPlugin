@@ -254,4 +254,20 @@ public final class MessageKeys {
     public static final String CMD_UPDATE_BUSY = "cmd.update_busy";
     public static final String CMD_UPDATE_DOWNLOAD_FAILED = "cmd.update_download_failed";
     public static final String CMD_UPDATE_DOWNLOAD_FAILED_REASON = "cmd.update_download_failed_reason";
+    public static final String CMD_DESC_CONFIG = "cmd.desc.config";
+    public static final String CMD_CONFIG_IM_USAGE = "cmd.config_im_usage";
+    public static final String CMD_CONFIG_IM_BIND_USAGE = "cmd.config_im_bind_usage";
+    public static final String CMD_CONFIG_IM_TEST_USAGE = "cmd.config_im_test_usage";
+    public static final String CMD_CONFIG_IM_BIND_WRITE_FAILED = "cmd.config_im_bind_write_failed";
+    public static final String CMD_CONFIG_IM_BIND_OK = "cmd.config_im_bind_ok";
+    public static final String CMD_CONFIG_IM_BACKEND_NOT_BUILTIN = "cmd.config_im_backend_not_builtin";
+    public static final String CMD_CONFIG_IM_TEST_EMPTY = "cmd.config_im_test_empty";
+    public static final String CMD_CONFIG_IM_NO_PLATFORM = "cmd.config_im_no_platform";
+    public static final String CMD_CONFIG_IM_TEST_SENT = "cmd.config_im_test_sent";
+    public static final String CMD_CONFIG_IM_ERR_PLATFORM_EMPTY = "cmd.config_im_err_platform_empty";
+    public static final String CMD_CONFIG_IM_ERR_PLATFORM_INVALID = "cmd.config_im_err_platform_invalid";
+    public static final String CMD_CONFIG_IM_ERR_CHAT_TYPE = "cmd.config_im_err_chat_type";
+    public static final String CMD_CONFIG_IM_ERR_CHAT_ID = "cmd.config_im_err_chat_id";
+    public static final String CMD_CONFIG_IM_ERR_ROLE = "cmd.config_im_err_role";
+    public static final String CMD_CONSOLE_OP_ONLY = "cmd.console_op_only";
 }

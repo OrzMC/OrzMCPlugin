@@ -452,6 +452,7 @@ cmd:
     rank: "查询权限组与晋升进度"
     prison: "坐牢管理（作弊玩家强制进入 prison 组）"
     update: "检查/应用 OrzMC 插件更新（下载到 plugins/update，重启生效）"
+    config: "配置管理"
 
   orzdebug_accepted: "debug 已受理（模拟 Bot 入站命令）"
   orzdebug_usage: "用法: /orzdebug <Bot命令>"
@@ -475,5 +476,21 @@ cmd:
   update_busy: "已有下载任务进行中，请稍候"
   update_download_failed: "下载失败，请查看控制台日志"
   update_download_failed_reason: "下载失败：{reason}"
+  console_op_only: "仅控制台/游戏内 op 可执行（D10）"
+  config_im_usage: "用法: /config im setup|status | bind <平台> <group|user> <会话id> <admin_group|player_group|admin_dm> | test <平台> <group|user> <会话id> <文本>"
+  config_im_bind_usage: "用法: /config im bind <平台> <group|user> <会话id> <admin_group|player_group|admin_dm>（参数用单个或多个空格分隔均可）"
+  config_im_test_usage: "用法: /config im test <平台> <group|user> <会话id> <文本>"
+  config_im_bind_write_failed: "写 im_bindings.yml 失败（请检查控制台日志）"
+  config_im_bind_ok: "{platform} 会话绑定已写入并持久化：{role} = {value}（im_bindings.yml；入站/广播即时生效）"
+  config_im_backend_not_builtin: "当前 backend 非 builtin（或 QQ 平台未启用/凭据缺失）——无法内建投递测试；请先 im.yml 设 backend=builtin 且配置 platforms.qq 凭据后 /config reload im。"
+  config_im_test_empty: "测试文本不能为空"
+  config_im_no_platform: "无可用平台投递 {target}（检查 im.yml QQ 平台配置与连接健康）"
+  config_im_test_sent: "已向 {target} 投递测试消息（尽力一次；失败见健康 builtin.{platform}）"
+  config_im_err_platform_empty: "platform 不能为空"
+  config_im_err_platform_invalid: "platform 非法（仅小写字母/数字/下划线，如 qq）"
+  config_im_err_chat_type: "chat_type 仅支持 group|user"
+  config_im_err_chat_id: "chat_id 不能为空"
+  config_im_err_role: "role 仅支持 admin_group|player_group|admin_dm"
+
 
 

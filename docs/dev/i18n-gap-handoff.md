@@ -15,6 +15,8 @@
 - 键命名空间：`cmd.desc.<name>`、`cmd.error.*`、`cmd.<topic>_<verb>`；MessageKeys 常量同步；语言包尾部追加（串行链式合入）。
 
 ## 已完成（按时间倒序）
+- PR #418 @ 747cf91：G3u UpdateCommandService /update 状态 12 键 cmd.update_*（describeCheck/download 模板化，不再透服务层 detail）
+- PR #417 @ fdf49ff：G3 Rank/Prison/Update/Blacklist Registrar desc×4 + 提示键（+ handoff 顺带刷新）
 - PR #416 @ 7819f3f：G2 FeatureCommandRegistrar（desc ×6 → cmd.desc.*、orzdebug/maintenance 运维提示 defaultMessage R1、registerSimple 仅玩家可用 → common.player_required；CommandFeedbackService.defaultMessage；FeatureModule 仅日志豁免）
 - PR #415 @ b11fc20：G1 ReviewCommandRegistrar 样板（CommandFeedbackService 扩展 commandDescription/message/playerRequiredMessage；desc×2、仅玩家可用×7、review_failed 外壳）
 - PR #414 @ b25d8d3：$ 群帮助注入真实 I18nService（装配断点修复；前置）
@@ -24,13 +26,14 @@
 ## 卡规划（依赖序；每卡单 PR，语言包尾部追加需串行）
 - [x] **G1** ReviewCommandRegistrar 样板（#415）
 - [x] **G2** FeatureCommandRegistrar 描述/提示（#416）
-- [ ] **G3** BlacklistCommandRegistrar（45 处候选，过滤注释后为 desc+提示：/blacklist desc + 错误/列表提示；域键 `cmd.*` 或并入 access_rule 既有域）
-- [ ] **G3b** ReviewCommandService 层 review type 展示名 i18n（type id → 语言包键；FeatureModule 注册处 data 名来源）
+- [x] **G3** Blacklist/Rank/Prison/Update Registrar（#417；真实规模：Blacklist 1 desc、Rank 3、Prison 3、Update 2——此前「45 处」为注释误报）
+- [x] **G3u** /update 状态文案（#418）
+- [ ] **G3b** ReviewType.displayName 链 i18n（FeatureModule「晋升建造者/晋升管理员」注册 + ReviewService ~10 渲染点 + typeById 回退；仿 rank.group.* 词汇表；独立设计卡：ReviewType 加 langKey + 渲染前按目标语言 resolve）
 - [ ] **G4** Rank/Portal/Prison Registrar（Portal desc「传送门…」/rank desc/prison desc/usage 提示）
 - [ ] **G4u** UpdateCommandService /update 状态输出（4-5 条 styles.success 中文）+ UpdateCommandRegistrar desc
 - [ ] **G5** B 面：builtin 未绑定会话绑定引导文本语言包化（Qq/Telegram/Feishu/Discord InboundProcessor 同构；公共渲染点或 4 平台键）
 - [ ] **G6** C 面 /config 树（量最大）：ConfigCommandRegistrar 26 + ImCommandRegistrar 14 + ImAdminService 24 + OrzConfigCommand 46（/config 各子树说明）+ /orzdebug；可能拆 2-3 卡
-- [ ] 真机双语验证（game 命令 zh↔en、builtin 未绑定引导）→ docs 更新 i18n-plan §8 台账 + features 小节 + CHANGELOG
+- [ ] 真机双语验证（/help desc zh↔en、/apply /rank /update 提示）→ docs 更新 i18n-plan §8 台账 + features 小节 + CHANGELOG
 - 豁免面（不补，记录在案）：logger/异常/内部健康描述（ConfigPath/ConfigHealthCheck/ConfigUpgrader）、config 校验消息、数据内容（templates/guidebook/config 值）、平台适配器内部状态。
 
 ## 语言包现状

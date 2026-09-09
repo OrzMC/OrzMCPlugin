@@ -4,6 +4,8 @@ import static io.papermc.paper.command.brigadier.Commands.argument;
 import static io.papermc.paper.command.brigadier.Commands.literal;
 
 import com.jokerhub.paper.plugin.orzmc.features.bot.ImAdminService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -24,7 +26,7 @@ final class ImCommandRegistrar {
     private ImCommandRegistrar() {}
 
     /** 构建 {@code im} 子树节点，由 /config 注册器挂载。 */
-    static LiteralCommandNode<CommandSourceStack> build(ImAdminService svc) {
+    static LiteralCommandNode<CommandSourceStack> build(ImAdminService svc, I18nService i18n) {
         LiteralArgumentBuilder<CommandSourceStack> im = literal("im");
         im.then(literal("setup").executes(ctx -> {
             svc.setup(sender(ctx));
@@ -34,30 +36,30 @@ final class ImCommandRegistrar {
             svc.status(sender(ctx));
             return 1;
         }));
-        im.then(bindSubtree(svc));
-        im.then(testSubtree(svc));
+        im.then(bindSubtree(svc, i18n));
+        im.then(testSubtree(svc, i18n));
         im.executes(ctx -> {
             svc.setup(sender(ctx));
-            ctx.getSource()
-                    .getSender()
-                    .sendMessage(Component.text(
-                            "用法: /config im setup|status | bind <平台> <group|user> <会话id> <admin_group|player_group|admin_dm>"
-                                    + " | test <平台> <group|user> <会话id> <文本>"));
+            ctx.getSource().getSender().sendMessage(Component.text(usage(i18n, MessageKeys.CMD_CONFIG_IM_USAGE)));
             return 1;
         });
         return im.build();
     }
 
+    /** /config im 运维用法：按 default_lang（R1）决议。 */
+    private static String usage(I18nService i18n, String key) {
+        return i18n.msg(i18n.langFor(), key);
+    }
+
     /** bind 子树：platform chat_type chat_id role（剩余整段 greedyString 收下，服务端 split 归一空白，免多空格解析失败）。 */
-    private static ArgumentBuilder<CommandSourceStack, ?> bindSubtree(ImAdminService svc) {
+    private static ArgumentBuilder<CommandSourceStack, ?> bindSubtree(ImAdminService svc, I18nService i18n) {
         RequiredArgumentBuilder<CommandSourceStack, String> args =
                 argument("arguments", StringArgumentType.greedyString());
         args.executes(ctx -> {
             CommandSender s = sender(ctx);
             String[] t = splitTokens(ctx.getArgument("arguments", String.class));
             if (t.length != 4) {
-                s.sendMessage(Component.text("用法: /config im bind <平台> <group|user> <会话id> "
-                        + "<admin_group|player_group|admin_dm>（参数用单个或多个空格分隔均可）"));
+                s.sendMessage(Component.text(usage(i18n, MessageKeys.CMD_CONFIG_IM_BIND_USAGE)));
                 return 1;
             }
             svc.bind(s, t[0], t[1], t[2], t[3]);
@@ -67,7 +69,7 @@ final class ImCommandRegistrar {
     }
 
     /** test 子树：platform chat_type chat_id text（text 可含空格并保留；前面 3 参数多空格亦免疫）。 */
-    private static ArgumentBuilder<CommandSourceStack, ?> testSubtree(ImAdminService svc) {
+    private static ArgumentBuilder<CommandSourceStack, ?> testSubtree(ImAdminService svc, I18nService i18n) {
         RequiredArgumentBuilder<CommandSourceStack, String> args =
                 argument("arguments", StringArgumentType.greedyString());
         args.executes(ctx -> {
@@ -77,7 +79,7 @@ final class ImCommandRegistrar {
                     ? new String[0]
                     : ctx.getArgument("arguments", String.class).trim().split("\\s+", 4);
             if (t.length < 3) {
-                s.sendMessage(Component.text("用法: /config im test <平台> <group|user> <会话id> <文本>"));
+                s.sendMessage(Component.text(usage(i18n, MessageKeys.CMD_CONFIG_IM_TEST_USAGE)));
                 return 1;
             }
             svc.test(s, t[0], t[1], t[2], t.length >= 4 ? t[3] : "");

@@ -105,8 +105,8 @@ final class FeatureCommandRegistrar {
         // IM 管理（/config im）：builtin 驱动存在才可投递测试；否则相关命令给引导
         BotMessageService botSvc = botModule.botMessageService();
         BuiltinImDriver builtin = botSvc instanceof BuiltinImDriver b ? b : null;
-        ImAdminService imAdmin =
-                new ImAdminService(styles, platform.configService(), botModule.healthAccessor(), builtin);
+        ImAdminService imAdmin = new ImAdminService(
+                styles, platform.configService(), botModule.healthAccessor(), builtin, platform.i18nService());
         this.groups = List.of(
                 new PortalCommandRegistrar(portalCommandService, styles, cpSupplier, prisonDenyCheck, i18n),
                 new BlacklistCommandRegistrar(accessRuleService, styles, i18n),
