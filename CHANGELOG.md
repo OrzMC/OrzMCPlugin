@@ -8,9 +8,18 @@
 - **事件通知正文迁语言包（P4a–P4d）** — 命令回复转 `{message}` 直通壳；事件正文（event.* 30+ 键，含维护事件/安全审计/审核/权限/坐牢）与维护场景/MOTD/阶段名（maintenance.motd.*/maintenance.stage.*）迁包；`templates.yml` 仅剩直通壳/格式表/配色/数据键；Templates 记录与 TemplatesBodyMigration 升级链（config-version 13→14）：存量盘「正文==旧默认」自动删键/翻壳回落语言包（备份 .bak，服主定制保留零回归）
 - **P5 收尾** — 孤儿告警域键清理（login/guard/exploit/ratelimit alert_*）；server_load/server_stop 与 var 值词汇语言化（serverlife/audit/playermode）；Paginator 空列表正文参数化；/blacklist 游戏命令域去内联 zh（access_rule.* 18 键）；docs/features/README/CHANGELOG/交接同步
 
+### ✨ 新功能 / 🛠 改进（i18n 二期 P6 补齐 + 发布链路修复，2026-09-08/09）
+- **发布链路修复**：Hangar 上传 400 根因（changelog=%B 长 PR 正文被拒）→ 改 `--pretty=%s` 单行标题（#412）；里程碑 100 提交经 milestone-content 分支合入 main（#411，beta 1.0.25-dev.413）
+- **$ 群帮助装配断点修复（#414）**：BotModule 未注入 I18nService → `$h`/`$cmd ?`/未知命令回落帮助恒 zh fallback → 注入 `platform.i18nService()`（帮助随 default_lang）
+- **P6 游戏命令面（#415–#418）**：CommandFeedbackService 扩展（commandDescription/message/playerRequiredMessage/defaultMessage）；Review/Feature/Rank/Prison/Update/Blacklist Registrar 的命令描述（`cmd.desc.*`，进 `/help`）与运行时提示（player locale）；`/update` 状态 12 键（cmd.update_*）
+- **P6 运维 /config 树（#419–#421）**：`/config` desc + `/config im` 子树（cmd.config_im_*）与 status/setup 面板行（cmd.config_im_panel_*/state.* 词表）；`OrzConfigCommand` 主树 31 键（cmd.config.*）
+- **P6 review 类型语言化（#422–#423）**：review type 展示名 → `review.type.<id>` 词表（13 处 UI 消费）；摘要（summary）渲染层组装（summary_prefix/reason_sep 词表，zh 逐字不变）
+- **i18n 边界文档化**：配置帮助说明（`ConfigPath.all()` description）与健康报告（validate issues）维持数据文档豁免（D 面，见 `docs/dev/i18n-plan.md` §8）；logger/异常/数据内容（templates/guidebook/config 值）豁免记录在案
+
 ### 附注（owner 后续动作）
 - en 校对（D7）见 `docs/dev/i18n-migration-handoff.md`；真机双语冒烟已用本机 runServer/runFolia 无头执行
-  （Paper 存量盘 11→14 升级对照 42 项迁移 + zh/en 双语启动零告警 + Folia 全新安装零升级），残留 QQ/玩家视觉对照见交接
+  （Paper 存量盘 11→14 升级对照 42 项迁移 + zh/en 双语启动零告警 + Folia 全新安装零升级）
+- P6 真机视觉对照（`/help` desc、/apply /rank /update /config 树 zh↔en）待 owner 抽验（见 `docs/dev/i18n-gap-handoff.md` 收尾）
 
 ## [1.0.24] - 2026-09-06
 
