@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.jokerhub.paper.plugin.orzmc.features.bot.ImAdminService;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.tree.LiteralCommandNode;
@@ -31,10 +32,15 @@ class ImCommandRegistrarTest {
     private final CommandSender sender = mock(CommandSender.class);
 
     private static final ImAdminService svc = mock(ImAdminService.class);
+    private static final I18nService mockI18n = mock(I18nService.class);
 
     private static CommandDispatcher<CommandSourceStack> dispatcher() {
+        // usage 分支渲染需非空文案：langFor/msg 打桩（无 MockitoExtension，无 strict 检查）
+        org.mockito.Mockito.when(mockI18n.langFor()).thenReturn(com.jokerhub.paper.plugin.orzmc.infra.i18n.Lang.ZH_CN);
+        org.mockito.Mockito.when(mockI18n.msg(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn("usage");
         CommandDispatcher<CommandSourceStack> d = new CommandDispatcher<>();
-        LiteralCommandNode<CommandSourceStack> im = ImCommandRegistrar.build(svc);
+        LiteralCommandNode<CommandSourceStack> im = ImCommandRegistrar.build(svc, mockI18n);
         d.getRoot().addChild(im);
         return d;
     }
