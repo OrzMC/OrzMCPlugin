@@ -69,7 +69,7 @@ final class ReviewCommandHandler extends BotCommandContext {
             String typeName = reviewService
                     .get()
                     .typeById(r.typeId())
-                    .map(t -> t.displayName())
+                    .map(t -> I18nServiceHolder.msg("review.type." + t.id()))
                     .orElse(r.typeId());
             String playerName = playerNameOf(r);
             RankService rank = rankService.get();

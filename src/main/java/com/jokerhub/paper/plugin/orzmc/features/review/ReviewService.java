@@ -119,6 +119,14 @@ public final class ReviewService {
         return i18n == null ? key : i18n.msg(i18n.langFor(), key);
     }
 
+    /** 审核类型展示名：词表 {@code review.type.<id>}（R1）；i18n 未注入/词表缺失回落注册 displayName。 */
+    private String typeName(ReviewType type) {
+        if (i18n == null) {
+            return type.displayName();
+        }
+        return i18n.msg(i18n.langFor(), "review.type." + type.id());
+    }
+
     /** 玩家在线则发游戏内消息；通知端口未注入或玩家离线时静默。 */
     private void gameMessage(UUID playerId, String message) {
         if (notifier != null) {
@@ -162,10 +170,10 @@ public final class ReviewService {
      */
     public Result submit(ReviewType type, UUID applicantId, Map<String, String> data) {
         if (!type.isEligible(applicantId)) {
-            return Result.fail(t(MessageKeys.REVIEW_NOT_ELIGIBLE, Map.of("name", type.displayName())));
+            return Result.fail(t(MessageKeys.REVIEW_NOT_ELIGIBLE, Map.of("name", typeName(type))));
         }
         if (store.hasPending(type.id(), applicantId)) {
-            return Result.fail(t(MessageKeys.REVIEW_ALREADY_PENDING, Map.of("name", type.displayName())));
+            return Result.fail(t(MessageKeys.REVIEW_ALREADY_PENDING, Map.of("name", typeName(type))));
         }
         String id = newRequestId();
         ReviewRequest request = new ReviewRequest(
@@ -184,7 +192,7 @@ public final class ReviewService {
                 "review_submitted",
                 Map.of(
                         "player", lookup.name(applicantId).orElse("?"),
-                        "type", type.displayName(),
+                        "type", typeName(type),
                         "summary", type.summarize(request.data())));
         return Result.ok(t(MessageKeys.REVIEW_SUBMITTED_OK), id);
     }
@@ -220,8 +228,7 @@ public final class ReviewService {
             ReviewRequest cancelled = request.reviewed(ReviewRequest.Status.CANCELLED, null);
             store.save(cancelled);
 
-            String typeName =
-                    typeById(request.typeId()).map(ReviewType::displayName).orElse(request.typeId());
+            String typeName = typeById(request.typeId()).map(this::typeName).orElse(request.typeId());
             gameMessage(applicantId, t(MessageKeys.REVIEW_CANCELLED_NOTIFY, Map.of("name", typeName)));
             groupEvent(
                     "review_cancelled",
@@ -332,7 +339,7 @@ public final class ReviewService {
     public Result cancelForApplicant(ReviewType type, UUID applicantId) {
         Optional<ReviewRequest> pending = store.pendingFor(type.id(), applicantId);
         if (pending.isEmpty()) {
-            return Result.fail(t(MessageKeys.REVIEW_PENDING_NONE_SELF, Map.of("name", type.displayName())));
+            return Result.fail(t(MessageKeys.REVIEW_PENDING_NONE_SELF, Map.of("name", typeName(type))));
         }
         return cancel(pending.get().id(), applicantId);
     }
@@ -356,7 +363,7 @@ public final class ReviewService {
         }
         if (pending.size() > 1) {
             String types = pending.stream()
-                    .map(r -> typeById(r.typeId()).map(ReviewType::displayName).orElse(r.typeId()))
+                    .map(r -> typeById(r.typeId()).map(this::typeName).orElse(r.typeId()))
                     .distinct()
                     .collect(Collectors.joining("、"));
             return completedFail(t(MessageKeys.REVIEW_MULTIPLE_PENDING, Map.of("player", playerName, "types", types)));
@@ -406,7 +413,7 @@ public final class ReviewService {
                 "player",
                 playerName,
                 "type",
-                type.displayName(),
+                typeName(type),
                 "summary",
                 type.summarize(request.data()),
                 "reviewer",
@@ -415,12 +422,12 @@ public final class ReviewService {
         gameMessage(
                 request.applicantId(),
                 approved
-                        ? t(MessageKeys.REVIEW_APPROVED_NOTIFY, Map.of("name", type.displayName()))
-                        : t(MessageKeys.REVIEW_REJECTED_NOTIFY, Map.of("name", type.displayName())));
+                        ? t(MessageKeys.REVIEW_APPROVED_NOTIFY, Map.of("name", typeName(type)))
+                        : t(MessageKeys.REVIEW_REJECTED_NOTIFY, Map.of("name", typeName(type))));
         return Result.ok(
                 approved
-                        ? t(MessageKeys.REVIEW_APPROVED_OK, Map.of("player", playerName, "name", type.displayName()))
-                        : t(MessageKeys.REVIEW_REJECTED_OK, Map.of("player", playerName, "name", type.displayName())),
+                        ? t(MessageKeys.REVIEW_APPROVED_OK, Map.of("player", playerName, "name", typeName(type)))
+                        : t(MessageKeys.REVIEW_REJECTED_OK, Map.of("player", playerName, "name", typeName(type))),
                 request.id());
     }
 

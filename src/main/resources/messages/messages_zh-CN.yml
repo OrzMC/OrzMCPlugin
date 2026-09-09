@@ -180,6 +180,9 @@ gamemode:
 
 # --- review.*（/apply 命令文案；P2f2 按执行玩家语言。类型名 displayName 为配置数据不迁） ---
 review:
+  type:
+    builder-promotion: "晋升建造者"
+    admin-promotion: "晋升管理员"
   list_header: "可申请："
   no_types: "当前没有可申请的审核类型。"
   type_unknown: "未知申请类型: {type}（/apply 查看可申请项）"
