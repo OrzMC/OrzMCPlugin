@@ -256,6 +256,14 @@ rank:
 
 # --- maintenance.cmd.* (/maintenance status; P2g1. Ops copy uses default language R1) ---
 maintenance:
+  mode:
+    backup: "Backup"
+    optimize: "Optimize"
+  duration:
+    ms: "ms"
+    hour: "h"
+    min: "m"
+    sec: "s"
   cmd:
     busy_manual_enter: "A map backup/optimization is running; manual maintenance cannot start right now."
     already_manual: "The server is already in manual maintenance mode."

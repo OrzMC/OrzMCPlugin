@@ -26,7 +26,8 @@ public final class MaintenanceModule implements ServiceModule {
                 platform.configs(),
                 platform.textStyles(),
                 botModule.notifier(),
-                maintenanceModeService);
+                maintenanceModeService,
+                platform.i18nService());
         this.scheduledBackupService =
                 new ScheduledBackupService(platform.serverFacade(), platform.configs(), worldMaintenanceService);
     }

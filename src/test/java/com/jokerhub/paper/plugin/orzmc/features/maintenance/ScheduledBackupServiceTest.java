@@ -129,7 +129,7 @@ class ScheduledBackupServiceTest {
         when(configs.maintenance()).thenReturn(config(1L));
         OrzTextStyles styles = mock(OrzTextStyles.class);
         WorldMaintenanceService maintenance = new WorldMaintenanceService(
-                server, configs, styles, mock(Notifier.class), new MaintenanceModeService());
+                server, configs, styles, mock(Notifier.class), new MaintenanceModeService(), null);
         ScheduledBackupService service = new ScheduledBackupService(server, configs, maintenance);
 
         for (int i = 0; i < 60; i++) { // 第一个周期到点 → 备份启动（异步，进行中）
