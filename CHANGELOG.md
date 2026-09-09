@@ -16,10 +16,17 @@
 - **P6 review 类型语言化（#422–#423）**：review type 展示名 → `review.type.<id>` 词表（13 处 UI 消费）；摘要（summary）渲染层组装（summary_prefix/reason_sep 词表，zh 逐字不变）
 - **i18n 边界文档化**：配置帮助说明（`ConfigPath.all()` description）与健康报告（validate issues）维持数据文档豁免（D 面，见 `docs/dev/i18n-plan.md` §8）；logger/异常/数据内容（templates/guidebook/config 值）豁免记录在案
 
+### ✨ 新功能 / 🛠 改进（i18n 三审 P7，2026-09-09）
+- **/bot 状态面板（#425）**：botstatus.* 词表（zh 自然化、en Enabled/HTTP ok，R1）
+- **Paginator（#426）**：删 main 零调用的 zh 页脚 dead paginate（$w/$v 分页已走 bot.list.page_meta 键化）
+- **$e 回显（#427）**：截断提示 {count} 模板参数化（bot.e.truncated）+ 执行状态 bot.e.exec_ok/exec_not_found
+- **维护通知变量（#428）**：maintenance.mode.*/duration.* 词表（{label}/{duration_human} 不再 zh 硬注入；eventKey 判断改布尔）
+- 三审复核豁免/撤销：en 值零中文残留；E（IM 停用告警）确认纯控制台日志撤销；D2（维护低频直行）可选遗留记录
+
 ### 附注（owner 后续动作）
 - en 校对（D7）见 `docs/dev/i18n-migration-handoff.md`；真机双语冒烟已用本机 runServer/runFolia 无头执行
   （Paper 存量盘 11→14 升级对照 42 项迁移 + zh/en 双语启动零告警 + Folia 全新安装零升级）
-- P6 真机视觉对照（`/help` desc、/apply /rank /update /config 树 zh↔en）待 owner 抽验（见 `docs/dev/i18n-gap-handoff.md` 收尾）
+- P6/P7 真机视觉对照（`/help` desc、/apply /rank /update /config 树 /bot /$e 维护通知 zh↔en）待 owner 抽验（见 `docs/dev/i18n-gap-handoff.md` 收尾）
 
 ## [1.0.24] - 2026-09-06
 

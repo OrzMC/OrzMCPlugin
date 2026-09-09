@@ -1,5 +1,5 @@
-# i18n 三审残留审计（P7 候选，仅记录不处理）
-> 状态：现行（记录档）｜ 审计日期：2026-09-09
+# i18n 三审残留审计（P7）
+> 状态：**处理完毕归档（2026-09-09）**：A–D 已合入，E 撤销（审计误报）；台账见下表｜ 审计日期：2026-09-09
 > 前置：P6（#414–#423）合入后 fresh 全量审计。产出仅供决策，**不处理**。
 
 ## 审计方法
@@ -26,5 +26,14 @@
 - TemplateResolvers worldAlias 默认（templates.yml 数据）
 - ReviewType displayName / FeatureModule「申请」闭包（词表命中时仅作 fallback）
 
-## 建议
-A–E 若 owner 认可列为 P7（预计 2–3 小 PR，串行链式：A / B(+C) / D(+E)）；F 维持数据豁免。本轮仅记录。
+## P7 处理台账（2026-09-09）
+| # | 处理 | PR |
+|:--|:--|:--|
+| A /bot 面板 | botstatus.* 词表（R1） | #425 |
+| B 分页 | 复核修正：分页已走 paginatePages 键化；删 dead paginate | #426 |
+| C $e 回显 | assemble {count} 模板 + execStateText | #427 |
+| D 维护 label/duration | mode/时长词表 + formatDuration 实例化（eventKey 改布尔） | #428 |
+| D2 低频直行（正在/失败/损坏区块/目录行） | **可选遗留**（记录）：触发低频，en 下偶现中文句；如需做 → maintenance.cmd.* 模板键 |
+| E IM 停用引导 | **撤销（审计误报）**：UnavailableBotMessageService/BotMessageServiceProvider 文本均为控制台启动告警（logger 面豁免），非群回复 |
+| F 数据/边界 | 维持豁免（portal label/worldAlias/review type fallback） | — |
+
