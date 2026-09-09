@@ -127,6 +127,23 @@ public final class ReviewService {
         return i18n.msg(i18n.langFor(), "review.type." + type.id());
     }
 
+    /**
+     * 通知/列表摘要（渲染层组装，G3b-2）：动词前缀 + 词表类型名 + 理由，随当前语言。
+     * zh 输出与原注册闭包逐字一致（「申请」+ 名称 + 「：」+ 理由），en 为翻译。
+     */
+    private String summaryText(ReviewType type, Map<String, String> data) {
+        String reason = data.get("reason");
+        boolean hasReason = reason != null && !reason.isBlank();
+        if (i18n == null) {
+            return type.displayName() + (hasReason ? "：" + reason : "");
+        }
+        String prefix =
+                i18n.msg(i18n.langFor(), MessageKeys.REVIEW_SUMMARY_PREFIX); // zh「申请」/ en "Applying for "（自带尾空格）
+        String label = typeName(type);
+        String sep = hasReason ? i18n.msg(i18n.langFor(), MessageKeys.REVIEW_REASON_SEP) : ""; // zh「：」/ en ": "
+        return prefix + label + sep + (hasReason ? reason : "");
+    }
+
     /** 玩家在线则发游戏内消息；通知端口未注入或玩家离线时静默。 */
     private void gameMessage(UUID playerId, String message) {
         if (notifier != null) {
@@ -193,7 +210,7 @@ public final class ReviewService {
                 Map.of(
                         "player", lookup.name(applicantId).orElse("?"),
                         "type", typeName(type),
-                        "summary", type.summarize(request.data())));
+                        "summary", summaryText(type, request.data())));
         return Result.ok(t(MessageKeys.REVIEW_SUBMITTED_OK), id);
     }
 
@@ -237,7 +254,7 @@ public final class ReviewService {
                             "type", typeName,
                             "summary",
                                     typeById(request.typeId())
-                                            .map(t -> t.summarize(request.data()))
+                                            .map(t -> summaryText(t, request.data()))
                                             .orElse("")));
             return Result.ok(t(MessageKeys.REVIEW_CANCELLED_OK), requestId);
         } finally {
@@ -415,7 +432,7 @@ public final class ReviewService {
                 "type",
                 typeName(type),
                 "summary",
-                type.summarize(request.data()),
+                summaryText(type, request.data()),
                 "reviewer",
                 reviewerName == null ? "?" : reviewerName);
         groupEvent(templateKey, vars);

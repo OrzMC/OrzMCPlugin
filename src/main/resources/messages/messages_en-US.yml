@@ -190,6 +190,8 @@ review:
   type:
     builder-promotion: "Builder promotion"
     admin-promotion: "Admin promotion"
+  summary_prefix: "Applying for "
+  reason_sep: ": "
   list_header: "Available applications:"
   no_types: "There are no review types you can apply for right now."
   type_unknown: "Unknown application type: {type} (run /apply to see available types)"

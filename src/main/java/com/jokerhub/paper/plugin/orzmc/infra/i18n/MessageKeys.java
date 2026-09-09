@@ -40,6 +40,8 @@ public final class MessageKeys {
     // ---- review.*：/apply 命令文案（P2f2） ----
     public static final String REVIEW_LIST_HEADER = "review.list_header";
     public static final String REVIEW_NO_TYPES = "review.no_types";
+    public static final String REVIEW_SUMMARY_PREFIX = "review.summary_prefix";
+    public static final String REVIEW_REASON_SEP = "review.reason_sep";
     public static final String REVIEW_TYPE_UNKNOWN = "review.type_unknown";
     public static final String REVIEW_TYPE_UNKNOWN_BARE = "review.type_unknown_bare";
     public static final String REVIEW_MY_APPLICATIONS = "review.my_applications";
