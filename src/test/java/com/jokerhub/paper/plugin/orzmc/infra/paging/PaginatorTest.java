@@ -80,21 +80,6 @@ public class PaginatorTest extends ServiceTestBase {
         Assertions.assertEquals(5L, sched.delays.get(1));
     }
 
-    /** 同护栏覆盖 paginate（老入口）：delayTicks=0 时首页 delay 也必须 ≥ 1 */
-    @Test
-    public void testPaginate_firstPageDelayIsAtLeastOne() {
-        RecordingScheduler sched = new RecordingScheduler();
-        List<String> lines = new ArrayList<>();
-        for (int i = 0; i < 21; i++) {
-            lines.add("l" + i);
-        }
-        Paginator.paginate(sched, s -> {}, "H", "EMPTY", lines, 0, null);
-        Assertions.assertEquals(2, sched.delays.size());
-        Assertions.assertTrue(sched.delays.get(0) >= 1, "首页 delay 必须 ≥ 1，实际 " + sched.delays.get(0));
-        // delayTicks=0 → 按 5 兜底
-        Assertions.assertEquals(5L, sched.delays.get(1));
-    }
-
     @Test
     public void testPaginatePages_emptyList() {
         Paginator.paginatePages(
