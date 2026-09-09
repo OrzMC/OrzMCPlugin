@@ -197,8 +197,9 @@ public final class QqGatewayClient extends ReconnectingGateway {
             case 10 -> onHello(root);
             case 0 -> dispatch(root, payload);
             case 7 -> {
-                // 服务端要求重连（会话可续）：立即重连，下次尝试走 resume（保留 session_id/seq）
-                log.info("[qq] 收到 op7（会话失效重连请求），立即重连并尝试 resume");
+                // 服务端要求重连（会话可续）：QQ 官方 ~30min 例行轮换 → FINE 降噪；
+                // 立即重连，下次尝试走 resume（保留 session_id/seq）
+                log.fine("[qq] 收到 op7（会话失效重连请求），立即重连并尝试 resume");
                 reconnectNow();
             }
             case 9 -> {
@@ -286,7 +287,7 @@ public final class QqGatewayClient extends ReconnectingGateway {
             d.addProperty("seq", currentSeq);
             frame.addProperty("op", 6);
             frame.add("d", d);
-            log.info("[qq] 发送 resume（session 续传）");
+            log.fine("[qq] 发送 resume（session 续传）");
         } else {
             JsonObject d = new JsonObject();
             d.addProperty("token", gatewayToken);
@@ -318,7 +319,8 @@ public final class QqGatewayClient extends ReconnectingGateway {
                 }
                 log.info("[qq] 网关 READY（会话已建立）");
             }
-            case "RESUMED" -> log.info("[qq] 网关 RESUMED（会话续传成功）");
+            // resume 成功属例行续传（op7 轮换高频触发）→ FINE；失败会走 op9/重连告警可见
+            case "RESUMED" -> log.fine("[qq] 网关 RESUMED（会话续传成功）");
             default -> {
                 if (sink != null) {
                     try {
