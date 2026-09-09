@@ -1,5 +1,5 @@
 # i18n 遗留缺口补齐（P6）交接
-> 状态：**P6 归档；P7 进行中（2026-09-09 开）**；候选清单见 `docs/dev/i18n-gap-audit-p7.md`：P6 全卡与低影响记录项（G3b-2）合入 develop（#414–#423）；D 面经复核为非低影响大工程 → 按 owner 决定豁免（决策与边界见 `docs/dev/i18n-plan.md` §8 豁免表）。收尾残留：真机视觉对照（owner 抽验，非阻塞）｜ 最后更新：2026-09-09
+> 状态：**P6 归档；P7 代码全部完成（#425–#428；E 撤销）**，收尾仅 docs 归档与 owner 真机抽验；候选/台账见 `docs/dev/i18n-gap-audit-p7.md`：P6 全卡与低影响记录项（G3b-2）合入 develop（#414–#423）；D 面经复核为非低影响大工程 → 按 owner 决定豁免（决策与边界见 `docs/dev/i18n-plan.md` §8 豁免表）。收尾残留：真机视觉对照（owner 抽验，非阻塞）｜ 最后更新：2026-09-09
 > 上级规划：docs/dev/i18n-plan.md §8（一期完成）；本文为「二期遗留审查 → 补齐」工程卡。
 
 ## 任务与目标
@@ -20,7 +20,7 @@
 - [x] **P7-C** $e 回显（#427 @ 28579e7）：assemble {count} 模板参数（bot.e.truncated）+ execStateText（bot.e.exec_ok/not_found）；ExecResult.message 仅 logger 消费
 - [x] **P7-D**（核心子集 #428 @ 34a5c64）：WorldMaintenanceService 注入 i18n；mode 词（maintenance.mode.backup/optimize）+ 时长单位词（duration.ms/hour/min/sec）；formatDuration 实例化；eventKey 判断改 backupMode；事件 {label}/{duration_human} 不再 zh 硬注入
 - [ ] **P7-D2**（剩余低频直行，可选）：224「正在{label}地图…」216「地图{label}失败」197 损坏区块 321/325/331/338 备份失败/目录行 → maintenance.cmd.* 模板键（群 $b/$o 兜底行；触发低频，en 下偶现中文句）
-- [ ] **P7-E** UnavailableBotMessageService 停用引导词表（R1，小卡）
+- [x] **P7-E** 撤销（审计误报）：UnavailableBotMessageService/BotMessageServiceProvider 文本均为控制台启动告警（logger 豁免）
 - P7 收尾：audit 文档勾验 + CHANGELOG + 真机视觉对照
 
 ## 已完成（按时间倒序）
