@@ -447,7 +447,9 @@ public abstract class ReconnectingGateway {
                 return;
             }
         }
-        log.info("[" + name + "] 网关连接已建立");
+        // 建连成功属例行低噪（QQ 服务端每 ~30min 下发 op7 轮换会周期性触发）；
+        // 失败/异常另有 warning/断开日志可见。诊断时可调日志级别打开。
+        log.fine("[" + name + "] 网关连接已建立");
         if (listener != null) {
             listener.onConnected();
         }
@@ -466,7 +468,13 @@ public abstract class ReconnectingGateway {
         }
         lastProblem = "断开 code=" + code + " reason=" + reason;
         if (wasOpen) {
-            log.info("[" + name + "] 连接断开（将自动重连）: code=" + code + ", reason=" + reason);
+            // 主动关闭（op7 轮换/退避/stale/stop 等 closeQuietly 均 code=1000 且 remote=false）→ FINE，
+            // 避免每 30min QQ 轮换刷屏；意外断开（网络/服务端 close，code≠1000 或 remote）保留 INFO。
+            if (code == 1000 && !remote) {
+                log.fine("[" + name + "] 主动断开（将自动重连）: code=" + code + ", reason=" + reason);
+            } else {
+                log.info("[" + name + "] 连接断开（将自动重连）: code=" + code + ", reason=" + reason);
+            }
             if (listener != null) {
                 listener.onDisconnected(code, reason);
             }
