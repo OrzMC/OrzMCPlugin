@@ -1,5 +1,5 @@
 # i18n 遗留缺口补齐（P6）交接
-> 状态：**已完成归档（2026-09-09）**；P7 三审候选见 `docs/dev/i18n-gap-audit-p7.md`（仅记录，2026-09-09）：P6 全卡与低影响记录项（G3b-2）合入 develop（#414–#423）；D 面经复核为非低影响大工程 → 按 owner 决定豁免（决策与边界见 `docs/dev/i18n-plan.md` §8 豁免表）。收尾残留：真机视觉对照（owner 抽验，非阻塞）｜ 最后更新：2026-09-09
+> 状态：**P6 归档；P7 进行中（2026-09-09 开）**；候选清单见 `docs/dev/i18n-gap-audit-p7.md`：P6 全卡与低影响记录项（G3b-2）合入 develop（#414–#423）；D 面经复核为非低影响大工程 → 按 owner 决定豁免（决策与边界见 `docs/dev/i18n-plan.md` §8 豁免表）。收尾残留：真机视觉对照（owner 抽验，非阻塞）｜ 最后更新：2026-09-09
 > 上级规划：docs/dev/i18n-plan.md §8（一期完成）；本文为「二期遗留审查 → 补齐」工程卡。
 
 ## 任务与目标
@@ -14,7 +14,16 @@
 - 复用现成：`CommandFeedbackService`（features/command，common.* 键 P1）+ 拦截器已走它。
 - 键命名空间：`cmd.desc.<name>`、`cmd.error.*`、`cmd.<topic>_<verb>`；MessageKeys 常量同步；语言包尾部追加（串行链式合入）。
 
+## P7 进行（docs/dev/i18n-gap-audit-p7.md）
+- [x] **P7-A** /bot 面板 botstatus.* 词表（#425 @ 844dc66；R1；测试注入 zh；集成断言 WS 大写适配）
+- [ ] **P7-B** Paginator 页脚参数化/键化（$w/$v 分页「第 x/y 页」→ 接 bot.list.page_meta 或 Paginator 页脚参数）
+- [ ] **P7-C** $e 回显（ServerFacade ExecResult.message fallback + CommandOutputAssembler 截断提示）键化（先验消费通道）
+- [ ] **P7-D** WorldMaintenanceService callback 文本（时长单位/结果行）——先厘清 callback 消费通道再定
+- [ ] **P7-E** UnavailableBotMessageService 停用引导词表（R1）
+- P7 收尾：audit 文档勾验 + CHANGELOG + 真机视觉对照
+
 ## 已完成（按时间倒序）
+- PR #425 @ 844dc66：P7-A /bot 状态面板语言化（botstatus.* 15 键）
 - PR #423 @ f66ca11：G3b-2 review 摘要渲染层语言化（summary_prefix/reason_sep 词表，4 UI 处，zh 逐字保持）
 - PR #422 @ b42bfa9：G3b review type 展示名词表化（review.type.<id>；ReviewService 9 处 + ReviewCommandService/RankCommandService/ReviewCommandHandler；PlayerRankDisplayService 系玩家昵称豁免；summary 前缀 zh 动词残留 G3b-2 记录）
 - PR #421 @ 4c3433a：G6c OrzConfigCommand 主树 31 键 cmd.config.*（C 面收口；parseValue 异常不再 UI 直显；registry cp.description() 豁免）
