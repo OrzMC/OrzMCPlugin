@@ -18,8 +18,8 @@
 - [x] **P7-A** /bot 面板 botstatus.* 词表（#425 @ 844dc66）
 - [x] **P7-B** 复核修正：分页已走 paginatePages 键化 → 删 dead paginate（#426 @ d7b6ed7）
 - [x] **P7-C** $e 回显（#427 @ 28579e7）：assemble {count} 模板参数（bot.e.truncated）+ execStateText（bot.e.exec_ok/not_found）；ExecResult.message 仅 logger 消费
-- [ ] **P7-D** WorldMaintenanceService callback 文本（时长单位/结果行）——先厘清 callback 消费通道再定
-- [ ] **P7-E** UnavailableBotMessageService 停用引导词表（R1）
+- [ ] **P7-D**（评估已明确，下轮执行）WorldMaintenanceService backup/optimize callback 文本 → **群 \$b/\$o 回复可见**（MaintenanceCommandHandler emit command_backup/optimize {message}）+ 自动备份（ScheduledBackupService，控制台/日志侧）。硬编码直行清单：224「正在{备份/优化}地图…」、216「地图{label}失败」、197 损坏区块提示、321/325/331/338 备份失败（目录/文件未生成）、formatDuration 时长单位（小时/分/秒）。部分行已走 event.maintenance_* 键（done/err/stage → 已 i18n）。方案：mode 词表（label 备份/优化 → maintenance.mode.backup/optimize 或复用 maintenance.cmd.reason_*）+ 时长单位词 + ~8 模板键（maintenance.cmd.* 域）；progressHandler 输出与 templateOptions 渲染衔接需谨慎
+- [ ] **P7-E** UnavailableBotMessageService 停用引导词表（R1，小卡）
 - P7 收尾：audit 文档勾验 + CHANGELOG + 真机视觉对照
 
 ## 已完成（按时间倒序）
