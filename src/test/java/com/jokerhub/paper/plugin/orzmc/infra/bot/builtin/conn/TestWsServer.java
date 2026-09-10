@@ -11,6 +11,8 @@ import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -20,6 +22,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 每连接一个读线程；可模拟：网络断开（关 socket，客户端见 1006）、服务端主动 close 帧（指定 code，如 QQ 鉴权 4004）、
  * 回声模式（收到文本帧回 "ack"，保持客户端活跃防止静默看门狗误判）。
  * 服务端→客户端帧用 {@link Conn#sendText(String)} 直接下发（如 QQ hello op10 / 事件 op0）。</p>
+ *
+ * <p><b>握手闸门（防测试竞态）</b>：连接在 accept 后即进入 {@link #connections()}（保证索引/顺序稳定），
+ * 但此时握手可能尚未完成——若测试线程立刻 {@code sendText}，帧字节会先于 HTTP 101 到达客户端，
+ * 导致客户端握手解析失败并另起新连接（测试却仍在旧连接上等待 → 偶发超时）。
+ * 故所有服务端下行（sendText/sendBinary/sendClose）均先等握手完成（{@link Conn#handshakeDone}），
+ * 且帧写入串行化（回声线程与测试线程可能并发写同一 socket）。</p>
  */
 public final class TestWsServer implements AutoCloseable {
 
@@ -88,6 +96,10 @@ public final class TestWsServer implements AutoCloseable {
         private final List<String> received = new CopyOnWriteArrayList<>();
         private final List<byte[]> receivedBinary = new CopyOnWriteArrayList<>();
         private final Thread reader;
+        /** 握手完成闩：服务端下行须等它（否则帧先于 101 到达客户端，破坏客户端握手）。 */
+        private final CountDownLatch handshakeDone = new CountDownLatch(1);
+        /** 帧写入锁：回声线程（读线程）与测试线程可能并发写同一 socket。 */
+        private final Object writeLock = new Object();
 
         private Conn(Socket socket) {
             this.socket = socket;
@@ -108,23 +120,38 @@ public final class TestWsServer implements AutoCloseable {
             return receivedBinary;
         }
 
-        /** 服务端→客户端发文本帧（不掩码）。 */
+        /** 服务端→客户端发文本帧（不掩码；自动等握手完成，避免破坏客户端握手）。 */
         public void sendText(String text) {
+            awaitHandshake();
             writeFrame(0x1, text.getBytes(StandardCharsets.UTF_8));
         }
 
-        /** 服务端→客户端发二进制帧（不掩码）。 */
+        /** 服务端→客户端发二进制帧（不掩码；自动等握手完成）。 */
         public void sendBinary(byte[] payload) {
+            awaitHandshake();
             writeFrame(0x2, payload);
         }
 
         /** 服务端主动 close 帧（指定 code），随后关闭 TCP。 */
         public void sendClose(int code) {
             try {
+                awaitHandshake();
                 byte[] payload = new byte[] {(byte) (code >> 8), (byte) code};
                 writeFrame(0x8, payload);
             } finally {
                 closeSocket();
+            }
+        }
+
+        /** 等本地握手完成（限时 5s，避免测试挂死）。 */
+        private void awaitHandshake() {
+            try {
+                if (!handshakeDone.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("TestWsServer 握手未在 5s 内完成");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("等待 TestWsServer 握手时被中断", e);
             }
         }
 
@@ -138,35 +165,43 @@ public final class TestWsServer implements AutoCloseable {
         }
 
         private void writeFrame(int opcode, byte[] payload) {
-            try {
-                OutputStream out = socket.getOutputStream();
-                ByteArrayOutputStream frame = new ByteArrayOutputStream();
-                frame.write(0x80 | opcode);
-                int len = payload.length;
-                if (len < 126) {
-                    frame.write(len);
-                } else if (len < 65536) {
-                    frame.write(126);
-                    frame.write((len >> 8) & 0xFF);
-                    frame.write(len & 0xFF);
-                } else {
-                    frame.write(127);
-                    for (int i = 7; i >= 0; i--) {
-                        frame.write((int) ((len >> (8 * i)) & 0xFF));
+            synchronized (writeLock) {
+                try {
+                    OutputStream out = socket.getOutputStream();
+                    ByteArrayOutputStream frame = new ByteArrayOutputStream();
+                    frame.write(0x80 | opcode);
+                    int len = payload.length;
+                    if (len < 126) {
+                        frame.write(len);
+                    } else if (len < 65536) {
+                        frame.write(126);
+                        frame.write((len >> 8) & 0xFF);
+                        frame.write(len & 0xFF);
+                    } else {
+                        frame.write(127);
+                        for (int i = 7; i >= 0; i--) {
+                            frame.write((int) ((len >> (8 * i)) & 0xFF));
+                        }
                     }
+                    frame.write(payload);
+                    out.write(frame.toByteArray());
+                    out.flush();
+                } catch (IOException ignored) {
+                    // 对端已关闭
                 }
-                frame.write(payload);
-                out.write(frame.toByteArray());
-                out.flush();
-            } catch (IOException ignored) {
-                // 对端已关闭
             }
         }
 
         private void readLoop() {
             try {
                 InputStream in = socket.getInputStream();
-                if (!handshake(in, socket.getOutputStream())) {
+                boolean handshakeOk;
+                try {
+                    handshakeOk = handshake(in, socket.getOutputStream());
+                } finally {
+                    handshakeDone.countDown(); // 无论成败都放行下行（失败时写入会被 IOException 吞掉）
+                }
+                if (!handshakeOk) {
                     return;
                 }
                 while (true) {
@@ -237,6 +272,7 @@ public final class TestWsServer implements AutoCloseable {
             } catch (IOException ignored) {
                 // 连接关闭
             } finally {
+                handshakeDone.countDown();
                 closeSocket();
             }
         }

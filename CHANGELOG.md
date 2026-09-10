@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### 🐛 修复（CI 测试稳定性：WS 重连类偶发失败）
+- **根因**：`TestWsServer` 在 TCP accept 后、WS 握手完成前就把连接放进 `connections()`，测试同步到 `connections().size()` 后立即 `sendText` 时，帧字节会先于 HTTP 101 到达客户端 → 客户端握手解析失败另起新连接，测试仍在旧连接等待 → 偶发超时（实证：#34192614457/#34470833633 `QqGatewayClientTest.op9_invalidSession_clearsAndFullyReidentifies`）。
+- **修复**：`TestWsServer` 加握手闸门（`sendText/sendBinary/sendClose` 先等握手）+ 帧写入串行化；QQ op9 用例同步条件补客户端 onOpen；Discord `close4004` 改等 `listener.fatal` 回调（原先先轮询 `state` 再断言回调有竞态）；`OrzEasyBotTest` Mockito `timeout(1000)`→`5000`。
+- **回归护栏**：新增 `TestWsServerTest`（半截握手请求 → `sendText` 阻塞 → 补全后 101 先于帧；去闸门则红）。
+
 ### 📖 文档（双通道选型对比）
 - **新增 [`docs/manuals/channel-comparison.md`](docs/manuals/channel-comparison.md)**：EasyBot 网关 ↔ builtin 内置直连的全量差异对照、优缺点、**实例多开能力**（单实例多平台并行 / 同平台多 bot / 多台服务器共用机器人 / 双通道并行）与切换须知；`manuals/README`、`features.md §2`、`bot-easybot.md`、`docs/README` 同步索引
 
