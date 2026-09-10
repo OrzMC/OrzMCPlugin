@@ -1,5 +1,5 @@
 # i18n 遗留缺口补齐（P6）交接
-> 状态：**P6 归档；P7 代码全部完成（#425–#428；E 撤销）**，收尾仅 docs 归档与 owner 真机抽验；候选/台账见 `docs/dev/i18n-gap-audit-p7.md`：P6 全卡与低影响记录项（G3b-2）合入 develop（#414–#423）；D 面经复核为非低影响大工程 → 按 owner 决定豁免（决策与边界见 `docs/dev/i18n-plan.md` §8 豁免表）。收尾残留：真机视觉对照（owner 抽验，非阻塞）｜ 最后更新：2026-09-09
+> 状态：**P6 归档；P7 代码全部完成（#425–#428；E 撤销）**，收尾仅 docs 归档与 owner 真机抽验；候选/台账见 `docs/dev/i18n-gap-audit-p7.md`：P6 全卡与低影响记录项（G3b-2）合入 develop（#414–#423）；D 面经复核为非低影响大工程 → 按 owner 决定豁免（决策与边界见 `docs/dev/i18n-plan.md` §8 豁免表）。收尾残留：真机视觉对照（owner 抽验，非阻塞）｜ 最后更新：2026-09-10
 > 上级规划：docs/dev/i18n-plan.md §8（一期完成）；本文为「二期遗留审查 → 补齐」工程卡。
 
 ## 任务与目标
@@ -37,7 +37,7 @@
 - PR #416 @ 7819f3f：G2 FeatureCommandRegistrar（desc ×6 → cmd.desc.*、orzdebug/maintenance 运维提示 defaultMessage R1、registerSimple 仅玩家可用 → common.player_required；CommandFeedbackService.defaultMessage；FeatureModule 仅日志豁免）
 - PR #415 @ b11fc20：G1 ReviewCommandRegistrar 样板（CommandFeedbackService 扩展 commandDescription/message/playerRequiredMessage；desc×2、仅玩家可用×7、review_failed 外壳）
 - PR #414 @ b25d8d3：$ 群帮助注入真实 I18nService（装配断点修复；前置）
-- 已知：DiscordGatewayClientTest reconnectRequest 偶发 flake（重跑 PASSED，CI 侧 gh run rerun --failed）
+- 已知（**已修复 PR #436**，2026-09-10）：WS 重连类 CI 偶发 flake（`QqGatewayClientTest.op9_invalidSession…`×2、`DiscordGatewayClientTest.close4004…`、`OrzEasyBotTest` Mockito timeout）——根因 `TestWsServer` 在握手完成前就把连接暴露给 `connections()`；已加握手闸门 + 帧写入串行化，并新增回归护栏 `TestWsServerTest`（不再需要 `gh run rerun --failed` 兜底）
 - FeatureModule review type 展示名（builder-promotion「晋升建造者」等 + 申请列表 data->"申请"+name）→ 新增卡 G4b 评估（ReviewService 渲染层）
 
 ## 卡规划（依赖序；每卡单 PR，语言包尾部追加需串行）
