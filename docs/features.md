@@ -1,5 +1,5 @@
 # OrzMC 插件功能清单
-> **状态：现行**（功能清单唯一权威；bot 平台操作手册见 `docs/manuals/`，§2 为概览与索引） ｜ **最后更新**：2026-09-06
+> **状态：现行**（功能清单唯一权威；bot 平台操作手册见 `docs/manuals/`，§2 为概览与索引） ｜ **最后更新**：2026-09-10
 
 > 多平台机器人集成的 Paper / Folia 服务器管理插件
 >
@@ -74,6 +74,9 @@
 - **内置直连（`backend: builtin`，QQ / 飞书 / Telegram / Discord 已落地）**：插件直连各平台官方 API（QQ/Discord WS 网关 + REST，飞书长连接 WS，Telegram 长轮询），不再依赖外部网关进程；
   业务层命令/通知语义与 EasyBot 通道完全一致。⚠️ 会话值体系不同：EasyBot 通道用后台分配的「会话 key」（如 `qq:conv_xxx`，见 §2.5），builtin 通道用**平台原生会话标识**（QQ 为 `group:<OpenID>` / `user:<OpenID>`，飞书为 `group:<chat_id>` / `user:<chat_id>`，Telegram 为 `group:<chat_id>` / `user:<chat_id>`，Discord 为 `group:<channel_id>` / `user:<user_id>`；接入手册见 §2.5 索引）——切 backend 后需按新通道重新绑定会话。
 
+> 两通道的**全量差异、优缺点与实例多开能力**（多平台并行 / 同平台多 bot / 多台服务器共用机器人）见
+> [双通道选型对比](manuals/channel-comparison.md)。
+
 ### 2.2 Bot 命令一览
 
 所有命令使用可配置前缀（config.yml `bot.cmd_prompt_char`，默认 `$`；v12 前位于 easybot.yml，启动自动搬迁），在命令后加 `?` 可查看详细用法。
@@ -118,6 +121,7 @@
 | 通道 | 手册 | 适用 |
 |------|------|------|
 | EasyBot 网关（默认 `backend: easybot`） | [`bot-easybot.md`](manuals/bot-easybot.md) | 已部署 EasyBot 网关（QQ/TG/DC/飞书/微信） |
+| 双通道选型对比 | [`manuals/channel-comparison.md`](manuals/channel-comparison.md) | **选通道前先读**（差异/优缺点/多开） |
 | 内置直连公共骨架 | [`bot-builtin-common.md`](manuals/bot-builtin-common.md) | **先读**（会话模型/bind 命令/proxy） |
 | · QQ | [`bot-qq.md`](manuals/bot-qq.md) | 开放平台机器人（WS 网关） |
 | · 飞书 | [`bot-feishu.md`](manuals/bot-feishu.md) | 企业自建应用（长连接 WS） |
@@ -485,13 +489,13 @@
 
 > 大部分配置可通过 `/config` 命令在运行时修改并立即生效，无需重启服务器。
 
-### 语言本地化（i18n，P0–P6 完成）
+### 语言本地化（i18n，P0–P7 完成）
 
 插件内置中英双语语言包（`messages/messages_zh-CN.yml` / `messages_en-US.yml`），覆盖游戏内反馈、Bot 交互回复、群事件通知与运维命令面板：
 
 - **默认语言**：`config.yml` 的 `i18n.default_lang`（默认 `zh-CN`；`en-US` 即整体英文）；游戏内命令反馈优先跟随玩家客户端 locale（未装码回落默认语言）。
 - **Bot 平台**：可按平台配置 `i18n.platform_langs[平台]` 指定交互回复语言；群事件通知按默认语言渲染一次。
-- **命令描述（/help 可见）与运维 /config 面板**：随默认语言（R1）；`$h`/`$cmd ?` 群帮助随默认语言。
+- **命令描述（/help 可见）与运维 /config 面板**：随默认语言（R1）；`$h`/`$cmd ?` 群帮助随默认语言；`/bot` 状态面板、`$e` 回显（截断提示/执行状态）与维护通知变量（mode/duration）同样随语言包渲染。
 - **服主覆盖**：数据目录 `messages_custom_<lang>.yml` 覆盖同 key（即时 reload 生效；空串 = 屏蔽该条消息），升级不覆盖存量正文定制（升级链自动迁移）。
 - **边界**：配置帮助说明（`/config list` 里的「说明」列）与健康报告为 admin 数据文档，保持内置中文不随语言切换（详见 `docs/dev/i18n-plan.md` §8 豁免表）。
 - 迁移方案与决策见 `docs/dev/i18n-plan.md`；P6 交接见 `docs/dev/i18n-gap-handoff.md`。

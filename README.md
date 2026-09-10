@@ -2,12 +2,12 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-1600+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-1800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
-A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and WeChat bots through the EasyBot gateway.
+A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and WeChat bots through the EasyBot gateway — or through its own built-in direct channel — and ships a bilingual (English / Chinese) UI out of the box.
 
 > 🌐 **English** | [简体中文](README.zh-CN.md)
 > 
@@ -27,7 +27,8 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 |---------|-------------|
 | Permission system (Rank & Review) | 4-level player rank chain (default → member → builder → admin, "default" 显示名为 guest/访客) powered by LuckPerms with auto-promotion, apply-and-review workflow (`/apply` / `/review` / `$v`), and manual promotion/demotion (`$p`). Zero setup: auto-creates the track and missing groups on startup; degrades gracefully when LuckPerms is absent. |
 | Whitelist management | Control server access. Admins add/remove players via bot commands (`$a` / `$r` / `$w`); inactive players are cleaned up automatically; kicked non-whitelisted players receive a helpful notice. |
-| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway. 11 bot commands for player management, queries and interaction; console commands (`$e`) return full output to the group — including async plugin output (e.g. Essentials/LuckPerms) captured via a log window, with noise filtering and 30-line truncation; 50+ customizable message templates push server events to the matching group or channel. |
+| Multi-platform bot system | Unify QQ, Telegram, Discord, Feishu and WeChat through the EasyBot gateway, or connect to the platform APIs directly with the built-in channel (QQ / Feishu / Telegram / Discord, no extra process) — pick one via `im.yml` → `backend` ([channel comparison](docs/manuals/channel-comparison.md)). 11 bot commands for player management, queries and interaction; console commands (`$e`) return full output to the group — including async plugin output (e.g. Essentials/LuckPerms) captured via a log window, with noise filtering and 30-line truncation; 50+ customizable message templates push server events to the matching group or channel. |
+| Multi-language (i18n) | Built-in English / Chinese message packs cover in-game feedback, bot replies, event notifications and the `/config` panels; in-game text follows each player's client locale, bot replies are configurable per platform, and server owners can override any message via `messages_custom_<lang>.yml`. |
 | Cross-server portals | Admins create or remove portals; players stepping on a portal are transferred across servers. Optional LoginSecurity verification before transfer. |
 | TNT protection | Restrict where TNT can be placed, with per-area whitelist exemption; explosion notifications to the group chat; control respawn anchor explosion behavior. Burst explosions are aggregated into a single alert (`×N` with first-event coordinates) so dispenser/explosion spam never floods the group. |
 | Security controls | Restrict joins by GeoIP country; IP blacklist modes (exact IP / CIDR / wildcard); player-name deny rules (exact / prefix / suffix / contains / glob / regex); optional LoginSecurity secondary verification. |
@@ -59,7 +60,11 @@ memory and written back to the config files when the server stops.
 > auto-creates the `rank` track and missing groups on startup — no manual
 > LuckPerms setup required.
 
-## Bot setup (EasyBot gateway)
+## Bot setup
+
+OrzMC supports two interchangeable IM channels, selected globally by `backend` in `im.yml`: the external **EasyBot gateway** (default) or the **built-in direct** channel (QQ / Feishu / Telegram / Discord, no extra process). Differences, trade-offs and multi-instance notes: [channel comparison](docs/manuals/channel-comparison.md).
+
+### Option A — EasyBot gateway (default)
 
 All OrzMC bot features connect through the external EasyBot IM gateway.
 
@@ -71,6 +76,16 @@ All OrzMC bot features connect through the external EasyBot IM gateway.
 4. Target values such as `admin_group` are not native platform IDs — get the **session key** from the EasyBot console's **Session Management** (e.g. `qq:conv_xxxxxxxx`)
 
 > Detailed routing rules: [EasyBot configuration guide](docs/features.md#25-easybot-网关配置指南)
+
+### Option B — Built-in direct channel
+
+The plugin talks to the platform APIs itself — no gateway process, text-only, credentials configured in `im.yml`:
+
+1. Set `backend: builtin` and fill in `platforms.<id>` credentials in `im.yml`
+2. Restart the server, send a message in the target group / channel, then bind the discovered session with `/config im bind`
+3. Verify with `/config im status` and `/config im test`
+
+> Step-by-step guides: [built-in common skeleton](docs/manuals/bot-builtin-common.md) → [QQ](docs/manuals/bot-qq.md) / [Feishu](docs/manuals/bot-feishu.md) / [Telegram](docs/manuals/bot-telegram.md) / [Discord](docs/manuals/bot-discord.md).
 
 ### Migrating from the old setup
 

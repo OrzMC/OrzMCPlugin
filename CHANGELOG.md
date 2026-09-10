@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.0.25] - 2026-09-10
+
+> 本版主题：**多语言（中英双语）全量落地（i18n P0–P7）**，配套 QQ builtin 网关日志降噪、文档补齐与 CI 测试稳定性修复；默认语言仍为中文，老安装升级后体验不变。
+
+### 🐛 修复（IM 网关日志降噪）
+- **QQ builtin 网关 op7 例行轮换日志降噪（#433）**：QQ 服务端每 ~30min 下发 op7 轮换 → 主动断开+重连+resume 此前 5 条 INFO 刷屏；现「收到 op7 / 发送 resume / RESUMED / 主动断开（code=1000 非 remote）/ 建连成功」降为 FINE，意外断开、op9 无效会话、鉴权失败、建连失败仍保持 INFO。诊断时可调日志级别打开。
+
+### 🐛 修复（CI 测试稳定性：WS 重连类偶发失败）
+- **根因**：`TestWsServer` 在 TCP accept 后、WS 握手完成前就把连接放进 `connections()`，测试同步到 `connections().size()` 后立即 `sendText` 时，帧字节会先于 HTTP 101 到达客户端 → 客户端握手解析失败另起新连接，测试仍在旧连接等待 → 偶发超时（实证：#34192614457/#34470833633 `QqGatewayClientTest.op9_invalidSession_clearsAndFullyReidentifies`）。
+- **修复**：`TestWsServer` 加握手闸门（`sendText/sendBinary/sendClose` 先等握手）+ 帧写入串行化；QQ op9 用例同步条件补客户端 onOpen；Discord `close4004` 改等 `listener.fatal` 回调（原先先轮询 `state` 再断言回调有竞态）；`OrzEasyBotTest` Mockito `timeout(1000)`→`5000`。
+- **回归护栏**：新增 `TestWsServerTest`（半截握手请求 → `sendText` 阻塞 → 补全后 101 先于帧；去闸门则红）。
+
+### 📖 文档（双通道选型对比）
+- **新增 [`docs/manuals/channel-comparison.md`](docs/manuals/channel-comparison.md)**：EasyBot 网关 ↔ builtin 内置直连的全量差异对照、优缺点、**实例多开能力**（单实例多平台并行 / 同平台多 bot / 多台服务器共用机器人 / 双通道并行）与切换须知；`manuals/README`、`features.md §2`、`bot-easybot.md`、`docs/README` 同步索引
+
 ### ✨ 新功能 / 🛠 改进（多语言 i18n 一期，P0–P5 完成）
 - **多语言基础设施** — `infra/i18n/`：内置 `messages/messages_zh-CN.yml` + `messages_en-US.yml`（zh 为主目录逐字基线），`config.yml i18n:` 段（default_lang/platform_langs），数据目录 `messages_custom_<lang>.yml` 覆盖层（即时 reload、空串屏蔽）；Lang 决议：游戏内跟随客户端 locale（`langFor(Player)`）、Bot 交互按平台、群事件通知默认语言 R1；`I18nCatalogConsistencyTest` + I18nHealth 一致性护栏
 - **游戏内/Bot 全量文案迁语言包（P1–P3）** — common/teleport/whitelist/portal/tnt/player/geoip/login/guard/exploit/ratelimit/review/rank/prison/maintenance/guide/menu/bot/access_rule 等域分域迁移（中文零回归、英文随包交付；botcommands 11 命令与 `$cmd ?` 帮助双语）
@@ -22,6 +37,12 @@
 - **$e 回显（#427）**：截断提示 {count} 模板参数化（bot.e.truncated）+ 执行状态 bot.e.exec_ok/exec_not_found
 - **维护通知变量（#428）**：maintenance.mode.*/duration.* 词表（{label}/{duration_human} 不再 zh 硬注入；eventKey 判断改布尔）
 - 三审复核豁免/撤销：en 值零中文残留；E（IM 停用告警）确认纯控制台日志撤销；D2（维护低频直行）可选遗留记录
+
+### ⚠️ 升级注意
+- **配置升级全自动，无需手动改文件**：本版 `config.yml` 新增 `i18n:` 段（`default_lang` 默认 `zh-CN` + `platform_langs` 按平台语言），启动时经 schema 自动升级补齐默认键；`templates.yml` 的 `config-version` 由 13 升到 14——存量盘中「正文==旧默认」的模板键自动删除并回落语言包，服主自定义过的正文一律保留（同目录 `*.bak` 备份，可审计）
+- **语言包可覆盖**：数据目录 `messages_custom_<lang>.yml` 覆盖内置文案同 key（即时 reload 生效，空串 = 屏蔽该条），升级不覆盖存量定制
+- **默认语言为 `zh-CN`**：不显式配置 `i18n.default_lang` 时行为与旧版一致（全中文）；游戏内反馈跟随玩家客户端 locale，Bot 交互按 `i18n.platform_langs`（未配则默认语言），群事件通知按默认语言渲染
+- **配置帮助说明与健康报告**保持内置中文（数据文档豁免，详见 [`docs/dev/i18n-plan.md`](docs/dev/i18n-plan.md) §8 豁免表）
 
 ### 附注（owner 后续动作）
 - en 校对（D7）见 `docs/dev/i18n-migration-handoff.md`；真机双语冒烟已用本机 runServer/runFolia 无头执行

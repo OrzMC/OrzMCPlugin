@@ -11,7 +11,7 @@
 |:--|:--|:--|
 | [README](../README.md) | 项目总览、安装、机器人接入、更新 | 仓库根 |
 | [功能清单](features.md) | **全部功能的唯一权威描述**（含配置项、命令、权限组；bot §2 为概览与手册索引） | docs/ |
-| [Bot 接入手册](manuals/README.md) | 两通道选型 + 分步接入/验收手册（EasyBot 网关 / builtin QQ·飞书·Telegram·Discord；公共骨架） | docs/manuals/ |
+| [Bot 接入手册](manuals/README.md) | 两通道选型（含[双通道对比](manuals/channel-comparison.md)）+ 分步接入/验收手册（EasyBot 网关 / builtin QQ·飞书·Telegram·Discord；公共骨架） | docs/manuals/ |
 | [权限组节点表](permission-groups.md) | LP 各组权限节点明细与设计决策 | docs/ |
 
 ### 🧑💻 开发者（改代码）
@@ -23,7 +23,7 @@
 | [配置 Schema 治理](dev/config-schema-governance.md) | config.yml 结构、版本门控迁移规则、允许/禁止事项 | docs/dev/ |
 | [Folia × LuckPerms 红线](dev/folia-luckperms-gotchas.md) | 线程模型/LP 集成实战教训（**改 rank/review/prison 前必读**） | docs/dev/ |
 | [IM 网关内建方案](dev/im-gateway-inhouse.md) | EasyBot ↔ builtin 双通道切换方案定稿（backend/im.yml/决策记录/实施路线/§10 遗留清单） | docs/dev/ |
-| [多语言 i18n 方案](dev/i18n-plan.md) | 中英双语 + 可扩展语言包（一期 P0–P5 完成；台账 §8，交接见 [i18n-migration-handoff.md](dev/i18n-migration-handoff.md)） | docs/dev/ |
+| [多语言 i18n 方案](dev/i18n-plan.md) | 中英双语 + 可扩展语言包（**P0–P7 全部完成，1.0.25 发布**；完成台账 §8，交接见 [i18n-migration-handoff.md](dev/i18n-migration-handoff.md)） | docs/dev/ |
 | [Folia 开发参考](folia-migration.md) | Folia 适配决策与验证方式（迁移已完成，作参考保留） | docs/ |
 | 包级 javadoc（`package-info.java`） | 逐包职责/关键类型/依赖方向，定位最快入口 | src/ |
 

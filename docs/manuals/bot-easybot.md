@@ -1,6 +1,6 @@
 # EasyBot 网关接入手册（backend=easybot，默认通道）
 
-> **状态：现行** ｜ **最后更新**：2026-09-06
+> **状态：现行** ｜ **最后更新**：2026-09-10
 >
 > 默认通道：通过自建 **EasyBot 网关服务**统一接入多平台 IM（QQ / Telegram / Discord / 飞书 / 微信）。
 > EasyBot 对外暴露 REST API + WebSocket 事件推送，屏蔽各平台协议差异。
@@ -83,6 +83,8 @@ EasyBot 适配器只保留公开与管理员私聊两类路由：
 ---
 
 ## 与 builtin 通道的差异
+
+> 全量差异、优缺点与实例多开能力见 [`channel-comparison.md`](channel-comparison.md)；下表仅速览。
 
 | 维度 | EasyBot（本页） | builtin（平台册） |
 |------|----------------|------------------|
