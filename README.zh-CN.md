@@ -1,11 +1,11 @@
 # OrzMC
 
-[![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
+[![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
 [![Test Count](https://img.shields.io/badge/tests-1800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
-[![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
+[![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
 通过 EasyBot 网关或内置直连统一接入多平台机器人、内置中英双语的 Paper / Folia 服务器管理插件
 > 🌐 [English](README.md) | **简体中文**
@@ -99,7 +99,7 @@ OrzMC 的机器人功能通过外部 EasyBot IM 网关接入。
 也可以进入QQ频道反馈问题：<br/> ![飞书反馈群二维码](./images/lark_issue_feedback.png)
 
 ## 参与贡献
-- [贡献指南](CONTRIBUTING.md)（含开发说明、迭代规范）
+- [贡献指南](CONTRIBUTING.md)（含开发说明、迭代规范）—— 日常 PR 请打 **`develop`**（默认分支）；`main` 是发布线（仅里程碑与经批准的热修复）
 - [**文档总索引**](docs/README.md)（按读者角色组织的全文档导航）
 - [插件架构](docs/architecture.md)
 - [更新日志](CHANGELOG.md)

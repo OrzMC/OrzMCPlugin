@@ -18,6 +18,7 @@
 | 文档 | 内容 | 位置 |
 |:--|:--|:--|
 | [AGENTS.md](../AGENTS.md) | **仓库协作单一事实源**：构建命令、架构速览、开发红线、AI 协作约定 | 仓库根 |
+| [贡献指南](../CONTRIBUTING.md) | 环境要求、双轨三支分支模型（默认 `develop`）、PR 流程与版本发布规则 | 仓库根 |
 | [架构设计](architecture.md) | 分层/模块/生命周期/依赖/设计原则 + 「改 X → 读 Y」编辑路径 | docs/ |
 | [代码质量路线图](roadmap/code-quality-roadmap.md) | 待办质量问题清单（P0/P1/P2）与任务拆分 | docs/roadmap/ |
 | [配置 Schema 治理](dev/config-schema-governance.md) | config.yml 结构、版本门控迁移规则、允许/禁止事项 | docs/dev/ |
@@ -37,7 +38,7 @@
 ### 🚀 发布 / 运维
 | 文档 | 内容 | 位置 |
 |:--|:--|:--|
-| [发布平台运维手册](publishing-platforms.md) | Hangar/Modrinth 项目信息、自动发布、Token 管理 | docs/ |
+| [发布平台运维手册](publishing-platforms.md) | Hangar/Modrinth 项目信息、自动发布（含 tag 发布后 bump 自动化 §5.5）、Token 管理 | docs/ |
 | [更新日志](../CHANGELOG.md) | 版本变更明细 | 仓库根 |
 
 ### 📚 历史快照 / 验收报告（已归档，只读参考）
