@@ -180,7 +180,21 @@ jobs:
           git add src/main/resources/paper-plugin.yml
           git commit -m "chore: bump version to $NEW"
           BRANCH="bump-version/$NEW"
-          git push origin "HEAD:$BRANCH"
+          # 幂等：同名分支的 PR 已创建过（重跑/手工补 bump）→ open 则复用，merged 则跳过
+          open_num="$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number // empty')"
+          if [ -n "$open_num" ]; then
+            echo "ℹ️ 复用已存在的 bump PR #$open_num"
+            gh pr merge "$open_num" --auto --squash
+            exit 0
+          fi
+          if [ -n "$(gh pr list --head "$BRANCH" --state merged --json number -q '.[0].number // empty')" ]; then
+            echo "✅ bump PR 已合并（版本已推进到 $NEW），跳过重复 bump"
+            exit 0
+          fi
+          # tag 事件下 actions/checkout 处于 detached HEAD：refspec 必须全限定到 refs/heads，
+          # 否则 git 无法推断目标（实测报错：The destination you provided is not a full refname）。
+          # --force：分支为发布流程专用的临时分支，无关联 PR 时允许覆盖残留分支。
+          git push --force origin "HEAD:refs/heads/$BRANCH"
           pr="$(gh pr create --base main --head "$BRANCH" \
                 --title "chore: bump version to $NEW" \
                 --body "版本号自增 commit（tag 发布流程自动产生：$CURRENT → $NEW）。CI 绿后 auto-merge 合入 main。")"
