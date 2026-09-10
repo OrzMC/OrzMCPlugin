@@ -10,19 +10,34 @@
 
 ## 分支策略
 
-- **`main`** 是唯一的永久分支，同时也是发版分支
-- 所有开发分支从 `main` 创建，PR 合入 `main`
-- PR 目标分支仅限 `main`
+采用双轨三支模型（**完整规范见 [AGENTS.md](AGENTS.md) 的「开发工作流与发布」**）：
+
+```text
+main（冻结）── 仅 owner 验收的里程碑（develop→main）与批准的热修复
+develop（默认分支）── 日常开发集散地；PR 全走这里；永不直接发布
+feature|fix|hotfix/<主题> ── 临时分支，PR 合并后删除
+```
+
+| 场景 | 拉分支基线 | PR base | 合并方式 | 合并后发布 |
+|------|-----------|---------|---------|-----------|
+| 新功能 / 缺陷修复 | `origin/develop` | `develop` | squash | 不发布 |
+| 热修复（需 owner 批准） | `origin/main` | `main` | squash（owner 手动） | 1 个 beta |
+| 里程碑发布 | —（PR head = develop） | `main` | squash（CI 绿自动） | 含代码改动 → 1 个 beta |
+
+- **默认分支是 `develop`**：新建 PR 请确认 base = `develop`；`main` 只承载「已验收、准备发布」的内容
+- **禁止直接 push `main` / `develop`**：两个分支都有分支保护（PR + 必选检查 + 禁强推），一切改动经 PR
+- **纯文档 / CI 改动默认也走 `develop`**：合入 `main` 时会被 `publish.yml` 的 paths-ignore 跳过，不产生 beta
 
 ## 分支命名
 
 | 前缀 | 用途 |
 |------|------|
-| `feat/*` | 新功能 |
-| `fix/*` | Bug 修复 |
-| `refactor/*` | 代码重构 |
-| `chore/*` | 构建/配置/依赖变更 |
-| `docs/*` | 文档 |
+| `feature/<主题>` | 新功能 |
+| `fix/<主题>` | 缺陷修复 |
+| `hotfix/<主题>` | 紧急修复（从 `origin/main` 拉，需 owner 批准） |
+| `refactor/<主题>` | 代码重构 |
+| `docs/<主题>` | 文档 |
+| `chore/<主题>` / `ci/<主题>` | 构建 / 配置 / 依赖 / CI |
 
 ## 提交规范
 
@@ -58,22 +73,31 @@
 
 ## 版本发布
 
-- 推送 Strict SemVer 标签（如 `1.0.0`，**无 `v` 前缀**）到 GitHub 自动触发 CI 构建并创建 GitHub Release
-- 版本命名规则见下表：
+分支模型决定版本产物（完整流程见 [AGENTS.md](AGENTS.md)，平台侧操作与故障排查见 [发布平台运维手册](docs/publishing-platforms.md)）：
 
 | 事件 | 版本号格式 | Hangar Channel | Modrinth Type | 目标 |
 |------|-----------|---------------|---------------|------|
-| Push → main | `{version}-dev.{GITHUB_RUN_NUMBER}` | beta | beta | Dev 快照 |
-| Push tag `1.0.0` | `{version}`（纯 SemVer） | release | release | 平台 Release + GitHub Release |
+| Push `develop` | — | 不发布 | 不发布 | — |
+| Push `main`（含代码改动） | `{version}-dev.{GITHUB_RUN_NUMBER}` | beta | beta | Dev 快照 |
+| Push tag `1.0.0` | `{version}`（纯 SemVer，**无 `v` 前缀**） | release | release | 平台 Release + GitHub Release |
+
+- `main` 只在里程碑（develop→main）或批准的热修复时前进，一次里程碑 ≈ 1 个 beta；beta 应对应「验收过的功能集」
+- 纯文档 / CI / 流程改动（`docs/**`、`*.md`、`.github/**` 等）合入 `main` **不发版**
+- tag 发布前会跑完整 `./gradlew check`；发布后 CI 自动 bump `paper-plugin.yml`（以 PR 合回 main，见发布手册 §5.5）
 
 ## PR 流程
 
-1. 从 `main` 创建你的特性/修复分支
-2. 在本地完成开发和测试（`./gradlew spotlessApply && ./gradlew build`）
-3. 提交 PR 到 `main`
-4. CI 自动运行：`spotlessCheck` → `test` → `integrationTest` → `shadowJar`
-5. Maintainer Review
-6. Squash merge 到 `main`
+1. 从 `origin/develop` 拉临时分支（一步完成，不碰工作区）：
+   ```bash
+   git fetch origin --prune && git checkout -b feature/<主题> origin/develop
+   ```
+2. 在本地完成开发和测试：`./gradlew spotlessApply && ./gradlew test` 全绿
+3. 提交 PR，**base 选 `develop`**（热修复才选 `main`，且需 owner 批准）
+4. CI 自动运行：`spotlessCheck` → `test` → `integrationTest` → `shadowJar`，以及真实 Folia 启动的 `folia-smoke`
+5. 等待 review / CI 绿（`main`、`develop` 均要求 build + folia-smoke 必选检查）
+6. **Squash merge 到 `develop`**，合并后删除临时分支
+
+> 需跨分支操作时先提交或 stash——仓库有过「改完未提交就切换分支导致改动被 reset 吞掉」的教训（见 AGENTS.md 铁律）。
 
 ## 问题反馈
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 📖 文档（分支模型对齐）
+- **`CONTRIBUTING.md` 按双轨三支模型重写**：旧版仍写「main 是唯一永久分支 / PR 目标仅限 main」，与新模型（默认分支 `develop`；feature/fix → develop；hotfix/里程碑 → main）矛盾，会误导外部贡献者；现补分支矩阵表、PR 流程（base=develop）、版本发布表（含 develop 行与 paths-ignore 说明）、分支命名对齐、AGENTS 单一事实源指引
+- **README(en/zh)**：build / Publish 徽章显式 pin `?branch=main`（与 codecov `branch=main` 口径一致）；参与贡献行注明「日常 PR 打 `develop`，`main` 为发布线」
+
 ### 🐛 修复（发布自动化）
 - **tag 发布后 bump 步骤修复（#442/#444 + hotfix #445 落 main）**：1.0.25 正式发布实测——发布全绿但 `bump version` 失败（`error: The destination you provided is not a full refname`）。根因：tag 事件下 `actions/checkout` 为 detached HEAD，`git push origin "HEAD:$BRANCH"` 无法推断目标 ref（该 bump-via-PR 逻辑 #346 首次被 tag 实跑）。修复：refspec 全限定 `HEAD:refs/heads/$BRANCH` + 幂等（open PR 复用 / merged 跳过 / 残留分支 `--force`）；⚠️ 已 hotfix 到 main（tag 用 main 的 workflow）。详见 [发布手册 §5.5](docs/publishing-platforms.md#55-tag-发布后版本-bump-自动化含-2026-09-10-踩坑)
 
