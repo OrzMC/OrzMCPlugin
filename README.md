@@ -1,11 +1,11 @@
 # OrzMC
 
-[![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
+[![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
 [![Test Count](https://img.shields.io/badge/tests-1800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
-[![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
+[![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
 A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and WeChat bots through the EasyBot gateway — or through its own built-in direct channel — and ships a bilingual (English / Chinese) UI out of the box.
 
@@ -131,7 +131,7 @@ You can also join our QQ channel for feedback:<br/>
 
 ## Contributing
 
-- [Contribution guide](CONTRIBUTING.md) (development notes and iteration conventions)
+- [Contribution guide](CONTRIBUTING.md) (development notes and iteration conventions) — day-to-day PRs target **`develop`** (the default branch); `main` is the release line (milestones & approved hotfixes only)
 - [**Documentation index**](docs/README.md) (reader-role navigation across all docs)
 - [Plugin architecture](docs/architecture.md)
 - [Config schema governance](docs/dev/config-schema-governance.md)
