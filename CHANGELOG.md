@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 🐛 修复（发布自动化）
+- **tag 发布后 bump 步骤修复（#442/#444 + hotfix #445 落 main）**：1.0.25 正式发布实测——发布全绿但 `bump version` 失败（`error: The destination you provided is not a full refname`）。根因：tag 事件下 `actions/checkout` 为 detached HEAD，`git push origin "HEAD:$BRANCH"` 无法推断目标 ref（该 bump-via-PR 逻辑 #346 首次被 tag 实跑）。修复：refspec 全限定 `HEAD:refs/heads/$BRANCH` + 幂等（open PR 复用 / merged 跳过 / 残留分支 `--force`）；⚠️ 已 hotfix 到 main（tag 用 main 的 workflow）。详见 [发布手册 §5.5](docs/publishing-platforms.md#55-tag-发布后版本-bump-自动化含-2026-09-10-踩坑)
+
 ## [1.0.25] - 2026-09-10
 
 > 本版主题：**多语言（中英双语）全量落地（i18n P0–P7）**，配套 QQ builtin 网关日志降噪、文档补齐与 CI 测试稳定性修复；默认语言仍为中文，老安装升级后体验不变。
