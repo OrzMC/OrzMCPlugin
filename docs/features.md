@@ -74,6 +74,9 @@
 - **内置直连（`backend: builtin`，QQ / 飞书 / Telegram / Discord 已落地）**：插件直连各平台官方 API（QQ/Discord WS 网关 + REST，飞书长连接 WS，Telegram 长轮询），不再依赖外部网关进程；
   业务层命令/通知语义与 EasyBot 通道完全一致。⚠️ 会话值体系不同：EasyBot 通道用后台分配的「会话 key」（如 `qq:conv_xxx`，见 §2.5），builtin 通道用**平台原生会话标识**（QQ 为 `group:<OpenID>` / `user:<OpenID>`，飞书为 `group:<chat_id>` / `user:<chat_id>`，Telegram 为 `group:<chat_id>` / `user:<chat_id>`，Discord 为 `group:<channel_id>` / `user:<user_id>`；接入手册见 §2.5 索引）——切 backend 后需按新通道重新绑定会话。
 
+> 两通道的**全量差异、优缺点与实例多开能力**（多平台并行 / 同平台多 bot / 多台服务器共用机器人）见
+> [双通道选型对比](manuals/channel-comparison.md)。
+
 ### 2.2 Bot 命令一览
 
 所有命令使用可配置前缀（config.yml `bot.cmd_prompt_char`，默认 `$`；v12 前位于 easybot.yml，启动自动搬迁），在命令后加 `?` 可查看详细用法。
@@ -118,6 +121,7 @@
 | 通道 | 手册 | 适用 |
 |------|------|------|
 | EasyBot 网关（默认 `backend: easybot`） | [`bot-easybot.md`](manuals/bot-easybot.md) | 已部署 EasyBot 网关（QQ/TG/DC/飞书/微信） |
+| 双通道选型对比 | [`manuals/channel-comparison.md`](manuals/channel-comparison.md) | **选通道前先读**（差异/优缺点/多开） |
 | 内置直连公共骨架 | [`bot-builtin-common.md`](manuals/bot-builtin-common.md) | **先读**（会话模型/bind 命令/proxy） |
 | · QQ | [`bot-qq.md`](manuals/bot-qq.md) | 开放平台机器人（WS 网关） |
 | · 飞书 | [`bot-feishu.md`](manuals/bot-feishu.md) | 企业自建应用（长连接 WS） |

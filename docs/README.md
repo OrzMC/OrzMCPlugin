@@ -11,7 +11,7 @@
 |:--|:--|:--|
 | [README](../README.md) | 项目总览、安装、机器人接入、更新 | 仓库根 |
 | [功能清单](features.md) | **全部功能的唯一权威描述**（含配置项、命令、权限组；bot §2 为概览与手册索引） | docs/ |
-| [Bot 接入手册](manuals/README.md) | 两通道选型 + 分步接入/验收手册（EasyBot 网关 / builtin QQ·飞书·Telegram·Discord；公共骨架） | docs/manuals/ |
+| [Bot 接入手册](manuals/README.md) | 两通道选型（含[双通道对比](manuals/channel-comparison.md)）+ 分步接入/验收手册（EasyBot 网关 / builtin QQ·飞书·Telegram·Discord；公共骨架） | docs/manuals/ |
 | [权限组节点表](permission-groups.md) | LP 各组权限节点明细与设计决策 | docs/ |
 
 ### 🧑💻 开发者（改代码）
