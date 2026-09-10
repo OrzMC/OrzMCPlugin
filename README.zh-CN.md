@@ -2,12 +2,12 @@
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-1600+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![Test Count](https://img.shields.io/badge/tests-1800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 
-通过 EasyBot 统一接入多平台机器人的 Paper / Folia 服务器管理插件
+通过 EasyBot 网关或内置直连统一接入多平台机器人、内置中英双语的 Paper / Folia 服务器管理插件
 > 🌐 [English](README.md) | **简体中文**
 >
 > 插件针对 [PaperMC](https://papermc.io/) 服务器进行开发，同时支持
@@ -24,7 +24,8 @@
 |---------|---------|
 | 权限管理系统（Rank & Review） | 基于 LuckPerms 的四级玩家权限链（访客→成员→建造者→管理员）：自动晋升 + 申请审核（`/apply` / `/review` / `$v`）+ 手动升降级（`$p`）。装即用：启动自动创建 track 与缺失权限组；无 LuckPerms 时自动降级，其余功能不受影响 |
 | 白名单管理 | 控制服务器准入，管理员可通过 Bot 命令（$a/$r/$w）添加/移除白名单，自动清理不活跃玩家，非白名单玩家踢出时附带提示 |
-| 多平台 Bot 系统 | 通过 EasyBot 网关统一接入 QQ、Telegram、Discord、飞书和微信，11 个 Bot 命令实现玩家管理/查询/互动，控制台命令（`$e`）执行结果完整回传群聊（含 Essentials/LuckPerms 等异步输出，日志窗口捕获 + 噪音过滤 + 30 行截断），50 余个可定制消息模板将服务器事件推送到对应群聊或频道 |
+| 多平台 Bot 系统 | 双通道任选（`im.yml` 的 `backend`，见[双通道选型对比](docs/manuals/channel-comparison.md)）：EasyBot 网关统一接入 QQ、Telegram、Discord、飞书和微信，或 builtin 内置直连（QQ/飞书/Telegram/Discord，免额外进程）。11 个 Bot 命令实现玩家管理/查询/互动，控制台命令（`$e`）执行结果完整回传群聊（含 Essentials/LuckPerms 等异步输出，日志窗口捕获 + 噪音过滤 + 30 行截断），50 余个可定制消息模板将服务器事件推送到对应群聊或频道 |
+| 多语言（i18n） | 内置中英双语语言包，覆盖游戏内反馈、Bot 回复、群事件通知与 `/config` 运维面板；游戏内跟随玩家客户端语言，Bot 可按平台配置语言，服主可用 `messages_custom_<lang>.yml` 覆盖任意文案 |
 | 跨服传送门 | 管理员可创建或删除传送门，玩家踩踏传送门时跨服 transfer 跳转，可选集成 LoginSecurity 验证身份后再传送 |
 | TNT 保护 | 限制 TNT 放置范围，允许区域白名单豁免，TNT 爆炸时群聊通知，并可控制重生锚的爆炸行为。突发爆炸聚合为一条告警（带 ×N 与首个事件坐标），发射器/大面积爆炸不再刷屏 |
 | 安全控制 | 按 GeoIP 判断玩家所在国家限制加入，IP 黑名单支持精确 IP/CIDR 段/通配符，玩家名支持精确/前缀/后缀/关键词/glob/正则拒绝规则，可选集成 LoginSecurity 二次验证 |
@@ -47,7 +48,11 @@
 
 ## 机器人服务配置
 
-OrzMC 的机器人功能统一通过外部 EasyBot IM 网关接入。
+OrzMC 支持两种可互换的 IM 通道（`im.yml` 的 `backend` 全局选择）：外部 **EasyBot 网关**（默认）或 **builtin 内置直连**（QQ / 飞书 / Telegram / Discord，免额外进程）。差异/优缺点/实例多开说明见[双通道选型对比](docs/manuals/channel-comparison.md)。
+
+### 方式 A —— EasyBot 网关（默认）
+
+OrzMC 的机器人功能通过外部 EasyBot IM 网关接入。
 
 [EasyBot](https://github.com/easyIndie/EasyBot) 统一管理 QQ / Telegram / Discord / 飞书 / 微信：
 
@@ -57,6 +62,16 @@ OrzMC 的机器人功能统一通过外部 EasyBot IM 网关接入。
 4. `admin_group` 等目标值非平台原生 ID，需从 EasyBot 后台的**会话管理**获取**会话 key**（如 `qq:conv_xxxxxxxx`）
 
 > 详细路由规则：[EasyBot 配置指南](docs/features.md#25-easybot-网关配置指南)
+
+### 方式 B —— builtin 内置直连
+
+插件直接调用各平台官方 API（仅文本；无网关进程；凭据配在 `im.yml`）：
+
+1. 设 `backend: builtin`，在 `im.yml` 的 `platforms.<id>` 填入平台凭据
+2. 重启服务器，在目标群/频道发一条消息，用 `/config im bind` 绑定发现的会话
+3. 用 `/config im status` / `/config im test` 验收
+
+> 分步手册：[builtin 公共骨架](docs/manuals/bot-builtin-common.md) → [QQ](docs/manuals/bot-qq.md) / [飞书](docs/manuals/bot-feishu.md) / [Telegram](docs/manuals/bot-telegram.md) / [Discord](docs/manuals/bot-discord.md)。
 
 ### 从旧版直连配置升级
 
