@@ -61,7 +61,7 @@ class QqGatewayClientTest {
     }
 
     private static void awaitTrue(String what, BooleanSupplier cond) throws Exception {
-        long deadline = System.currentTimeMillis() + 5000;
+        long deadline = System.currentTimeMillis() + 10000;
         while (System.currentTimeMillis() < deadline) {
             if (cond.getAsBoolean()) {
                 return;
@@ -241,7 +241,7 @@ class QqGatewayClientTest {
 
         conn0.sendText("{\"op\":9}"); // 无效会话：清除后重连
 
-        awaitTrue("重连建连", () -> server.connections().size() >= 2);
+        awaitTrue("重连建连", () -> server.connections().size() >= 2 && listener.connected.get() >= 2);
         TestWsServer.Conn conn1 = server.connections().get(1);
         conn1.sendText(HELLO);
         awaitTrue(

@@ -1,6 +1,6 @@
 # 多语言（i18n）方案 v2：中英双语起步、可扩展语言包
 
-> **状态：一期实施完成（P0–P5）+ P6 遗留补齐（#414–#423）已全部合入 develop；完成台账见 §8**｜**最后更新**：2026-09-09
+> **状态：全部完成——一期（P0–P5）+ P6 遗留补齐（#414–#423）+ P7 三审收尾（#425–#428/#430）均已合入 main（1.0.25 发版）；完成台账见 §8**｜**最后更新**：2026-09-10
 > **范围**：一期英文 + 中文；架构上预留第三语言扩展（新增语言 = 加一个 yml 资源，业务代码零改动）。
 > **配套**：本方案为计划文档；实施按 §5 拆 PR，当前进行 P0 基础设施。
 
@@ -248,6 +248,8 @@ public final class I18nService {
 | P5 | 孤儿键清理/var 值词汇（serverlife/audit/playermode）/Paginator 空态//blacklist 域/文档同步 | #399–#404 |
 
 P6 遗留补齐（2026-09-08/09，#414–#423）：$ 群帮助装配断点（#414）；游戏命令面 desc/提示（#415–#418，cmd.desc.*/cmd.update_*）；运维 /config 树（#419–#421，cmd.config_*/cmd.config_im_*，R1）；review type 展示名与摘要（#422–#423，review.type.<id>/summary_prefix）。真机双语冒烟已执行（一期收尾阶段，含 13→14 升级对照）。
+
+P7 三审收尾（2026-09-09，#425–#428/#430）：`/bot` 状态面板（botstatus.*）、Paginator zh 页脚 dead code 删除、`$e` 回显（bot.e.truncated/exec_ok/exec_not_found）、维护事件 mode/duration 变量（maintenance.mode.*/duration.*）与维护低频直行回调文本（maintenance.cmd.*）；en 值零中文残留复核通过，候选台账清零（#431），随 1.0.25 正式版发布。
 
 **i18n 边界豁免（2026-09-09 复核定稿）**：
 | 面 | 决策 |
