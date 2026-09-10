@@ -37,7 +37,7 @@
 ### 🚀 发布 / 运维
 | 文档 | 内容 | 位置 |
 |:--|:--|:--|
-| [发布平台运维手册](publishing-platforms.md) | Hangar/Modrinth 项目信息、自动发布、Token 管理 | docs/ |
+| [发布平台运维手册](publishing-platforms.md) | Hangar/Modrinth 项目信息、自动发布（含 tag 发布后 bump 自动化 §5.5）、Token 管理 | docs/ |
 | [更新日志](../CHANGELOG.md) | 版本变更明细 | 仓库根 |
 
 ### 📚 历史快照 / 验收报告（已归档，只读参考）

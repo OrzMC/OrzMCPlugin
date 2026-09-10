@@ -1,7 +1,7 @@
 # 发布平台运维手册
 
 > **状态：现行**（发布平台运维手册）｜ OrzMC 插件发布平台统一信息源与运维指南
-> 最后更新：2026-07-06（2026-09-06 状态头规范补注）
+> 最后更新：2026-09-10（tag 发布 bump 自动化踩坑记录 + §5.5）
 
 ---
 
@@ -180,7 +180,38 @@ hangarPublish {
 | Push tag `x.y.z` | `{version}`（纯 SemVer） | release | release | ✅ 创建 |
 | 本地构建 | `{version}-dev` | 不发布 | 不发布 | 不发布 |
 
-版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.19`）。
+版本号源：`paper-plugin.yml` → `version` 字段（当前 `1.0.26`；tag 发布后由 §5.5 自动化 +1）。
+
+### 5.5 tag 发布后版本 bump 自动化（含 2026-09-10 踩坑）
+
+Tag 发布流程的最后一步 `bump version`（`publish.yml`，仅 `x.y.z` tag、非 `-` 预发布）自动把 `paper-plugin.yml` 版本 +1 并合入 main：
+
+1. 读当前版本 → `NEW = patch + 1`，写入 `paper-plugin.yml`，提交（main 有分支保护，**不能直推**）
+2. `git push --force origin "HEAD:refs/heads/bump-version/$NEW"` —— **refspec 必须全限定**
+3. `gh pr create --base main` → `gh pr merge --auto --squash`（幂等：同名分支 open PR 复用 / merged 跳过）
+4. 合并后 `main→develop` 反向同步把新版本带回 develop
+
+**2026-09-10 实测（1.0.25 正式发布）**：发布本身全绿（check → Hangar → Modrinth → GitHub Release），但 bump step 失败：
+
+```text
+error: The destination you provided is not a full refname (i.e., starting with "refs/") ...
+```
+
+- **根因**：tag 事件下 `actions/checkout` 处于 **detached HEAD**，`git push origin "HEAD:$BRANCH"` 无法推断目标 ref。该 bump-via-PR 逻辑（#346 引入）当时**首次被 tag 实跑**，立刻暴露。
+- **修复**：#442（refspec 全限定）+ #444（幂等：open 复用 / merged 跳过 / 残留分支 `--force`）+ **#445（hotfix 到 main）**。
+- ⚠️ **修复必须落到 main**：tag 发布执行的是 **main 上被 tag 的那个 commit 里的 workflow**，只修 develop 等于没修——下次 tag 依旧失败。
+- **当次补救**：手工补 bump PR（#441，1.0.25 → 1.0.26）。
+
+本地复现/验证（无需真实发版）：
+
+```bash
+git checkout --detach origin/main
+git push origin "HEAD:tmp-branch"                        # 旧写法：报 not a full refname（与故障同款）
+git push --force origin "HEAD:refs/heads/tmp-branch"     # 新写法：成功
+git push origin --delete tmp-branch
+```
+
+另：改动 workflow 后跑 `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/publish.yml'))"` 与提取该 step 的 `run` 脚本做 `bash -n` 语法校验。
 
 ---
 
@@ -318,7 +349,7 @@ modrinth {
 - [ ] **Hangar**：对应 channel 出现新版本，JAR 可下载
 - [ ] **Modrinth**：对应 version_type 出现新版本，JAR 可下载
 - [ ] **GitHub Release**：tag 推送后自动创建（仅 `x.y.z` tag）
-- [ ] **版本号更新**：自动递增 `paper-plugin.yml` 中的 version 并直接推送到 main（仅 `x.y.z` tag）
+- [ ] **版本号更新**：自动递增 `paper-plugin.yml` 中的 version 并以 PR 合入 main（仅 `x.y.z` tag，见 §5.5）
 - [ ] **平台页面一致**：版本号、Minecraft 兼容版本、描述信息三个平台一致
 
 ### 故障排查
@@ -332,3 +363,5 @@ modrinth {
 | 版本号冲突 | 同一版本号重复发布 | CI 检测 "already exists" 并幂等退出，属正常行为 |
 | 平台版本不匹配 | `plugin_support_paper_versions` 过期 | 更新 `gradle.properties`，提交 PR |
 | 本地 `modrinth` task 报错 | 缺少 token | 本地不发布，仅在 CI 中运行 |
+| `bump version` 失败 `not a full refname` | tag 事件 detached HEAD 下 refspec 未全限定 | 确认 **main** 上 `publish.yml` 用 `HEAD:refs/heads/$BRANCH`（hotfix #445）；只在 develop 修无效（tag 用的是 main 的 workflow），见 §5.5 |
+| `bump version` 失败 `No commits between` / 重复 bump PR | 重跑时同名 bump PR 已合并 | 已由幂等跳过（#444）覆盖；可查 `gh pr list --head bump-version/<NEW> --state all` |
