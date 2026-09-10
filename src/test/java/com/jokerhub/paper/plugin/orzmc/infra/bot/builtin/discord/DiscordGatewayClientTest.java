@@ -189,7 +189,9 @@ class DiscordGatewayClientTest {
         startClient(listener);
         awaitConnected(listener);
         ws.connections().get(0).sendClose(4004);
-        awaitTrue("鉴权失败 → fatal", () -> client.state() == State.FATAL);
+        // 等 state 与回调都到位：fatal() 先置 state 再调 listener.onFatal（中间有 closeQuietly），
+        // 只轮询 state 会在回调前断言（曾导致 CI 偶发 listener.fatal=false）。
+        awaitTrue("鉴权失败 → fatal 回调", () -> client.state() == State.FATAL && listener.fatal);
         assertTrue(listener.fatal, "listener 收到 fatal 回调（token 无效停止自动重连）");
     }
 
