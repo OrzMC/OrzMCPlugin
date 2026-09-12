@@ -45,6 +45,9 @@ jobs:
       - name: spotless check
         run: ./gradlew spotlessCheck --stacktrace
 
+      - name: 明文密钥扫描（防私钥/凭据入库，2026-09 事故后门禁）
+        run: ./gradlew checkSecrets --stacktrace
+
       - name: unit tests
         run: ./gradlew test --stacktrace
 
