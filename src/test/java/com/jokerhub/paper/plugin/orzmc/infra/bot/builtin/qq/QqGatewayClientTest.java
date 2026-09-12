@@ -295,6 +295,34 @@ class QqGatewayClientTest {
         assertEquals(1, fetches.get(), "60s 缓存窗口内重连复用网关 URL");
     }
 
+    @Test
+    void gatewayUrl_fetchTransient_fallsBackToLastKnownUrl() throws Exception {
+        server = TestWsServer.start();
+        RecordingListener listener = new RecordingListener();
+        AtomicInteger fetches = new AtomicInteger();
+        client = new QqGatewayClient(
+                silentLogger(),
+                new ReconnectPolicy(30, 120, 0, 500, 0),
+                new FakeTokens("tok-0"),
+                token -> fetches.incrementAndGet() == 1
+                        ? QqGatewayUrlFetcher.Result.success("ws://127.0.0.1:" + server.port() + "/")
+                        : QqGatewayUrlFetcher.Result.transientFailure(),
+                QqGatewayClient.INTENT_GROUP_AND_C2C,
+                null,
+                listener,
+                java.net.Proxy.NO_PROXY,
+                0L); // 复用窗口 0 → 每次重连都重取地址，模拟 /gateway/bot 超时
+        client.start();
+        awaitTrue("首次建连", () -> listener.connected.get() >= 1);
+
+        server.connections().get(0).closeSocket(); // 断线重连时 /gateway/bot 失败 → 应复用上次地址
+
+        awaitTrue("地址解析失败仍复用旧地址建连", () -> listener.connected.get() >= 2);
+        assertTrue(fetches.get() >= 2, "断线后应重取网关地址（复用窗口=0）");
+        assertEquals(State.OPEN, client.state());
+        assertEquals(0, listener.fatal.get());
+    }
+
     // =====================================================================
     // 测试替身
     // =====================================================================

@@ -30,8 +30,8 @@ public final class QqApiClient implements QqGatewayUrlFetcher {
     public static final String DEFAULT_AUTH_BASE = "https://bots.qq.com";
     public static final String DEFAULT_API_BASE = "https://api.bot.qq.com";
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(8);
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
     private final String appId;
     private final String clientSecret;

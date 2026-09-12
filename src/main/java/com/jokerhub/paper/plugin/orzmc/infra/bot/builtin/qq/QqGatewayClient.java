@@ -62,10 +62,14 @@ public final class QqGatewayClient extends ReconnectingGateway {
     private final AtomicLong seq = new AtomicLong();
     /** READY 下发的会话 id：具备 + seq>0 时重连走 resume。 */
     private volatile String sessionId;
-    /** 最近成功网关 URL（缓存，限频保护）。 */
+    /** 最近成功网关 URL（缓存，限频保护；解析失败时的兜底地址）。 */
     private volatile String cachedGatewayUrl;
 
     private volatile long cachedGatewayUrlMs;
+    /** 本实例网关 URL 缓存/复用窗口（生产 {@link #GATEWAY_URL_CACHE_MS}；测试注入小值以验证兜底路径）。 */
+    private final long gatewayUrlCacheMs;
+    /** 上次「复用旧网关地址」日志时间（限频，避免重连退避期刷屏）。 */
+    private volatile long lastUrlReuseLogMs;
     /** 最近一次 op9 处理时间（防抖）。 */
     private volatile long lastOp9HandledMs;
 
@@ -107,6 +111,20 @@ public final class QqGatewayClient extends ReconnectingGateway {
             QqEventSink sink,
             GatewayStateListener listener,
             java.net.Proxy proxy) {
+        this(server, policy, tokens, urlFetcher, intents, sink, listener, proxy, GATEWAY_URL_CACHE_MS);
+    }
+
+    /** 测试注入：{@code gatewayUrlCacheMs} 覆盖网关 URL 复用窗口（0 = 每次重连都重取，便于验证失败兜底）。 */
+    QqGatewayClient(
+            ServerLogger server,
+            ReconnectPolicy policy,
+            TokenProvider tokens,
+            QqGatewayUrlFetcher urlFetcher,
+            int intents,
+            QqEventSink sink,
+            GatewayStateListener listener,
+            java.net.Proxy proxy,
+            long gatewayUrlCacheMs) {
         super("qq", server, policy, refresherFor(tokens), listener);
         if (tokens == null) {
             throw new IllegalArgumentException("tokens must not be null");
@@ -122,6 +140,7 @@ public final class QqGatewayClient extends ReconnectingGateway {
         this.intents = intents;
         this.sink = sink;
         this.proxy = proxy == null ? java.net.Proxy.NO_PROXY : proxy;
+        this.gatewayUrlCacheMs = gatewayUrlCacheMs;
         this.log = server.logger();
     }
 
@@ -146,7 +165,7 @@ public final class QqGatewayClient extends ReconnectingGateway {
         // /gateway/bot 限频保护（实测 HTTP 400 code 100017）：窗口内复用最近 URL，不重复请求
         long now = System.currentTimeMillis();
         String cached = cachedGatewayUrl;
-        if (cached != null && now - cachedGatewayUrlMs < GATEWAY_URL_CACHE_MS) {
+        if (cached != null && now - cachedGatewayUrlMs < gatewayUrlCacheMs) {
             return cached;
         }
         QqGatewayUrlFetcher.Result result = urlFetcher.fetch(token);
@@ -160,10 +179,34 @@ public final class QqGatewayClient extends ReconnectingGateway {
                 // token 被平台提前作废：强制重换一次，下次尝试用新 token（换发失败也按退避，防风暴）
                 log.warning("[qq] 网关地址鉴权被拒，强制重换令牌后重试");
                 tokens.onAuthFailure();
-                yield null;
+                yield reuseLastKnownUrl(now);
             }
-            case TRANSIENT -> null;
+            case TRANSIENT -> reuseLastKnownUrl(now);
         };
+    }
+
+    /**
+     * 网关地址获取失败时的兜底：复用最近一次成功的 WS 地址。
+     *
+     * <p>{@code /gateway/bot} 有频率限制（实测 HTTP 400 code 100017）而网络抖动常见，且已下发的网关地址长期
+     * 有效——拿不到新地址时继续用旧地址建连，优于直接判「建连失败」等下一轮退避（旧地址确已失效时，建连/会话
+     * 失败会在下一轮回来重取，收敛路径不变）。复用时顺带延后缓存时间戳，避免反复冲击限频端点。</p>
+     *
+     * @return 最近成功地址；从未成功解析过则 null（调用方按建连失败退避）
+     */
+    private String reuseLastKnownUrl(long now) {
+        String lastKnown = cachedGatewayUrl;
+        if (lastKnown == null || lastKnown.isBlank()) {
+            return null;
+        }
+        cachedGatewayUrlMs = now;
+        if (now - lastUrlReuseLogMs >= gatewayUrlCacheMs) {
+            lastUrlReuseLogMs = now;
+            log.info("[qq] 网关地址获取失败，复用最近一次成功地址继续建连");
+        } else {
+            log.fine("[qq] 网关地址获取失败，复用最近一次成功地址继续建连");
+        }
+        return lastKnown;
     }
 
     @Override

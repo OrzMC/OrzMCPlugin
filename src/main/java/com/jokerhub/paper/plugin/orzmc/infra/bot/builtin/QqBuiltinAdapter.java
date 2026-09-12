@@ -149,13 +149,20 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         }
     }
 
-    /** 尽力一次：失败/异常 → 健康告警（D7：不重试）。 */
-    private void fire(CompletableFuture<Boolean> future, String target) {
-        future.whenComplete((ok, err) -> {
-            if (err != null || Boolean.FALSE.equals(ok)) {
-                health.setLastError(HEALTH_KEY, "QQ 发送失败 target=" + target + (err == null ? "" : " " + err));
-                log.warning("[qq] 发送失败 target=" + target + (err == null ? "" : " " + err));
+    /** 投递结果分类处理：确定失败 → 健康告警；结果未知（响应超时，平台可能已投递）→ 仅 WARN，不污染健康。 */
+    private void fire(CompletableFuture<QqSender.Outcome> future, String target) {
+        future.whenComplete((outcome, err) -> {
+            QqSender.Outcome result = err != null ? QqSender.Outcome.FAILED : outcome;
+            if (result == QqSender.Outcome.SENT) {
+                return;
             }
+            if (result == QqSender.Outcome.UNKNOWN) {
+                // 请求已发出但响应超时：群内可能已收到（2026-09 线上实测）。不写 lastError（平台未故障）、不重试，
+                // 不重复打日志——QqSender 已按 path 打过「投递响应超时（结果未知）」WARN（仅此处可见 target 形式）
+                return;
+            }
+            health.setLastError(HEALTH_KEY, "QQ 发送失败 target=" + target + (err == null ? "" : " " + err));
+            log.warning("[qq] 发送失败 target=" + target + (err == null ? "" : " " + err));
         });
     }
 
