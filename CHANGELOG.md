@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 🐛 修复（builtin IM 出站稳定性与排障）
+- **HTTP 超时异常不再被外层看门狗盖住（`AsyncHttp`）**：看门狗预算此前与单次尝试的 `HttpRequest.timeout` 同时到期，抛出的 `java.util.concurrent.TimeoutException`（无 message）会盖住 JDK 阶段化异常，日志无法区分「连不上」（`HttpConnectTimeoutException`，查网络/代理/IP 白名单）与「连上无响应」（`HttpTimeoutException`，可考虑重试）。现看门狗追加 ≥1s/10% 余量，保证单次尝试自身超时先抛（响应线上 QQ builtin 投递超时排障）
+- **QQ 网关地址解析失败时复用最近成功地址（`QqGatewayClient`）**：`/gateway/bot` 限频（HTTP 400 code 100017）或网络抖动时，此前直接判「网关地址不可用 → 建连失败」并退避；现复用最近一次成功下发的 WS 地址建连（已下发地址长期有效，确失效时下一轮仍会重取），减少无谓断连
+
 ## [1.0.26] - 2026-09-10
 
 > 本版为**维护版本**：无生产代码变更——修复 tag 发布后的 version bump 自动化，并对齐贡献/发布文档。

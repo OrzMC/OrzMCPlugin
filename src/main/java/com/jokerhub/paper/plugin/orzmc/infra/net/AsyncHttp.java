@@ -47,14 +47,33 @@ public final class AsyncHttp {
         int normalizedRetries = Math.max(0, retries);
         long requestTimeoutMs =
                 request.timeout().orElse(DEFAULT_REQUEST_TIMEOUT).toMillis();
+        long watchdogBudget = watchdogBudgetMs(requestTimeoutMs, normalizedRetries);
+        return sendWithRetry(c, request, bodyHandler, normalizedRetries, 0)
+                .orTimeout(Math.max(1L, watchdogBudget), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * 外层看门狗预算 = 重试总时长 + 退避总和 + 余量（≥ 1s 或总额的 10%）。
+     *
+     * <p>余量是必需的：预算恰等于「单次尝试的 {@code HttpRequest.timeout} × 尝试次数」时，{@code orTimeout}
+     * 会与单次尝试自身的超时同时到期，抛出的 {@code java.util.concurrent.TimeoutException}（无 message）盖住
+     * JDK 的阶段化异常——{@code HttpConnectTimeoutException}（连不上，需查网络/代理/白名单）与
+     * {@code HttpTimeoutException}（连上但无响应，可考虑重试）——调用方失去区分能力（2026-09 线上 QQ builtin
+     * 投递超时排障教训：日志只见光秃的 {@code TimeoutException}，无法定位阶段）。</p>
+     *
+     * @param requestTimeoutMs 单次尝试的请求超时（毫秒；≤0 按 {@link #DEFAULT_REQUEST_TIMEOUT}）
+     * @param retries 重试次数（0 = 单次尝试）
+     * @return 看门狗绝对预算（毫秒，严格大于单次尝试超时）
+     */
+    static long watchdogBudgetMs(long requestTimeoutMs, int retries) {
+        int normalizedRetries = Math.max(0, retries);
+        long perAttempt = requestTimeoutMs <= 0 ? DEFAULT_REQUEST_TIMEOUT.toMillis() : requestTimeoutMs;
         long backoffBudget = 0L;
         for (int i = 0; i < normalizedRetries; i++) {
             backoffBudget = saturatingAdd(backoffBudget, BASE_BACKOFF_MS * (1L << Math.min(i, 10)));
         }
-        long requestBudget = saturatingMultiply(requestTimeoutMs, normalizedRetries + 1L);
-        long totalBudget = saturatingAdd(requestBudget, backoffBudget);
-        return sendWithRetry(c, request, bodyHandler, normalizedRetries, 0)
-                .orTimeout(Math.max(1L, totalBudget), TimeUnit.MILLISECONDS);
+        long totalBudget = saturatingAdd(saturatingMultiply(perAttempt, normalizedRetries + 1L), backoffBudget);
+        return saturatingAdd(totalBudget, Math.max(1_000L, totalBudget / 10));
     }
 
     private static <T> CompletableFuture<HttpResponse<T>> sendWithRetry(
