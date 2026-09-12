@@ -24,6 +24,10 @@ platforms:
     enabled: false
     app_id: ''
     client_secret: ''
+    # 单条文本上限（UTF-8 字节；0 = 不分段）：QQ 官方未公开该数字（仅错误码 40054007 消息长度超限），
+    # 默认 3000 为社区保守值。可用 docs/dev/qq-text-limit-probe.sh 在测试群实测后调优；
+    # 超限会被平台整条拒收（= 通知丢失），故宁可调小（分段发出，最多 5 段，超出截断并告警）。
+    max_text_bytes: 3000
     # proxy:              # 平台级代理覆盖（可省略 = 用全局 proxy 段）
     #   enabled: false
     #   host: ''

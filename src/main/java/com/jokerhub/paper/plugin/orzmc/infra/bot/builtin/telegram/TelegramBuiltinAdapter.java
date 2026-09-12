@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.TextChunker;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.BuiltinPlatform;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImProxyConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TelegramPlatformConfig;
@@ -38,6 +39,11 @@ public final class TelegramBuiltinAdapter implements BuiltinPlatform {
     private static final int POLL_TIMEOUT_SECS = 30;
     /** 轮询失败退避间隔（网络抖动/HTTP 5xx 后等待再试）。 */
     private static final long RETRY_DELAY_MS = 5_000;
+
+    /** 官方单条文本上限（entities 解析后）：4096 字符。 */
+    private static final int MAX_TEXT_CHARS = 4096;
+    /** 一次通知/回复最多段数（避免超长内容刷屏 + 触发 TG 频控）。 */
+    private static final int MAX_TEXT_PARTS = 5;
 
     private final Logger log;
     private final HealthRegistry health;
@@ -226,12 +232,25 @@ public final class TelegramBuiltinAdapter implements BuiltinPlatform {
             }
             return;
         }
-        fire(api.sendMessageAsync(chatId, text), chatId, false);
+        sendChunked(chatId, text, false);
     }
 
     /** 被动回复（chat_id 直发——TG 语义，无被动回复通道）。 */
     private void sendReply(long chatId, String text) {
-        fire(api.sendMessageAsync(chatId, text), chatId, true);
+        sendChunked(chatId, text, true);
+    }
+
+    /**
+     * 按官方单条上限（4096 字符，entities 解析后）分段发送（D2）：整条超限会被平台 400 拒绝 = 通知丢失。
+     * 最多 {@link #MAX_TEXT_PARTS} 段，超出部分截断并告警。
+     */
+    private void sendChunked(long chatId, String text, boolean reply) {
+        TextChunker.Result chunked = TextChunker.byChars(text, MAX_TEXT_CHARS, MAX_TEXT_PARTS);
+        if (chunked.truncated()) {
+            log.warning("[telegram] 消息过长：已分段发出 " + chunked.parts().size() + " 段（每段 ≤ " + MAX_TEXT_CHARS
+                    + " 字符），尾部截断；chat_id=" + chatId);
+        }
+        chunked.parts().forEach(part -> fire(api.sendMessageAsync(chatId, part), chatId, reply));
     }
 
     /** 尽力一次（D7：失败/异常 → 健康告警 + 日志，不重试）；异步完成回调（不阻塞调用线程）。 */
