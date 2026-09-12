@@ -498,6 +498,17 @@ tasks.withType<JacocoCoverageVerification>().configureEach {
     }
 }
 
+/**
+ * 明文私钥/凭据扫描（防 2026-09 私钥误入库事故复发）：扫已跟踪文件，命中即失败。
+ * 接入 `check` → CI（build workflow）与本地 `./gradlew check` 都会执行；人工全历史排查用
+ * `bash scripts/check-secrets.sh --all-history`。
+ */
+val checkSecrets by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "扫描已跟踪文件中的明文私钥/凭据（scripts/check-secrets.sh）"
+    commandLine("bash", "${rootDir}/scripts/check-secrets.sh")
+}
+
 tasks.named("check") {
-    dependsOn("integrationTest", "jacocoTestCoverageVerification")
+    dependsOn("integrationTest", "jacocoTestCoverageVerification", "checkSecrets")
 }
