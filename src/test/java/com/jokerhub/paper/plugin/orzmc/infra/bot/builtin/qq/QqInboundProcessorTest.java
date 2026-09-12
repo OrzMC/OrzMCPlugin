@@ -159,6 +159,22 @@ class QqInboundProcessorTest {
     }
 
     @Test
+    void replayedMessageId_isProcessedOnlyOnce() {
+        // 回归：断线走 op6 RESUME 会话续传时平台会重放遗漏事件——同 msg_id 不得重复执行命令
+        // （$e 控制台执行 / $b 备份 / $o 优化 / $r 升降级均为非幂等）
+        QqInboundProcessor p = processor(BOUND);
+        String frame = groupFrame("GROUP_AT_MESSAGE_CREATE", "G-2", "member", false, "dup-1", "$w add Alice");
+
+        p.onGatewayEvent("GROUP_AT_MESSAGE_CREATE", frame);
+        p.onGatewayEvent("GROUP_AT_MESSAGE_CREATE", frame); // 重放
+        assertEquals(1, scheduler.tasks.size(), "重放不应再调度");
+
+        scheduler.runAll();
+
+        assertEquals(1, handler.calls.size(), "同一条消息只应执行业务一次");
+    }
+
+    @Test
     void malformedOrUnsupportedEvent_isIgnored() {
         QqInboundProcessor p = processor(BOUND);
         p.onGatewayEvent("GROUP_AT_MESSAGE_CREATE", "not-json");

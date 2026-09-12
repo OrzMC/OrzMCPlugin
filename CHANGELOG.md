@@ -15,6 +15,7 @@
 - **token 刷新/角色判定不再占用 ForkJoinPool.commonPool + 不在调用线程等网络**：新增 IM 专用阻塞任务池（`ImWorkerPool`：具名 `orzmc-im-worker-*` 守护线程 ×4，插件卸载回收）。QQ/飞书发送路径的 `tokens.fresh()`（临期会同步换发 token，阻塞 HTTP ≤15s）与 TG/Discord/飞书角色判定的 `supplyAsync` 均改用该池——此前 `fresh()` 在调用线程（服务器线程）持锁等鉴权请求，角色判定则可能占满并行度仅为「核数-1」的公共池并饿死同池其他使用方
 - **Telegram / Discord 出站与命令回复异步化（不再阻塞服务器线程）**：审查发现 QQ/飞书出站已是 future（fire-and-forget）、TG/DC 却是同步 `.join()`，而调用方就是服务器线程（通知、以及经 `runSync` 进命令层的回复）——单条消息最坏阻塞 10s（DC 私聊还要先建 DM 通道，串行两次）。现 `TelegramApiClient.sendMessageAsync`、`DiscordApiClient.sendChannelMessageAsync/ensureDmChannelAsync` 全链异步，`send/sendReply` 仅注册 `whenComplete` 回调回写健康；私聊走 `ensureDmChannelAsync().thenCompose(...)` 不阻塞。类注释同步修正（旧注声称“不触服务器线程红线”与实现不符）
 - **发送成功即复位健康 `lastError`**（QQ/飞书/TG/Discord）：语义改为「当前错误」（此前为历史错误，恢复后仍长期显示旧错误）
+- **入站消息 id 去重（防平台重放重复执行命令）**：QQ 断线走 `op6 RESUME` 会话续传、Discord Gateway 重连走 RESUME 补发遗漏事件——两侧均为「至少一次」投递，同一条用户消息可能被再次下发，而非幂等命令（`$e` 控制台执行 / `$b` 备份 / `$o` 优化 / `$r` 升降级）会被重复执行。现 QQ/Discord 入站处理器按消息 id 在 5 分钟窗口内只放行一次（新增 `InboundDedup`：原子判定、容量有界、无 id 时 fail-open 不吞消息）；TG 长轮询已按「严格推进 `offset=update_id+1`」防重拉，无需额外处理
 
 ## [1.0.26] - 2026-09-10
 
