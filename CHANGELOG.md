@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 🔒 安全（私钥泄露处置 + 门禁补强）
+- **删除被公开提交的 SSH 私钥对**：`# 查看公钥（下面要用的那串）：`（ed25519 `SHA256:fB5lwi…imWk`）与配套 `.pub`（2026-09-09 经 #415/#432 进入 main）。**⚠️ 该密钥视为已泄露：请在 authorized_keys/服务器/面板移除并重建密钥对**
+- 新增 `scripts/check-secrets.sh` 并接入 `./gradlew check`（CI + 本地门禁）；`.gitignore` 补密钥/凭据与「以 `#`/引号开头的误操作文件名」；新增 `docs/dev/security-incidents.md`（处置 SOP）；`AGENTS.md` 增「敏感信息红线」
+
 ## [1.0.26] - 2026-09-10
 
 > 本版为**维护版本**：无生产代码变更——修复 tag 发布后的 version bump 自动化，并对齐贡献/发布文档。
