@@ -17,6 +17,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.DiscordPlatformConfi
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImProxyConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import java.net.Proxy;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
@@ -126,32 +127,36 @@ public final class DiscordBuiltinAdapter implements BuiltinPlatform {
             return;
         }
         if (parsed.isGroup()) {
-            fire(api.sendChannelMessage(parsed.id(), text), target);
+            fire(api.sendChannelMessageAsync(parsed.id(), text), target);
         } else {
-            // 私聊出站：user id → DM 通道 → 发消息
-            String dmId = api.ensureDmChannel(parsed.id());
-            if (dmId == null) {
-                health.setLastError(HEALTH_KEY, "discord 发送失败 target=" + target + "（DM 通道建立失败）");
-                log.warning("[discord] DM 通道建立失败，无法投递 target=" + target);
-                return;
-            }
-            fire(api.sendChannelMessage(dmId, text), target);
+            // 私聊出站：user id → DM 通道 → 发消息（全链异步，服务器线程不等网络）
+            fire(
+                    api.ensureDmChannelAsync(parsed.id()).thenCompose(dmId -> {
+                        if (dmId == null) {
+                            log.warning("[discord] DM 通道建立失败，无法投递 target=" + target);
+                            return CompletableFuture.completedFuture(false);
+                        }
+                        return api.sendChannelMessageAsync(dmId, text);
+                    }),
+                    target);
         }
     }
 
-    /** 被动回复（来源频道直发：群聊/DM 的 channel_id 均可用 sendChannelMessage）。 */
+    /** 被动回复（来源频道直发：群聊/DM 的 channel_id 均可用 sendChannelMessageAsync）。 */
     private void sendReply(DiscordInboundMessage source, String text) {
-        fire(api.sendChannelMessage(source.channelId(), text), source.channelId());
+        fire(api.sendChannelMessageAsync(source.channelId(), text), source.channelId());
     }
 
-    /** 尽力一次：失败/异常 → 健康告警（D7：不重试）；成功 → 复位 lastError。 */
-    private void fire(boolean ok, String target) {
-        if (!ok) {
-            health.setLastError(HEALTH_KEY, "discord 发送失败 target=" + target);
-            log.warning("[discord] 发送失败 target=" + target);
-        } else {
-            health.setLastError(HEALTH_KEY, null); // 成功即复位（lastError 语义 = 当前错误，非历史错误）
-        }
+    /** 尽力一次：失败/异常 → 健康告警（D7：不重试）；异步完成回调（不阻塞调用线程）。 */
+    private void fire(CompletableFuture<Boolean> future, String target) {
+        future.whenComplete((ok, err) -> {
+            if (err != null || !Boolean.TRUE.equals(ok)) {
+                health.setLastError(HEALTH_KEY, "discord 发送失败 target=" + target + (err == null ? "" : " " + err));
+                log.warning("[discord] 发送失败 target=" + target + (err == null ? "" : " " + err));
+            } else {
+                health.setLastError(HEALTH_KEY, null); // 成功即复位（lastError 语义 = 当前错误，非历史错误）
+            }
+        });
     }
 
     /** target {@code discord:<chatType>:<id>} 解析（group=频道 id / user=用户 id）。 */

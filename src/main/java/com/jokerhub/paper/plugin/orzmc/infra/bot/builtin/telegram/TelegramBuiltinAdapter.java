@@ -10,6 +10,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.BuiltinPlatform;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImProxyConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TelegramPlatformConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -225,28 +226,25 @@ public final class TelegramBuiltinAdapter implements BuiltinPlatform {
             }
             return;
         }
-        fire(chatId, text, false);
+        fire(api.sendMessageAsync(chatId, text), chatId, false);
     }
 
     /** 被动回复（chat_id 直发——TG 语义，无被动回复通道）。 */
     private void sendReply(long chatId, String text) {
-        fire(chatId, text, true);
+        fire(api.sendMessageAsync(chatId, text), chatId, true);
     }
 
-    /** 尽力一次（D7：失败/异常 → 健康告警 + 日志，不重试）。 */
-    private void fire(long chatId, String text, boolean reply) {
-        try {
-            boolean ok = api.sendMessage(chatId, text);
-            if (!ok) {
+    /** 尽力一次（D7：失败/异常 → 健康告警 + 日志，不重试）；异步完成回调（不阻塞调用线程）。 */
+    private void fire(CompletableFuture<Boolean> future, long chatId, boolean reply) {
+        future.whenComplete((ok, err) -> {
+            if (err != null || !Boolean.TRUE.equals(ok)) {
                 health.setLastError(HEALTH_KEY, "telegram 发送失败 chat_id=" + chatId);
-                log.warning("[telegram] 发送失败 chat_id=" + chatId + (reply ? "（回复）" : ""));
+                log.warning(
+                        "[telegram] 发送失败 chat_id=" + chatId + (reply ? "（回复）" : "") + (err == null ? "" : " " + err));
             } else {
                 health.setLastError(HEALTH_KEY, null); // 成功即复位（lastError 语义 = 当前错误，非历史错误）
             }
-        } catch (RuntimeException e) {
-            health.setLastError(HEALTH_KEY, "telegram 发送异常 chat_id=" + chatId + " " + e);
-            log.warning("[telegram] 发送异常 chat_id=" + chatId + (reply ? "（回复）" : "") + " " + e);
-        }
+        });
     }
 
     /** target {@code telegram:<chatType>:<chatId>} → chatId（long）；非 telegram 前缀/格式错误 → null。 */
