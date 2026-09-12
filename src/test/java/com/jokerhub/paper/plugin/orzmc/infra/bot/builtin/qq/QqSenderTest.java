@@ -125,6 +125,34 @@ class QqSenderTest {
         assertThrows(IllegalArgumentException.class, () -> sender().sendGroupMessage("G", "  ", null));
     }
 
+    @Test
+    void connectPhaseFailure_retriesOnceThenReportsPhase() throws Exception {
+        java.util.List<String> logs = new java.util.ArrayList<>();
+        int deadPort = freePort();
+        QqSender sender = new QqSender(capturingLogger(logs), tokens, "http://127.0.0.1:" + deadPort);
+
+        assertFalse(awaitSend(sender.sendGroupMessage("GROUP-1", "连不上", null)));
+
+        assertEquals(1, logs.stream().filter(m -> m.contains("重试一次投递")).count(), "连接阶段应恰好兑底重试一次: " + logs);
+        assertTrue(logs.stream().anyMatch(m -> m.contains("连接阶段异常，已重试一次")), "最终告警应标明阶段: " + logs);
+        assertEquals(0, tokens.authFailures.get(), "连接失败不应触发令牌重换");
+    }
+
+    @Test
+    void connectPhaseClassification_acceptsOnlyProvablyUnsentFailures() {
+        // 连接阶段（请求未发出，重试安全）
+        assertTrue(QqSender.isConnectPhaseFailure(
+                new java.net.http.HttpConnectTimeoutException("HTTP connect timed out")));
+        assertTrue(QqSender.isConnectPhaseFailure(new java.net.ConnectException("Connection refused")));
+        assertTrue(QqSender.isConnectPhaseFailure(new java.net.NoRouteToHostException("No route to host")));
+        assertTrue(QqSender.isConnectPhaseFailure(new java.net.UnknownHostException("api.bot.qq.com")));
+        assertTrue(QqSender.isConnectPhaseFailure(new javax.net.ssl.SSLHandshakeException("handshake_failure")));
+        // 请求阶段（可能已投递，重试会产生重复通知）或非网络异常
+        assertFalse(QqSender.isConnectPhaseFailure(new java.net.http.HttpTimeoutException("request timed out")));
+        assertFalse(QqSender.isConnectPhaseFailure(new java.io.IOException("broken pipe")));
+        assertFalse(QqSender.isConnectPhaseFailure(new java.util.concurrent.TimeoutException()));
+    }
+
     // =====================================================================
     // 替身
     // =====================================================================
@@ -152,6 +180,37 @@ class QqSenderTest {
             token = "fresh-" + authFailures.incrementAndGet();
             return token;
         }
+    }
+
+    private static int freePort() throws java.io.IOException {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    /** 采集 INFO 及以上日志文本（验证兑底重试与阶段化告警）。 */
+    private static Logger capturingLogger(java.util.List<String> sink) {
+        Logger raw = Logger.getLogger("qq-sender-capture");
+        raw.setUseParentHandlers(false);
+        raw.setLevel(java.util.logging.Level.ALL);
+        for (java.util.logging.Handler handler : raw.getHandlers()) {
+            raw.removeHandler(handler);
+        }
+        raw.addHandler(new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                if (record.getLevel().intValue() >= java.util.logging.Level.INFO.intValue()) {
+                    sink.add(String.valueOf(record.getMessage()));
+                }
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        });
+        return raw;
     }
 
     private static Logger silentLogger() {
