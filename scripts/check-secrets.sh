@@ -42,6 +42,8 @@ fail=0
 echo "== 扫描已跟踪文件（$(git ls-files | wc -l | tr -d ' ') 个）=="
 while IFS= read -r f; do
   [[ -f "$f" ]] || continue
+  # 自排除：本文件内含私钥模式字面量（PATTERNS），会自报；其正确性由人工评审 + 自测（植入假私钥）保证
+  [[ "$f" == "scripts/check-secrets.sh" ]] && continue
   # 跳过二进制
   grep -Iq . "$f" 2>/dev/null || continue
   hits=$(scan_text < "$f")
