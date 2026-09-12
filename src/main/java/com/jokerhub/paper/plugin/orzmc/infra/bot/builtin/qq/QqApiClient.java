@@ -170,6 +170,15 @@ public final class QqApiClient implements QqGatewayUrlFetcher {
      * “校验 token 失败，系统错误，一般重试一次会好”（可重试的瞬态错，不是凭据问题）；
      * 旧文案 {@code token not exist or expire} 保留兼容（老版本响应）。
      */
+    /**
+     * 是否为「被动回复被拒」：HTTP 400 + code 40034128（同一源消息被动回复次数超限，或 5 分钟回复窗口已过期）。
+     *
+     * <p>平台明确返回失败（<strong>未投递</strong>），故可安全改用主动消息重投一次——不属于「结果未知」的重复风险场景。</p>
+     */
+    static boolean isPassiveReplyLimit(int status, String body) {
+        return status == 400 && body != null && body.contains("40034128");
+    }
+
     static boolean isTokenRejected(int status, String body) {
         return status == 401
                 || body.contains("11244")
