@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.TextChunker;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayStateListener;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.ReconnectPolicy;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.qq.QqApiClient;
@@ -43,6 +44,10 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
     private final TokenProvider tokens;
     private final QqSender sender;
     private final QqGatewayClient gateway;
+    /** 单条文本上限（UTF-8 字节，0 = 不分段）：官方未公开数字（仅错误码 40054007），默认保守值可配（D2/R7）。 */
+    private final int maxTextBytes;
+    /** 最多段数：被动回复受平台「每条源消息最多 5 次」约束，故取 5（超出的尾部截断 + 告警）。 */
+    private static final int MAX_TEXT_PARTS = 5;
 
     public QqBuiltinAdapter(
             ServerLogger serverLogger,
@@ -75,6 +80,7 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         }
         this.log = serverLogger.logger();
         this.health = health;
+        this.maxTextBytes = cfg.maxTextBytes();
         java.net.Proxy proxy = resolveProxy(cfg);
         QqApiClient api = new QqApiClient(cfg.appId(), cfg.clientSecret(), proxy, log);
         this.tokens = new RefreshableTokenProvider(api::fetchAccessToken, TOKEN_TTL, TOKEN_REFRESH_AHEAD);
@@ -134,18 +140,37 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
             return;
         }
         if (parsed.isGroup()) {
-            fire(sender.sendGroupMessage(parsed.openid(), text, null), target);
+            sendChunked(target, parsed.openid(), text, null, true);
         } else {
-            fire(sender.sendDirectMessage(parsed.openid(), text, null), target);
+            sendChunked(target, parsed.openid(), text, null, false);
         }
     }
 
-    /** 被动回复（msg_id = 来源消息，D14）。 */
+    /** 被动回复（msg_id = 来源消息，D14）；长文本按平台上限分段（每段递增 msg_seq）。 */
     private void sendReply(String chatType, String chatId, String text, String replyMsgId) {
-        if (QqTarget.CHAT_GROUP.equals(chatType)) {
-            fire(sender.sendGroupMessage(chatId, text, replyMsgId), chatId);
-        } else {
-            fire(sender.sendDirectMessage(chatId, text, replyMsgId), chatId);
+        sendChunked(chatId, chatId, text, replyMsgId, QqTarget.CHAT_GROUP.equals(chatType));
+    }
+
+    /**
+     * 按平台单条上限（UTF-8 字节）分段发送；超段数上限时截断并告警（D2）。
+     *
+     * <p>QQ 官方未公开单条文本上限（只给错误码 {@code 40054007 消息长度超限}），故默认保守（3KB）且可经
+     * {@code im.yml → platforms.qq.max_text_bytes} 调优；被动回复每段携带递增 {@code msg_seq}（由 QqSender 维护）。</p>
+     */
+    private void sendChunked(String alertTarget, String chatId, String text, String replyMsgId, boolean group) {
+        TextChunker.Result chunked = maxTextBytes <= 0
+                ? new TextChunker.Result(java.util.List.of(text), false)
+                : TextChunker.byUtf8Bytes(text, maxTextBytes, MAX_TEXT_PARTS);
+        if (chunked.truncated()) {
+            log.warning("[qq] 消息过长：已按 " + maxTextBytes + " 字节 × 最多 " + MAX_TEXT_PARTS + " 段发出，尾部截断"
+                    + "（完整内容见服务器日志）；如仍报 40054007 请调小 im.yml platforms.qq.max_text_bytes: target=" + alertTarget);
+        }
+        for (String part : chunked.parts()) {
+            if (group) {
+                fire(sender.sendGroupMessage(chatId, part, replyMsgId), alertTarget);
+            } else {
+                fire(sender.sendDirectMessage(chatId, part, replyMsgId), alertTarget);
+            }
         }
     }
 
