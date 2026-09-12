@@ -195,7 +195,12 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
   改动直合 main、tag 版本号 bump 等），都要同步进 develop，保证 develop ⊇ main——否则下次 develop→main
   里程碑会因「两侧同文件各自演进」产生冲突（#293 教训）。**自动化（`main-develop-sync.yml`）**：push main →
   比较两分支内容，main 确有领先内容 → 自动开反向 PR（head=main base=develop）+ enable 原生 auto-merge
-  （squash，CI 绿自动合）；内容一致（里程碑后常态）→ 自动跳过；冲突 → 不开 auto-merge 留人工。
+  （squash，CI 绿自动合）；内容一致（里程碑后常态）→ 自动跳过 **并清理遗留的同步 PR（撤 auto-merge + 关闭 + 删分支）**；
+  冲突 → 不开 auto-merge 留人工。
+  **合并前预检（2026-09-13 加固，`scripts/sync-preflight.sh`）**：推送/enable auto-merge 之前必须通过
+  —— `VERDICT=skip`（空转，树相同）→ 不建 PR 且清理陈旧 PR；`manual`（合并预演冲突 / 会删除 develop 内容）
+  → 撤 auto-merge + 留言人工；`ok` → 才自动合。背景：#467 曾留下一个「空转但仍开着 auto-merge」的同步 PR
+  （里程碑已把内容带回 develop），需人工发现后关闭。
   人工兜底步骤（自动化不可用时手动执行）：
   ① `git fetch origin --prune`（先刷新全部引用，勿在陈旧 tracking 上判断）；
   ② `git diff origin/main origin/develop --stat` 确认 main 确有领先内容；
