@@ -95,6 +95,51 @@ class ReconnectingGatewayTest {
     }
 
     @Test
+    void start_doesNotBlockCallerWhileResolvingEndpoint() throws Exception {
+        // 回归（R12）：start() 常由服务器线程调用（/bot、/orzmc config reload），而 resolveEndpoint 可能做
+        // 阻塞 HTTP（如 QQ /gateway/bot）——首次建连必须异步，不得让调用线程等网络。
+        server = TestWsServer.start();
+        AtomicReference<TestWsServer> ref = new AtomicReference<>(server);
+        java.util.concurrent.CountDownLatch resolving = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        TestGateway gw = new TestGateway("qq", fastPolicy(), null, new RecordingListener(), () -> {
+            resolving.countDown();
+            try {
+                release.await(3, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return "ws://127.0.0.1:" + ref.get().port() + "/";
+        });
+        gateway = gw;
+
+        long t0 = System.nanoTime();
+        gw.start();
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 500, "start() 不得在调用线程等 resolveEndpoint（实测 " + elapsedMs + "ms）");
+        assertTrue(resolving.await(2, java.util.concurrent.TimeUnit.SECONDS), "建连应已开始在后台调度线程执行");
+
+        release.countDown();
+        awaitTrue("释放后在后台完成建连", () -> gw.opens.get() == 1);
+        assertEquals(State.OPEN, gw.state());
+    }
+
+    @Test
+    void stop_doesNotBlockCaller() throws Exception {
+        // 回归：stop() 不得 awaitTermination 阻塞调用线程（/orzmc config reload 逐平台停旧建新会叠加）。
+        server = TestWsServer.start();
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+        gw.start();
+        awaitTrue("建连", () -> gw.opens.get() == 1);
+
+        long t0 = System.nanoTime();
+        gw.stop();
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 500, "stop() 不得阻塞调用线程（实测 " + elapsedMs + "ms）");
+        assertEquals(State.STOPPED, gw.state());
+    }
+
+    @Test
     void serverDrop_triggersAutoReconnectWithNewConnection() throws Exception {
         server = TestWsServer.start();
         RecordingListener listener = new RecordingListener();

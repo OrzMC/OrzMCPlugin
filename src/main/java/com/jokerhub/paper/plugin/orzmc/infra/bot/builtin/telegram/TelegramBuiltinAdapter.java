@@ -13,7 +13,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
@@ -122,12 +121,9 @@ public final class TelegramBuiltinAdapter implements BuiltinPlatform {
         }
         ScheduledExecutorService p = poller;
         if (p != null) {
+            // 不 awaitTermination：轮询线程由 running=false + shutdownNow 中断退出，在服务器线程上等待 1s
+            // 纯阻塞（/orzmc config reload 停旧建新时会叠加）。
             p.shutdownNow();
-            try {
-                p.awaitTermination(1, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
             poller = null;
         }
         health.setEnabled(HEALTH_KEY, false);
@@ -244,6 +240,8 @@ public final class TelegramBuiltinAdapter implements BuiltinPlatform {
             if (!ok) {
                 health.setLastError(HEALTH_KEY, "telegram 发送失败 chat_id=" + chatId);
                 log.warning("[telegram] 发送失败 chat_id=" + chatId + (reply ? "（回复）" : ""));
+            } else {
+                health.setLastError(HEALTH_KEY, null); // 成功即复位（lastError 语义 = 当前错误，非历史错误）
             }
         } catch (RuntimeException e) {
             health.setLastError(HEALTH_KEY, "telegram 发送异常 chat_id=" + chatId + " " + e);

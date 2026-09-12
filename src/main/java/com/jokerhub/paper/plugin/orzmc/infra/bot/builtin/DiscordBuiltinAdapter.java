@@ -144,11 +144,13 @@ public final class DiscordBuiltinAdapter implements BuiltinPlatform {
         fire(api.sendChannelMessage(source.channelId(), text), source.channelId());
     }
 
-    /** 尽力一次：失败/异常 → 健康告警（D7：不重试）。 */
+    /** 尽力一次：失败/异常 → 健康告警（D7：不重试）；成功 → 复位 lastError。 */
     private void fire(boolean ok, String target) {
         if (!ok) {
             health.setLastError(HEALTH_KEY, "discord 发送失败 target=" + target);
             log.warning("[discord] 发送失败 target=" + target);
+        } else {
+            health.setLastError(HEALTH_KEY, null); // 成功即复位（lastError 语义 = 当前错误，非历史错误）
         }
     }
 

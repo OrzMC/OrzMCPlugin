@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.discord;
 
+import com.jokerhub.paper.plugin.orzmc.infra.bot.ImWorkerPool;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
@@ -56,8 +57,8 @@ public final class DiscordRoleResolver implements DiscordAdminResolver {
         if (existing != null) {
             return existing;
         }
-        CompletableFuture<Boolean> task =
-                CompletableFuture.supplyAsync(() -> evaluate(resultKey, guildId, message.senderId()));
+        CompletableFuture<Boolean> task = CompletableFuture.supplyAsync(
+                () -> evaluate(resultKey, guildId, message.senderId()), ImWorkerPool.executor());
         CompletableFuture<Boolean> raced = inflight.putIfAbsent(resultKey, task);
         if (raced != null) {
             return raced;
