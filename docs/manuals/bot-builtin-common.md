@@ -106,6 +106,19 @@ platforms:
 - 重放去重：平台入站为「至少一次」投递（QQ `op6 RESUME` / Discord Gateway RESUME 会补发遗漏事件）——QQ/Discord 按消息 id 在 5 分钟窗口内去重（`InboundDedup`），非幂等命令不会被重放执行；TG 靠严格推进 `getUpdates` 的 `offset=update_id+1` 防重拉。
 - 长消息分段（D2，2026-09）：单条超平台上限会被平台整条拒绝（= 通知丢失），故出站按平台口径分段发出、最多 5 段，超出部分**截断并告警**（完整内容见服务器日志）：TG 按官方 **4096 字符**、Discord 按官方 **2000 字符**、QQ 按 **UTF-8 字节**（官方未公开数字，默认 3000 字节，`im.yml → platforms.qq.max_text_bytes` 可调）；飞书文本上限 150KB，实际无需分段。
 
+## 8. 未绑定会话提示与绑定（D11，2026-09 修订）
+
+机器人收到**尚未绑定**的会话消息时（fail-closed：不回复陌生会话），只做两件事：
+
+1. **控制台打印可复制绑定命令**（形如 `/config im bind qq group <openid> admin_group`）——**按会话各自节流**：
+   同一会话 30s 内重复消息只提示一次，**不同会话互不影响**（2026-09 修复：此前是全局单时间戳，
+   30s 内只打印第一个会话，导致后发消息的管理群/管理私聊提示被吞、管理员"绑定不上"）；
+2. 记录候选供 `/config im status` 查看（容量 256，绑定后自动清除）。
+
+> 因此**首次在一个新会话里发消息即可拿到绑定命令**；若已过了 30s 或需查看其他候选，用 `/config im status`。
+> 绑定值写入 `im_bindings.yml`（`sessions.<平台>.<admin_group|player_group|admin_dm>`），实时生效。
+> ⚠️ openid/chat_id 按平台 app 隔离（QQ 同一群在不同 app_id 下 openid 不同）→ 更换机器人后必须重新绑定。
+
 ## 8. 管理命令授权模型（D1=A 保持现状，2026-09 定稿）
 
 **判定规则**：管理命令的权限 = 「来源会话已绑定（`admin_group`/`player_group`/`admin_dm`）」**∧**「平台侧会话角色为管理员」。

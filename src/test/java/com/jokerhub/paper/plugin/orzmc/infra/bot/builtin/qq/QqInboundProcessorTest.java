@@ -138,6 +138,30 @@ class QqInboundProcessorTest {
     }
 
     @Test
+    void unboundLog_throttlesPerSession_notGlobally() {
+        // 回归：此前节流用全局单时间戳 → 30s 内只有第一个未绑定会话能打印绑定命令（其他会话的命令被吞，
+        // 管理员漏看导致“绑定不上”）；现按会话各自计时：不同会话都提示，同一会话重复消息才节流。
+        var logs = new CopyOnWriteArrayList<String>();
+        QqInboundProcessor p =
+                new QqInboundProcessor(captureLogger(logs), scheduler, () -> BOUND, handler, formatter, outbound);
+
+        p.onGatewayEvent(
+                "GROUP_AT_MESSAGE_CREATE", groupFrame("GROUP_AT_MESSAGE_CREATE", "G-3", "member", false, "a1", "hi"));
+        p.onGatewayEvent(
+                "GROUP_AT_MESSAGE_CREATE",
+                groupFrame("GROUP_AT_MESSAGE_CREATE", "G-4", "member", false, "a2", "hi")); // 另一会话，同窗口
+        p.onGatewayEvent(
+                "GROUP_AT_MESSAGE_CREATE",
+                groupFrame("GROUP_AT_MESSAGE_CREATE", "G-3", "member", false, "a3", "hi")); // 同会话重复
+
+        long g3 = logs.stream().filter(l -> l.contains("qq:group:G-3")).count();
+        long g4 = logs.stream().filter(l -> l.contains("qq:group:G-4")).count();
+        assertEquals(1, g3, "同一会话 30s 内只提示一次：\n" + String.join("\n", logs));
+        assertEquals(1, g4, "不同会话应各自提示（不被其他会话节流吞掉）：\n" + String.join("\n", logs));
+        assertTrue(String.join("\n", logs).contains("/config im status"), "提示应指明其余候选可用 status 查看");
+    }
+
+    @Test
     void disabledConversation_rejectsEverything() {
         processor(new ImConversation(false, "qq:group:G-1", "", ""))
                 .onGatewayEvent(
