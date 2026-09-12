@@ -216,6 +216,16 @@ public abstract class ReconnectingGateway {
     /** 网关进入 fatal（重连耗尽 / 鉴权不可恢复），自动重连已停止。 */
     protected void onGatewayFatal(String message, Throwable cause) {}
 
+    /**
+     * 子类判定“不可恢复”时主动进入 fatal（停止自动重连并上报）。
+     *
+     * <p>场景：平台明确不允许连接的关闭码（如 QQ 4914 已下架 / 4915 已封禁）或配置类错误
+     * （无效 intents）——此时推退重连既无用又噪音。fatal 后需 {@code start()} 才会重启。</p>
+     */
+    protected final void failFatal(String message) {
+        fatal(message);
+    }
+
     // =====================================================================
     // 子类可用工具
     // =====================================================================

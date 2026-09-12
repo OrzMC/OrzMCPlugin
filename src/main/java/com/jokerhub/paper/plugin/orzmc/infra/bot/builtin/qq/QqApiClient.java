@@ -22,12 +22,13 @@ import java.util.logging.Logger;
  *       {@link QqGatewayClient} 触发令牌强制重换。</li>
  * </ul>
  *
- * <p>默认端点对齐 EasyBot：authBase {@code https://bots.qq.com}、apiBase {@code https://api.bot.qq.com}
+ * <p>默认端点采用官方现文档口径：authBase {@code https://api.bot.qq.com}（《获取访问凭证》明文；
+ * 旧未文档化别名 {@code bots.qq.com} 2026-09 实探测仍可用，但不再作为默认）、apiBase {@code https://api.bot.qq.com}
  * （均支持注入覆盖，R11 域名清单据此）。凭据安全（R5）：任何日志不打 secret。</p>
  */
 public final class QqApiClient implements QqGatewayUrlFetcher {
 
-    public static final String DEFAULT_AUTH_BASE = "https://bots.qq.com";
+    public static final String DEFAULT_AUTH_BASE = "https://api.bot.qq.com";
     public static final String DEFAULT_API_BASE = "https://api.bot.qq.com";
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
@@ -75,6 +76,10 @@ public final class QqApiClient implements QqGatewayUrlFetcher {
     /**
      * 换发 access_token（{@code RefreshableTokenProvider} 的 fetch 闭包）。
      *
+     * <p>官方口径（2026-09）：{@code POST https://api.bot.qq.com/app/getAppAccessToken}，请求
+     * {@code {appId, clientSecret}}，响应 {@code {access_token, expires_in}}（expires_in 为 7200 内）。
+     * 错误码：100001 限频 / 100007 appid 无效 / 100016 凭据不符 / 10004 机器人不存在。</p>
+     *
      * @return access_token；换取失败返回 null（限流 100001/凭据问题/网络错误统一按不可用处理，调用方退避，不泄漏 secret）
      */
     public String fetchAccessToken() {
@@ -113,6 +118,12 @@ public final class QqApiClient implements QqGatewayUrlFetcher {
         }
     }
 
+    /**
+     * 解析网关 WS 地址：{@code GET {apiBase}/gateway/bot}（鉴权头 {@code QQBot <token>}，返回 {@code {url}}）。
+     *
+     * <p>官方现文档另有 {@code GET /gateway}（通用 WSS 接入点，限频 2 QPM/10 burst）；{@code /gateway/bot} 仍在产出
+     * （分片章节仍引用它，2026-09 实探测两路径均返回同等鉴权响应），故保持现状不做改动。</p>
+     */
     @Override
     public QqGatewayUrlFetcher.Result fetch(String accessToken) {
         String url = apiBase + "/gateway/bot";
@@ -150,11 +161,19 @@ public final class QqApiClient implements QqGatewayUrlFetcher {
         }
     }
 
-    /** token 失效谓词（对齐 EasyBot auth.rs）：HTTP 401 或 body 含业务码 11244 / 11242。同包 QqSender 复用（发送 401 重试一次）。 */
+    /**
+     * token 失效谓词（2026-09 官方规格 + 实机探测校准）：HTTP 401 或业务码 11244，或失效文案。
+     *
+     * <p>实探测（假 token 直接打三接口）：网关与 v2 消息接口均返回
+     * {@code 401 {"code":11244,"message":"AccessToken无效或过期","err_code":40011027}}。
+     * 注意：<b>不再把 11242 归为 token 失效</b>——官方公共错误码表中 11242 现为
+     * “校验 token 失败，系统错误，一般重试一次会好”（可重试的瞬态错，不是凭据问题）；
+     * 旧文案 {@code token not exist or expire} 保留兼容（老版本响应）。
+     */
     static boolean isTokenRejected(int status, String body) {
         return status == 401
                 || body.contains("11244")
-                || body.contains("11242")
+                || body.contains("AccessToken无效或过期")
                 || body.contains("token not exist or expire");
     }
 

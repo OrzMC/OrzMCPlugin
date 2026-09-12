@@ -40,13 +40,27 @@ public final class QqGatewayClient extends ReconnectingGateway {
     /** QQ 群 + C2C 事件 intent（官方 GROUP_AND_C2C_EVENT = 1 &lt;&lt; 25）。 */
     public static final int INTENT_GROUP_AND_C2C = 1 << 25;
 
-    /** 鉴权失败关闭码：identify 后 token 无效。 */
-    private static final int CLOSE_AUTH_FAILED = 4004;
+    /** 旧版鉴权失败关闭码（现行 WS 错误码表已不列；实测仍可能下发，保留兼容）。 */
+    private static final int CLOSE_AUTH_FAILED_LEGACY = 4004;
+    /** session 无效，无法继续 resume → 需 identify。 */
+    private static final int CLOSE_INVALID_SESSION = 4006;
+    /** seq 错误 → 需 identify。 */
+    private static final int CLOSE_BAD_SEQ = 4007;
+    /** 连接过期 → 重连并 resume。 */
+    private static final int CLOSE_EXPIRED = 4009;
+    /** 无效 intents。 */
+    private static final int CLOSE_BAD_INTENT = 4013;
+    /** intents 无权限。 */
+    private static final int CLOSE_INTENT_FORBIDDEN = 4014;
+    /** 机器人已下架（官方明确不允许连接）。 */
+    private static final int CLOSE_BOT_OFFLINE = 4914;
+    /** 机器人已封禁（官方明确不允许连接）。 */
+    private static final int CLOSE_BOT_BANNED = 4915;
 
     /** 心跳安全系数：按 hello 间隔的 0.75 发送（对齐 EasyBot，留出网络抖动余量，防止看门狗误杀）。 */
     private static final double HEARTBEAT_SAFETY = 0.75;
 
-    /** 网关 URL 缓存窗口：/gateway/bot 有频率限制（实测 HTTP 400 code 100017），窗口内复用不重取。 */
+    /** 网关 URL 缓存窗口：`/gateway/bot` 有频率限制（官方 `/gateway` 为 2 QPM / 10 QPM burst），窗口内复用不重取。 */
     private static final long GATEWAY_URL_CACHE_MS = 60_000;
     /** op9 无效会话防抖：距上次处理不足该时长仅清 session，不立即重连（防重连风暴触发平台限频）。 */
     private static final long OP9_MIN_INTERVAL_MS = 15_000;
@@ -264,13 +278,44 @@ public final class QqGatewayClient extends ReconnectingGateway {
         }
     }
 
+    /**
+     * 网关关闭码 → 恢复策略（2026-09 官方 WS 错误码表：4001/4002/4006-4014、4900~4915）。
+     *
+     * <ul>
+     *   <li>4004（旧版鉴权失败码，现表已不列，保留兼容）→ {@link #onAuthFailure()} 强制换 token 后重连；</li>
+     *   <li>4006/4007（session 无效 / seq 错误）→ 清 session 后全量 re-identify；</li>
+     *   <li>4009（连接过期）→ 保留 session 立即 resume；</li>
+     *   <li>4013/4014（无效 intent / intent 无权限）→ 配置或平台权限问题，重连无用 → fatal；</li>
+     *   <li>4914/4915（机器人已下架 / 已封禁）→ 官方明确“不允许连接” → fatal；</li>
+     *   <li>其余（含 4001/4002/4008/4010-4012/4900~4913）→ 基类统一退避重连。</li>
+     * </ul>
+     */
     @Override
     protected void onGatewayClosed(int code, String reason, boolean remote) {
-        if (code == CLOSE_AUTH_FAILED) {
-            log.warning("[qq] 网关鉴权失败关闭（code=4004），触发令牌刷新重连");
-            onAuthFailure();
+        switch (code) {
+            case CLOSE_AUTH_FAILED_LEGACY -> {
+                log.warning("[qq] 网关鉴权失败关闭（code=4004），触发令牌刷新重连");
+                onAuthFailure();
+            }
+            case CLOSE_INVALID_SESSION, CLOSE_BAD_SEQ -> {
+                log.warning("[qq] 网关关闭 code=" + code + "（session 无效/seq 错误），清 session 后全量 re-identify");
+                sessionId = null;
+                reconnectNow();
+            }
+            case CLOSE_EXPIRED -> {
+                log.info("[qq] 网关连接过期（code=4009），立即重连并 resume");
+                reconnectNow();
+            }
+            case CLOSE_BAD_INTENT, CLOSE_INTENT_FORBIDDEN ->
+                failFatal("网关拒绝鉴权：code=" + code + "（" + (code == CLOSE_BAD_INTENT ? "无效 intents" : "intents 无权限")
+                        + "），请核对 bot 权限/订阅事件配置（不会自动重连）");
+            case CLOSE_BOT_OFFLINE, CLOSE_BOT_BANNED ->
+                failFatal("网关拒绝连接：code=" + code + "（" + (code == CLOSE_BOT_OFFLINE ? "机器人已下架，仅允许连接沙箱环境" : "机器人已封禁")
+                        + "），请到开放平台核实机器人状态（不会自动重连）");
+            default -> {
+                // 其余关闭码（网络断/超时/4008 发送过快/4900~4913 内部错误）由基类统一退避自动重连
+            }
         }
-        // 其余关闭码（网络断/超时等）由基类统一退避自动重连
     }
 
     @Override
@@ -299,11 +344,16 @@ public final class QqGatewayClient extends ReconnectingGateway {
         sendIdentifyOrResume();
     }
 
-    /** 心跳帧（op1，d=最新事件序号；对齐 EasyBot 心跳载荷）。 */
+    /** 心跳帧（op1，d=最新事件序号；官方：首次连接 d 传 null）。 */
     private String heartbeatFrame() {
         JsonObject frame = new JsonObject();
         frame.addProperty("op", 1);
-        frame.addProperty("d", seq.get());
+        long currentSeq = seq.get();
+        if (currentSeq <= 0) {
+            frame.add("d", com.google.gson.JsonNull.INSTANCE); // 首次连接：官方要求 null（0 亦被接受，此处按规格对齐）
+        } else {
+            frame.addProperty("d", currentSeq);
+        }
         return frame.toString();
     }
 

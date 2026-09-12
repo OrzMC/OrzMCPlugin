@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * QqApiClient HTTP 层单测（OkHttp MockWebServer）：token 换发请求体/错误分类、网关 URL 获取鉴权头/
- * 401 与业务码 11244/11242 → AUTH、非 2xx/缺 url → TRANSIENT。
+ * 401 与业务码 11244 → AUTH（11242 属可重试系统错，不归 AUTH，见 2026-09 官方错误码表）、非 2xx/缺 url → TRANSIENT。
  */
 class QqApiClientTest {
 
@@ -113,6 +113,33 @@ class QqApiClientTest {
                 .setBody("{\"code\":11244,\"message\":\"token not exist or expire\"}"));
 
         assertEquals(QqGatewayUrlFetcher.Status.AUTH, api().fetch("tok-expired").status());
+    }
+
+    @Test
+    void fetchGatewayUrl_currentTokenInvalidShape_isAuth() throws Exception {
+        // 2026-09 实探测的实际响应体（假 token 直连三接口均为此形）
+        server.enqueue(new MockResponse()
+                .setResponseCode(401)
+                .setBody("{\"message\":\"AccessToken无效或过期\",\"code\":11244,\"err_code\":40011027}"));
+
+        assertEquals(QqGatewayUrlFetcher.Status.AUTH, api().fetch("tok-expired").status());
+    }
+
+    @Test
+    void fetchGatewayUrl_businessCode11242_isNotAuth() throws Exception {
+        // 官方公共错误码表（2026）：11242 = “校验 token 失败，系统错误，一般重试一次会好”——
+        // 属可重试瞬态错，不是凭据失效；若误判为 AUTH 会白白强制换 token。
+        server.enqueue(
+                new MockResponse().setResponseCode(200).setBody("{\"code\":11242,\"message\":\"check token failed\"}"));
+
+        assertEquals(QqGatewayUrlFetcher.Status.TRANSIENT, api().fetch("tok-1").status());
+    }
+
+    @Test
+    void defaultAuthBase_alignsWithOfficialDoc() {
+        // 官方《获取访问凭证》只列 https://api.bot.qq.com/app/getAppAccessToken
+        // （旧别名 bots.qq.com 实测仍可用但未文档化，不再作为默认值）
+        assertEquals("https://api.bot.qq.com", QqApiClient.DEFAULT_AUTH_BASE);
     }
 
     @Test
