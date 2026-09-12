@@ -9,6 +9,12 @@
 - **QQ 投递结果三态化（`QqSender.Outcome`：SENT / FAILED / UNKNOWN）+ 请求超时 10s → 30s**：2026-09 线上实测确认，主动消息（不带 msg_id）的平台响应可超 10s，**但消息实际已送达**——旧版把这类「响应迟到」统一报成 `发送失败` 并写入健康 `lastError`，既误判丢消息又刷屏。现：`UNKNOWN` 仅打一条 WARN（“平台可能已投递，未重试”）、不计入平台故障，`FAILED` 才告健康；请求超时给足 30s 以捕获慢响应（投递是异步 fire-and-forget，等待不影响服务器线程）
 - **QQ 网关地址解析失败时复用最近成功地址（`QqGatewayClient`）**：`/gateway/bot` 限频（HTTP 400 code 100017）或网络抖动时，此前直接判「网关地址不可用 → 建连失败」并退避；现复用最近一次成功下发的 WS 地址建连（已下发地址长期有效，确失效时下一轮仍会重取），减少无谓断连
 
+### ⚡ 性能（IM 线程卫生：服务器线程不再被 IM 网络等待阻塞）
+- **网关首次建连异步化（`ReconnectingGateway.start()`）**：`resolveEndpoint()` 会做阻塞 HTTP（QQ/Discord `/gateway/bot`），而 `start()` 常由服务器线程调用（`/bot`、`/orzmc config reload` → 平台槽 reconcile）——此前主线程会等完整往返（最坏 5s+10s）。现首次建连交给网关自有调度线程，`start()` 立即返回（状态仍为 CONNECTING，重复 start 幂等）
+- **`stop()` 不再阻塞调用线程**：`ReconnectingGateway.stop()` 去掉 `scheduler.awaitTermination(1s)`、Telegram `stop()` 去掉 `poller.awaitTermination(1s)`——`shutdownNow` + 状态自检已保证收敛，重载逐平台停旧建新时不再叠加主线程等待
+- **token 刷新/角色判定不再占用 ForkJoinPool.commonPool + 不在调用线程等网络**：新增 IM 专用阻塞任务池（`ImWorkerPool`：具名 `orzmc-im-worker-*` 守护线程 ×4，插件卸载回收）。QQ/飞书发送路径的 `tokens.fresh()`（临期会同步换发 token，阻塞 HTTP ≤15s）与 TG/Discord/飞书角色判定的 `supplyAsync` 均改用该池——此前 `fresh()` 在调用线程（服务器线程）持锁等鉴权请求，角色判定则可能占满并行度仅为「核数-1」的公共池并饿死同池其他使用方
+- **发送成功即复位健康 `lastError`**（QQ/飞书/TG/Discord）：`lastError` 语义改为「当前错误」（此前为历史错误，恢复后仍长期显示旧错误）
+
 ## [1.0.26] - 2026-09-10
 
 > 本版为**维护版本**：无生产代码变更——修复 tag 发布后的 version bump 自动化，并对齐贡献/发布文档。

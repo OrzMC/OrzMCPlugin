@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.feishu;
 
+import com.jokerhub.paper.plugin.orzmc.infra.bot.ImWorkerPool;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.TokenProvider;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -59,7 +60,8 @@ public final class FeishuRoleResolver implements FeishuAdminResolver {
         if (existing != null) {
             return existing;
         }
-        CompletableFuture<Boolean> task = CompletableFuture.supplyAsync(() -> queryAndReturn(key, message));
+        CompletableFuture<Boolean> task =
+                CompletableFuture.supplyAsync(() -> queryAndReturn(key, message), ImWorkerPool.executor());
         CompletableFuture<Boolean> raced = inflight.putIfAbsent(key, task);
         if (raced != null) {
             return raced;

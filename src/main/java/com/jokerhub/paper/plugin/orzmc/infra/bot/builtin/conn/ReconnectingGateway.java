@@ -137,7 +137,10 @@ public abstract class ReconnectingGateway {
             reconnectAttempts = 0;
             lastProblem = null;
         }
-        runAttempt();
+        // 首次建连不在调用线程同步执行：resolveEndpoint 可能做阻塞 HTTP（如 QQ /gateway/bot 拉 WS 地址），
+        // 而 start() 常由服务器线程调用（/bot、/orzmc config reload → 平台槽 reconcile）——异步化避免主线程
+        // 等网络（R12）；状态已置 CONNECTING，重复 start 仍幂等。
+        scheduler.execute(this::runAttempt);
     }
 
     /** 幂等终止：关闭连接、取消心跳与待重连、关闭调度线程并等待终止（R13）。实例不可复用。 */
@@ -154,12 +157,9 @@ public abstract class ReconnectingGateway {
             cancelReconnectLocked();
         }
         closeQuietly(toClose, 1000, "shutdown");
+        // 不 awaitTermination：调度线程是守护线程，shutdownNow 已中断/清队；在途任务由 state=STOPPED 自检收敛，
+        // 在服务器线程等待会白白阻塞 1s（/orzmc config reload 逐平台停旧建新时叠加）。
         scheduler.shutdownNow();
-        try {
-            scheduler.awaitTermination(1, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     public final State state() {

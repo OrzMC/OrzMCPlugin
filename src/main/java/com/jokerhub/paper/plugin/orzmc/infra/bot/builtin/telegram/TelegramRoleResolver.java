@@ -1,5 +1,6 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.telegram;
 
+import com.jokerhub.paper.plugin.orzmc.infra.bot.ImWorkerPool;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,7 +47,8 @@ public final class TelegramRoleResolver implements TelegramAdminResolver {
         if (existing != null) {
             return existing;
         }
-        CompletableFuture<Boolean> task = CompletableFuture.supplyAsync(() -> queryAndReturn(key, message));
+        CompletableFuture<Boolean> task =
+                CompletableFuture.supplyAsync(() -> queryAndReturn(key, message), ImWorkerPool.executor());
         CompletableFuture<Boolean> raced = inflight.putIfAbsent(key, task);
         if (raced != null) {
             return raced;

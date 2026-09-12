@@ -154,6 +154,7 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         future.whenComplete((outcome, err) -> {
             QqSender.Outcome result = err != null ? QqSender.Outcome.FAILED : outcome;
             if (result == QqSender.Outcome.SENT) {
+                health.setLastError(HEALTH_KEY, null); // 成功即复位：lastError 显示的是「当前错误」而非历史错误
                 return;
             }
             if (result == QqSender.Outcome.UNKNOWN) {

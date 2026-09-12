@@ -7,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerLogger;
 import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandAuditService;
 import com.jokerhub.paper.plugin.orzmc.features.security.CommandGuardService;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.ImWorkerPool;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.DefaultTypedConfigProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.I18nConfig;
@@ -98,6 +99,7 @@ public final class PlatformModule implements ServiceModule {
         detachLogCaptureAppender();
         commandAuditService.shutdown();
         AsyncHttp.shutdown();
+        ImWorkerPool.shutdown();
         configService.tearDown();
     }
 

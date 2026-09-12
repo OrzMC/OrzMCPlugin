@@ -49,6 +49,7 @@ class QqSenderTest {
             throws Exception {
         return future.get(5, TimeUnit.SECONDS);
     }
+
     // =====================================================================
     // 用例
     // =====================================================================
@@ -153,6 +154,46 @@ class QqSenderTest {
         assertFalse(QqSender.isConnectPhaseFailure(new java.net.http.HttpTimeoutException("request timed out")));
         assertFalse(QqSender.isConnectPhaseFailure(new java.io.IOException("broken pipe")));
         assertFalse(QqSender.isConnectPhaseFailure(new java.util.concurrent.TimeoutException()));
+    }
+
+    @Test
+    void slowTokenRefresh_doesNotBlockCallerThread() throws Exception {
+        // 回归（R12）：tokens.fresh() 临期时会同步换发 token（阻塞 HTTP）。发送路径常由服务器线程调用
+        // （通知/命令回复），故必须在专用池内获取 token——调用线程应立返回。
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-1\"}"));
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        TokenProvider slow = new TokenProvider() {
+            @Override
+            public String current() {
+                return "tok-slow";
+            }
+
+            @Override
+            public String fresh() {
+                try {
+                    release.await(3, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return "tok-slow";
+            }
+
+            @Override
+            public String onAuthFailure() {
+                return "tok-slow";
+            }
+        };
+        QqSender sender = new QqSender(silentLogger(), slow, base);
+
+        long t0 = System.nanoTime();
+        java.util.concurrent.CompletableFuture<QqSender.Outcome> future =
+                sender.sendGroupMessage("GROUP-1", "慢令牌", null);
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 500, "send 不得在调用线程等 token 刷新（实测 " + elapsedMs + "ms）");
+        assertFalse(future.isDone(), "token 未就绪时不应提前完成");
+
+        release.countDown();
+        assertEquals(QqSender.Outcome.SENT, awaitSend(future));
     }
 
     @Test

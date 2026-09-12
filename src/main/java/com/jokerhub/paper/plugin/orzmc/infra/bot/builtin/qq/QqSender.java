@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.qq;
 
 import com.google.gson.JsonObject;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.ImWorkerPool;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.TokenProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.net.AsyncHttp;
 import java.net.http.HttpResponse;
@@ -135,60 +136,68 @@ public final class QqSender {
             throw new IllegalArgumentException("text must not be blank");
         }
         String url = apiBase + path;
-        String firstToken = tokens.fresh();
-        if (firstToken == null) {
-            log.warning("[qq] 发送无可用 access_token，丢弃: " + path);
-            return CompletableFuture.completedFuture(Outcome.FAILED);
-        }
-        return postWithConnectRetry(url, firstToken, text, replyMsgId, path)
-                .thenCompose(resp -> {
-                    String body = resp.body() == null ? "" : resp.body();
-                    if (is2xx(resp)) {
-                        return CompletableFuture.completedFuture(Outcome.SENT);
+        // token 获取卸载到 IM 专用线程池：tokens.fresh() 在临期/过期时会同步换发 token（阻塞 HTTP ≤15s），
+        // 而本方法常由服务器线程调用（通知/命令回复）——不能在调用线程等网络（R12）。
+        return CompletableFuture.supplyAsync(tokens::fresh, ImWorkerPool.executor())
+                .thenCompose(firstToken -> {
+                    if (firstToken == null) {
+                        log.warning("[qq] 发送无可用 access_token，丢弃: " + path);
+                        return CompletableFuture.completedFuture(Outcome.FAILED);
                     }
-                    if (QqApiClient.isTokenRejected(resp.statusCode(), body)) {
-                        // token 失效：强制重换一次并重试一次（鉴权层自愈；仍失败按投递失败告警）
-                        String freshToken = tokens.onAuthFailure();
-                        if (freshToken == null) {
-                            log.warning("[qq] token 重换失败，消息投递失败（不再重试）: " + path);
-                            return CompletableFuture.completedFuture(Outcome.FAILED);
-                        }
-                        log.info("[qq] token 失效已重换，重试一次投递: " + path);
-                        return postWithConnectRetry(url, freshToken, text, replyMsgId, path)
-                                .handle((resp2, ex) -> {
-                                    if (ex != null) {
-                                        Throwable cause = unwrap(ex);
-                                        if (isUnknownOutcome(cause)) {
-                                            log.warning("[qq] 投递响应超时（结果未知：平台可能已投递，未重试）: " + path + " " + cause);
-                                            return Outcome.UNKNOWN;
-                                        }
-                                        log.warning("[qq] token 重试仍失败（"
-                                                + cause.getClass().getSimpleName() + "）: " + path + " " + cause);
-                                        return Outcome.FAILED;
+                    return postWithConnectRetry(url, firstToken, text, replyMsgId, path)
+                            .thenCompose(resp -> {
+                                String body = resp.body() == null ? "" : resp.body();
+                                if (is2xx(resp)) {
+                                    return CompletableFuture.completedFuture(Outcome.SENT);
+                                }
+                                if (QqApiClient.isTokenRejected(resp.statusCode(), body)) {
+                                    // token 失效：强制重换一次并重试一次（鉴权层自愈；仍失败按投递失败告警）
+                                    String freshToken = tokens.onAuthFailure();
+                                    if (freshToken == null) {
+                                        log.warning("[qq] token 重换失败，消息投递失败（不再重试）: " + path);
+                                        return CompletableFuture.completedFuture(Outcome.FAILED);
                                     }
-                                    if (!is2xx(resp2)) {
-                                        log.warning("[qq] 重试仍失败（HTTP " + resp2.statusCode() + "），丢弃: " + path);
-                                        return Outcome.FAILED;
-                                    }
-                                    return Outcome.SENT;
-                                });
-                    }
-                    log.warning("[qq] 投递失败（HTTP " + resp.statusCode() + "，不重试）: " + path + " " + clip(body));
-                    return CompletableFuture.completedFuture(Outcome.FAILED);
-                })
-                .exceptionally(ex -> {
-                    Throwable cause = unwrap(ex);
-                    if (isConnectPhaseFailure(cause)) {
-                        log.warning("[qq] 投递失败（连接阶段异常，已重试一次）: " + path + " " + cause);
-                        return Outcome.FAILED;
-                    }
-                    if (isUnknownOutcome(cause)) {
-                        // 请求已发出但无响应（或总预算耗尽）：结果未知（线下实测平台多半已投递），禁止重试以免重复通知
-                        log.warning("[qq] 投递响应超时（结果未知：平台可能已投递，未重试）: " + path + " " + cause);
-                        return Outcome.UNKNOWN;
-                    }
-                    log.warning("[qq] 投递网络异常（不重试）: " + path + " " + cause);
-                    return Outcome.FAILED;
+                                    log.info("[qq] token 失效已重换，重试一次投递: " + path);
+                                    return postWithConnectRetry(url, freshToken, text, replyMsgId, path)
+                                            .handle((resp2, ex) -> {
+                                                if (ex != null) {
+                                                    Throwable cause = unwrap(ex);
+                                                    if (isUnknownOutcome(cause)) {
+                                                        log.warning(
+                                                                "[qq] 投递响应超时（结果未知：平台可能已投递，未重试）: " + path + " " + cause);
+                                                        return Outcome.UNKNOWN;
+                                                    }
+                                                    log.warning("[qq] token 重试仍失败（"
+                                                            + cause.getClass().getSimpleName() + "）: " + path + " "
+                                                            + cause);
+                                                    return Outcome.FAILED;
+                                                }
+                                                if (!is2xx(resp2)) {
+                                                    log.warning(
+                                                            "[qq] 重试仍失败（HTTP " + resp2.statusCode() + "），丢弃: " + path);
+                                                    return Outcome.FAILED;
+                                                }
+                                                return Outcome.SENT;
+                                            });
+                                }
+                                log.warning(
+                                        "[qq] 投递失败（HTTP " + resp.statusCode() + "，不重试）: " + path + " " + clip(body));
+                                return CompletableFuture.completedFuture(Outcome.FAILED);
+                            })
+                            .exceptionally(ex -> {
+                                Throwable cause = unwrap(ex);
+                                if (isConnectPhaseFailure(cause)) {
+                                    log.warning("[qq] 投递失败（连接阶段异常，已重试一次）: " + path + " " + cause);
+                                    return Outcome.FAILED;
+                                }
+                                if (isUnknownOutcome(cause)) {
+                                    // 请求已发出但无响应（或总预算耗尽）：结果未知（线下实测平台多半已投递），禁止重试以免重复通知
+                                    log.warning("[qq] 投递响应超时（结果未知：平台可能已投递，未重试）: " + path + " " + cause);
+                                    return Outcome.UNKNOWN;
+                                }
+                                log.warning("[qq] 投递网络异常（不重试）: " + path + " " + cause);
+                                return Outcome.FAILED;
+                            });
                 });
     }
 
