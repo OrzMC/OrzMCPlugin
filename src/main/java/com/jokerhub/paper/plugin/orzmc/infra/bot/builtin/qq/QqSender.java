@@ -9,7 +9,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /**
@@ -22,8 +24,14 @@ import java.util.logging.Logger;
  * </ul>
  *
  * <p>文本请求体 {@code {"content": text, "msg_type": 0}}；携带 {@code replyMsgId}（来源消息 id）时追加
- * {@code msg_id} —— 即 QQ 被动回复通道（D14：被动回复带 msg_id 走短窗口，主动广播不带 msg_id 受配额/频控，
+ * {@code msg_id} 与递增的 {@code msg_seq} —— 即 QQ 被动回复通道（D14：被动回复带 msg_id 走短窗口，主动广播不带 msg_id 受配额/频控，
  * 主动广播的节流沿用插件既有聚合，调用方负责）。</p>
+ *
+ * <p><b>msg_seq（2026-09 官方规格对齐）</b>：官方《群聊消息/单聊消息》发送接口要求被动回复携带 {@code msg_seq}，
+ * 且“<b>相同的 msg_id + msg_seq 重复发送会失败</b>”（错误码 40054005 消息被去重，默认 msg_seq=1）。
+ * 分页列表等场景会对<b>同一条入站消息</b>连发多条被动回复，故本类按 msg_id 维护递增序号（1,2,3…）——
+ * 否则第 2 条起会被平台判重丢弃。被动回复还有次数上限（官方：群聊每条源消息最多 5 次、单聊最多 4 次），
+ * 超限平台会返回 40034128；本类在超限时打出明确 WARN 便于定位“列表只发出一条”。</p>
  *
  * <p><b>发送语义（D7）</b>：尽力一次不重试（无持久化幂等，重试会造成重复通知）——例外仅两类：
  * ① 平台明确 token 失效（HTTP 401 / 业务码 11244/11242）时经 {@link TokenProvider#onAuthFailure()} 强制重换一次并
@@ -60,6 +68,15 @@ public final class QqSender {
 
     /** 连接阶段重试的等待：给中间设备/边缘节点瞬态拒绝留恢复窗口（仅一次，不做指数退避）。 */
     private static final long CONNECT_RETRY_DELAY_MS = 300;
+    /** 被动回复次数上限（官方：群聊每条源消息最多 5 次、单聊 4 次；超限平台返回 40034128）。 */
+    private static final int PASSIVE_REPLY_LIMIT_GROUP = 5;
+
+    private static final int PASSIVE_REPLY_LIMIT_C2C = 4;
+    /** 被动回复序号表上限（msg_id → 已用序号）：仅作防重复，条数极小，超限整体清空。 */
+    private static final int REPLY_SEQ_MAX_ENTRIES = 256;
+
+    /** msg_id → 已用被动回复序号（同一入站消息的多条回复需递增 msg_seq，否则被平台判重）。 */
+    private final ConcurrentHashMap<String, AtomicInteger> replySeq = new ConcurrentHashMap<>();
 
     private final Logger log;
     private final TokenProvider tokens;
@@ -116,7 +133,7 @@ public final class QqSender {
      * @return {@link Outcome#SENT}（平台 2xx）/ {@link Outcome#FAILED}（确定失败）/ {@link Outcome#UNKNOWN}（响应超时，结果未知）
      */
     public CompletableFuture<Outcome> sendGroupMessage(String groupOpenid, String text, String replyMsgId) {
-        return send("/v2/groups/" + groupOpenid + "/messages", text, replyMsgId);
+        return send("/v2/groups/" + groupOpenid + "/messages", text, replyMsgId, true);
     }
 
     /**
@@ -128,14 +145,15 @@ public final class QqSender {
      * @return 同 {@link #sendGroupMessage}
      */
     public CompletableFuture<Outcome> sendDirectMessage(String userOpenid, String text, String replyMsgId) {
-        return send("/v2/users/" + userOpenid + "/messages", text, replyMsgId);
+        return send("/v2/users/" + userOpenid + "/messages", text, replyMsgId, false);
     }
 
-    private CompletableFuture<Outcome> send(String path, String text, String replyMsgId) {
+    private CompletableFuture<Outcome> send(String path, String text, String replyMsgId, boolean group) {
         if (text == null || text.isBlank()) {
             throw new IllegalArgumentException("text must not be blank");
         }
         String url = apiBase + path;
+        int msgSeq = nextReplySeq(path, replyMsgId, group);
         // token 获取卸载到 IM 专用线程池：tokens.fresh() 在临期/过期时会同步换发 token（阻塞 HTTP ≤15s），
         // 而本方法常由服务器线程调用（通知/命令回复）——不能在调用线程等网络（R12）。
         return CompletableFuture.supplyAsync(tokens::fresh, ImWorkerPool.executor())
@@ -144,7 +162,7 @@ public final class QqSender {
                         log.warning("[qq] 发送无可用 access_token，丢弃: " + path);
                         return CompletableFuture.completedFuture(Outcome.FAILED);
                     }
-                    return postWithConnectRetry(url, firstToken, text, replyMsgId, path)
+                    return postWithConnectRetry(url, firstToken, text, replyMsgId, msgSeq, path)
                             .thenCompose(resp -> {
                                 String body = resp.body() == null ? "" : resp.body();
                                 if (is2xx(resp)) {
@@ -158,7 +176,7 @@ public final class QqSender {
                                         return CompletableFuture.completedFuture(Outcome.FAILED);
                                     }
                                     log.info("[qq] token 失效已重换，重试一次投递: " + path);
-                                    return postWithConnectRetry(url, freshToken, text, replyMsgId, path)
+                                    return postWithConnectRetry(url, freshToken, text, replyMsgId, msgSeq, path)
                                             .handle((resp2, ex) -> {
                                                 if (ex != null) {
                                                     Throwable cause = unwrap(ex);
@@ -223,8 +241,8 @@ public final class QqSender {
      * 失败（含 {@link java.net.http.HttpTimeoutException}）直接上抛，交上层按「结果未知」告警且不重试。</p>
      */
     private CompletableFuture<HttpResponse<String>> postWithConnectRetry(
-            String url, String token, String text, String replyMsgId, String path) {
-        return post(url, token, text, replyMsgId)
+            String url, String token, String text, String replyMsgId, int msgSeq, String path) {
+        return post(url, token, text, replyMsgId, msgSeq)
                 .handle((resp, ex) -> {
                     if (ex == null) {
                         return CompletableFuture.completedFuture(resp);
@@ -237,7 +255,7 @@ public final class QqSender {
                     return CompletableFuture.<Void>supplyAsync(
                                     () -> null,
                                     CompletableFuture.delayedExecutor(CONNECT_RETRY_DELAY_MS, TimeUnit.MILLISECONDS))
-                            .thenCompose(ignored -> post(url, token, text, replyMsgId));
+                            .thenCompose(ignored -> post(url, token, text, replyMsgId, msgSeq));
                 })
                 .thenCompose(f -> f);
     }
@@ -259,12 +277,14 @@ public final class QqSender {
                 || cause instanceof javax.net.ssl.SSLHandshakeException;
     }
 
-    private CompletableFuture<HttpResponse<String>> post(String url, String token, String text, String replyMsgId) {
+    private CompletableFuture<HttpResponse<String>> post(
+            String url, String token, String text, String replyMsgId, int msgSeq) {
         JsonObject body = new JsonObject();
         body.addProperty("content", text);
         body.addProperty("msg_type", 0);
         if (replyMsgId != null && !replyMsgId.isBlank()) {
             body.addProperty("msg_id", replyMsgId); // 被动回复通道（D14）
+            body.addProperty("msg_seq", msgSeq); // 必需：同一 msg_id 重复序号会被平台判重（40054005）
         }
         return AsyncHttp.postJson(
                 url,
@@ -274,6 +294,28 @@ public final class QqSender {
                 requestTimeout,
                 0,
                 proxy);
+    }
+
+    /**
+     * 下一条被动回复序号（1 起）：同一入站消息的多条回复必须递增 {@code msg_seq}，否则第 2 条起被平台判重（40054005）。
+     *
+     * <p>主动消息（无 msg_id）恒返回 0（不写字段）。超过官方次数上限（群 5 / 单聊 4）时打 WARN：平台会返回 40034128，
+     * 常见于列表页数过多——提示改用单页合并/截断，而非静默丢失。</p>
+     */
+    int nextReplySeq(String path, String replyMsgId, boolean group) {
+        if (replyMsgId == null || replyMsgId.isBlank()) {
+            return 0;
+        }
+        if (replySeq.size() >= REPLY_SEQ_MAX_ENTRIES) {
+            replySeq.clear(); // 防无界（msg_id 窗口仅 5 分钟，条目极小）
+        }
+        int seq = replySeq.computeIfAbsent(replyMsgId, k -> new AtomicInteger()).incrementAndGet();
+        int limit = group ? PASSIVE_REPLY_LIMIT_GROUP : PASSIVE_REPLY_LIMIT_C2C;
+        if (seq > limit) {
+            log.warning("[qq] 被动回复次数已超官方上限（第 " + seq + " 条 / 上限 " + limit + "，msg_id=" + replyMsgId
+                    + "），平台将返回 40034128：请缩减单次回复条数（如合并列表分页），path=" + path);
+        }
+        return seq;
     }
 
     private static boolean is2xx(HttpResponse<String> resp) {

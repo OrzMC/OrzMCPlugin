@@ -202,6 +202,75 @@ class QqGatewayClientTest {
     }
 
     @Test
+    void close4013_badIntent_goesFatalWithoutReconnect() throws Exception {
+        // 2026-09 官方 WS 错误码表：4013=无效 intents、4014=intents 无权限 → 配置类问题，重连无用，应直接 fatal
+        RecordingListener listener = new RecordingListener();
+        client = startClient(new FakeTokens("tok-0"), null, listener);
+        TestWsServer.Conn conn0 = helloThenIdentify(listener);
+
+        conn0.sendClose(4013);
+
+        awaitTrue("进入 fatal", () -> listener.fatal.get() == 1);
+        assertEquals(State.FATAL, client.state());
+        Thread.sleep(150);
+        assertEquals(1, server.connections().size(), "fatal 后不应再自动重连");
+    }
+
+    @Test
+    void close4914_botOffline_goesFatalWithoutReconnect() throws Exception {
+        // 官方：“4914 机器人已下架，只允许连接沙箱环境；4915 已封禁，不允许连接” → 不可重连
+        RecordingListener listener = new RecordingListener();
+        client = startClient(new FakeTokens("tok-0"), null, listener);
+        TestWsServer.Conn conn0 = helloThenIdentify(listener);
+
+        conn0.sendClose(4914);
+
+        awaitTrue("进入 fatal", () -> listener.fatal.get() == 1);
+        assertEquals(State.FATAL, client.state());
+        Thread.sleep(150);
+        assertEquals(1, server.connections().size(), "fatal 后不应再自动重连");
+    }
+
+    @Test
+    void close4006_invalidSession_reIdentifiesWithoutResume() throws Exception {
+        // 4006=session 无效无法 resume → 清 session 后全量 identify（而非带旧 session resume）
+        RecordingListener listener = new RecordingListener();
+        client = startClient(new FakeTokens("tok-0"), null, listener);
+        TestWsServer.Conn conn0 = helloThenIdentify(listener);
+        conn0.sendText("{\"op\":0,\"s\":5,\"t\":\"READY\",\"d\":{\"session_id\":\"sess-1\"}}");
+        Thread.sleep(80); // 让 READY 被会话层消费（session_id 捕获）
+
+        conn0.sendClose(4006);
+
+        awaitTrue("重连建连", () -> server.connections().size() >= 2);
+        TestWsServer.Conn conn1 = server.connections().get(1);
+        conn1.sendText(HELLO);
+        awaitTrue("重连应 identify（非 resume）", () -> framesWith(conn1, "\"op\":2").size() == 1);
+        assertTrue(framesWith(conn1, "\"op\":6").isEmpty(), "session 已清，不应再 resume: " + conn1.receivedText());
+    }
+
+    @Test
+    void close4009_expired_resumesSession() throws Exception {
+        // 4009=连接过期 → 重连并 resume（保留 session 续传）
+        RecordingListener listener = new RecordingListener();
+        client = startClient(new FakeTokens("tok-0"), null, listener);
+        TestWsServer.Conn conn0 = helloThenIdentify(listener);
+        conn0.sendText("{\"op\":0,\"s\":7,\"t\":\"READY\",\"d\":{\"session_id\":\"sess-2\"}}");
+        Thread.sleep(80); // 让 READY 被会话层消费（session_id/seq 捕获）
+
+        conn0.sendClose(4009);
+
+        awaitTrue("重连建连", () -> server.connections().size() >= 2);
+        TestWsServer.Conn conn1 = server.connections().get(1);
+        conn1.sendText(HELLO);
+        awaitTrue("重连应 resume", () -> framesWith(conn1, "\"op\":6").size() == 1);
+        assertTrue(
+                framesWith(conn1, "\"op\":6").get(0).contains("\"session_id\":\"sess-2\""),
+                conn1.receivedText().toString());
+        assertEquals(0, listener.fatal.get());
+    }
+
+    @Test
     void op7_reconnectResumesSession() throws Exception {
         RecordingListener listener = new RecordingListener();
         RecordingSink sink = new RecordingSink();

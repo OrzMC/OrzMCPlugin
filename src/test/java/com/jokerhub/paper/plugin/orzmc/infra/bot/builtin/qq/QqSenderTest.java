@@ -78,6 +78,79 @@ class QqSenderTest {
 
         String body = server.takeRequest().getBody().readUtf8();
         assertTrue(body.contains("\"msg_id\":\"src-msg-9\""), body);
+        // 2026-09 官方规格：被动回复必须带 msg_seq（相同 msg_id+msg_seq 会被判重 40054005）
+        assertTrue(body.contains("\"msg_seq\":1"), body);
+    }
+
+    @Test
+    void passiveRepliesToSameMessage_incrementMsgSeq() throws Exception {
+        // 回归（官方“相同的 msg_id + msg_seq 重复发送会失败”）：分页列表对同一条入站消息连发多条
+        // 被动回复时，第 2 条起必须递增 msg_seq，否则会被平台判重丢弃（40054005）。
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"m1\"}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"m2\"}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"m3\"}"));
+        QqSender sender = sender();
+
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendGroupMessage("G", "第1页", "src-1")));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendGroupMessage("G", "第2页", "src-1")));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendGroupMessage("G", "第3页", "src-1")));
+
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":1"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":2"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":3"));
+    }
+
+    @Test
+    void passiveReplySeq_isPerSourceMessage() throws Exception {
+        // 不同来源消息各自从 1 开始（序号是“对同一条消息的第几次回复”语义）
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        QqSender sender = sender();
+        awaitSend(sender.sendGroupMessage("G", "a", "src-A"));
+        awaitSend(sender.sendGroupMessage("G", "b", "src-B"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":1"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":1"));
+    }
+
+    @Test
+    void activeMessage_hasNoMsgSeq() throws Exception {
+        // 主动消息（无 msg_id）不应携带 msg_seq / msg_id
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        awaitSend(sender().sendGroupMessage("G", "公告", null));
+        String body = server.takeRequest().getBody().readUtf8();
+        assertFalse(body.contains("msg_seq"), body);
+        assertFalse(body.contains("msg_id"), body);
+    }
+
+    @Test
+    void passiveReplyBeyondOfficialLimit_warnsWithErrorHint() throws Exception {
+        // 官方：群聊每条源消息最多被动回复 5 次（单聊 4 次），超限平台返回 40034128。
+        // 第 6 条应打出可定位的 WARN（含 40034128 与上限值），便于排查“列表只发出一条/翻页失败”。
+        for (int i = 0; i < 6; i++) {
+            server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        }
+        var logs = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        Logger raw = Logger.getLogger("qq-sender-limit-test");
+        raw.setUseParentHandlers(false);
+        raw.addHandler(new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                logs.add(record.getMessage());
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        });
+        QqSender sender = new QqSender(raw, tokens, base);
+        for (int i = 0; i < 6; i++) {
+            awaitSend(sender.sendGroupMessage("G", "page" + i, "src-limit"));
+        }
+        String joined = String.join("\n", logs);
+        assertTrue(joined.contains("40034128"), joined);
+        assertTrue(joined.contains("上限 5"), joined);
     }
 
     @Test
