@@ -513,3 +513,7 @@ tasks.named("check") {
     dependsOn("integrationTest", "jacocoTestCoverageVerification", "checkSecrets")
 }
 
+tasks.named("check") {
+    dependsOn("integrationTest", "jacocoTestCoverageVerification", "checkSecrets")
+}
+

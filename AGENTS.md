@@ -110,8 +110,8 @@ OrzMC/
 
 - **本仓库是公开仓库（public）**：私钥 / 密钥 / 口令 / token **一次都不能提交**；凭据只走环境变量、本地 `run/`（已忽略）或 GitHub Secrets。
 - 提交前门禁：`./gradlew check` 已包含 `checkSecrets`（扫已跟踪文件的私钥/凭据模式）；**全历史排查**用 `bash scripts/check-secrets.sh --all-history`。
-- 事故处置顺序（颠倒无效）：**先轮换密钥 → 再删 HEAD → 最后（可选）重写历史**；详见 `docs/dev/security-incidents.md`（含 2026-09-13 SSH 私钥事故记录与决策表）。
-- 平台真实标识（QQ 群/用户 openid、GitHub/面板 ID）也不入测试夹具与文档示例——用合成值（openid 形如 `0F1E…E1F0`）。
+- 事故处置顺序（颠倒无效）：**先轮换密钥 → 再删 HEAD → 最后（可选）重写历史**；详见 `docs/dev/security-incidents.md`。
+- 平台真实标识（QQ 群/用户 openid、面板 ID 等）也不入测试夹具与文档示例——用合成值。
 
 
 ### Folia 线程模型（最高优先级）

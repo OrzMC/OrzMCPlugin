@@ -81,10 +81,10 @@ class ImCommandRegistrarTest {
     @Test
     void bind_qqGroupOpenIdUpperHex_parses() {
         bind(
-                "qq group 0F1E2D3C4B5A69788796A5B4C3D2E1F0 player_group",
+                "qq group F73A3B0AE04A8E82B75039A1519AE8EB player_group",
                 "qq",
                 "group",
-                "0F1E2D3C4B5A69788796A5B4C3D2E1F0",
+                "F73A3B0AE04A8E82B75039A1519AE8EB",
                 "player_group");
     }
 

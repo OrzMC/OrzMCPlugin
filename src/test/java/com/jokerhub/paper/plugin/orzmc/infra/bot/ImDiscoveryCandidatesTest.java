@@ -14,11 +14,11 @@ class ImDiscoveryCandidatesTest {
 
     @Test
     void bindCommands_groupCandidate_suggestsAdminAndPlayerGroup() {
-        List<String> cmds = ImDiscoveryCandidates.bindCommands("qq:group:0F1E2D3C4B5A69788796A5B4C3D2E1F0");
+        List<String> cmds = ImDiscoveryCandidates.bindCommands("qq:group:F73A3B0AE04A8E82B75039A1519AE8EB");
 
         assertEquals(2, cmds.size(), "群会话应给出 admin_group/player_group 两条建议");
-        assertEquals("/config im bind qq group 0F1E2D3C4B5A69788796A5B4C3D2E1F0 admin_group", cmds.get(0));
-        assertEquals("/config im bind qq group 0F1E2D3C4B5A69788796A5B4C3D2E1F0 player_group", cmds.get(1));
+        assertEquals("/config im bind qq group F73A3B0AE04A8E82B75039A1519AE8EB admin_group", cmds.get(0));
+        assertEquals("/config im bind qq group F73A3B0AE04A8E82B75039A1519AE8EB player_group", cmds.get(1));
     }
 
     @Test

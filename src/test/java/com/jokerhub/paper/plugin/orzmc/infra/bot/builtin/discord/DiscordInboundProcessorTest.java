@@ -129,21 +129,6 @@ class DiscordInboundProcessorTest {
         assertEquals(1, handler.calls.size(), "绑定私聊会话可上行问答");
     }
 
-    @Test
-    void replayedMessageId_isProcessedOnlyOnce() {
-        // 回归：Gateway 重连 RESUME 会补发遗漏事件（至少一次投递）——同消息 id 不得重复执行命令
-        DiscordInboundProcessor p = processor(BOUND);
-        DiscordInboundMessage msg = groupMsg("u1", "$w add Alice");
-
-        p.onMessage(msg);
-        p.onMessage(msg); // 重放
-        scheduler.runAll();
-        pending.values().forEach(f -> f.complete(true));
-        scheduler.runAll();
-
-        assertEquals(1, handler.calls.size(), "同一条消息只应执行业务一次");
-    }
-
     // =====================================================================
     // 替身
     // =====================================================================

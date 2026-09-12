@@ -8,7 +8,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImMessageRouter;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
-import com.jokerhub.paper.plugin.orzmc.infra.notify.ThrottledNotifier;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
@@ -37,14 +36,10 @@ public final class TelegramInboundProcessor {
     private final TelegramAdminResolver roleResolver;
     private final TelegramReplySink outbound;
     private final ImDiscoveryCandidates discovery;
-    /**
-     * 未绑定会话「日志提示」节流窗口：**按会话（target）各自计时**——同一会话 30s 内重复消息只提示一次，
-     * 不同会话互不影响（此前为全局单时间戳，30s 内只有第一个会话能打印绑定命令，管理员会漏看；
-     * 候选本身始终记录，见 {@code /config im status}）。
-     */
+    /** 未绑定会话日志节流：同一条消息最频繁每 30s 提示一次。 */
     private static final long UNBOUND_LOG_INTERVAL_MS = 30_000;
 
-    private final ThrottledNotifier unboundLogThrottle = new ThrottledNotifier();
+    private volatile long lastUnboundLogMs;
 
     public TelegramInboundProcessor(
             Logger log,
@@ -144,7 +139,9 @@ public final class TelegramInboundProcessor {
         if (discovery != null) {
             discovery.record(message.target()); // 候选供 status（D11）
         }
-        if (unboundLogThrottle.shouldRun(message.target(), UNBOUND_LOG_INTERVAL_MS)) {
+        long now = System.currentTimeMillis();
+        if (now - lastUnboundLogMs >= UNBOUND_LOG_INTERVAL_MS) {
+            lastUnboundLogMs = now;
             StringBuilder sb = new StringBuilder("[telegram] 未绑定会话消息 " + message.target());
             java.util.List<String> cmds = ImDiscoveryCandidates.bindCommands(message.target());
             if (cmds.isEmpty()) {
@@ -154,7 +151,7 @@ public final class TelegramInboundProcessor {
                 for (String c : cmds) {
                     sb.append("\n  ").append(c);
                 }
-                sb.append("\n绑定后本会话自动从 status 候选清除；其他未绑定会话见 /config im status");
+                sb.append("\n绑定后本会话自动从 status 候选清除");
             }
             log.info(sb.toString());
         }

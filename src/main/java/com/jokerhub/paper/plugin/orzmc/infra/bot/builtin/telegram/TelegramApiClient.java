@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.logging.Logger;
 
@@ -128,36 +127,28 @@ public final class TelegramApiClient {
         }
     }
 
-    /**
-     * sendMessage：投递文本（尽力一次 D7，失败返回 false 由调用方记健康告警）。
-     *
-     * <p><b>异步（R12）</b>：返回 future，调用线程（常为服务器线程：通知与命令回复）绝不等网络。</p>
-     */
-    public CompletableFuture<Boolean> sendMessageAsync(long chatId, String text) {
+    /** sendMessage：投递文本（尽力一次 D7，失败返回 false 由调用方记健康告警）。 */
+    public boolean sendMessage(long chatId, String text) {
         String url = methodUrl("sendMessage") + "&chat_id=" + chatId + "&text=" + urlEncode(text);
-        return AsyncHttp.get(url, Map.of(), CONNECT_TIMEOUT, REQUEST_TIMEOUT, 0, proxy)
-                .handle((resp, ex) -> {
-                    if (ex != null) {
-                        log.warning("[telegram] sendMessage 网络异常: " + ex);
-                        return false;
-                    }
-                    if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-                        log.warning("[telegram] Bot API 调用失败（HTTP " + resp.statusCode() + "）: " + clip(resp.body()));
-                        return false;
-                    }
-                    // TG 业务错误（bot 被踢/无权限等）返回 HTTP 200 + ok:false —— 须解析 body 判定
-                    try {
-                        JsonObject body = JsonParser.parseString(resp.body() == null ? "{}" : resp.body())
-                                .getAsJsonObject();
-                        if (body.has("ok") && !body.get("ok").getAsBoolean()) {
-                            log.warning("[telegram] sendMessage 被拒: " + clip(resp.body()));
-                            return false;
-                        }
-                        return true;
-                    } catch (JsonSyntaxException | IllegalStateException e) {
-                        return false; // 响应非预期 JSON → 视为失败
-                    }
-                });
+        HttpResponse<String> resp = sendGet(url);
+        if (resp == null) {
+            return false;
+        }
+        // TG 业务错误（bot 被踢/无权限等）返回 HTTP 200 + ok:false —— 须解析 body 判定
+        if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+            try {
+                JsonObject body = JsonParser.parseString(resp.body() == null ? "{}" : resp.body())
+                        .getAsJsonObject();
+                if (body.has("ok") && !body.get("ok").getAsBoolean()) {
+                    log.warning("[telegram] sendMessage 被拒: " + clip(resp.body()));
+                    return false;
+                }
+                return true;
+            } catch (JsonSyntaxException | IllegalStateException e) {
+                return false; // 响应非预期 JSON → 视为失败
+            }
+        }
+        return false;
     }
 
     /**

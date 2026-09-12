@@ -147,7 +147,9 @@ public final class QqInboundProcessor implements QqEventSink {
         if (discovery != null) {
             discovery.record(message.target()); // 候选供 status（D11）：每次事件都记，日志节流不影响
         }
-        if (unboundLogThrottle.shouldRun(message.target(), UNBOUND_LOG_INTERVAL_MS)) {
+        long now = System.currentTimeMillis();
+        if (now - lastUnboundLogMs >= UNBOUND_LOG_INTERVAL_MS) {
+            lastUnboundLogMs = now;
             // 只进控制台日志（D11）：提示管理员用 /config im bind 绑定该会话，并直接给出可复制命令
             StringBuilder sb = new StringBuilder("[qq] 未绑定会话消息 " + message.target());
             java.util.List<String> cmds = ImDiscoveryCandidates.bindCommands(message.target());
@@ -158,7 +160,7 @@ public final class QqInboundProcessor implements QqEventSink {
                 for (String c : cmds) {
                     sb.append("\n  ").append(c);
                 }
-                sb.append("\n绑定后本会话自动从 status 候选清除；其他未绑定会话见 /config im status");
+                sb.append("\n绑定后本会话自动从 status 候选清除");
             }
             log.info(sb.toString());
         }

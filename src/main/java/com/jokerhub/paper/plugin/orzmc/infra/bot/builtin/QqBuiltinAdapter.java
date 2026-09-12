@@ -80,7 +80,6 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         }
         this.log = serverLogger.logger();
         this.health = health;
-        this.maxTextBytes = cfg.maxTextBytes();
         java.net.Proxy proxy = resolveProxy(cfg);
         QqApiClient api = new QqApiClient(cfg.appId(), cfg.clientSecret(), proxy, log);
         this.tokens = new RefreshableTokenProvider(api::fetchAccessToken, TOKEN_TTL, TOKEN_REFRESH_AHEAD);

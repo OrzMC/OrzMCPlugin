@@ -125,20 +125,6 @@ public final class QqGatewayClient extends ReconnectingGateway {
             QqEventSink sink,
             GatewayStateListener listener,
             java.net.Proxy proxy) {
-        this(server, policy, tokens, urlFetcher, intents, sink, listener, proxy, GATEWAY_URL_CACHE_MS);
-    }
-
-    /** 测试注入：{@code gatewayUrlCacheMs} 覆盖网关 URL 复用窗口（0 = 每次重连都重取，便于验证失败兜底）。 */
-    QqGatewayClient(
-            ServerLogger server,
-            ReconnectPolicy policy,
-            TokenProvider tokens,
-            QqGatewayUrlFetcher urlFetcher,
-            int intents,
-            QqEventSink sink,
-            GatewayStateListener listener,
-            java.net.Proxy proxy,
-            long gatewayUrlCacheMs) {
         super("qq", server, policy, refresherFor(tokens), listener);
         if (tokens == null) {
             throw new IllegalArgumentException("tokens must not be null");
@@ -154,7 +140,6 @@ public final class QqGatewayClient extends ReconnectingGateway {
         this.intents = intents;
         this.sink = sink;
         this.proxy = proxy == null ? java.net.Proxy.NO_PROXY : proxy;
-        this.gatewayUrlCacheMs = gatewayUrlCacheMs;
         this.log = server.logger();
     }
 

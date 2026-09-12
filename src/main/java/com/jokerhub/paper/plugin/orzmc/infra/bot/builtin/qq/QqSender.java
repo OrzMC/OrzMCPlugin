@@ -82,8 +82,6 @@ public final class QqSender {
     private final TokenProvider tokens;
     private final String apiBase;
     private final java.net.Proxy proxy;
-    private final Duration connectTimeout;
-    private final Duration requestTimeout;
 
     public QqSender(Logger log, TokenProvider tokens) {
         this(log, tokens, QqApiClient.DEFAULT_API_BASE, java.net.Proxy.NO_PROXY);
@@ -99,17 +97,6 @@ public final class QqSender {
     }
 
     public QqSender(Logger log, TokenProvider tokens, String apiBase, java.net.Proxy proxy) {
-        this(log, tokens, apiBase, proxy, CONNECT_TIMEOUT, REQUEST_TIMEOUT);
-    }
-
-    /** 测试注入：自定义超时（生产用 {@link #CONNECT_TIMEOUT}/{@link #REQUEST_TIMEOUT}）。 */
-    QqSender(
-            Logger log,
-            TokenProvider tokens,
-            String apiBase,
-            java.net.Proxy proxy,
-            Duration connectTimeout,
-            Duration requestTimeout) {
         if (log == null) {
             throw new IllegalArgumentException("log must not be null");
         }
@@ -120,8 +107,6 @@ public final class QqSender {
         this.tokens = tokens;
         this.apiBase = apiBase == null || apiBase.isBlank() ? QqApiClient.DEFAULT_API_BASE : apiBase;
         this.proxy = proxy == null ? java.net.Proxy.NO_PROXY : proxy;
-        this.connectTimeout = connectTimeout == null ? CONNECT_TIMEOUT : connectTimeout;
-        this.requestTimeout = requestTimeout == null ? REQUEST_TIMEOUT : requestTimeout;
     }
 
     /**
@@ -290,32 +275,10 @@ public final class QqSender {
                 url,
                 body.toString(),
                 Map.of("Authorization", "QQBot " + token),
-                connectTimeout,
-                requestTimeout,
+                CONNECT_TIMEOUT,
+                REQUEST_TIMEOUT,
                 0,
                 proxy);
-    }
-
-    /**
-     * 下一条被动回复序号（1 起）：同一入站消息的多条回复必须递增 {@code msg_seq}，否则第 2 条起被平台判重（40054005）。
-     *
-     * <p>主动消息（无 msg_id）恒返回 0（不写字段）。超过官方次数上限（群 5 / 单聊 4）时打 WARN：平台会返回 40034128，
-     * 常见于列表页数过多——提示改用单页合并/截断，而非静默丢失。</p>
-     */
-    int nextReplySeq(String path, String replyMsgId, boolean group) {
-        if (replyMsgId == null || replyMsgId.isBlank()) {
-            return 0;
-        }
-        if (replySeq.size() >= REPLY_SEQ_MAX_ENTRIES) {
-            replySeq.clear(); // 防无界（msg_id 窗口仅 5 分钟，条目极小）
-        }
-        int seq = replySeq.computeIfAbsent(replyMsgId, k -> new AtomicInteger()).incrementAndGet();
-        int limit = group ? PASSIVE_REPLY_LIMIT_GROUP : PASSIVE_REPLY_LIMIT_C2C;
-        if (seq > limit) {
-            log.warning("[qq] 被动回复次数已超官方上限（第 " + seq + " 条 / 上限 " + limit + "，msg_id=" + replyMsgId
-                    + "），平台将返回 40034128：请缩减单次回复条数（如合并列表分页），path=" + path);
-        }
-        return seq;
     }
 
     private static boolean is2xx(HttpResponse<String> resp) {
