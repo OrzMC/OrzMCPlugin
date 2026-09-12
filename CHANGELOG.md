@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### 🛡️ 修复（main→develop 反向同步自动化加固）
+- **同步 PR 合并前预检**：新增 `scripts/sync-preflight.sh`（空转 / 破坏性删除 / 合并冲突三类判定）并接入 `main-develop-sync.yml` ——
+  只有预检 `VERDICT=ok`（有净内容、无删除、无冲突）才推送并 enable auto-merge；`skip`（树相同）不建 PR；
+  `manual`（冲突或会删除 develop 内容）**撤销 auto-merge 并留言人工**
+- **陈旧同步 PR 自动清理**：内容已一致（里程碑合并后常态）时，自动关闭遗留同步 PR（先 `--disable-auto`）并删除 `sync-content` 分支
+  ——修复 #467 暴露的缺陷：里程碑把 main 内容带回 develop 后，此前遗留的同步 PR 仍带着 auto-merge 挂着无人处理
+- 修正同步分支构建流程中的两处脚本缺陷（`git push --repo` 非法参数导致分支删不掉；评论体 `\n` 不换行）
+
 ### 🔒 安全（私钥泄露处置 + 门禁补强）
 - **删除被公开提交的 SSH 私钥对**：`# 查看公钥（下面要用的那串）：`（私钥，ed25519 `SHA256:fB5lwi…imWk`）与配套 `.pub` —— 2026-09-09 经 #415/#432 进入 main/develop 与 tag 1.0.25/1.0.26（仓库为 public）。**⚠️ 该密钥必须视为已泄露：请立即在 authorized_keys/服务器/面板移除并重建密钥对**（GitHub Deploy Key 已确认未使用它）
 - **新增密钥门禁（防复发）**：`scripts/check-secrets.sh` 扫描已跟踪文件中的私钥/凭据高信号模式，接入 Gradle `check`（→ CI `build` 与本地 `./gradlew check` 均会执行）；`.gitignore` 补 `*.key`/`*.pem`/`id_ed25519*`/`.env`/`server.properties` 等，并**屏蔽以 `#`/引号开头的误操作文件名**（本次事故文件名即此类）
