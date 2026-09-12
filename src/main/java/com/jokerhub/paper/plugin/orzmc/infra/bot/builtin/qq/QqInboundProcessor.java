@@ -7,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.BotInboundDispatcher;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImMessageRouter;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.InboundDedup;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -20,6 +21,8 @@ import java.util.logging.Logger;
  * <ol>
  *   <li><b>解析归一</b>：{@link QqInboundParser} → {@link QqInboundMessage}（失败/媒体/空文本丢弃，D6）；</li>
  *   <li><b>源过滤（R4）</b>：滤除机器人账号消息（author.bot，防回声环）；</li>
+ *   <li><b>重放去重</b>：同一 {@code msg_id} 在 5 分钟窗口内只处理一次（断线走 op6 RESUME 会话续传时平台会重放
+ *       遗漏事件，{@code $e}/{@code $b}/{@code $o} 等非幂等命令不得重复执行）；</li>
  *   <li><b>入站限频（R6）</b>：沿用 EasyBot 通道语义（100/s 滑动窗口），超限丢弃防批量命令；</li>
  *   <li><b>会话门槛（fail-closed）</b>：来源会话必须 ∈ 绑定 adminGroup/playerGroup/adminDm（与 EasyBot 通道
  *       共用 {@link ImMessageRouter#isInboundAllowed}）；未绑定会话只进控制台日志（节流），不向陌生会话回消息（D11）；</li>
@@ -34,6 +37,8 @@ public final class QqInboundProcessor implements QqEventSink {
     private static final int MAX_EVENTS_PER_SECOND = 100;
     /** 未绑定会话日志节流：同一条消息最频繁每 30s 提示一次。 */
     private static final long UNBOUND_LOG_INTERVAL_MS = 30_000;
+    /** 消息 id 去重窗口（ms）：断线走 op6 RESUME 会话续传，平台会重放遗漏事件。 */
+    private static final long DEDUP_TTL_MS = 300_000L;
 
     private final Logger log;
     private final ServerScheduler scheduler;
@@ -47,6 +52,7 @@ public final class QqInboundProcessor implements QqEventSink {
     private final AtomicLong rateWindowStart = new AtomicLong();
     private final AtomicInteger rateWindowCount = new AtomicInteger();
     private volatile long lastUnboundLogMs;
+    private final InboundDedup dedup = new InboundDedup(DEDUP_TTL_MS);
 
     public QqInboundProcessor(
             Logger log,
@@ -90,6 +96,11 @@ public final class QqInboundProcessor implements QqEventSink {
         }
         if (message.isBot()) {
             return; // R4：滤除机器人消息（防回声环）
+        }
+        if (!dedup.firstSeen(message.msgId())) {
+            // 重放（op6 RESUME 会话续传）/ 平台重复投递：同一消息只处理一次，避免 $e/$b/$o/$r 重复执行
+            log.fine("[qq] 重复消息已忽略（重放去重）: id=" + message.msgId());
+            return;
         }
         ImConversation conv = conversation.get();
         if (!ImMessageRouter.isInboundAllowed(conv, message.target())) {

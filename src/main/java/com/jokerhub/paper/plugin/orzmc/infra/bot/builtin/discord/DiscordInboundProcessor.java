@@ -7,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.BotInboundDispatcher;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImMessageRouter;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.InboundDedup;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -18,6 +19,7 @@ import java.util.logging.Logger;
  * <p>由 {@link DiscordGatewayClient} 把 MESSAGE_CREATE 事件经 sink 送入（{@link #onMessage}）：</p>
  * <ol>
  *   <li><b>源过滤（R4）</b>：bot 来源滤除（防回声环）；</li>
+ *   <li><b>重放去重</b>：同一消息 id 在 5 分钟窗口内只处理一次（Gateway 重连 RESUME 会补发遗漏事件）；</li>
  *   <li><b>会话门槛（fail-closed）</b>：来源会话必须 ∈ 绑定 adminGroup/playerGroup/adminDm（共用
  *       {@link ImMessageRouter#isInboundAllowed}）；未绑定只进控制台日志（节流），不向陌生会话回消息（D11）；</li>
  *   <li><b>线程调度（R12）</b>：门槛在 WS 读线程判定（无 Bukkit API），通过后经 {@link ServerScheduler#runSync}
@@ -38,8 +40,11 @@ public final class DiscordInboundProcessor implements DiscordEventSink {
     private final ImDiscoveryCandidates discovery;
     /** 未绑定会话日志节流：同一条消息最频繁每 30s 提示一次。 */
     private static final long UNBOUND_LOG_INTERVAL_MS = 30_000;
+    /** 消息 id 去重窗口（ms）：Gateway 重连 RESUME 会补发遗漏事件（至少一次投递）。 */
+    private static final long DEDUP_TTL_MS = 300_000L;
 
     private volatile long lastUnboundLogMs;
+    private final InboundDedup dedup = new InboundDedup(DEDUP_TTL_MS);
 
     public DiscordInboundProcessor(
             Logger log,
@@ -90,6 +95,11 @@ public final class DiscordInboundProcessor implements DiscordEventSink {
         }
         if (message.isBot()) {
             return; // R4：bot 来源滤除（防回声环）
+        }
+        if (!dedup.firstSeen(message.msgId())) {
+            // 重放（Gateway RESUME 补发遗漏事件）/ 平台重复投递：同一消息只处理一次，避免重复执行命令
+            log.fine("[discord] 重复消息已忽略（重放去重）: id=" + message.msgId());
+            return;
         }
         ImConversation conv = conversation.get();
         if (!ImMessageRouter.isInboundAllowed(conv, message.target())) {
