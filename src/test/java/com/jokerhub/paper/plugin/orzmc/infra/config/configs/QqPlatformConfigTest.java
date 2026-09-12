@@ -44,7 +44,7 @@ class QqPlatformConfigTest {
         base.set("enabled", true);
         base.set("app_id", "app-1");
         base.set("client_secret", "secret-1");
-        // 未配置 → 保守默认（官方未公开 QQ 单条上限，仅错误码 40054007）
+        // 未配置 → 默认防御性上限（2026-09 实测 ≥150KB，32KB 仅为异常模板兜底）
         assertEquals(
                 QqPlatformConfig.DEFAULT_MAX_TEXT_BYTES,
                 QqPlatformConfig.from(base).maxTextBytes());
