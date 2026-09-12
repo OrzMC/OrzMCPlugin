@@ -5,7 +5,8 @@
 ### 🐛 修复（builtin IM 出站稳定性与排障）
 - **HTTP 超时异常不再被外层看门狗盖住（`AsyncHttp`）**：看门狗预算此前与单次尝试的 `HttpRequest.timeout` 同时到期，抛出的 `java.util.concurrent.TimeoutException`（无 message）会盖住 JDK 阶段化异常，日志无法区分「连不上」（`HttpConnectTimeoutException`，查网络/代理/IP 白名单）与「连上无响应」（`HttpTimeoutException`，可考虑重试）。现看门狗追加 ≥1s/10% 余量，保证单次尝试自身超时先抛（响应线上 QQ builtin 投递超时排障）
 - **QQ 投递：仅连接阶段失败兑底重试一次（`QqSender`）**：连接超时 / DNS / TLS 握手 / 连接被拒属「请求字节未到达平台」（必然未投递），重试不会产生重复通知；此类异常 JDK 不会自动重试（它只重试 `ConnectException` 的幂等请求），而线上裸奔易失败。请求阶段超时（已发出但无响应）结果未知，一律不重试（保持 D7），并以「结果未知，不重试」告警避免误判为确定失败
-- **QQ 出站超时抬到连接 5s / 请求 10s（`QqSender`/`QqApiClient`，原 3s/8s）**：给国内到 CDN 的链路抖动留余量
+- **QQ 出站超时抬到连接 5s / 请求 10s（`QqApiClient`，原 3s/8s）**：给国内到 CDN 的链路抖动留余量
+- **QQ 投递结果三态化（`QqSender.Outcome`：SENT / FAILED / UNKNOWN）+ 请求超时 10s → 30s**：2026-09 线上实测确认，主动消息（不带 msg_id）的平台响应可超 10s，**但消息实际已送达**——旧版把这类「响应迟到」统一报成 `发送失败` 并写入健康 `lastError`，既误判丢消息又刷屏。现：`UNKNOWN` 仅打一条 WARN（“平台可能已投递，未重试”）、不计入平台故障，`FAILED` 才告健康；请求超时给足 30s 以捕获慢响应（投递是异步 fire-and-forget，等待不影响服务器线程）
 - **QQ 网关地址解析失败时复用最近成功地址（`QqGatewayClient`）**：`/gateway/bot` 限频（HTTP 400 code 100017）或网络抖动时，此前直接判「网关地址不可用 → 建连失败」并退避；现复用最近一次成功下发的 WS 地址建连（已下发地址长期有效，确失效时下一轮仍会重取），减少无谓断连
 
 ## [1.0.26] - 2026-09-10
