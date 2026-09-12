@@ -151,6 +151,86 @@ class QqSenderTest {
         String joined = String.join("\n", logs);
         assertTrue(joined.contains("40034128"), joined);
         assertTrue(joined.contains("上限 5"), joined);
+        assertEquals(1, logs.stream().filter(m -> m.contains("上限 5")).count(), "越限只应 WARN 一次（分页列表不得刷屏）: " + logs);
+    }
+
+    @Test
+    void passiveQuotaExhausted_demotesRemainingMessagesToActive() throws Exception {
+        // 回归（$w 分页只发出前几条）：同一源消息的被动回复用满官方上限（群 5）后，后续消息必须
+        // 自动降级为主动消息（不带 msg_id/msg_seq）——否则平台返回 40034128，页面内容直接丢失。
+        for (int i = 0; i < 7; i++) {
+            server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        }
+        QqSender sender = sender();
+        for (int i = 1; i <= 7; i++) {
+            assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendGroupMessage("G", "page" + i, "src-quota")));
+        }
+
+        for (int i = 1; i <= 5; i++) {
+            String body = server.takeRequest().getBody().readUtf8();
+            assertTrue(body.contains("\"msg_id\":\"src-quota\""), "前 5 条应为被动回复: " + body);
+            assertTrue(body.contains("\"msg_seq\":" + i), "msg_seq 应递增: " + body);
+        }
+        String sixth = server.takeRequest().getBody().readUtf8();
+        assertFalse(sixth.contains("msg_id"), "第 6 条应降级为主动消息: " + sixth);
+        assertFalse(sixth.contains("msg_seq"), "主动消息不得带 msg_seq: " + sixth);
+        String seventh = server.takeRequest().getBody().readUtf8();
+        assertFalse(seventh.contains("msg_id"), "第 7 条也应降级为主动消息: " + seventh);
+    }
+
+    @Test
+    void passiveReplyRejectedWithLimitCode_retriesOnceAsActiveMessage() throws Exception {
+        // 兼底（窗口过期/计数表被清理等未预判超限）：平台以 400 + 40034128 明确拒绝（未投递）
+        // → 改主动消息重投一次，内容不丢；这不是「结果未知」场景，不会造成重复通知。
+        server.enqueue(new MockResponse()
+                .setResponseCode(400)
+                .setBody("{\"code\":40034128,\"message\":\"回复消息失败，被动回复时间或者次数超过限制\"}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-active\"}"));
+
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender().sendGroupMessage("G", "超限内容", "src-limit-code")));
+
+        RecordedRequest first = server.takeRequest();
+        assertTrue(first.getBody().readUtf8().contains("\"msg_id\":\"src-limit-code\""), "首次应为被动回复");
+        String retry = server.takeRequest().getBody().readUtf8();
+        assertFalse(retry.contains("msg_id"), "重投应改用主动消息: " + retry);
+        assertEquals(2, server.getRequestCount(), "只应重投一次");
+    }
+
+    @Test
+    void activeMessageRejectedWithLimitCode_isNotRetried() throws Exception {
+        // 已是主动消息（无 msg_id）时收到 40034128 不应再重试（避免无意义循环/刷屏）
+        server.enqueue(new MockResponse().setResponseCode(400).setBody("{\"code\":40034128}"));
+
+        assertEquals(QqSender.Outcome.FAILED, awaitSend(sender().sendGroupMessage("G", "主动内容", null)));
+        assertEquals(1, server.getRequestCount());
+    }
+
+    @Test
+    void c2cPassiveQuota_isFour_thenDemotes() throws Exception {
+        // 单聊被动回复上限为 4（比群聊少 1）：第 5 条起即应降级为主动消息
+        for (int i = 0; i < 5; i++) {
+            server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        }
+        QqSender sender = sender();
+        for (int i = 1; i <= 5; i++) {
+            assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendDirectMessage("U", "p" + i, "src-c2c")));
+        }
+        for (int i = 1; i <= 4; i++) {
+            assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":" + i));
+        }
+        assertFalse(server.takeRequest().getBody().readUtf8().contains("msg_id"), "单聊第 5 条应降级为主动消息");
+    }
+
+    @Test
+    void planReply_allocatesPassiveThenActive() {
+        QqSender sender = sender();
+        for (int i = 1; i <= 5; i++) {
+            QqSender.ReplyPlan plan = sender.planReply("/v2/groups/G/messages", "src-plan", true);
+            assertTrue(plan.passive(), "第 " + i + " 条应为被动回复");
+            assertEquals(i, plan.msgSeq());
+        }
+        assertFalse(sender.planReply("/v2/groups/G/messages", "src-plan", true).passive(), "越限后应降级为主动消息（无 msg_id）");
+        assertFalse(sender.planReply("/v2/groups/G/messages", null, true).passive(), "无来源消息即主动消息");
     }
 
     @Test
