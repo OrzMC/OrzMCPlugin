@@ -132,6 +132,7 @@ build/
 .trae/
 
 # === 敏感信息防护（2026-09 事故后补强：私钥/凭据严禁入库）===
+# 常见私钥/证书/凭据文件（私钥一旦入库即视为泄露——本仓库为公开仓库）
 *.pem
 *.key
 *.p12
@@ -144,6 +145,7 @@ id_rsa*
 id_ed25519*
 id_ecdsa*
 id_dsa*
+# 运行期凭据/服务端状态文件（run/ 已忽略，这里兜底其它目录）
 .env
 .env.*
 *.secret
@@ -152,6 +154,7 @@ server.properties
 ops.json
 banned-ips.json
 banned-players.json
+# 误操作产物：文件名以 # / 引号 / 星号 开头（shell 注释/重定向手误，2026-09 私钥事故即此类）
 \#*
 \"*
 '*

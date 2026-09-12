@@ -149,6 +149,8 @@ public final class FeishuBuiltinAdapter implements BuiltinPlatform {
             if (err != null || Boolean.FALSE.equals(ok)) {
                 health.setLastError(HEALTH_KEY, "飞书发送失败 target=" + target + (err == null ? "" : " " + err));
                 log.warning("[feishu] 发送失败 target=" + target + (err == null ? "" : " " + err));
+            } else {
+                health.setLastError(HEALTH_KEY, null); // 成功即复位（lastError 语义 = 当前错误，非历史错误）
             }
         });
     }

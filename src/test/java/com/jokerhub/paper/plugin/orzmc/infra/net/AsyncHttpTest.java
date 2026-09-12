@@ -14,11 +14,13 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -219,6 +221,56 @@ public class AsyncHttpTest {
             out.write(buf, 0, n);
         }
         bodyText.set(out.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void requestTimeout_surfacesJdkPhaseException_notOuterWatchdog() throws Exception {
+        // 服务端接受连接但永不响应：单次尝试的 HttpRequest.timeout(1s) 应先于外层看门狗到期
+        CountDownLatch release = new CountDownLatch(1);
+        server.createContext("/hang", exchange -> {
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+        server.start();
+
+        try {
+            CompletableFuture<HttpResponse<String>> future = AsyncHttp.get(
+                    baseUri.resolve("/hang").toString(), Map.of(), Duration.ofSeconds(2), Duration.ofSeconds(1), 0);
+            Throwable failure = assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS))
+                    .getCause();
+            // 必须暴露 JDK 阶段化异常（HttpConnectTimeoutException / HttpTimeoutException），而非外层看门狗的
+            // java.util.concurrent.TimeoutException——前者才能区分「连不上」与「连上无响应」（线上排障关键）
+            assertTrue(hasCause(failure, HttpTimeoutException.class), "应暴露 JDK 超时异常: " + failure);
+            assertFalse(hasCause(failure, java.util.concurrent.TimeoutException.class), "外层看门狗不应抢先: " + failure);
+        } finally {
+            release.countDown();
+        }
+    }
+
+    private static boolean hasCause(Throwable throwable, Class<? extends Throwable> type) {
+        for (Throwable cur = throwable; cur != null; cur = cur.getCause()) {
+            if (type.isInstance(cur)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Test
+    void watchdogBudget_strictlyExceedsPerAttemptTimeout() {
+        // 不变式：看门狗必须严格晚于单次尝试的 HttpRequest.timeout（QQ 投递/网关地址解析=retries 0），
+        // 否则 orTimeout 会抢先抛出无语义的 java.util.concurrent.TimeoutException（线上排障不可用）
+        assertEquals(8_000L + 1_000L, AsyncHttp.watchdogBudgetMs(8_000, 0), "retries=0：8s 请求超时 + 1s 余量");
+        assertTrue(AsyncHttp.watchdogBudgetMs(3_000, 0) > 3_000L, "单次尝试也必须留余量");
+        // 含重试：预算 ≥ 各次超时之和 + 退避总和
+        assertTrue(
+                AsyncHttp.watchdogBudgetMs(1_000, 2) > 1_000L * 3 + 500L + 1_000L,
+                "含重试时应覆盖超时与退避预算: " + AsyncHttp.watchdogBudgetMs(1_000, 2));
+        assertTrue(AsyncHttp.watchdogBudgetMs(-1, 0) > 0, "超时参数非法时应回落默认值");
     }
 
     @Test

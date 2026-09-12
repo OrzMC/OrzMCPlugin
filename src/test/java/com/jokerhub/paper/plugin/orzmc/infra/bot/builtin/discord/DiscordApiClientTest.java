@@ -41,6 +41,10 @@ class DiscordApiClientTest {
         return new DiscordApiClient("tok-123", base, Proxy.NO_PROXY, silentLogger());
     }
 
+    private static <T> T await(java.util.concurrent.CompletableFuture<T> future) throws Exception {
+        return future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     private static Logger silentLogger() {
         Logger raw = Logger.getLogger("discord-api-test");
         raw.setUseParentHandlers(false);
@@ -78,7 +82,7 @@ class DiscordApiClientTest {
     @Test
     void sendChannelMessage_postsContent() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"m1\"}"));
-        assertTrue(client().sendChannelMessage("111", "hello dc"));
+        assertTrue(await(client().sendChannelMessageAsync("111", "hello dc")));
         RecordedRequest req = server.takeRequest();
         assertEquals("POST", req.getMethod());
         assertEquals("/channels/111/messages", req.getPath());
@@ -87,14 +91,35 @@ class DiscordApiClientTest {
     }
 
     @Test
-    void sendChannelMessage_http4xx_returnsFalse() {
+    void sendChannelMessage_http4xx_returnsFalse() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(403).setBody("{\"message\":\"Missing Permissions\"}"));
-        assertFalse(client().sendChannelMessage("111", "x"));
+        assertFalse(await(client().sendChannelMessageAsync("111", "x")));
     }
 
     @Test
-    void sendChannelMessage_blankText_returnsFalse() {
-        assertFalse(client().sendChannelMessage("111", ""));
+    void sendChannelMessage_doesNotBlockCallerThread() {
+        // 回归（R12）：DC 投递/回复由服务器线程发起（send/sendReply），必须异步返回。
+        server.enqueue(new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE));
+        long t0 = System.nanoTime();
+        java.util.concurrent.CompletableFuture<Boolean> future = client().sendChannelMessageAsync("111", "慢");
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 500, "sendChannelMessageAsync 不得阻塞调用线程（实测 " + elapsedMs + "ms）");
+        assertFalse(future.isDone(), "响应未到时不应提前完成");
+    }
+
+    @Test
+    void ensureDmChannel_doesNotBlockCallerThread() {
+        server.enqueue(new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE));
+        long t0 = System.nanoTime();
+        java.util.concurrent.CompletableFuture<String> future = client().ensureDmChannelAsync("user-slow");
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 500, "ensureDmChannelAsync 不得阻塞调用线程（实测 " + elapsedMs + "ms）");
+        assertFalse(future.isDone(), "响应未到时不应提前完成");
+    }
+
+    @Test
+    void sendChannelMessage_blankText_returnsFalse() throws Exception {
+        assertFalse(await(client().sendChannelMessageAsync("111", "")));
         assertEquals(0, server.getRequestCount(), "空文本不发请求");
     }
 
@@ -102,19 +127,19 @@ class DiscordApiClientTest {
     void ensureDmChannel_createsAndCaches() throws Exception {
         DiscordApiClient api = client();
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"dm999\"}"));
-        assertEquals("dm999", api.ensureDmChannel("user333"));
+        assertEquals("dm999", await(api.ensureDmChannelAsync("user333")));
         RecordedRequest req = server.takeRequest();
         assertEquals("/users/@me/channels", req.getPath());
         assertTrue(req.getBody().readUtf8().contains("\"recipient_id\":\"user333\""));
         // 缓存命中：二次调用不发请求
-        assertEquals("dm999", api.ensureDmChannel("user333"));
+        assertEquals("dm999", await(api.ensureDmChannelAsync("user333")));
         assertEquals(1, server.getRequestCount());
     }
 
     @Test
-    void ensureDmChannel_http4xx_returnsNull() {
+    void ensureDmChannel_http4xx_returnsNull() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(400).setBody("{}"));
-        assertNull(client().ensureDmChannel("user333"));
+        assertNull(await(client().ensureDmChannelAsync("user333")));
     }
 
     @Test

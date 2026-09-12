@@ -102,6 +102,36 @@ platforms:
 
 - **仅文本**：媒体/富文本不支持（D6）；发送**尽力一次不重试**（D7，失败经健康告警）；
 - 会话绑定（bind）**仅控制台/游戏内 op**（D10）；健康 key：`builtin.<平台id>`；
-- 线程纪律：网络/轮询线程不触 Bukkit API，命令落服务器线程（R12）——管理员判定失败一律按非管理处理（fail-closed）。
+- 线程纪律：网络/轮询线程不触 Bukkit API，命令落服务器线程（R12）——管理员判定失败一律按非管理处理（fail-closed）。发送/建连路径同样不得在服务器线程等网络：出站发送返回 future（fire-and-forget），网关首次建连与 `stop()` 在自有调度线程/不阻塞收回，token 刷新与平台角色判定跑在 `ImWorkerPool` 专用守护线程池（不占 `ForkJoinPool.commonPool`）。
+- 重放去重：平台入站为「至少一次」投递（QQ `op6 RESUME` / Discord Gateway RESUME 会补发遗漏事件）——QQ/Discord 按消息 id 在 5 分钟窗口内去重（`InboundDedup`），非幂等命令不会被重放执行；TG 靠严格推进 `getUpdates` 的 `offset=update_id+1` 防重拉。
+- 长消息分段（D2，2026-09）：单条超平台上限会被平台整条拒绝（= 通知丢失），故出站按平台口径分段发出、最多 5 段，超出部分**截断并告警**（完整内容见服务器日志）：TG 按官方 **4096 字符**、Discord 按官方 **2000 字符**、QQ 按 **UTF-8 字节**（官方未公开数字，默认 3000 字节，`im.yml → platforms.qq.max_text_bytes` 可调）；飞书文本上限 150KB，实际无需分段。
+
+## 8. 未绑定会话提示与绑定（D11，2026-09 修订）
+
+机器人收到**尚未绑定**的会话消息时（fail-closed：不回复陌生会话），只做两件事：
+
+1. **控制台打印可复制绑定命令**（形如 `/config im bind qq group <openid> admin_group`）——**按会话各自节流**：
+   同一会话 30s 内重复消息只提示一次，**不同会话互不影响**（2026-09 修复：此前是全局单时间戳，
+   30s 内只打印第一个会话，导致后发消息的管理群/管理私聊提示被吞、管理员"绑定不上"）；
+2. 记录候选供 `/config im status` 查看（容量 256，绑定后自动清除）。
+
+> 因此**首次在一个新会话里发消息即可拿到绑定命令**；若已过了 30s 或需查看其他候选，用 `/config im status`。
+> 绑定值写入 `im_bindings.yml`（`sessions.<平台>.<admin_group|player_group|admin_dm>`），实时生效。
+> ⚠️ openid/chat_id 按平台 app 隔离（QQ 同一群在不同 app_id 下 openid 不同）→ 更换机器人后必须重新绑定。
+
+## 8. 管理命令授权模型（D1=A 保持现状，2026-09 定稿）
+
+**判定规则**：管理命令的权限 = 「来源会话已绑定（`admin_group`/`player_group`/`admin_dm`）」**∧**「平台侧会话角色为管理员」。
+
+| 平台 | 角色来源 | 私聊（DM/C2C） |
+|------|---------|---------------|
+| QQ 群 | 事件自带 `member_role ∈ {owner, admin}` | 无角色 → 恒非管理 |
+| Telegram | `getChatAdministrators` 的 creator/administrator | 查不到群 → 非管理 |
+| Discord | guild owner 或角色权限位含 `ADMINISTRATOR`/`MANAGE_GUILD` | 恒非管理 |
+| 飞书 | 群 owner/manager | 非管理 |
+
+命令分档：自助（`$l` 在线玩家、`$h` 帮助、`$w` 白名单列表）任意绑定会话可用；管理（`$a` 加白、`$r` 移出、`$b` 备份、`$o` 优化、`$e` 控制台执行、`$d` 黑名单、`$v` 审核、`$p` 权限升降级）需上述双条件。
+
+> ⚠️ **风险前提（请评估后再用）**：因此**任意已绑定玩家群里的平台群主/群管 = 服务器管理员**，可执行上表全部分管理命令（`$e` 受 `config.yml → guard.blocked_commands` 限制，默认仅拦 `op`/`publish`/`seed`）。若平台侧群管并非服内可信人员，建议：① 把 `admin_group` 绑到一个专用管理群（不用于玩家交流）；② 在 `config.yml → guard.blocked_commands` 补充高危命令（如 `stop`/`reload`/`ban`/`lp`）；③ 结合 `audit` 日志巡检 `$e` 使用。收紧为“仅管理会话可执行管理命令”已评估为可选方案 B/C，当前**未实现**（保持与 EasyBot 通道一致的语义，切 backend 行为不变）。
 
 > 平台差异（入站通道形态 / 会话值 / 角色判定 / @提及形态 / 域名 / 专属 FAQ）见各平台册「0 差异速览」。

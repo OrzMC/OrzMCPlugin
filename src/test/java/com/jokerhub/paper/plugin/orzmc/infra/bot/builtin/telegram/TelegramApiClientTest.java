@@ -38,6 +38,10 @@ class TelegramApiClientTest {
         return new TelegramApiClient("123456:TEST-TOKEN", base, java.net.Proxy.NO_PROXY, silentLogger());
     }
 
+    private static boolean await(java.util.concurrent.CompletableFuture<Boolean> future) throws Exception {
+        return future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     private static Logger silentLogger() {
         Logger raw = Logger.getLogger("telegram-http-test");
         raw.setUseParentHandlers(false);
@@ -89,7 +93,7 @@ class TelegramApiClientTest {
     @Test
     void sendMessage_success_sendsText() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"ok\":true,\"result\":{}}"));
-        assertTrue(api().sendMessage(-100123, "hello 世界"));
+        assertTrue(await(api().sendMessageAsync(-100123, "hello 世界")));
         RecordedRequest req = server.takeRequest();
         String path = req.getPath();
         assertTrue(path != null && path.contains("/sendMessage"), path);
@@ -104,13 +108,24 @@ class TelegramApiClientTest {
         server.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setBody("{\"ok\":false,\"error_code\":403,\"description\":\"Forbidden: bot was kicked\"}"));
-        assertFalse(api().sendMessage(-100, "x"));
+        assertFalse(await(api().sendMessageAsync(-100, "x")));
+    }
+
+    @Test
+    void sendMessage_doesNotBlockCallerThread() {
+        // 回归（R12）：投递由服务器线程发起（通知/命令回复），必须返回 future 而不等网络。
+        server.enqueue(new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE));
+        long t0 = System.nanoTime();
+        java.util.concurrent.CompletableFuture<Boolean> future = api().sendMessageAsync(-100, "慢");
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 500, "sendMessageAsync 不得阻塞调用线程（实测 " + elapsedMs + "ms）");
+        assertFalse(future.isDone(), "响应未到时不应提前完成");
     }
 
     @Test
     void sendMessage_httpError_returnsFalse() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(429).setBody("slow down"));
-        assertFalse(api().sendMessage(-100, "x"));
+        assertFalse(await(api().sendMessageAsync(-100, "x")));
     }
 
     // =====================================================================

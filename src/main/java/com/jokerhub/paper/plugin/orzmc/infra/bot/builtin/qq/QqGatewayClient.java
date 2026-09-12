@@ -40,13 +40,27 @@ public final class QqGatewayClient extends ReconnectingGateway {
     /** QQ 群 + C2C 事件 intent（官方 GROUP_AND_C2C_EVENT = 1 &lt;&lt; 25）。 */
     public static final int INTENT_GROUP_AND_C2C = 1 << 25;
 
-    /** 鉴权失败关闭码：identify 后 token 无效。 */
-    private static final int CLOSE_AUTH_FAILED = 4004;
+    /** 旧版鉴权失败关闭码（现行 WS 错误码表已不列；实测仍可能下发，保留兼容）。 */
+    private static final int CLOSE_AUTH_FAILED_LEGACY = 4004;
+    /** session 无效，无法继续 resume → 需 identify。 */
+    private static final int CLOSE_INVALID_SESSION = 4006;
+    /** seq 错误 → 需 identify。 */
+    private static final int CLOSE_BAD_SEQ = 4007;
+    /** 连接过期 → 重连并 resume。 */
+    private static final int CLOSE_EXPIRED = 4009;
+    /** 无效 intents。 */
+    private static final int CLOSE_BAD_INTENT = 4013;
+    /** intents 无权限。 */
+    private static final int CLOSE_INTENT_FORBIDDEN = 4014;
+    /** 机器人已下架（官方明确不允许连接）。 */
+    private static final int CLOSE_BOT_OFFLINE = 4914;
+    /** 机器人已封禁（官方明确不允许连接）。 */
+    private static final int CLOSE_BOT_BANNED = 4915;
 
     /** 心跳安全系数：按 hello 间隔的 0.75 发送（对齐 EasyBot，留出网络抖动余量，防止看门狗误杀）。 */
     private static final double HEARTBEAT_SAFETY = 0.75;
 
-    /** 网关 URL 缓存窗口：/gateway/bot 有频率限制（实测 HTTP 400 code 100017），窗口内复用不重取。 */
+    /** 网关 URL 缓存窗口：`/gateway/bot` 有频率限制（官方 `/gateway` 为 2 QPM / 10 QPM burst），窗口内复用不重取。 */
     private static final long GATEWAY_URL_CACHE_MS = 60_000;
     /** op9 无效会话防抖：距上次处理不足该时长仅清 session，不立即重连（防重连风暴触发平台限频）。 */
     private static final long OP9_MIN_INTERVAL_MS = 15_000;
@@ -62,10 +76,14 @@ public final class QqGatewayClient extends ReconnectingGateway {
     private final AtomicLong seq = new AtomicLong();
     /** READY 下发的会话 id：具备 + seq>0 时重连走 resume。 */
     private volatile String sessionId;
-    /** 最近成功网关 URL（缓存，限频保护）。 */
+    /** 最近成功网关 URL（缓存，限频保护；解析失败时的兜底地址）。 */
     private volatile String cachedGatewayUrl;
 
     private volatile long cachedGatewayUrlMs;
+    /** 本实例网关 URL 缓存/复用窗口（生产 {@link #GATEWAY_URL_CACHE_MS}；测试注入小值以验证兜底路径）。 */
+    private final long gatewayUrlCacheMs;
+    /** 上次「复用旧网关地址」日志时间（限频，避免重连退避期刷屏）。 */
+    private volatile long lastUrlReuseLogMs;
     /** 最近一次 op9 处理时间（防抖）。 */
     private volatile long lastOp9HandledMs;
 
@@ -107,6 +125,20 @@ public final class QqGatewayClient extends ReconnectingGateway {
             QqEventSink sink,
             GatewayStateListener listener,
             java.net.Proxy proxy) {
+        this(server, policy, tokens, urlFetcher, intents, sink, listener, proxy, GATEWAY_URL_CACHE_MS);
+    }
+
+    /** 测试注入：{@code gatewayUrlCacheMs} 覆盖网关 URL 复用窗口（0 = 每次重连都重取，便于验证失败兜底）。 */
+    QqGatewayClient(
+            ServerLogger server,
+            ReconnectPolicy policy,
+            TokenProvider tokens,
+            QqGatewayUrlFetcher urlFetcher,
+            int intents,
+            QqEventSink sink,
+            GatewayStateListener listener,
+            java.net.Proxy proxy,
+            long gatewayUrlCacheMs) {
         super("qq", server, policy, refresherFor(tokens), listener);
         if (tokens == null) {
             throw new IllegalArgumentException("tokens must not be null");
@@ -122,6 +154,7 @@ public final class QqGatewayClient extends ReconnectingGateway {
         this.intents = intents;
         this.sink = sink;
         this.proxy = proxy == null ? java.net.Proxy.NO_PROXY : proxy;
+        this.gatewayUrlCacheMs = gatewayUrlCacheMs;
         this.log = server.logger();
     }
 
@@ -146,7 +179,7 @@ public final class QqGatewayClient extends ReconnectingGateway {
         // /gateway/bot 限频保护（实测 HTTP 400 code 100017）：窗口内复用最近 URL，不重复请求
         long now = System.currentTimeMillis();
         String cached = cachedGatewayUrl;
-        if (cached != null && now - cachedGatewayUrlMs < GATEWAY_URL_CACHE_MS) {
+        if (cached != null && now - cachedGatewayUrlMs < gatewayUrlCacheMs) {
             return cached;
         }
         QqGatewayUrlFetcher.Result result = urlFetcher.fetch(token);
@@ -160,10 +193,34 @@ public final class QqGatewayClient extends ReconnectingGateway {
                 // token 被平台提前作废：强制重换一次，下次尝试用新 token（换发失败也按退避，防风暴）
                 log.warning("[qq] 网关地址鉴权被拒，强制重换令牌后重试");
                 tokens.onAuthFailure();
-                yield null;
+                yield reuseLastKnownUrl(now);
             }
-            case TRANSIENT -> null;
+            case TRANSIENT -> reuseLastKnownUrl(now);
         };
+    }
+
+    /**
+     * 网关地址获取失败时的兜底：复用最近一次成功的 WS 地址。
+     *
+     * <p>{@code /gateway/bot} 有频率限制（实测 HTTP 400 code 100017）而网络抖动常见，且已下发的网关地址长期
+     * 有效——拿不到新地址时继续用旧地址建连，优于直接判「建连失败」等下一轮退避（旧地址确已失效时，建连/会话
+     * 失败会在下一轮回来重取，收敛路径不变）。复用时顺带延后缓存时间戳，避免反复冲击限频端点。</p>
+     *
+     * @return 最近成功地址；从未成功解析过则 null（调用方按建连失败退避）
+     */
+    private String reuseLastKnownUrl(long now) {
+        String lastKnown = cachedGatewayUrl;
+        if (lastKnown == null || lastKnown.isBlank()) {
+            return null;
+        }
+        cachedGatewayUrlMs = now;
+        if (now - lastUrlReuseLogMs >= gatewayUrlCacheMs) {
+            lastUrlReuseLogMs = now;
+            log.info("[qq] 网关地址获取失败，复用最近一次成功地址继续建连");
+        } else {
+            log.fine("[qq] 网关地址获取失败，复用最近一次成功地址继续建连");
+        }
+        return lastKnown;
     }
 
     @Override
@@ -221,13 +278,44 @@ public final class QqGatewayClient extends ReconnectingGateway {
         }
     }
 
+    /**
+     * 网关关闭码 → 恢复策略（2026-09 官方 WS 错误码表：4001/4002/4006-4014、4900~4915）。
+     *
+     * <ul>
+     *   <li>4004（旧版鉴权失败码，现表已不列，保留兼容）→ {@link #onAuthFailure()} 强制换 token 后重连；</li>
+     *   <li>4006/4007（session 无效 / seq 错误）→ 清 session 后全量 re-identify；</li>
+     *   <li>4009（连接过期）→ 保留 session 立即 resume；</li>
+     *   <li>4013/4014（无效 intent / intent 无权限）→ 配置或平台权限问题，重连无用 → fatal；</li>
+     *   <li>4914/4915（机器人已下架 / 已封禁）→ 官方明确“不允许连接” → fatal；</li>
+     *   <li>其余（含 4001/4002/4008/4010-4012/4900~4913）→ 基类统一退避重连。</li>
+     * </ul>
+     */
     @Override
     protected void onGatewayClosed(int code, String reason, boolean remote) {
-        if (code == CLOSE_AUTH_FAILED) {
-            log.warning("[qq] 网关鉴权失败关闭（code=4004），触发令牌刷新重连");
-            onAuthFailure();
+        switch (code) {
+            case CLOSE_AUTH_FAILED_LEGACY -> {
+                log.warning("[qq] 网关鉴权失败关闭（code=4004），触发令牌刷新重连");
+                onAuthFailure();
+            }
+            case CLOSE_INVALID_SESSION, CLOSE_BAD_SEQ -> {
+                log.warning("[qq] 网关关闭 code=" + code + "（session 无效/seq 错误），清 session 后全量 re-identify");
+                sessionId = null;
+                reconnectNow();
+            }
+            case CLOSE_EXPIRED -> {
+                log.info("[qq] 网关连接过期（code=4009），立即重连并 resume");
+                reconnectNow();
+            }
+            case CLOSE_BAD_INTENT, CLOSE_INTENT_FORBIDDEN ->
+                failFatal("网关拒绝鉴权：code=" + code + "（" + (code == CLOSE_BAD_INTENT ? "无效 intents" : "intents 无权限")
+                        + "），请核对 bot 权限/订阅事件配置（不会自动重连）");
+            case CLOSE_BOT_OFFLINE, CLOSE_BOT_BANNED ->
+                failFatal("网关拒绝连接：code=" + code + "（" + (code == CLOSE_BOT_OFFLINE ? "机器人已下架，仅允许连接沙箱环境" : "机器人已封禁")
+                        + "），请到开放平台核实机器人状态（不会自动重连）");
+            default -> {
+                // 其余关闭码（网络断/超时/4008 发送过快/4900~4913 内部错误）由基类统一退避自动重连
+            }
         }
-        // 其余关闭码（网络断/超时等）由基类统一退避自动重连
     }
 
     @Override
@@ -256,11 +344,16 @@ public final class QqGatewayClient extends ReconnectingGateway {
         sendIdentifyOrResume();
     }
 
-    /** 心跳帧（op1，d=最新事件序号；对齐 EasyBot 心跳载荷）。 */
+    /** 心跳帧（op1，d=最新事件序号；官方：首次连接 d 传 null）。 */
     private String heartbeatFrame() {
         JsonObject frame = new JsonObject();
         frame.addProperty("op", 1);
-        frame.addProperty("d", seq.get());
+        long currentSeq = seq.get();
+        if (currentSeq <= 0) {
+            frame.add("d", com.google.gson.JsonNull.INSTANCE); // 首次连接：官方要求 null（0 亦被接受，此处按规格对齐）
+        } else {
+            frame.addProperty("d", currentSeq);
+        }
         return frame.toString();
     }
 

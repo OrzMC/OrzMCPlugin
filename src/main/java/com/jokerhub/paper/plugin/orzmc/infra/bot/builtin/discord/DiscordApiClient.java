@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -24,14 +25,18 @@ import java.util.logging.Logger;
  * 红线 R12）：</p>
  * <ul>
  *   <li><b>fetchGatewayUrl</b>：/gateway/bot 取 WS 网关地址（鉴权 401 识别配置错误）；</li>
- *   <li><b>sendChannelMessage</b>：向频道发文本（群聊频道与 DM 通道同一 REST，回复统一走来源频道）；</li>
- *   <li><b>ensureDmChannel</b>：按用户 id 建/取 DM 通道（每用户缓存，私聊出站用）；</li>
+ *   <li><b>sendChannelMessageAsync</b>：向频道发文本（群聊频道与 DM 通道同一 REST，回复统一走来源频道）；</li>
+ *   <li><b>ensureDmChannelAsync</b>：按用户 id 建/取 DM 通道（每用户缓存，私聊出站用）；</li>
  *   <li><b>getGuildOwner / getGuildRolesPermissions / getGuildMemberRoles</b>：群管理角色判定数据源。</li>
  * </ul>
  *
  * <p>认证头 {@code Authorization: Bot <token>}（REST 前缀；gateway identify 为裸 token，见 GatewayClient）。
  * 代理（D13）：全部调用透传 {@code Proxy}（null/NO_PROXY = 直连）。凭据安全（R5）：不打 token。
  * User-Agent 统一由 {@link AsyncHttp} 设置（Discord 要求 UA）。</p>
+ *
+ * <p><b>线程纪律（R12）</b>：出站投递（{@code sendChannelMessageAsync}/{@code ensureDmChannelAsync}）为异步，
+ * 调用线程（通知/命令回复常为服务器线程）绝不等网络；角色判定等同步方法（{@code sendGet}/{@code sendPost} 阻塞）
+ * 仅可由网关调度线程或 {@code ImWorkerPool} 后台线程调用。</p>
  */
 public final class DiscordApiClient {
 
@@ -116,53 +121,68 @@ public final class DiscordApiClient {
      *
      * @return 成功 true；失败（HTTP 非 2xx/网络/空 content 被拒）false
      */
-    public boolean sendChannelMessage(String channelId, String text) {
+    public CompletableFuture<Boolean> sendChannelMessageAsync(String channelId, String text) {
         if (text == null || text.isEmpty()) {
-            return false;
+            return CompletableFuture.completedFuture(false);
         }
         JsonObject body = new JsonObject();
         body.addProperty("content", text);
-        HttpResponse<String> resp = sendPost(baseUrl("/channels/" + channelId + "/messages"), body.toString());
-        if (resp == null) {
-            return false;
-        }
-        if (!ok(resp)) {
-            log.warning("[discord] 频道消息发送失败（HTTP " + resp.statusCode() + "）: " + clip(resp.body()));
-            return false;
-        }
-        return true;
+        String url = baseUrl("/channels/" + channelId + "/messages");
+        return AsyncHttp.postJson(url, body.toString(), authHeaders(), CONNECT_TIMEOUT, REQUEST_TIMEOUT, 0, proxy)
+                .handle((resp, ex) -> {
+                    if (ex != null) {
+                        log.warning("[discord] 频道消息发送网络异常: " + ex);
+                        return false;
+                    }
+                    if (!ok(resp)) {
+                        log.warning("[discord] 频道消息发送失败（HTTP " + resp.statusCode() + "）: " + clip(resp.body()));
+                        return false;
+                    }
+                    return true;
+                });
     }
 
     /**
      * 按用户 id 建/取 DM 通道（幂等：重复 POST 返回既有 DM 通道；结果按用户缓存）。
      *
-     * @return DM channel id；失败 → null
+     * <p><b>异步（R12）</b>：调用线程（常为服务器线程）不等网络；并发同用户可能多发一次 POST——
+     * Discord 该接口幂等（返回同一 DM 通道），成本可接受，不做单飞。</p>
+     *
+     * @return future：DM channel id；失败 → null
      */
-    public String ensureDmChannel(String userId) {
+    public CompletableFuture<String> ensureDmChannelAsync(String userId) {
         String cached = dmChannels.get(userId);
         if (cached != null) {
-            return cached;
+            return CompletableFuture.completedFuture(cached);
         }
         JsonObject body = new JsonObject();
         body.addProperty("recipient_id", userId);
-        HttpResponse<String> resp = sendPost(baseUrl("/users/@me/channels"), body.toString());
-        if (resp == null || !ok(resp)) {
-            log.warning("[discord] 创建 DM 通道失败 userId=" + userId + (resp == null ? "" : " HTTP " + resp.statusCode()));
-            return null;
-        }
-        try {
-            JsonObject data = JsonParser.parseString(resp.body() == null ? "{}" : resp.body())
-                    .getAsJsonObject();
-            if (!data.has("id") || data.get("id").isJsonNull()) {
-                return null;
-            }
-            String dmId = data.get("id").getAsString();
-            dmChannels.put(userId, dmId);
-            return dmId;
-        } catch (JsonSyntaxException | IllegalStateException e) {
-            log.warning("[discord] DM 通道响应解析失败: " + e);
-            return null;
-        }
+        String url = baseUrl("/users/@me/channels");
+        return AsyncHttp.postJson(url, body.toString(), authHeaders(), CONNECT_TIMEOUT, REQUEST_TIMEOUT, 0, proxy)
+                .handle((resp, ex) -> {
+                    if (ex != null) {
+                        log.warning("[discord] 创建 DM 通道网络异常 userId=" + userId + ": " + ex);
+                        return null;
+                    }
+                    if (resp == null || !ok(resp)) {
+                        log.warning("[discord] 创建 DM 通道失败 userId=" + userId
+                                + (resp == null ? "" : " HTTP " + resp.statusCode()));
+                        return null;
+                    }
+                    try {
+                        JsonObject data = JsonParser.parseString(resp.body() == null ? "{}" : resp.body())
+                                .getAsJsonObject();
+                        if (!data.has("id") || data.get("id").isJsonNull()) {
+                            return null;
+                        }
+                        String dmId = data.get("id").getAsString();
+                        dmChannels.put(userId, dmId);
+                        return dmId;
+                    } catch (JsonSyntaxException | IllegalStateException e) {
+                        log.warning("[discord] DM 通道响应解析失败: " + e);
+                        return null;
+                    }
+                });
     }
 
     // =====================================================================
