@@ -6,6 +6,7 @@ import com.jokerhub.paper.plugin.orzmc.core.ports.server.ServerScheduler;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.TextChunker;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayStateListener;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.ReconnectPolicy;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.discord.DiscordApiClient;
@@ -17,6 +18,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.DiscordPlatformConfi
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImProxyConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import java.net.Proxy;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
@@ -31,6 +33,11 @@ import java.util.logging.Logger;
 public final class DiscordBuiltinAdapter implements BuiltinPlatform {
 
     public static final String HEALTH_KEY = "builtin.discord";
+
+    /** 官方单条文本上限：content 最多 2000 字符。 */
+    private static final int MAX_TEXT_CHARS = 2000;
+    /** 一次通知/回复最多段数（避免超长内容刷屏 + 触发 Discord 频控）。 */
+    private static final int MAX_TEXT_PARTS = 5;
 
     private final Logger log;
     private final HealthRegistry health;
@@ -126,30 +133,58 @@ public final class DiscordBuiltinAdapter implements BuiltinPlatform {
             return;
         }
         if (parsed.isGroup()) {
-            fire(api.sendChannelMessage(parsed.id(), text), target);
+            sendChunked(parsed.id(), text, target);
         } else {
-            // 私聊出站：user id → DM 通道 → 发消息
-            String dmId = api.ensureDmChannel(parsed.id());
-            if (dmId == null) {
-                health.setLastError(HEALTH_KEY, "discord 发送失败 target=" + target + "（DM 通道建立失败）");
-                log.warning("[discord] DM 通道建立失败，无法投递 target=" + target);
-                return;
-            }
-            fire(api.sendChannelMessage(dmId, text), target);
+            // 私聊出站：user id → DM 通道 → 发消息（全链异步，服务器线程不等网络）
+            fire(
+                    api.ensureDmChannelAsync(parsed.id()).thenCompose(dmId -> {
+                        if (dmId == null) {
+                            log.warning("[discord] DM 通道建立失败，无法投递 target=" + target);
+                            return CompletableFuture.completedFuture(false);
+                        }
+                        return api.sendChannelMessageAsync(dmId, text);
+                    }),
+                    target);
         }
     }
 
-    /** 被动回复（来源频道直发：群聊/DM 的 channel_id 均可用 sendChannelMessage）。 */
+    /** 被动回复（来源频道直发：群聊/DM 的 channel_id 均可用 sendChannelMessageAsync）。 */
     private void sendReply(DiscordInboundMessage source, String text) {
-        fire(api.sendChannelMessage(source.channelId(), text), source.channelId());
+        sendChunked(source.channelId(), text, source.channelId());
     }
 
-    /** 尽力一次：失败/异常 → 健康告警（D7：不重试）。 */
-    private void fire(boolean ok, String target) {
-        if (!ok) {
-            health.setLastError(HEALTH_KEY, "discord 发送失败 target=" + target);
-            log.warning("[discord] 发送失败 target=" + target);
+    /**
+     * 按官方单条上限（content 2000 字符）分段发送（D2）：整条超限会被 400 拒绝 = 通知丢失。
+     * 最多 {@link #MAX_TEXT_PARTS} 段，超出部分截断并告警。
+     */
+    private void sendChunked(String channelId, String text, String alertTarget) {
+        fire(sendChunkedFuture(channelId, text, alertTarget), alertTarget);
+    }
+
+    /** 分段并逐段异步投递（返回 future 供私聊链路 thenCompose 串联）。 */
+    private CompletableFuture<Boolean> sendChunkedFuture(String channelId, String text, String alertTarget) {
+        TextChunker.Result chunked = TextChunker.byChars(text, MAX_TEXT_CHARS, MAX_TEXT_PARTS);
+        if (chunked.truncated()) {
+            log.warning("[discord] 消息过长：已分段发出 " + chunked.parts().size() + " 段（每段 ≤ " + MAX_TEXT_CHARS
+                    + " 字符），尾部截断；channel=" + channelId);
         }
+        CompletableFuture<Boolean> chain = CompletableFuture.completedFuture(true);
+        for (String part : chunked.parts()) {
+            chain = chain.thenCompose(ok -> api.sendChannelMessageAsync(channelId, part));
+        }
+        return chain;
+    }
+
+    /** 尽力一次：失败/异常 → 健康告警（D7：不重试）；异步完成回调（不阻塞调用线程）。 */
+    private void fire(CompletableFuture<Boolean> future, String target) {
+        future.whenComplete((ok, err) -> {
+            if (err != null || !Boolean.TRUE.equals(ok)) {
+                health.setLastError(HEALTH_KEY, "discord 发送失败 target=" + target + (err == null ? "" : " " + err));
+                log.warning("[discord] 发送失败 target=" + target + (err == null ? "" : " " + err));
+            } else {
+                health.setLastError(HEALTH_KEY, null); // 成功即复位（lastError 语义 = 当前错误，非历史错误）
+            }
+        });
     }
 
     /** target {@code discord:<chatType>:<id>} 解析（group=频道 id / user=用户 id）。 */

@@ -3,8 +3,44 @@
 ## [Unreleased]
 
 ### 🔒 安全（私钥泄露处置 + 门禁补强）
-- **删除被公开提交的 SSH 私钥对**：`# 查看公钥（下面要用的那串）：`（ed25519 `SHA256:fB5lwi…imWk`）与配套 `.pub`（2026-09-09 经 #415/#432 进入 main）。**⚠️ 该密钥视为已泄露：请在 authorized_keys/服务器/面板移除并重建密钥对**
-- 新增 `scripts/check-secrets.sh` 并接入 `./gradlew check`（CI + 本地门禁）；`.gitignore` 补密钥/凭据与「以 `#`/引号开头的误操作文件名」；新增 `docs/dev/security-incidents.md`（处置 SOP）；`AGENTS.md` 增「敏感信息红线」
+- **删除被公开提交的 SSH 私钥对**：`# 查看公钥（下面要用的那串）：`（私钥，ed25519 `SHA256:fB5lwi…imWk`）与配套 `.pub` —— 2026-09-09 经 #415/#432 进入 main/develop 与 tag 1.0.25/1.0.26（仓库为 public）。**⚠️ 该密钥必须视为已泄露：请立即在 authorized_keys/服务器/面板移除并重建密钥对**（GitHub Deploy Key 已确认未使用它）
+- **新增密钥门禁（防复发）**：`scripts/check-secrets.sh` 扫描已跟踪文件中的私钥/凭据高信号模式，接入 Gradle `check`（→ CI `build` 与本地 `./gradlew check` 均会执行）；`.gitignore` 补 `*.key`/`*.pem`/`id_ed25519*`/`.env`/`server.properties` 等，并**屏蔽以 `#`/引号开头的误操作文件名**（本次事故文件名即此类）
+- **测试夹具去真实化**：把测试/文档中的**真实 QQ 群 openid** 替换为合成值（该值自 2026-09-04 起被当作示例提交，公开仓库不应携带真实平台标识）
+- 新增 `docs/dev/security-incidents.md`（事故记录 + 处置 SOP + 历史重写决策表）；`AGENTS.md` 增「敏感信息红线」小节
+
+### 🐛 修复（未绑定会话绑定提示被全局节流吞掉）
+- **未绑定会话日志改为按会话节流**：此前用单处理器全局时间戳（30s），窗口内**只有第一个**未绑定会话能打印可复制绑定命令，其后（如管理群、管理私聊）的提示被吞，管理员会以为"绑定不上"——现改为按 `target` 各自计时（同一会话 30s 内只提示一次，不同会话各自提示），并在提示尾部指明"其他未绑定会话见 `/config im status`"。四平台（QQ/飞书/Discord/Telegram）统一修正，文档同步（`bot-builtin-common.md §8`）
+
+### ✨ 新增（长消息分段 D2 + 授权模型定稿 A + QQ 上限实测工具）
+- **出站长文本分段（D2）**：单条超过平台上限会被平台**整条拒绝**（= 通知丢失），现按平台口径自动分段发送：Telegram **4096 字符**、Discord **2000 字符**（均官方值），QQ 按 **UTF-8 字节**（官方未公开数字，默认 3000，`im.yml → platforms.qq.max_text_bytes` 可调，0=不分段）；飞书文本上限 150KB（实际无需分段）。切分优先换行/句末（不切碎多字节字符）；最多 5 段（QQ 受“被动回复最多 5 次”约束），超出**截断 + WARN**（宁少发并告警，不让平台整条拒收）。新增 `TextChunker`（按字符/字节两种口径 + 码点安全）
+- **QQ 单条文本上限实测（2026-09，真机）**：群主动消息 **ASCII 96KB / 中文 150KB 均返回 200 且投递成功**（撤回 API 亦验证可用），远高于此前采用的社区口径（3KB）→ QQ 默认 `max_text_bytes` 由 3000 改为 **32768（仅防御性上限，0=不分段）**，避免正常长通知被无谓拆分；官方仍未公开该数字（仅错误码 40054007），复测工具见 `docs/dev/qq-text-limit-probe.sh`
+- **实测附带结论：openid 按 app 隔离**（同一群在不同 app_id 下 openid 不同）——更换机器人后必须重新绑定，否则投递报 `11255 请求的资源不存在（用户/群已注销）`；已补入 `docs/manuals/bot-qq.md`
+- **QQ 上限实测探针**：`docs/dev/qq-text-limit-probe.sh` —— 用真实凭据在测试群按档位探测 `40054007`，并对比 ASCII/中文得出平台按字节还是字符计量，直接给出可固化数字
+- **授权模型定稿（D1=A 保持现状）**：文档显式写明“平台会话角色 ∧ 已绑定会话 = 管理命令权限”，并列出风险前提（任意已绑定玩家群的平台群主/群管 = 服务器管理员，可执行 `$e`/`$w`/`$b`/`$o`/`$r`/`$d`/`$v`/`$p`）与三项缓解建议（专用管理群、加严 `guard.blocked_commands`、审计巡检）；代码行为不变（与 EasyBot 通道语义一致）
+- 文档同步：`docs/manuals/bot-builtin-common.md`（能力边界 + 新增 §8 授权模型）、`docs/manuals/bot-qq.md`（分段与长度配置）、`im.yml` 模板新增 `platforms.qq.max_text_bytes`
+
+### 🐛 修复（QQ builtin 按 2026-09 官方规格对齐）
+- **被动回复补 `msg_seq`（确定性 bug）**：官方《群聊/单聊消息》要求被动回复携带 `msg_seq`，且“相同 `msg_id` + `msg_seq` 重复发送会失败”（40054005 消息被去重，默认 1）——此前 `QqSender` 只发 `msg_id`，导致**分页列表等对同一条入站消息的第 2 条回复起被平台判重丢弃**（典型表现：`$w` 多页只收到第一页）。现按 `msg_id` 维护递增序号（1,2,3…）；并新增官方次数上限（群 5 次 / 单聊 4 次，超限 40034128）的明确 WARN
+- **token 失效判定校准**：实机探测当前失效响应为 `401 {"code":11244,"message":"AccessToken无效或过期"}`；此前把 **11242** 也归为 token 失效，但官方现表中 11242 是“校验 token 失败（系统错误，可重试一次）”——会白白强制重换令牌；现收窄为 `401 / 11244 / AccessToken无效或过期`（旧文案保留兼容）
+- **WS 关闭码按现行错误码表重写**：旧实现只看 `4004`（现表已不列，属老版本），真遇 token 失效时可能不触发刷新；现按官方表区分：4006/4007（session 无效/seq 错）→ 清 session 全量 re-identify；4009（连接过期）→ resume；**4013/4014（无效 intents / 无权限）与 4914/4915（机器人已下架/已封禁）→ 直接 FATAL 不再无效重连**；其余退避重连
+- **鉴权域名对齐官方文档**：默认 `authBase` 由未文档化别名 `https://bots.qq.com` 改为文档域名 **`https://api.bot.qq.com`**（2026-09 实测两域名均可用，仅移除对别名的隐含依赖，仍可配置覆盖）
+- **心跳首帧 `d` 按规格传 null**（官方：首次连接传 null；此前发 `0`）
+- 文档同步：`docs/manuals/bot-qq.md` 能力边界改为**现行官方数字**（被动窗口/次数、主动消息频控 60qpm + 1000 条/群/天、长度上限官方未公开、URL 40054010）；`docs/dev/im-gateway-inhouse.md` R7/I2 状态更新
+
+### 🐛 修复（builtin IM 出站稳定性与排障）
+- **HTTP 超时异常不再被外层看门狗盖住（`AsyncHttp`）**：看门狗预算此前与单次尝试的 `HttpRequest.timeout` 同时到期，抛出的 `java.util.concurrent.TimeoutException`（无 message）会盖住 JDK 阶段化异常，日志无法区分「连不上」（`HttpConnectTimeoutException`，查网络/代理/IP 白名单）与「连上无响应」（`HttpTimeoutException`，可考虑重试）。现看门狗追加 ≥1s/10% 余量，保证单次尝试自身超时先抛（响应线上 QQ builtin 投递超时排障）
+- **QQ 投递：仅连接阶段失败兑底重试一次（`QqSender`）**：连接超时 / DNS / TLS 握手 / 连接被拒属「请求字节未到达平台」（必然未投递），重试不会产生重复通知；此类异常 JDK 不会自动重试（它只重试 `ConnectException` 的幂等请求），而线上裸奔易失败。请求阶段超时（已发出但无响应）结果未知，一律不重试（保持 D7），并以「结果未知，不重试」告警避免误判为确定失败
+- **QQ 出站超时抬到连接 5s / 请求 10s（`QqApiClient`，原 3s/8s）**：给国内到 CDN 的链路抖动留余量
+- **QQ 投递结果三态化（`QqSender.Outcome`：SENT / FAILED / UNKNOWN）+ 请求超时 10s → 30s**：2026-09 线上实测确认，主动消息（不带 msg_id）的平台响应可超 10s，**但消息实际已送达**——旧版把这类「响应迟到」统一报成 `发送失败` 并写入健康 `lastError`，既误判丢消息又刷屏。现：`UNKNOWN` 仅打一条 WARN（“平台可能已投递，未重试”）、不计入平台故障，`FAILED` 才告健康；请求超时给足 30s 以捕获慢响应（投递是异步 fire-and-forget，等待不影响服务器线程）
+- **QQ 网关地址解析失败时复用最近成功地址（`QqGatewayClient`）**：`/gateway/bot` 限频（HTTP 400 code 100017）或网络抖动时，此前直接判「网关地址不可用 → 建连失败」并退避；现复用最近一次成功下发的 WS 地址建连（已下发地址长期有效，确失效时下一轮仍会重取），减少无谓断连
+
+### ⚡ 性能（IM 线程卫生：服务器线程不再被 IM 网络等待阻塞）
+- **网关首次建连异步化（`ReconnectingGateway.start()`）**：`resolveEndpoint()` 会做阻塞 HTTP（QQ/Discord `/gateway/bot`），而 `start()` 常由服务器线程调用（`/bot`、`/orzmc config reload` → 平台槽 reconcile）——此前主线程会等完整往返（最坏 5s+10s）。现首次建连交给网关自有调度线程，`start()` 立即返回（状态仍为 CONNECTING，重复 start 幂等）
+- **`stop()` 不再阻塞调用线程**：`ReconnectingGateway.stop()` 去掉 `scheduler.awaitTermination(1s)`、Telegram `stop()` 去掉 `poller.awaitTermination(1s)`——`shutdownNow` + 状态自检已保证收敛，重载逐平台停旧建新时不再叠加主线程等待
+- **token 刷新/角色判定不再占用 ForkJoinPool.commonPool + 不在调用线程等网络**：新增 IM 专用阻塞任务池（`ImWorkerPool`：具名 `orzmc-im-worker-*` 守护线程 ×4，插件卸载回收）。QQ/飞书发送路径的 `tokens.fresh()`（临期会同步换发 token，阻塞 HTTP ≤15s）与 TG/Discord/飞书角色判定的 `supplyAsync` 均改用该池——此前 `fresh()` 在调用线程（服务器线程）持锁等鉴权请求，角色判定则可能占满并行度仅为「核数-1」的公共池并饿死同池其他使用方
+- **Telegram / Discord 出站与命令回复异步化（不再阻塞服务器线程）**：审查发现 QQ/飞书出站已是 future（fire-and-forget）、TG/DC 却是同步 `.join()`，而调用方就是服务器线程（通知、以及经 `runSync` 进命令层的回复）——单条消息最坏阻塞 10s（DC 私聊还要先建 DM 通道，串行两次）。现 `TelegramApiClient.sendMessageAsync`、`DiscordApiClient.sendChannelMessageAsync/ensureDmChannelAsync` 全链异步，`send/sendReply` 仅注册 `whenComplete` 回调回写健康；私聊走 `ensureDmChannelAsync().thenCompose(...)` 不阻塞。类注释同步修正（旧注声称“不触服务器线程红线”与实现不符）
+- **发送成功即复位健康 `lastError`**（QQ/飞书/TG/Discord）：语义改为「当前错误」（此前为历史错误，恢复后仍长期显示旧错误）
+- **入站消息 id 去重（防平台重放重复执行命令）**：QQ 断线走 `op6 RESUME` 会话续传、Discord Gateway 重连走 RESUME 补发遗漏事件——两侧均为「至少一次」投递，同一条用户消息可能被再次下发，而非幂等命令（`$e` 控制台执行 / `$b` 备份 / `$o` 优化 / `$r` 升降级）会被重复执行。现 QQ/Discord 入站处理器按消息 id 在 5 分钟窗口内只放行一次（新增 `InboundDedup`：原子判定、容量有界、无 id 时 fail-open 不吞消息）；TG 长轮询已按「严格推进 `offset=update_id+1`」防重拉，无需额外处理
 
 ## [1.0.26] - 2026-09-10
 

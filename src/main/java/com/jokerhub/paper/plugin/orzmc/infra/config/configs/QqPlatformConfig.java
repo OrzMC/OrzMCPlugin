@@ -12,12 +12,22 @@ import org.bukkit.configuration.ConfigurationSection;
  * @param appId QQ 开放平台 app_id
  * @param clientSecret QQ 开放平台 client_secret
  * @param proxy 生效代理（平台级覆盖优先，否则全局段；DIRECT = 直连）。从 {@link #from} 解析时已合并。
+ * @param maxTextBytes 单条文本上限（UTF-8 字节，0 = 不分段）：官方未公开数字（仅错误码 40054007 消息长度超限），
+ *     默认 {@link #DEFAULT_MAX_TEXT_BYTES} 保守值，可按实测结果在 im.yml 调整（D2/R7）。
  */
-public record QqPlatformConfig(boolean enabled, String appId, String clientSecret, ImProxyConfig proxy) {
+public record QqPlatformConfig(
+        boolean enabled, String appId, String clientSecret, ImProxyConfig proxy, int maxTextBytes) {
+
+    /**
+     * 单条文本默认上限（UTF-8 字节）：**2026-09 实测**——群主动消息 96KB(ASCII)/150KB(中文) 仍返回 200 并成功投递，
+     * 平台实际上限远高于通知场景；此默认值仅作**防御性上限**（避免异常模板发出超大消息），
+     * 0 = 完全不分段（操作员可经 {@code max_text_bytes} 调整）。官方仍未公开该数字（仅有错误码 40054007）。
+     */
+    public static final int DEFAULT_MAX_TEXT_BYTES = 32768;
 
     /** 便捷：无代理（直连；老调用兼容）。 */
     public QqPlatformConfig(boolean enabled, String appId, String clientSecret) {
-        this(enabled, appId, clientSecret, ImProxyConfig.DIRECT);
+        this(enabled, appId, clientSecret, ImProxyConfig.DIRECT, DEFAULT_MAX_TEXT_BYTES);
     }
 
     /** 默认（禁用，无凭据，直连）。 */
@@ -54,7 +64,12 @@ public record QqPlatformConfig(boolean enabled, String appId, String clientSecre
         } else {
             proxy = ImProxyConfig.DIRECT;
         }
+        int maxTextBytes = section.getInt("max_text_bytes", DEFAULT_MAX_TEXT_BYTES);
         return new QqPlatformConfig(
-                section.getBoolean("enabled", false), appId == null ? "" : appId, secret == null ? "" : secret, proxy);
+                section.getBoolean("enabled", false),
+                appId == null ? "" : appId,
+                secret == null ? "" : secret,
+                proxy,
+                maxTextBytes <= 0 ? 0 : maxTextBytes);
     }
 }

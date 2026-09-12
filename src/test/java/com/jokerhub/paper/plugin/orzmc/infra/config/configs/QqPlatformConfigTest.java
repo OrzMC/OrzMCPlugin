@@ -39,6 +39,24 @@ class QqPlatformConfigTest {
     }
 
     @Test
+    void maxTextBytes_defaultsAndOverrides() {
+        YamlConfiguration base = new YamlConfiguration();
+        base.set("enabled", true);
+        base.set("app_id", "app-1");
+        base.set("client_secret", "secret-1");
+        // 未配置 → 默认防御性上限（2026-09 实测 ≥150KB，32KB 仅为异常模板兜底）
+        assertEquals(
+                QqPlatformConfig.DEFAULT_MAX_TEXT_BYTES,
+                QqPlatformConfig.from(base).maxTextBytes());
+
+        // 实测后可调；显式 0 表示不分段
+        base.set("max_text_bytes", 1200);
+        assertEquals(1200, QqPlatformConfig.from(base).maxTextBytes());
+        base.set("max_text_bytes", 0);
+        assertEquals(0, QqPlatformConfig.from(base).maxTextBytes());
+    }
+
+    @Test
     void platformProxyOverridesGlobal() {
         YamlConfiguration global = new YamlConfiguration();
         global.set("enabled", true);

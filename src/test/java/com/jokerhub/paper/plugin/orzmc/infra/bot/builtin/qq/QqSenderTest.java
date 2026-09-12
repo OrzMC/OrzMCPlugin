@@ -6,12 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.TokenProvider;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +45,8 @@ class QqSenderTest {
         return new QqSender(silentLogger(), tokens, base);
     }
 
-    private static boolean awaitSend(java.util.concurrent.CompletableFuture<Boolean> future) throws Exception {
+    private static QqSender.Outcome awaitSend(java.util.concurrent.CompletableFuture<QqSender.Outcome> future)
+            throws Exception {
         return future.get(5, TimeUnit.SECONDS);
     }
 
@@ -55,7 +58,7 @@ class QqSenderTest {
     void sendGroupMessage_postsExpectedUrlBodyAndAuth() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-1\"}"));
 
-        assertTrue(awaitSend(sender().sendGroupMessage("GROUP-1", "你好", null)));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender().sendGroupMessage("GROUP-1", "你好", null)));
 
         RecordedRequest req = server.takeRequest();
         assertEquals("POST", req.getMethod());
@@ -71,17 +74,90 @@ class QqSenderTest {
     void passiveReply_includesMsgId() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-2\"}"));
 
-        assertTrue(awaitSend(sender().sendGroupMessage("GROUP-1", "回复", "src-msg-9")));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender().sendGroupMessage("GROUP-1", "回复", "src-msg-9")));
 
         String body = server.takeRequest().getBody().readUtf8();
         assertTrue(body.contains("\"msg_id\":\"src-msg-9\""), body);
+        // 2026-09 官方规格：被动回复必须带 msg_seq（相同 msg_id+msg_seq 会被判重 40054005）
+        assertTrue(body.contains("\"msg_seq\":1"), body);
+    }
+
+    @Test
+    void passiveRepliesToSameMessage_incrementMsgSeq() throws Exception {
+        // 回归（官方“相同的 msg_id + msg_seq 重复发送会失败”）：分页列表对同一条入站消息连发多条
+        // 被动回复时，第 2 条起必须递增 msg_seq，否则会被平台判重丢弃（40054005）。
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"m1\"}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"m2\"}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"m3\"}"));
+        QqSender sender = sender();
+
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendGroupMessage("G", "第1页", "src-1")));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendGroupMessage("G", "第2页", "src-1")));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender.sendGroupMessage("G", "第3页", "src-1")));
+
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":1"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":2"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":3"));
+    }
+
+    @Test
+    void passiveReplySeq_isPerSourceMessage() throws Exception {
+        // 不同来源消息各自从 1 开始（序号是“对同一条消息的第几次回复”语义）
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        QqSender sender = sender();
+        awaitSend(sender.sendGroupMessage("G", "a", "src-A"));
+        awaitSend(sender.sendGroupMessage("G", "b", "src-B"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":1"));
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_seq\":1"));
+    }
+
+    @Test
+    void activeMessage_hasNoMsgSeq() throws Exception {
+        // 主动消息（无 msg_id）不应携带 msg_seq / msg_id
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        awaitSend(sender().sendGroupMessage("G", "公告", null));
+        String body = server.takeRequest().getBody().readUtf8();
+        assertFalse(body.contains("msg_seq"), body);
+        assertFalse(body.contains("msg_id"), body);
+    }
+
+    @Test
+    void passiveReplyBeyondOfficialLimit_warnsWithErrorHint() throws Exception {
+        // 官方：群聊每条源消息最多被动回复 5 次（单聊 4 次），超限平台返回 40034128。
+        // 第 6 条应打出可定位的 WARN（含 40034128 与上限值），便于排查“列表只发出一条/翻页失败”。
+        for (int i = 0; i < 6; i++) {
+            server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        }
+        var logs = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        Logger raw = Logger.getLogger("qq-sender-limit-test");
+        raw.setUseParentHandlers(false);
+        raw.addHandler(new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                logs.add(record.getMessage());
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        });
+        QqSender sender = new QqSender(raw, tokens, base);
+        for (int i = 0; i < 6; i++) {
+            awaitSend(sender.sendGroupMessage("G", "page" + i, "src-limit"));
+        }
+        String joined = String.join("\n", logs);
+        assertTrue(joined.contains("40034128"), joined);
+        assertTrue(joined.contains("上限 5"), joined);
     }
 
     @Test
     void sendDirectMessage_targetsUserEndpoint() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-3\"}"));
 
-        assertTrue(awaitSend(sender().sendDirectMessage("USER-7", "私聊", null)));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender().sendDirectMessage("USER-7", "私聊", null)));
 
         RecordedRequest req = server.takeRequest();
         assertTrue(req.getPath() != null && req.getPath().endsWith("/v2/users/USER-7/messages"));
@@ -92,7 +168,7 @@ class QqSenderTest {
         server.enqueue(new MockResponse().setResponseCode(401).setBody("{\"code\":11244}"));
         server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-4\"}"));
 
-        assertTrue(awaitSend(sender().sendGroupMessage("GROUP-1", "重试", null)));
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender().sendGroupMessage("GROUP-1", "重试", null)));
         assertEquals(1, tokens.authFailures.get(), "401 应强制重换一次");
 
         RecordedRequest first = server.takeRequest();
@@ -106,7 +182,7 @@ class QqSenderTest {
         server.enqueue(new MockResponse().setResponseCode(401).setBody("{}"));
         server.enqueue(new MockResponse().setResponseCode(401).setBody("{}"));
 
-        assertFalse(awaitSend(sender().sendGroupMessage("GROUP-1", "失败", null)));
+        assertEquals(QqSender.Outcome.FAILED, awaitSend(sender().sendGroupMessage("GROUP-1", "失败", null)));
         assertEquals(1, tokens.authFailures.get(), "只应重换一次，不再无限重试");
         assertEquals(2, server.getRequestCount());
     }
@@ -115,7 +191,7 @@ class QqSenderTest {
     void serverError_failsWithoutRetry() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(500).setBody("oops"));
 
-        assertFalse(awaitSend(sender().sendGroupMessage("GROUP-1", "错误", null)));
+        assertEquals(QqSender.Outcome.FAILED, awaitSend(sender().sendGroupMessage("GROUP-1", "错误", null)));
         assertEquals(0, tokens.authFailures.get());
         assertEquals(1, server.getRequestCount(), "尽力一次不重试（D7）");
     }
@@ -123,6 +199,96 @@ class QqSenderTest {
     @Test
     void blankText_rejected() {
         assertThrows(IllegalArgumentException.class, () -> sender().sendGroupMessage("G", "  ", null));
+    }
+
+    @Test
+    void connectPhaseFailure_retriesOnceThenReportsPhase() throws Exception {
+        java.util.List<String> logs = new java.util.ArrayList<>();
+        int deadPort = freePort();
+        QqSender sender = new QqSender(capturingLogger(logs), tokens, "http://127.0.0.1:" + deadPort);
+
+        assertEquals(QqSender.Outcome.FAILED, awaitSend(sender.sendGroupMessage("GROUP-1", "连不上", null)));
+
+        assertEquals(1, logs.stream().filter(m -> m.contains("重试一次投递")).count(), "连接阶段应恰好兑底重试一次: " + logs);
+        assertTrue(logs.stream().anyMatch(m -> m.contains("连接阶段异常，已重试一次")), "最终告警应标明阶段: " + logs);
+        assertEquals(0, tokens.authFailures.get(), "连接失败不应触发令牌重换");
+    }
+
+    @Test
+    void connectPhaseClassification_acceptsOnlyProvablyUnsentFailures() {
+        // 连接阶段（请求未发出，重试安全）
+        assertTrue(QqSender.isConnectPhaseFailure(
+                new java.net.http.HttpConnectTimeoutException("HTTP connect timed out")));
+        assertTrue(QqSender.isConnectPhaseFailure(new java.net.ConnectException("Connection refused")));
+        assertTrue(QqSender.isConnectPhaseFailure(new java.net.NoRouteToHostException("No route to host")));
+        assertTrue(QqSender.isConnectPhaseFailure(new java.net.UnknownHostException("api.bot.qq.com")));
+        assertTrue(QqSender.isConnectPhaseFailure(new javax.net.ssl.SSLHandshakeException("handshake_failure")));
+        // 请求阶段（可能已投递，重试会产生重复通知）或非网络异常
+        assertFalse(QqSender.isConnectPhaseFailure(new java.net.http.HttpTimeoutException("request timed out")));
+        assertFalse(QqSender.isConnectPhaseFailure(new java.io.IOException("broken pipe")));
+        assertFalse(QqSender.isConnectPhaseFailure(new java.util.concurrent.TimeoutException()));
+    }
+
+    @Test
+    void slowTokenRefresh_doesNotBlockCallerThread() throws Exception {
+        // 回归（R12）：tokens.fresh() 临期时会同步换发 token（阻塞 HTTP）。发送路径常由服务器线程调用
+        // （通知/命令回复），故必须在专用池内获取 token——调用线程应立返回。
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-1\"}"));
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        TokenProvider slow = new TokenProvider() {
+            @Override
+            public String current() {
+                return "tok-slow";
+            }
+
+            @Override
+            public String fresh() {
+                try {
+                    release.await(3, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return "tok-slow";
+            }
+
+            @Override
+            public String onAuthFailure() {
+                return "tok-slow";
+            }
+        };
+        QqSender sender = new QqSender(silentLogger(), slow, base);
+
+        long t0 = System.nanoTime();
+        java.util.concurrent.CompletableFuture<QqSender.Outcome> future =
+                sender.sendGroupMessage("GROUP-1", "慢令牌", null);
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsedMs < 500, "send 不得在调用线程等 token 刷新（实测 " + elapsedMs + "ms）");
+        assertFalse(future.isDone(), "token 未就绪时不应提前完成");
+
+        release.countDown();
+        assertEquals(QqSender.Outcome.SENT, awaitSend(future));
+    }
+
+    @Test
+    void requestPhaseTimeout_reportsUnknownAndNeverRetries() throws Exception {
+        // 服务端接受连接但永不响应（平台响应慢的真实形态）：结果未知，且绝不能重试（D7：重试会重复通知）
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+        QqSender sender = new QqSender(
+                silentLogger(), tokens, base, java.net.Proxy.NO_PROXY, Duration.ofSeconds(2), Duration.ofMillis(300));
+
+        assertEquals(QqSender.Outcome.UNKNOWN, awaitSend(sender.sendGroupMessage("GROUP-1", "慢", null)));
+        assertEquals(1, server.getRequestCount(), "请求阶段超时不得重试（防重复通知）");
+        assertEquals(0, tokens.authFailures.get(), "超时不应触发令牌重换");
+    }
+
+    @Test
+    void unknownOutcomeClassification_excludesConnectPhase() {
+        assertTrue(QqSender.isUnknownOutcome(new java.net.http.HttpTimeoutException("request timed out")));
+        assertTrue(QqSender.isUnknownOutcome(new java.util.concurrent.TimeoutException()));
+        // 连接阶段（未发出，已走兑底重试）与普通 IO 不属于「结果未知」
+        assertFalse(QqSender.isUnknownOutcome(new java.net.http.HttpConnectTimeoutException("HTTP connect timed out")));
+        assertFalse(QqSender.isUnknownOutcome(new java.net.ConnectException("refused")));
+        assertFalse(QqSender.isUnknownOutcome(new java.io.IOException("broken pipe")));
     }
 
     // =====================================================================
@@ -152,6 +318,37 @@ class QqSenderTest {
             token = "fresh-" + authFailures.incrementAndGet();
             return token;
         }
+    }
+
+    private static int freePort() throws java.io.IOException {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    /** 采集 INFO 及以上日志文本（验证兑底重试与阶段化告警）。 */
+    private static Logger capturingLogger(java.util.List<String> sink) {
+        Logger raw = Logger.getLogger("qq-sender-capture");
+        raw.setUseParentHandlers(false);
+        raw.setLevel(java.util.logging.Level.ALL);
+        for (java.util.logging.Handler handler : raw.getHandlers()) {
+            raw.removeHandler(handler);
+        }
+        raw.addHandler(new java.util.logging.Handler() {
+            @Override
+            public void publish(java.util.logging.LogRecord record) {
+                if (record.getLevel().intValue() >= java.util.logging.Level.INFO.intValue()) {
+                    sink.add(String.valueOf(record.getMessage()));
+                }
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        });
+        return raw;
     }
 
     private static Logger silentLogger() {

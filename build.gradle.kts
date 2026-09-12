@@ -512,3 +512,4 @@ val checkSecrets by tasks.registering(Exec::class) {
 tasks.named("check") {
     dependsOn("integrationTest", "jacocoTestCoverageVerification", "checkSecrets")
 }
+

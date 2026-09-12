@@ -2,6 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.feishu;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.ImWorkerPool;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.TokenProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.net.AsyncHttp;
 import java.net.http.HttpResponse;
@@ -74,42 +75,47 @@ public final class FeishuSender {
             throw new IllegalArgumentException("text must not be blank");
         }
         String url = apiBase + "/im/v1/messages?receive_id_type=chat_id";
-        String firstToken = tokens.fresh();
-        if (firstToken == null) {
-            log.warning("[feishu] 发送无可用 tenant token，丢弃: " + url);
-            return CompletableFuture.completedFuture(false);
-        }
-        return post(url, firstToken, chatId, text)
-                .thenCompose(resp -> {
-                    String body = resp.body() == null ? "" : resp.body();
-                    // 飞书 API 恒 HTTP 200 + 业务 code：2xx 且 body 无业务错误（code!=0）才算成功
-                    if (isSuccess(resp, body)) {
-                        return CompletableFuture.completedFuture(true);
+        // token 获取卸载到 IM 专用线程池：fresh() 临期/过期时会同步换发 token（阻塞 HTTP），
+        // 而本方法常由服务器线程调用（通知/命令回复）——不在调用线程等网络（R12）。
+        return CompletableFuture.supplyAsync(tokens::fresh, ImWorkerPool.executor())
+                .thenCompose(firstToken -> {
+                    if (firstToken == null) {
+                        log.warning("[feishu] 发送无可用 tenant token，丢弃: " + url);
+                        return CompletableFuture.completedFuture(false);
                     }
-                    if (FeishuApiClient.isTokenRejected(resp.statusCode(), body)) {
-                        // token 失效：强制重换一次并重试一次（鉴权层自愈；仍失败按投递失败告警）
-                        String freshToken = tokens.onAuthFailure();
-                        if (freshToken == null) {
-                            log.warning("[feishu] token 重换失败，消息投递失败（不再重试）: " + chatId);
-                            return CompletableFuture.completedFuture(false);
-                        }
-                        log.info("[feishu] token 失效已重换，重试一次投递: " + chatId);
-                        return post(url, freshToken, chatId, text).thenApply(resp2 -> {
-                            String body2 = resp2.body() == null ? "" : resp2.body();
-                            if (!isSuccess(resp2, body2)) {
-                                log.warning("[feishu] 重试仍失败（HTTP " + resp2.statusCode() + "），丢弃: " + chatId + " "
-                                        + clip(body2));
+                    return post(url, firstToken, chatId, text)
+                            .thenCompose(resp -> {
+                                String body = resp.body() == null ? "" : resp.body();
+                                // 飞书 API 恒 HTTP 200 + 业务 code：2xx 且 body 无业务错误（code!=0）才算成功
+                                if (isSuccess(resp, body)) {
+                                    return CompletableFuture.completedFuture(true);
+                                }
+                                if (FeishuApiClient.isTokenRejected(resp.statusCode(), body)) {
+                                    // token 失效：强制重换一次并重试一次（鉴权层自愈；仍失败按投递失败告警）
+                                    String freshToken = tokens.onAuthFailure();
+                                    if (freshToken == null) {
+                                        log.warning("[feishu] token 重换失败，消息投递失败（不再重试）: " + chatId);
+                                        return CompletableFuture.completedFuture(false);
+                                    }
+                                    log.info("[feishu] token 失效已重换，重试一次投递: " + chatId);
+                                    return post(url, freshToken, chatId, text).thenApply(resp2 -> {
+                                        String body2 = resp2.body() == null ? "" : resp2.body();
+                                        if (!isSuccess(resp2, body2)) {
+                                            log.warning("[feishu] 重试仍失败（HTTP " + resp2.statusCode() + "），丢弃: " + chatId
+                                                    + " " + clip(body2));
+                                            return false;
+                                        }
+                                        return true;
+                                    });
+                                }
+                                log.warning("[feishu] 投递失败（HTTP " + resp.statusCode() + "，不重试）: " + chatId + " "
+                                        + clip(body));
+                                return CompletableFuture.completedFuture(false);
+                            })
+                            .exceptionally(ex -> {
+                                log.warning("[feishu] 投递网络异常（不重试）: " + chatId + " " + unwrap(ex));
                                 return false;
-                            }
-                            return true;
-                        });
-                    }
-                    log.warning("[feishu] 投递失败（HTTP " + resp.statusCode() + "，不重试）: " + chatId + " " + clip(body));
-                    return CompletableFuture.completedFuture(false);
-                })
-                .exceptionally(ex -> {
-                    log.warning("[feishu] 投递网络异常（不重试）: " + chatId + " " + unwrap(ex));
-                    return false;
+                            });
                 });
     }
 
