@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.config;
 
 import com.jokerhub.paper.plugin.orzmc.OrzMC;
+import com.jokerhub.paper.plugin.orzmc.infra.guidebook.GuideBookMigrator;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -54,7 +55,8 @@ public final class ConfigService {
         configManager.registerConfig("im_bindings", "im_bindings.yml");
         configManager.markAlwaysSave("im_bindings");
 
-        configManager.setDefaults("guide_book", config -> {});
+        // 注：guide_book.yml 不调用 setDefaults——该方法会 saveConfig 回写（YamlConfiguration 不保留注释），
+        // 会把服主手写的注释与文档头整段抹掉。它是内容型数据文件，首次创建由 saveResource 完成即可。
 
         // schema 自动升级（config/templates/easybot）：旧版安装自动备份→补缺→旧默认翻转→写回版本标记，
         // 必须发生在任何 getConfig 消费之前，否则 ConfigHealthCheck 仍会对缺段持续告警。
@@ -64,6 +66,10 @@ public final class ConfigService {
         // 从 easybot.yml 迁至 config.yml bot: 段——升级深合并会为 config bot: 段补默认值，若不搬迁会遮蔽
         // easybot.yml 中的老装自定义值。幂等：搬迁后清掉 easybot 旧键，二次启动零动作。
         migrateBotParamsToConfig();
+
+        // guide_book.yml 格式升级（v1 content: → v2 pages:）：运行时数据文件不进 ConfigSchema，
+        // 故走代码内专门迁移——启动期、幂等、先备份 .bak 并做回读校验，失败保留原文件（详见 GuideBookMigrator）。
+        migrateGuideBookFormat();
 
         // 遗留的按功能拆分 YAML 不再读取，全部合并到 config.yml。
         // 文件仍在磁盘时配置会静默失效，须显式告警。
@@ -75,6 +81,26 @@ public final class ConfigService {
             for (String s : issues) {
                 plugin.getLogger().warning(" - " + s);
             }
+        }
+    }
+
+    /**
+     * guide_book.yml 旧格式自动迁移（幂等：已是 v2 则零动作）。迁移成功后重载内存缓存，
+     * 保证启动期后续消费拿到新格式内容；失败/放弃时不动文件，仅记录日志。
+     */
+    private void migrateGuideBookFormat() {
+        File file = configManager.configFile("guide_book");
+        if (file == null) {
+            return;
+        }
+        GuideBookMigrator.Result result = new GuideBookMigrator().migrate(file.toPath(), plugin.getLogger());
+        switch (result.outcome()) {
+            case MIGRATED -> {
+                configManager.reloadConfig("guide_book");
+                plugin.getLogger().info("guide_book.yml " + result.detail());
+            }
+            case SKIPPED_INVALID, FAILED -> plugin.getLogger().warning("guide_book.yml " + result.detail());
+            case NOT_NEEDED -> {}
         }
     }
 

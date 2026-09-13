@@ -12,6 +12,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.SecurityGuardConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TntConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.WhitelistKickMessage;
+import com.jokerhub.paper.plugin.orzmc.infra.guidebook.GuideBookConfigParser;
 import com.jokerhub.paper.plugin.orzmc.infra.templates.TemplatePlaceholderValidator;
 import java.net.URI;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ public final class ConfigHealthCheck {
         validateTemplates(provider.apply("templates"), issues);
         validatePortals(provider.apply("portals"), issues);
         validateAccessRules(provider.apply("access_rules"), issues);
+        validateGuideBook(provider.apply("guide_book"), issues);
         return issues;
     }
 
@@ -512,6 +514,30 @@ public final class ConfigHealthCheck {
                     issues.add("非法: styles.colors." + k + " 必须为 #RRGGBB");
                 }
             }
+        }
+    }
+
+    /**
+     * guide_book.yml（运行时数据文件，不参与 schema 迁移）：复用解析器做「可用性」校验——
+     * 开关/书名/作者类型、颜色可解析性、条目类型与**页号/行号级**格式问题（解析器已做纯文本兜底，此处只上报）。
+     */
+    private static void validateGuideBook(FileConfiguration cfg, List<String> issues) {
+        if (cfg == null) {
+            issues.add("guide_book.yml 未加载");
+            return;
+        }
+        Object enable = cfg.get("enable");
+        if (enable != null && !(enable instanceof Boolean)) {
+            issues.add("类型错误: guide_book.enable 需为布尔值");
+        }
+        if (cfg.get("title") != null && !(cfg.get("title") instanceof String)) {
+            issues.add("类型错误: guide_book.title 需为字符串");
+        }
+        if (cfg.get("author") != null && !(cfg.get("author") instanceof String)) {
+            issues.add("类型错误: guide_book.author 需为字符串");
+        }
+        for (String issue : new GuideBookConfigParser().parse(cfg).issues()) {
+            issues.add("guide_book.yml: " + issue);
         }
     }
 }

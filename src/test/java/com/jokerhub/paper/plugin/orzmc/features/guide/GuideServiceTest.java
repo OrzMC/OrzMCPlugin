@@ -155,6 +155,31 @@ class GuideServiceTest {
     }
 
     @Test
+    void buildGuideBook_parsesConfigOnceAndCachesResult() {
+        YamlConfiguration yaml =
+                createGuideConfig(true, "Guide", "Server", java.util.List.of(textContentItem("Welcome")));
+        when(configService.getConfig("guide_book")).thenReturn(yaml);
+
+        guideService.buildGuideBook();
+        guideService.buildGuideBook();
+
+        verify(configService, times(1)).getConfig("guide_book");
+    }
+
+    @Test
+    void invalidate_forcesReparseOnNextBuild() {
+        YamlConfiguration yaml =
+                createGuideConfig(true, "Guide", "Server", java.util.List.of(textContentItem("Welcome")));
+        when(configService.getConfig("guide_book")).thenReturn(yaml);
+
+        guideService.buildGuideBook();
+        guideService.invalidate();
+        guideService.buildGuideBook();
+
+        verify(configService, times(2)).getConfig("guide_book");
+    }
+
+    @Test
     void giveIfFirstJoin_hasPlayedBefore_doesNothing() {
         java.util.List<Map<?, ?>> content = new ArrayList<>();
         content.add(textContentItem("Welcome"));
