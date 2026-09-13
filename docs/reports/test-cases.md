@@ -22,9 +22,9 @@
 | 项 | 内容 |
 |:--|:--|
 | 前置条件 | 玩家在线 |
-| 步骤 | 执行 `/guide` |
-| 预期 | 打开新手书 GUI（BookMeta 写入服务器介绍） |
-| 实际 | ✅ openBook 源码确认 + 执行无异常 |
+| 步骤 | ① 执行 `/guide`；② 编辑 `guide_book.yml`（v2 `pages` 格式，见 [手册](../guide-book.md)）→ `/orzmc config reload` → 再次 `/guide` |
+| 预期 | 打开新手书 GUI（BookMeta 写入服务器介绍）；②改动**无需重启**即反映到书中 |
+| 实际 | ✅ openBook 源码确认 + 执行无异常；②解析缓存失效即改即生效 |
 | 方式 | 机器人 |
 
 ### TC-02 `/menu` 菜单 GUI

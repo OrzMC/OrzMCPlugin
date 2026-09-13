@@ -23,7 +23,7 @@
 | **teleport** | TeleportBowService / TeleportBowEventService / EntityTeleportPolicyService | `/tpbow` 传送弓（无限附魔）；飞行路径 force-load（提前 24 格）；落点安全检查+最近安全点搜索；猫咕噜声；实体传送策略（白名单 TAMEABLE/ENDERMAN/ARMOR_STAND/SHULKER） | 单测+集成+E2E |
 | **maintenance** | WorldMaintenanceService / ScheduledBackupService | `$b` 备份（踢人→save-off→ZIP→save-on→保留 N 份）；`$o` 优化（tick 阈值过滤）；三阶段进度报告；维护 MOTD；定时自动备份（backup_interval_hours）；完成耗时中文可读化（duration_human） | 单测+E2E |
 | **player** | PlayerEventService / PlayerEventAggregator | 上下线/踢出通知（世界别名/坐标/权限组/在线列表）；3s 聚合窗口+摘要；max_list_items 截断；限流 | 单测+集成+E2E |
-| **guide** | GuideService | `/guide` 新手书；首次进入自动发放；YAML 配置（链接/悬停/样式/分页） | 单测+E2E |
+| **guide** | GuideService / GuideBookConfigParser / GuideLineMarkup / GuideBookRenderer | `/guide` 新手书；首次进入自动发放；v2 简化格式（pages + 行记号，兼容旧 content 格式）；解析缓存 + `/orzmc config reload` 即改即生效；页数/字符上限降级 | 单测+E2E |
 | **menu** | MenuService / MenuCommandService / MenuEventService | `/menu` 箱子 GUI；占位「功能开发中」 | 单测+E2E |
 | **rank** | RankService / LuckPermsPromoter / PermissionStore | 4 级权限链（default→member→builder→admin）；LP track 自动初始化/校正；自动晋升（member-threshold-hours）；`$p u/d` 手动升降级；`/rank` 进度展示；升级通知 | 单测+集成 |
 | **review** | ReviewService / ReviewCommandService / ReviewHandler | `/apply` 申请（资格预检）；`/review approve/reject`；`$v l/y/n` 群审核；LP 异步授权+状态一致性；申请历史 10 条裁剪；通知双方 | 单测+集成+E2E |
@@ -92,7 +92,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | teleport | 6 类 | **73.6%** | 🟡 | ForceLoadedChunkLease 租约边界、安全落点搜索算法 |
 | botcommands | 6 类 | **76.0%** | 🟡 | $e 输出捕获边界、$d 通配符解析 |
 | assembly | 5 类 | **63.3%** | 🟡 | OrzServices.assemble 装配失败路径 |
-| guidebook | 2 类 | **60.8%** | 🟡 | GuideBookConfigParser 复杂格式解析 |
+| guidebook | 4 类 | **92%** | ✅ | 简写记号（转义/不成对降级）、v1↔v2 归一化、颜色口径、页上限降级 |
 | infra/bot | 3 类 | **68.0%** | 🟡 | OrzEasyBot 路由降级（player_group 为空） |
 | 其余 7 领域 | — | 80-96% | ✅ | 维持 |
 

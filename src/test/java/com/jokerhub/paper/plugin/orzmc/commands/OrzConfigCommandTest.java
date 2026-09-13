@@ -267,6 +267,27 @@ class OrzConfigCommandTest {
     }
 
     @Test
+    void reload_guideBook_notifiesCacheInvalidation() {
+        when(configService.reloadConfig("guide_book")).thenReturn(true);
+        AtomicInteger invalidations = new AtomicInteger();
+        cmd.setGuideBookReload(invalidations::incrementAndGet);
+
+        cmd.onCommand(sender, command, "orzmc", new String[] {"reload", "guide_book"});
+
+        assertEquals(1, invalidations.get());
+    }
+
+    @Test
+    void reloadAll_alsoNotifiesGuideBookCacheInvalidation() {
+        AtomicInteger invalidations = new AtomicInteger();
+        cmd.setGuideBookReload(invalidations::incrementAndGet);
+
+        cmd.onCommand(sender, command, "orzmc", new String[] {"reload"});
+
+        assertEquals(1, invalidations.get());
+    }
+
+    @Test
     void reload_easyBot_notifiesConnectionCoordinator() {
         AtomicInteger reloads = new AtomicInteger();
         OrzConfigCommand easyBotCommand = new OrzConfigCommand(configService, textStyles, reloads::incrementAndGet);
