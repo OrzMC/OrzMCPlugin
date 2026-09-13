@@ -5,7 +5,7 @@
 不阻断功能 PR（唯一阻塞项是 `verify.sh` 的零产物与源校验）。
 
 用法：
-    affected-episodes.py [--base origin/main] [--head HEAD] [--changed FILE ...]
+    affected-episodes.py [--base origin/main | --since <tag>] [--head HEAD] [--changed FILE ...]
                          [--update-status] [--json] [--fail-on-impact]
 
 等级：
@@ -292,12 +292,20 @@ def update_status(hits: dict[str, dict]) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="视频分集影响检测")
     ap.add_argument("--base", default="origin/main", help="对比基线（默认 origin/main）")
+    ap.add_argument(
+        "--since",
+        metavar="REF",
+        help="发版视角：等价于 --base <REF>（如 --since 1.0.27 比较该 tag 至今的影响）",
+    )
     ap.add_argument("--head", default="HEAD")
     ap.add_argument("--changed", nargs="*", help="直接指定变更文件（跳过 git diff）")
     ap.add_argument("--update-status", action="store_true", help="把受影响集在看板标记 ⚠️待更新")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--fail-on-impact", action="store_true", help="有影响时以退出码 1 结束（默认非阻塞）")
     args = ap.parse_args()
+
+    if args.since:                      # 发版视角别名（文档统一写 --since <上一 tag>）
+        args.base = args.since
 
     cov = load_coverage()
     episodes = cov.get("episodes") or {}
