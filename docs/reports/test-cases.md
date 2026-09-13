@@ -24,7 +24,7 @@
 | 前置条件 | 玩家在线 |
 | 步骤 | ① 执行 `/guide`；② 编辑 `guide_book.yml`（v2 `pages` 格式，见 [手册](../guide-book.md)）→ `/orzmc config reload` → 再次 `/guide`；③ 用旧 `content:` 格式文件重启一次 |
 | 预期 | 打开新手书 GUI（BookMeta 写入服务器介绍）；②改动**无需重启**即反映到书中；③自动迁移为 `pages` 格式并生成 `guide_book.yml.bak`，书内容与迁移前逐页一致 |
-| 实际 | ✅ openBook 源码确认 + 执行无异常；②解析缓存失效即改即生效；③`GuideBookMigratorTest` golden 一致性 + `ConfigServiceTest` 启动迁移用例覆盖 |
+| 实际 | ✅ openBook 源码确认 + 执行无异常；②解析缓存失效即改即生效；③`GuideBookMigratorTest` golden 一致性 + `ConfigServiceTest` 启动迁移用例覆盖；**真机（Folia 26.2 无头冒烟，`./gradlew foliaSmoke`）**：以历史 `content:` 文件起服 → 日志 `已迁移为 v2 格式（1 页 / 6 行），原文件备份为 guide_book.yml.bak`，迁移产物保留速查注释头，`guide_book.yml.bak` 与迁移前文件逐字节一致，启动健康检查无 `guide_book` 告警 |
 | 方式 | 机器人 |
 
 ### TC-02 `/menu` 菜单 GUI
