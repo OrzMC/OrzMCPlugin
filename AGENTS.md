@@ -197,6 +197,9 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
   比较两分支内容，main 确有领先内容 → 自动开反向 PR（head=main base=develop）+ enable 原生 auto-merge
   （squash，CI 绿自动合）；内容一致（里程碑后常态）→ 自动跳过 **并清理遗留的同步 PR（撤 auto-merge + 关闭 + 删分支）**；
   冲突 → 不开 auto-merge 留人工。
+  **workflow 侧实现陷阱（2026-09-13 实测）**：`main-develop-sync.yml` 里解析预检结果的 `case "$verdict"` 中
+  `manual|*)` 自带 `*` 兜底，**必须排在 `ok)` 之后**——排在前面时 `VERDICT=ok` 永远落进兜底（预检通过、退出码 0
+  却 `exit 1`，同步 PR 建不出来，main 独有提交同步不回 develop）。改该 case 块时保持 `skip → ok → 兜底` 顺序。
   **合并前预检（2026-09-13 加固，`scripts/sync-preflight.sh`）**：推送/enable auto-merge 之前必须通过
   —— `VERDICT=skip`（空转，树相同）→ 不建 PR 且清理陈旧 PR；`manual`（合并预演冲突 / 会删除 develop 内容）
   → 撤 auto-merge + 留言人工；`ok` → 才自动合。背景：#467 曾留下一个「空转但仍开着 auto-merge」的同步 PR
