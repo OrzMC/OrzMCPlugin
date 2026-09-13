@@ -26,29 +26,28 @@
 
 ## 已完成（按时间倒序）
 
-- 2026-09-13 PR3a（分支 `feat/video-series-insights`）：**系列蓝本 + 映射 + 看板 + 更新 SOP + 影响检测工具**
-  - `videos/series.md`（26 集清单含时长/字数/锚点/优先级/默认等级/录屏成本 + 拆集规则 + 发布矩阵 + 品牌规范）
-  - `videos/coverage.yml`（功能点 ↔ 集号 双向映射：features.md 章节 / Bot 命令 / config 键 / templates 键 / 代码路径）
-  - `videos/status.md`（过期看板：26 行初始状态 + 维护约定）· `videos/UPDATE.md`（一集一卡一 PR + L1/L2/L3 处置 + 平台版本约定 + 常见坑）
-  - `videos/tools/affected-episodes.py`：依 `git diff` 判定受影响集与等级（章节行号定位 / 配置键结构图定位 / 命令表 / literal 路径），支持 `--update-status`（幂等标记看板）、`--json`、`--fail-on-impact`
-  - 实测：templates.yml 文案键 → EP1/EP5/EP20 **L1**；config.yml 重构 → 12 集 **L3**（含顶层段增删）；features.md §9 → EP18 **L2**；im.yml → EP2 **L2**；无关文件 → 无影响
-- 2026-09-13 PR2（已合入 develop `57b962c`）：工具链 + EP0/EP1 源 + 录制清单（`make.sh` / `build-episode.py` / `build-cards.py` / `tts-preview.sh` / `verify.sh`；ep00 70s·242 字·3.46 字/秒、ep01 145s·500 字·3.45 字/秒；TTS 55.6s/122.1s；卡片 16:9 与 9:16；幂等全绿）
-- 2026-09-13 PR1（已合入 develop `f6de881`）：`promo-video/` → `videos/`，旧 8–10 分钟长稿归档，零产物策略与 `_template`/`brand`/`.gitignore` 落地
-- 2026-09-13 跟踪锁定：建 epic **#481**；建并关联 P0 子 issue **#482 EP0 · #483 EP1 · #484 EP3 · #485 EP7 · #486 EP8 · #487 EP15 · #488 EP20 · #489 EP22 · #490 EP25**；在 **#128** 留言（EP25 承接教程诉求）；新建 `video` 标签
+- 2026-09-13 PR3b（分支 `feat/video-series-gate`）：**CI 门禁 + 流程挂点 + 文档联动**
+  - `src/test/java/.../video/VideoScriptConsistencyTest.java`（6 测试类）：预算（时长/语速/镜头/信息点/字幕行宽与单句）、
+    事实与锚点（命令表 / 配置键 / 模板键 / features.md 章节）、映射完整（26 集、已产出源已登记、命令表全登记、
+    映射值合法）、零产物（`git ls-files videos`）、隐私（IP/域名/QQ 号/会话 key/Token + 官方域名白名单）、模板必备字段
+  - 负向验证：把 `duration_cap_s` 改为 10s → 预算测试 FAIL；把 PNG 加入索引 → 零产物测试 FAIL（均已还原）
+  - `build.yml` 新增**非阻塞** `video impact` 步骤（PR 中输出受影响集与等级到 step summary）；
+    `PULL_REQUEST_TEMPLATE.md` 新增「视频分集影响」勾选（已评估/不适用）
+  - 文档联动：`docs/README.md` 新增视频系列索引行；`docs/dev/im-gateway-inhouse.md` E2 已收口为系列；CHANGELOG Unreleased 记录
+- 2026-09-13 PR3a（已合入 develop `ca68e4c`）：系列蓝本 `series.md` + 映射 `coverage.yml` + 看板 `status.md` + SOP `UPDATE.md` + 影响检测 `affected-episodes.py`（5 个历史场景实测：文案键 L1、config 重构 L3、features 章节 L2、im.yml L2、无关文件无影响）
+- 2026-09-13 PR2（已合入 develop `57b962c`）：工具链（make/build-episode/build-cards/tts-preview/verify）+ EP0/EP1 源 + 录制清单
+- 2026-09-13 PR1（已合入 develop `f6de881`）：`promo-video/` → `videos/`、旧长稿归档、零产物策略与模板/品牌 token
+- 2026-09-13 跟踪锁定：epic **#481**；P0 子 issue **#482 EP0 · #483 EP1 · #484 EP3 · #485 EP7 · #486 EP8 · #487 EP15 · #488 EP20 · #489 EP22 · #490 EP25**；#128 留言（EP25 承接教程诉求）；`video` 标签
 
 ## 进行中卡
 
-- **卡：PR3b CI 门禁（剩余步骤）**（分支待开，基合入 PR3a 后的 `origin/develop`）
-  - 待做：`src/test/java/.../video/VideoScriptConsistencyTest.java`（snakeyaml 已在 test classpath：校验两集预算、facts/锚点存在性、`coverage.yml` 双向完整、敏感信息、零产物）；`build.yml` 增非阻塞 `video impact` 步骤；`PULL_REQUEST_TEMPLATE.md` 加 checkbox；`docs/README.md` 索引 + `docs/dev/im-gateway-inhouse.md:275` E2 更新 + CHANGELOG
-  - 风险：CI（Ubuntu）无 Pillow → 门禁只跑文本派生物与源校验（`verify.sh` 默认不渲染卡片）
+- （无）12 步计划已全部落地；下一步是 **owner 侧的成片制作**与按卡片推进 EP2–EP25。
 
 ## 未完成清单（按依赖排序）
 
-1. **步骤 10 CI 门禁与流程挂点**：一致性单测 + `build.yml` 的 `video impact` 步骤 + PR 模板 checkbox
-2. **步骤 11**：PR3b 合入（步骤 10 的内容）
-3. **步骤 12 文档联动**：`docs/README.md` 索引行、`docs/dev/im-gateway-inhouse.md:275` E2 条目更新、CHANGELOG、epic/子 issue 状态
-4. **成片清单（owner 侧）**：录屏 → 配音 → 合成 → 横竖屏分发 → 回填 README/官网/Hangar+Modrinth 描述 → 标注适用版本 → 关闭子 issue
-5. **后续分集**：EP2–EP25 按一集一卡推进（步骤 4 SOP：`_template/episode.yml` → `make.sh epNN --all` → PR）
+1. **成片清单（owner 侧）**：按 `videos/checklist-recording.md` 录屏（EP0/EP1）→ 配音（可用 `tts-preview.sh` 样音或真人）→ 合成（对齐 `.build/<epNN>/*.srt`）→ 横竖屏分发 → 在 `videos/status.md` 回填成片链接与适用版本 → 关闭子 issue
+2. **后续分集 EP2–EP25**：一集一卡（新增 `videos/episodes/epNN-*.yml` → `make.sh epNN --all` 自检 → PR），优先 P0：EP3 白名单 / EP7 四级权限 / EP8 审核闭环 / EP15 传送门 / EP20 备份 / EP22 运行时配置 / EP25 快速上手
+3. **发版联动**：每次 tag 发版后跑 `videos/tools/affected-episodes.py --since <上一 tag>`，把「本版影响的集数」附到 epic #481 评论
 
 ## 环境事实（避免重复考古）
 
@@ -59,8 +58,9 @@
 
 ## 下一棒开场指令
 
-> 读本文件（`docs/dev/video-series-handoff.md`）与 `videos/README.md`，从**步骤 10（CI 门禁与流程挂点）**开始：
-> 写 `VideoScriptConsistencyTest`（snakeyaml 校验预算/facts/锚点/coverage 双向完整/敏感信息/零产物）、
-> `build.yml` 加非阻塞 `video impact` 步骤、`PULL_REQUEST_TEMPLATE.md` 加视频影响 checkbox，
-> 再做步骤 12（`docs/README.md` 索引 + `docs/dev/im-gateway-inhouse.md:275` E2 + CHANGELOG + epic/子 issue 状态）。
-> 每个 PR 完成后更新本文件的「已完成 / 进行中卡」；提交前 `./gradlew spotlessApply && ./gradlew test` 全绿；PR base=`develop`，CI 绿后 squash。
+> 读本文件（`docs/dev/video-series-handoff.md`）与 `videos/README.md`，**从 EP2 卡片开始**：
+> 在 epic #481 下建/取 EP2 子 issue → 从 `origin/develop` 拉 `feat/video-ep02` 分支 → 复制 `videos/_template/episode.yml`
+> 为 `videos/episodes/ep02-im-channels.yml`（痛点 → 两通道对比 → 绑定与验证 → 选型建议 → 要点卡，≤150s）→
+> `videos/tools/make.sh ep02 --all` 与 `verify.sh` 自检 → PR（base=`develop`）→ CI 绿后 squash。
+> 若本次是功能改动收尾：先跑 `videos/tools/affected-episodes.py --base origin/main --update-status` 看是否有集需更新。
+> 每个 PR 完成后更新本文件的「已完成 / 进行中卡」；提交前 `./gradlew spotlessApply && ./gradlew test` 全绿。

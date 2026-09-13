@@ -51,6 +51,18 @@ jobs:
       - name: unit tests
         run: ./gradlew test --stacktrace
 
+      # 视频分集影响评估（非阻塞）：功能改动 → 受影响集与 L1/L2/L3 等级，仅提示，不拦 PR
+      # 唯一阻塞项是 VideoScriptConsistencyTest（预算/事实锚点/映射完整/零产物/隐私）
+      - name: video impact（分集影响评估，非阻塞）
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check pyyaml || true
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git fetch --quiet --depth=100 origin "$BASE_SHA" || true
+          echo "### 视频分集影响（videos/tools/affected-episodes.py）" >> "$GITHUB_STEP_SUMMARY"
+          python3 videos/tools/affected-episodes.py --base "$BASE_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: integration tests
         run: ./gradlew integrationTest --stacktrace
 
