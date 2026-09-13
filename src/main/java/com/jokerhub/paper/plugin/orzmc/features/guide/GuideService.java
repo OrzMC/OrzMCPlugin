@@ -2,107 +2,64 @@ package com.jokerhub.paper.plugin.orzmc.features.guide;
 
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.GuideBookConfigParser;
-import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.ContentItem;
+import com.jokerhub.paper.plugin.orzmc.infra.guidebook.GuideBookRenderer;
 import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.GuideBookConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.LinkContent;
-import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.TextContent;
-import com.jokerhub.paper.plugin.orzmc.infra.guidebook.models.TextStyle;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nService;
 import com.jokerhub.paper.plugin.orzmc.infra.i18n.MessageKeys;
 import com.jokerhub.paper.plugin.orzmc.infra.server.OrzUtil;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.UUID;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.format.Style;
-import net.kyori.adventure.text.format.TextColor;
-import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.BookMeta;
 
+/**
+ * 新手指南书：首次进服发放 + {@code /guide} 打开。
+ *
+ * <p>配置解析结果**进程内缓存**（{@link #invalidate()} 由 {@code /orzmc config reload} 触发失效），
+ * 取代旧实现「每次发放/每次打开都重新读盘 + 全量 YAML 解析」的路径；解析告警与渲染告警统一走插件日志。</p>
+ */
 public final class GuideService {
     private final ServerFacade server;
     private final ConfigService configService;
+    private final GuideBookConfigParser parser;
+    private final GuideBookRenderer renderer;
     private final OrzTextStyles styles;
     private final I18nService i18n;
+
+    private final Object cacheLock = new Object();
+    private volatile GuideBookConfig cachedConfig;
 
     public GuideService(ServerFacade server, ConfigService configService, OrzTextStyles styles, I18nService i18n) {
         this.server = server;
         this.configService = configService;
         this.styles = styles;
         this.i18n = i18n;
+        this.parser = new GuideBookConfigParser();
+        this.renderer =
+                new GuideBookRenderer(warning -> server.plugin().getLogger().warning(warning));
     }
 
+    /** 解析并缓存 guide_book.yml；配置改动后由 {@code /orzmc config reload} 调用。 */
+    public void reload() {
+        synchronized (cacheLock) {
+            cachedConfig = load();
+        }
+    }
+
+    /** 丢弃缓存，下次使用时重新解析（热重载回调入口）。 */
+    public void invalidate() {
+        cachedConfig = null;
+    }
+
+    /** 构建成书；未启用或无内容时返回 {@code null}（调用方提示「服主未配置新手指南」）。 */
     public ItemStack buildGuideBook() {
-        GuideBookConfigParser parser = new GuideBookConfigParser(server.plugin(), configService);
-        GuideBookConfig cfg = parser.parseConfig();
-        if (cfg == null || !cfg.enable()) return null;
-        ItemStack guideBook = new ItemStack(Material.WRITTEN_BOOK);
-        BookMeta bookMeta = (BookMeta) guideBook.getItemMeta();
-        bookMeta.setTitle(cfg.title());
-        bookMeta.setAuthor(cfg.author());
-        bookMeta.setGeneration(BookMeta.Generation.COPY_OF_COPY);
-        ArrayList<TextComponent> pages = new ArrayList<>();
-        TextComponent.Builder pageBuilder = Component.text();
-        for (ContentItem item : cfg.content()) {
-            TextComponent.Builder t = Component.text();
-            if (item.isText()) {
-                TextContent textItem = item.getText();
-                if (!textItem.content().isEmpty()) {
-                    t.append(Component.text(textItem.content()));
-                }
-            } else if (item.isLink()) {
-                LinkContent linkItem = item.getLink();
-                TextComponent.Builder linkTextBuilder = Component.text();
-                if (!linkItem.content().isEmpty()) {
-                    linkTextBuilder.append(Component.text(linkItem.content()));
-                }
-                if (!linkItem.url().isEmpty()) {
-                    Style defaultLinkStyle = Style.style()
-                            .color(TextColor.fromCSSHexString("#5555FF"))
-                            .build();
-                    linkTextBuilder.style(defaultLinkStyle);
-                    linkTextBuilder.clickEvent(ClickEvent.openUrl(linkItem.url()));
-                    linkTextBuilder.hoverEvent(HoverEvent.showText(Component.text(linkItem.hoverText())));
-                }
-                t.append(linkTextBuilder.build());
-            }
-            if (item.getStyle() != null) {
-                TextStyle style = item.getStyle();
-                if (style.getBold()) {
-                    t.decorate(TextDecoration.BOLD);
-                }
-                if (style.getUnderlined()) {
-                    t.decorate(TextDecoration.UNDERLINED);
-                }
-                if (!style.getColor().isEmpty()) {
-                    TextColor textColor = TextColor.fromCSSHexString(style.getColor());
-                    t.color(textColor);
-                }
-            }
-            Collections.nCopies(item.getNewlineCount(), Component.newline()).forEach(t::append);
-            TextComponent textComponent = t.build();
-            pageBuilder.append(textComponent);
-            if (item.getPageBreak()) {
-                pages.add(pageBuilder.build());
-                pageBuilder = Component.text();
-            }
+        GuideBookConfig config = currentConfig();
+        if (config == null || !config.enable() || !config.hasContent()) {
+            return null;
         }
-        TextComponent last = pageBuilder.build();
-        if (!last.children().isEmpty()) {
-            pages.add(last);
-        }
-        bookMeta.addPages(pages.toArray(new TextComponent[0]));
-        guideBook.setItemMeta(bookMeta);
-        return guideBook;
+        return renderer.render(config);
     }
 
     public void openGuide(Player player) {
@@ -126,5 +83,26 @@ public final class GuideService {
                 player.sendMessage(OrzUtil.successText(styles, i18n.msg(i18n.langFor(player), MessageKeys.GUIDE_GOT)));
             }
         }
+    }
+
+    private GuideBookConfig currentConfig() {
+        GuideBookConfig snapshot = cachedConfig;
+        if (snapshot != null) {
+            return snapshot;
+        }
+        synchronized (cacheLock) {
+            if (cachedConfig == null) {
+                cachedConfig = load();
+            }
+            return cachedConfig;
+        }
+    }
+
+    private GuideBookConfig load() {
+        GuideBookConfigParser.ParseResult result = parser.parse(configService.getConfig("guide_book"));
+        for (String issue : result.issues()) {
+            server.plugin().getLogger().warning("guide_book.yml: " + issue);
+        }
+        return result.config();
     }
 }

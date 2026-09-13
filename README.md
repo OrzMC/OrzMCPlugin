@@ -36,7 +36,7 @@ A Paper server management plugin that unifies QQ, Telegram, Discord, Feishu and 
 | World maintenance | One-click world backup or optimization with real-time progress reports; the server list MOTD switches automatically during maintenance. |
 | Plugin self-update | Periodically checks Hangar for a new version (release / beta channel), verifies the sha256 and auto-downloads into `plugins/update/` — a server restart completes the upgrade. Admins can also run `/update check` to query and `/update now` to download manually. |
 | Player notifications | Push join/quit/kick details (world, coordinates, online count, permission group) to the group chat; the online list shows each player's game mode and rank group. |
-| Guide book | First-join players automatically receive a guide book; content is YAML-configurable so server owners can tailor the onboarding. |
+| Guide book | First-join players automatically receive a guide book. Content uses a minimal YAML format (one line = one sentence, one page = one list, `**bold**` / `[text](url)` markup); edits apply after `/orzmc config reload` ([3-minute guide](docs/guide-book.md), Chinese). |
 | Runtime configuration | Manage 29 configuration options in-game with `/config`; changes hot-reload without restarting the server. |
 | OrzMC menu | Open an in-game feature menu with quick access to every operation (in development). |
 

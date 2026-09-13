@@ -35,6 +35,8 @@ public class OrzConfigCommand implements CommandExecutor {
     private Runnable commandPoliciesReload = () -> {};
     /** 数据目录 i18n 覆盖层（messages_custom_<lang>.yml）改动后的回调（组合根注入）。 */
     private Runnable i18nCustomReload = () -> {};
+    /** guide_book.yml 改动后的回调（组合根注入）：使 GuideService 解析缓存失效，即改即生效。 */
+    private Runnable guideBookReload = () -> {};
 
     public OrzConfigCommand(ConfigService configService, OrzTextStyles textStyles) {
         this(configService, textStyles, () -> {}, null);
@@ -95,6 +97,14 @@ public class OrzConfigCommand implements CommandExecutor {
      */
     public void setI18nCustomReload(Runnable i18nCustomReload) {
         this.i18nCustomReload = i18nCustomReload == null ? () -> {} : i18nCustomReload;
+    }
+
+    /**
+     * 注册 guide_book 配置改动后的回调（组合根注入：{@code /orzmc config reload} 后丢弃
+     * {@code GuideService} 的解析缓存，手动编辑 guide_book.yml 即改即生效，无需重启）。
+     */
+    public void setGuideBookReload(Runnable guideBookReload) {
+        this.guideBookReload = guideBookReload == null ? () -> {} : guideBookReload;
     }
 
     @Override
@@ -256,6 +266,7 @@ public class OrzConfigCommand implements CommandExecutor {
             accessRulesReload.run();
             commandPoliciesReload.run();
             i18nCustomReload.run();
+            guideBookReload.run();
             sender.sendMessage(textStyles.success(t(MessageKeys.CMD_CONFIG_RELOAD_ALL_OK)));
         }
     }
@@ -280,6 +291,8 @@ public class OrzConfigCommand implements CommandExecutor {
             commandPoliciesReload.run();
         } else if ("access_rules".equalsIgnoreCase(configName)) {
             accessRulesReload.run();
+        } else if ("guide_book".equalsIgnoreCase(configName)) {
+            guideBookReload.run();
         }
     }
 

@@ -420,6 +420,9 @@ public final class FeatureModule implements ServiceModule {
         // i18n 覆盖层运行时改动（/orzmc config reload）→ 重读数据目录 messages_custom_<lang>.yml，
         // 手动编辑即改即生效（无需重启）
         orzConfigCommand.setI18nCustomReload(platform.i18nService()::reloadCustom);
+        // guide_book.yml 运行时改动（/orzmc config reload）→ 丢弃解析缓存，手册编辑即改即生效
+        // （GuideService 惰性重解析，热路径不再每次 /guide、每个新玩家进服都读盘）
+        orzConfigCommand.setGuideBookReload(guideService::invalidate);
     }
 
     // --- Command Registration ---

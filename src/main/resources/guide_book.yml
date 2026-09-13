@@ -1,29 +1,46 @@
 # ==================================================
 #                   Guide Book 内容配置
 # ==================================================
+#
+# 【3 分钟上手】一行 = 一句话；一页 = 一个列表；改完执行 /orzmc config reload 后 /guide 立即生效。
+#
+#   pages:                     # 想翻页就再起一个 "- " 列表
+#     -                        # ← 一页
+#       - 第一行文字            #    普通文字（段后自动空一行）
+#       - ""                   #    空一行
+#       - "**加粗标题**"        #    **…** 加粗
+#       - "<u>下划线文字</u>"   #    <u>…</u> 下划线（可与 ** 叠加）
+#       - "[文字](https://地址 '悬停提示')"   # 链接；悬停提示可省略
+#     -                        # ← 第二页
+#       - 第二页的文字……
+#
+# 【全写法】需要颜色或更精细控制时用这种写法（简写 / 全写法可混用）：
+#     - text: 文字
+#       bold: true
+#       underlined: false
+#       color: "AQUA"         # 命名色（red / AQUA / gold …）或 #RRGGBB
+#       newline_count: 2      # 这段后面空几行（默认 1；0 = 与下一行紧贴）
+#     - link: 服务器主页
+#       url: https://orzmc.jokerhub.cn
+#       hover: 点击前往主页
+#
+# 【常见错误】标记不成对（如只写 <u> 忘了 </u>）→ 该行按普通文字渲染并在日志告警；
+#             链接括号不完整（如 [文字](地址）→ 该行按普通文字渲染并告警；
+#             颜色非法 → 忽略颜色并告警。以上都不会丢内容、也不会导致 /guide 报错。
+#
+# 【旧格式】content: 旧写法仍然可读；插件启动时会自动迁移为本格式，
+#           原文件备份为 guide_book.yml.bak（迁移只在首次、失败则保留原文件）。
+
+enable: true
 title: '新手指南'
 author: '腐竹'
-content:
-  - text:
-      content: '欢迎新朋友来到我的世界！'
-      newline_count: 2
-  - text:
-      content: '服务器中一些热爱创造的小伙伴在这里花费了大量心力建造出了各种漂亮的建筑，希望刚加入的朋友不要随意对其进行破坏，尊重他人的劳动成果。做一个有素质的MC玩家!'
-      newline_count: 2
-  - text:
-      content: '相关链接'
-      style:
-        bold: true
-  - link:
-      content: '服务器主页'
-      url: 'https://orzmc.jokerhub.cn'
-      hover_text: '点击前往主页'
-  - link:
-      content: '玩家手册'
-      url: 'https://orzmc.jokerhub.cn/user/'
-      hover_text: '点击查看玩家手册'
-  - link:
-      content: MC插件使用百科书
-      url: 'https://mineplugin.org/'
-      hover_text: 点击跳转插件百科
-      page_break: true
+pages:
+  - # ===== 第 1 页 =====
+    - 欢迎新朋友来到我的世界！
+    - 服务器中一些热爱创造的小伙伴在这里花费了大量心力建造出了各种漂亮的建筑，希望刚加入的朋友不要随意对其进行破坏，尊重他人的劳动成果。做一个有素质的MC玩家!
+    - ""
+    - '**相关链接**'
+    - "[服务器主页](https://orzmc.jokerhub.cn '点击前往主页')"
+    - "[玩家手册](https://orzmc.jokerhub.cn/user/ '点击查看玩家手册')"
+  - # ===== 第 2 页 =====
+    - "[MC插件使用百科书](https://mineplugin.org/ '点击跳转插件百科')"
