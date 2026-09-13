@@ -1,0 +1,36 @@
+# OrzMC 视频品牌 token（全系列共用）
+# 工具与卡片脚本只从这里取值，改品牌 = 改这一个文件 + 重跑 make.sh（产物可重生成，不入库）。
+# 色值沿用原宣传稿的视觉风格规范，保证系列观感一致。
+
+palette:
+  primary: "#4FC3F7"            # 主色（浅蓝）
+  primary_dark: "#0288D1"       # 主色（深蓝）
+  accent: "#FFD54F"             # 强调色（琥珀黄，高亮）
+  danger: "#EF5350"             # 警告色（TNT / GeoIP 阻断）
+  success: "#66BB6A"            # 成功色（操作成功）
+  text: "#FFFFFF"
+  text_muted: "#B0BEC5"
+  card_bg: "rgba(255,255,255,0.60)"    # 毛玻璃信息卡：白 60% 底 + blur(12px)
+  overlay_bg: "rgba(16,20,24,0.72)"    # 字幕底（半透明黑）
+
+fonts:
+  # 按顺序降级；仅使用系统字体，不把字体文件入库（避免版权与体积问题）
+  subtitle_zh: ["PingFang SC", "Hiragino Sans GB", "Noto Sans SC"]
+  code: ["JetBrains Mono", "Menlo", "Monaco"]
+  missing_font_policy: 降级并在生成日志中告警（不中断生成）
+
+canvas:
+  landscape: [1920, 1080]       # 16:9 主片（B站 / YouTube / 官网 / Hangar+Modrinth）
+  portrait: [1080, 1920]        # 9:16 切片（抖音 / 视频号 / QQ 频道，≤60s）
+  fps: 60
+  safe_area_note: 竖屏上下各留 12% 安全区（避开平台 UI），字幕避开底部 15%
+
+ui:
+  corner_radius_px: 8
+  highlight: 黄色半透明底 + 左侧 3px 实线标注条
+  watermark: { text: "OrzMC", position: bottom_right, opacity: 0.15 }
+
+publish:
+  naming: "EP{nn}-{slug}-v{version}"        # 例：EP01-群指令-v1.0.28
+  description_rule: 简介与置顶评论必须注明「以 docs/ 文档为唯一事实源」+ 适用版本
+  reissue_policy: 重制发新版并保留旧版（标注「旧版」），不覆盖、不删号

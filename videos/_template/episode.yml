@@ -1,0 +1,68 @@
+# OrzMC 视频分集源模板（唯一事实源）
+#
+# 用法：复制为 videos/episodes/epNN-<slug>.yml 后填写；所有派生物由 videos/tools/make.sh 生成到 videos/.build/<id>/，
+#       SRT/卡片/音频/成片一律不入库（见 videos/README.md「仓库策略」）。
+#
+# 硬约束（CI 门禁校验）：单集 ≤180s（EP0 ≤90s）；口播 ≈ 时长 × 4.5 字/秒 × 0.85；
+#   信息点 ≤3；镜头 ≤10；字幕单行 ≤18 字、单句 ≤6s；facts 与 documentation_anchors 必须真实存在；不得出现真实 IP/QQ 号/会话 key/Token。
+
+meta:
+  id: ep00                      # 集号（ep00–ep25），决定产物目录名
+  slug: promo                   # 短名，产物前缀
+  title: 宣传短片
+  baseline_version: "1.0.28"    # 编制基线版本；功能迭代后据此判断「哪几集过期」
+  priority: P0                  # P0 / P1 / P2
+  audience: 服主与潜在用户
+  prerequisites:                # 讲解前提（录屏环境须满足）
+    - Paper 26.2 + OrzMC ≥ 1.0.28
+    - QQ 群机器人已绑定（管理群）
+  fallback_on_missing_assets: 用卡片占位并在看板标注「待录屏」
+
+budget:
+  duration_cap_s: 90            # 硬上限（EP0 ≤90；功能集 ≤180）
+  target_duration_s: 75
+  narration_chars: 290          # ≈ target × 4.5 × 0.85（允许 ±10%）
+  max_information_points: 3
+  max_shots: 10
+  speaking_rate_range: [4.0, 5.0]   # 字/秒
+
+documentation_anchors:          # 讲解依据的权威文档（CI 校验 §x.y 真实存在）
+  - features.md §2.2
+  - features.md §15
+
+facts:                          # 讲解涉及的实现事实（CI 校验真实存在）
+  commands: ["$l", "$w", "$a", "$r"]
+  config_keys: ["bot.cmd_prompt_char", "im.yml:backend"]
+  template_keys: []
+
+shots:
+  - id: 1
+    duration_s: 8
+    kind: card                  # card | group_chat | ingame | terminal | overlay
+    asset: ep00_01_open.png     # 卡片由脚本生成；录屏按 epNN_MM_topic.mp4 命名（单镜可独立重录）
+    visual: 开场卡：Logo + 标语，控制台日志滚动作半透明背景
+    narration: 不用开面板、不用记命令——在群里就能管好你的服务器。
+    subtitle: 群里一条消息，就能管服
+    overlay: 右下角水印；标题淡入
+    transition: 淡入
+    music: bgm_intro（0.5s 渐入）
+  - id: 2
+    duration_s: 22
+    kind: group_chat
+    asset: ep00_02_group_cmds.mp4
+    visual: QQ 群录屏：$l 在线 → $a 加白 → $r 移除（敏感信息已遮蔽）
+    narration: 白名单、踢人、备份、执行控制台命令，群聊里发一条消息就完成，结果原样回到群里。
+    subtitle: $a / $r / $l：群聊即运维台
+    overlay: 命令高亮（黄色半透明底 + 左侧 3px 标注条）
+    transition: 交叉溶解
+    music: bgm_main
+
+aspect_variants:                # 竖屏切片（9:16 ≤60s，用于抖音/视频号/QQ 频道）
+  enabled: true
+  duration_cap_s: 45
+  shot_ids: [2]                 # 取该集最强的一个操作
+  note: 字幕字号 ≥48px、单行 ≤10 字；按安全框构图
+
+notes: |
+  - 录制要求见 videos/checklist-recording.md（OBS 1920×1080/60fps、光标放大、敏感信息遮蔽）。
+  - 成片命名带版本：EP00-宣传-v1.0.28；重制后发新版，旧版标注「旧版」。
