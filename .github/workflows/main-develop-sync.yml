@@ -95,11 +95,15 @@ jobs:
           echo "$preflight"
           verdict="$(printf '%s\n' "$preflight" | sed -n 's/^VERDICT=//p' | head -1)"
 
+          # 注意：`manual` 分支含 `*` 兜底，必须排在 `ok` 之后，否则 ok 永远落进兜底（2026-09-13 实测：
+          # preflight 输出 VERDICT=ok 仍走"要求人工处理"并 exit 1，同步 PR 建不出来）。
           case "${verdict:-manual}" in
             skip)
               echo "预检：无需同步（空转）→ 不推送、不建 PR"
               close_stale_sync_pr "预检判定为空转（sync-content 与 develop 树相同）"
               exit 0 ;;
+            ok)
+              echo "预检通过（$rc）：有净内容、无删除、无冲突" ;;
             manual|*)
               echo "⚠️ 预检要求人工处理（退出码 $rc）：不开 auto-merge"
               # 若已有同步 PR，先撤 auto-merge 并留言，避免陈旧分支被自动合入
@@ -112,8 +116,6 @@ jobs:
                 gh pr comment "$n" --repo "$GITHUB_REPOSITORY" --body "$body" || true
               fi
               exit 1 ;;
-            ok)
-              echo "预检通过：有净内容、无删除、无冲突" ;;
           esac
 
           echo "sync-content 领先 develop，推送并开同步 PR"
