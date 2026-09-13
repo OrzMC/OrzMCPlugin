@@ -153,7 +153,11 @@ public final class QqSender {
             throw new IllegalArgumentException("text must not be blank");
         }
         String url = apiBase + path;
-        int msgSeq = nextReplySeq(path, replyMsgId, group);
+        // 被动回复计划：配额内带 msg_id+递增 msg_seq；配额用尽则降级为主动消息（不带 msg_id）——
+        // 保证分页列表/长文分段/多条回复等「一次入站发多条」的流程不会因官方次数上限（群 5 / 单聊 4）丢内容。
+        ReplyPlan plan = planReply(path, replyMsgId, group);
+        int msgSeq = plan.msgSeq();
+        String effectiveReplyId = plan.replyMsgId();
         // token 获取卸载到 IM 专用线程池：tokens.fresh() 在临期/过期时会同步换发 token（阻塞 HTTP ≤15s），
         // 而本方法常由服务器线程调用（通知/命令回复）——不能在调用线程等网络（R12）。
         return CompletableFuture.supplyAsync(tokens::fresh, ImWorkerPool.executor())
@@ -162,7 +166,7 @@ public final class QqSender {
                         log.warning("[qq] 发送无可用 access_token，丢弃: " + path);
                         return CompletableFuture.completedFuture(Outcome.FAILED);
                     }
-                    return postWithConnectRetry(url, firstToken, text, replyMsgId, msgSeq, path)
+                    return postWithConnectRetry(url, firstToken, text, effectiveReplyId, msgSeq, path)
                             .thenCompose(resp -> {
                                 String body = resp.body() == null ? "" : resp.body();
                                 if (is2xx(resp)) {
@@ -176,47 +180,53 @@ public final class QqSender {
                                         return CompletableFuture.completedFuture(Outcome.FAILED);
                                     }
                                     log.info("[qq] token 失效已重换，重试一次投递: " + path);
-                                    return postWithConnectRetry(url, freshToken, text, replyMsgId, msgSeq, path)
-                                            .handle((resp2, ex) -> {
-                                                if (ex != null) {
-                                                    Throwable cause = unwrap(ex);
-                                                    if (isUnknownOutcome(cause)) {
-                                                        log.warning(
-                                                                "[qq] 投递响应超时（结果未知：平台可能已投递，未重试）: " + path + " " + cause);
-                                                        return Outcome.UNKNOWN;
-                                                    }
-                                                    log.warning("[qq] token 重试仍失败（"
-                                                            + cause.getClass().getSimpleName() + "）: " + path + " "
-                                                            + cause);
-                                                    return Outcome.FAILED;
-                                                }
-                                                if (!is2xx(resp2)) {
-                                                    log.warning(
-                                                            "[qq] 重试仍失败（HTTP " + resp2.statusCode() + "），丢弃: " + path);
-                                                    return Outcome.FAILED;
-                                                }
-                                                return Outcome.SENT;
-                                            });
+                                    return postWithConnectRetry(url, freshToken, text, effectiveReplyId, msgSeq, path)
+                                            .handle((resp2, ex) -> ex != null
+                                                    ? classifyThrowable(ex, path)
+                                                    : classifyResponse(resp2, path));
+                                }
+                                if (plan.passive() && QqApiClient.isPassiveReplyLimit(resp.statusCode(), body)) {
+                                    // 被动通道被平台拒（次数超限/5 分钟窗口过期；平台未投递）→ 改主动消息重投一次，内容不丢
+                                    log.info("[qq] 被动回复被平台拒绝（40034128：次数或时间超限），改用主动消息重投一次: " + path);
+                                    return postWithConnectRetry(url, firstToken, text, null, 0, path)
+                                            .handle((resp2, ex) -> ex != null
+                                                    ? classifyThrowable(ex, path)
+                                                    : classifyResponse(resp2, path));
                                 }
                                 log.warning(
                                         "[qq] 投递失败（HTTP " + resp.statusCode() + "，不重试）: " + path + " " + clip(body));
                                 return CompletableFuture.completedFuture(Outcome.FAILED);
                             })
-                            .exceptionally(ex -> {
-                                Throwable cause = unwrap(ex);
-                                if (isConnectPhaseFailure(cause)) {
-                                    log.warning("[qq] 投递失败（连接阶段异常，已重试一次）: " + path + " " + cause);
-                                    return Outcome.FAILED;
-                                }
-                                if (isUnknownOutcome(cause)) {
-                                    // 请求已发出但无响应（或总预算耗尽）：结果未知（线下实测平台多半已投递），禁止重试以免重复通知
-                                    log.warning("[qq] 投递响应超时（结果未知：平台可能已投递，未重试）: " + path + " " + cause);
-                                    return Outcome.UNKNOWN;
-                                }
-                                log.warning("[qq] 投递网络异常（不重试）: " + path + " " + cause);
-                                return Outcome.FAILED;
-                            });
+                            .exceptionally(ex -> classifyThrowable(ex, path));
                 });
+    }
+
+    /**
+     * 非 2xx 响应的统一分类（令牌问题已在外层处理；此处只区分成功/确定失败）。
+     */
+    private Outcome classifyResponse(HttpResponse<String> resp, String path) {
+        if (is2xx(resp)) {
+            return Outcome.SENT;
+        }
+        String body = resp.body() == null ? "" : resp.body();
+        log.warning("[qq] 投递失败（HTTP " + resp.statusCode() + "，不重试）: " + path + " " + clip(body));
+        return Outcome.FAILED;
+    }
+
+    /** 异常的统一分类：连接阶段（确定未发出）/ 请求阶段超时（结果未知）/ 其他网络异常。 */
+    private Outcome classifyThrowable(Throwable ex, String path) {
+        Throwable cause = unwrap(ex);
+        if (isConnectPhaseFailure(cause)) {
+            log.warning("[qq] 投递失败（连接阶段异常，已重试一次）: " + path + " " + cause);
+            return Outcome.FAILED;
+        }
+        if (isUnknownOutcome(cause)) {
+            // 请求已发出但无响应（或总预算耗尽）：结果未知（线下实测平台多半已投递），禁止重试以免重复通知
+            log.warning("[qq] 投递响应超时（结果未知：平台可能已投递，未重试）: " + path + " " + cause);
+            return Outcome.UNKNOWN;
+        }
+        log.warning("[qq] 投递网络异常（不重试）: " + path + " " + cause);
+        return Outcome.FAILED;
     }
 
     /**
@@ -297,10 +307,40 @@ public final class QqSender {
     }
 
     /**
+     * 被动回复配额计划：配额内用 msg_id + 递增 msg_seq；配额用尽则降级为主动消息（msg_id/msg_seq 均省略）。
+     *
+     * <p>降级是「内容不丢」的关键：一次入站消息产生的多条回复（列表分页、长文分段、提示+正文组合等）
+     * 超过官方上限（群 5 / 单聊 4）时，平台会对后续被动回复返回 40034128（“被动回复时间或者次数超过限制”）；
+     * 改走主动通道即可全部送达（主动消息自带频控，见官方「主动消息频率限制」）。</p>
+     */
+    record ReplyPlan(String replyMsgId, int msgSeq) {
+        /** 本次是否走被动通道（false = 已降级为主动消息）。 */
+        boolean passive() {
+            return replyMsgId != null && !replyMsgId.isBlank();
+        }
+    }
+
+    /** 计算本次发送的回复计划（内部递增被动计数；超限时降级为主动消息）。 */
+    ReplyPlan planReply(String path, String replyMsgId, boolean group) {
+        if (replyMsgId == null || replyMsgId.isBlank()) {
+            return new ReplyPlan(null, 0);
+        }
+        int seq = nextReplySeq(path, replyMsgId, group);
+        if (seq > passiveLimit(group)) {
+            return new ReplyPlan(null, 0); // 降级：主动消息（不带 msg_id/msg_seq）
+        }
+        return new ReplyPlan(replyMsgId, seq);
+    }
+
+    private static int passiveLimit(boolean group) {
+        return group ? PASSIVE_REPLY_LIMIT_GROUP : PASSIVE_REPLY_LIMIT_C2C;
+    }
+
+    /**
      * 下一条被动回复序号（1 起）：同一入站消息的多条回复必须递增 {@code msg_seq}，否则第 2 条起被平台判重（40054005）。
      *
-     * <p>主动消息（无 msg_id）恒返回 0（不写字段）。超过官方次数上限（群 5 / 单聊 4）时打 WARN：平台会返回 40034128，
-     * 常见于列表页数过多——提示改用单页合并/截断，而非静默丢失。</p>
+     * <p>主动消息（无 msg_id）恒返回 0（不写字段）。超过官方次数上限（群 5 / 单聊 4）时<strong>只在该 msg_id 首次越限时
+     * WARN 一次</strong>（避免分页列表刷屏；AGENTS「高频事件必须节流」），调用方据此降级为主动消息。</p>
      */
     int nextReplySeq(String path, String replyMsgId, boolean group) {
         if (replyMsgId == null || replyMsgId.isBlank()) {
@@ -310,10 +350,10 @@ public final class QqSender {
             replySeq.clear(); // 防无界（msg_id 窗口仅 5 分钟，条目极小）
         }
         int seq = replySeq.computeIfAbsent(replyMsgId, k -> new AtomicInteger()).incrementAndGet();
-        int limit = group ? PASSIVE_REPLY_LIMIT_GROUP : PASSIVE_REPLY_LIMIT_C2C;
-        if (seq > limit) {
-            log.warning("[qq] 被动回复次数已超官方上限（第 " + seq + " 条 / 上限 " + limit + "，msg_id=" + replyMsgId
-                    + "），平台将返回 40034128：请缩减单次回复条数（如合并列表分页），path=" + path);
+        int limit = passiveLimit(group);
+        if (seq == limit + 1) {
+            log.warning("[qq] 被动回复次数已达官方上限（上限 " + limit + " 条，msg_id=" + replyMsgId
+                    + "）：后续回复已自动改用主动消息发送（被动超限平台返回 40034128），path=" + path);
         }
         return seq;
     }
