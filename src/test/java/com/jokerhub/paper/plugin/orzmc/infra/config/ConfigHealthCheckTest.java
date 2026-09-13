@@ -20,6 +20,9 @@ class ConfigHealthCheckTest {
     private YamlConfiguration easybot;
     private YamlConfiguration accessRules;
     private final YamlConfiguration im = new YamlConfiguration();
+    /** guide_book.yml 为运行时数据文件：give it a minimal valid v2 config so unrelated cases stay issue-free. */
+    private final YamlConfiguration guideBook = new YamlConfiguration();
+
     private Function<String, FileConfiguration> provider;
 
     @BeforeEach
@@ -30,6 +33,7 @@ class ConfigHealthCheckTest {
         portals = new YamlConfiguration();
         easybot = new YamlConfiguration();
         accessRules = new YamlConfiguration();
+        guideBook.set("pages", List.of(List.of("欢迎")));
         provider = name -> switch (name) {
             case "config" -> config;
             case "bot" -> bot;
@@ -38,6 +42,7 @@ class ConfigHealthCheckTest {
             case "easybot" -> easybot;
             case "access_rules" -> accessRules;
             case "im" -> im;
+            case "guide_book" -> guideBook;
             default -> null;
         };
     }
@@ -1435,5 +1440,33 @@ class ConfigHealthCheckTest {
         proxy.set("host", "127.0.0.1");
         proxy.set("port", 99999);
         assertIssue("proxy.port");
+    }
+
+    // ================================================================
+    // guide_book（运行时数据文件：类型 + 解析器同口径上报）
+    // ================================================================
+
+    @Test
+    void guideBook_invalidTypesAndMarkup_reportIssuesWithLocation() {
+        guideBook.set("enable", "yes");
+        guideBook.set("title", 42);
+        guideBook.set("pages", List.of(List.of("**未闭合")));
+
+        List<String> issues = runValidate();
+
+        assertTrue(issues.contains("类型错误: guide_book.enable 需为布尔值"), "实际问题: " + issues);
+        assertTrue(issues.contains("类型错误: guide_book.title 需为字符串"), "实际问题: " + issues);
+        assertTrue(
+                issues.stream().anyMatch(i -> i.startsWith("guide_book.yml: 第 1 页第 1 行")),
+                "解析器 issue 应带页号/行号: " + issues);
+    }
+
+    @Test
+    void guideBook_validConfig_reportsNothing() {
+        guideBook.set("pages", List.of(List.of("**标题**", "[链接](https://example.com)")));
+
+        List<String> issues = runValidate();
+
+        assertFalse(issues.stream().anyMatch(i -> i.startsWith("guide_book")), "实际问题: " + issues);
     }
 }
