@@ -9,6 +9,11 @@
 >
 > 2026-09-03：全量复核（对照 HEAD `f7d09ea`）——A1/A2/A3/A4/A6/A8/A9/A10/A11/A12/A13/A14/A15/A16/N1/Q3/Q4/Q5 已随历次重构闭环（见 §2.3 表下注）；**A5**（架构决策待定）与 **A7**（产品行为待确认）暂不执行；A17/Q1/Q2/N2 保持开放。
 >
+> 2026-09-16：#127（guide_book 实现方式优化）落地——配置格式 v2（`pages` + 行记号，`docs/guide-book.md`）、
+> 解析/渲染分层（GuideBookConfigParser / GuideLineMarkup / GuideBookRenderer）与解析缓存热重载、
+> 旧 `content:` 格式启动自动迁移（`GuideBookMigrator`：备份 + 回读校验 + 幂等）、guide_book 段健康校验、
+> 文档一致性测试（手册示例 / 内置模板 / 迁移注释三者受 CI 约束）；guidebook 包行覆盖 60.8% → 91%。
+>
 > 2026-09-03（晚）：AI 智能体组织化改造落地（对照 HEAD `a4ef4b7`）——**P0** 全树补 22 个 package-info（#247）；**P1a** CommandPermissionService 下沉 features/command/binding 破除 command↔security 双向 import（#248）；**P1b** architecture.md 增「AI 智能体编辑路径」表（#249）；**P2** ConfigHealthCheck 11 个 config.yml 段校验随 schema 下沉至对应 config record（#250/#251，630→406 行，仅剩 easybot/portals/templates/access_rules 整文件校验与编排）。
 
 ---

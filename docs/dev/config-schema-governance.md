@@ -6,6 +6,15 @@
 > 运行时读写，**不存在「升级补默认」语义，永不纳入自动迁移**——改动它们必须走代码内专门迁移，禁止加入
 > `ConfigSchema.SCHEMA_FILES`。
 
+**运行时数据文件的格式升级（先例）**：`guide_book.yml` 从 v1 `content:` 升级到 v2 `pages:` 时，
+未走 ConfigSchema，而是代码内专门迁移 `infra/guidebook/GuideBookMigrator`——启动期执行、幂等（已是新格式零动作）、
+先备份 `guide_book.yml.bak`、写盘前做**回读校验**（新文本解析后须与迁移前模型完全相等），任一步失败即保留原文件。
+新增运行时数据文件格式变更时照此模式实现。
+
+**内容型数据文件不要调用 `setDefaults`**：`AdvancedConfigManager.setDefaults` 会立即 `saveConfig` 回写，
+而 `YamlConfiguration` 不保留注释——`guide_book.yml` 这类由服主手写、靠注释当教程的数据文件会因此丢失文档头
+（历史缺陷，已随 #127 修复：移除该空 `setDefaults` 调用）。需要写盘时请明确承担「注释丢失」并另附文档来源。
+
 机制代码入口：`ConfigSchema`（版本常量/文件清单）、`ConfigUpgrader`（门控与流水线）、
 `DefaultsMerger`（do-no-harm 深合并）、`LegacyDefaultFlips`（旧默认翻转表）、
 `ConfigService.upgradeSchemaFiles()`（启动挂载点）。

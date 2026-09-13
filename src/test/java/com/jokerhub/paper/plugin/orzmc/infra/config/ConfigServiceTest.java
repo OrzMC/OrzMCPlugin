@@ -218,4 +218,78 @@ class ConfigServiceTest {
                     mtimes[i], schemaFiles[i].lastModified(), "已最新 schema 文件二次启动不应触碰: " + schemaFiles[i].getName());
         }
     }
+
+    // ================================================================
+    // guide_book 格式迁移（运行时数据文件：代码内迁移，不进 ConfigSchema）
+    // ================================================================
+
+    private static final String LEGACY_GUIDE_BOOK = """
+            title: '新手指南'
+            content:
+              - text:
+                  content: '欢迎'
+                  newline_count: 2
+              - link:
+                  content: '主页'
+                  url: 'https://orzmc.jokerhub.cn'
+                  page_break: true
+              - text:
+                  content: '第二页'
+            """;
+
+    @Test
+    void setup_migratesLegacyGuideBookOnceAndRefreshesCache() throws Exception {
+        File guideBook = new File(tempDir, "guide_book.yml");
+        Files.writeString(guideBook.toPath(), LEGACY_GUIDE_BOOK, StandardCharsets.UTF_8);
+
+        configService.setup();
+
+        String migrated = Files.readString(guideBook.toPath(), StandardCharsets.UTF_8);
+        assertTrue(migrated.contains("pages:"), "应迁移为 v2 格式");
+        assertFalse(migrated.contains("\ncontent:"), "旧 content 段应被替换");
+        assertTrue(new File(tempDir, "guide_book.yml.bak").exists(), "应备份原文件");
+        assertTrue(configService.getConfig("guide_book").isList("pages"), "内存缓存应刷新为新格式");
+        assertFalse(configService.getConfig("guide_book").isList("content"));
+    }
+
+    @Test
+    void setup_leavesAlreadyV2GuideBookUntouched() throws Exception {
+        File guideBook = new File(tempDir, "guide_book.yml");
+        String v2 = "pages:\n  - - 已经是新格式\n";
+        Files.writeString(guideBook.toPath(), v2, StandardCharsets.UTF_8);
+
+        configService.setup();
+
+        assertEquals(v2, Files.readString(guideBook.toPath(), StandardCharsets.UTF_8));
+        assertFalse(new File(tempDir, "guide_book.yml.bak").exists(), "无需迁移时不应备份");
+    }
+
+    @Test
+    void setup_freshInstall_keepsShippedV2TemplateAndItsComments() throws Exception {
+        // 模拟真实 saveResource：把 classpath 内置模板复制到数据目录（plugin mock 不会真写文件）
+        File guideBook = new File(tempDir, "guide_book.yml");
+        try (InputStream in = classpathResource("guide_book.yml")) {
+            Files.copy(in, guideBook.toPath());
+        }
+
+        configService.setup();
+
+        assertFalse(new File(tempDir, "guide_book.yml.bak").exists(), "新装不应产生备份");
+        assertTrue(configService.getConfig("guide_book").isList("pages"), "内置模板应为 v2 格式");
+        String onDisk = Files.readString(guideBook.toPath(), StandardCharsets.UTF_8);
+        assertTrue(onDisk.startsWith("# ====="), "启动不应回写抹掉模板注释（regression: setDefaults 会 saveConfig）");
+        assertTrue(onDisk.contains("一行 = 一句话"), "模板注释应完整保留");
+    }
+
+    @Test
+    void setup_migratedFile_keepsCheatSheetHeaderOnDisk() throws Exception {
+        File guideBook = new File(tempDir, "guide_book.yml");
+        Files.writeString(guideBook.toPath(), LEGACY_GUIDE_BOOK, StandardCharsets.UTF_8);
+
+        configService.setup();
+
+        String migrated = Files.readString(guideBook.toPath(), StandardCharsets.UTF_8);
+        assertTrue(migrated.startsWith("# ====="), "迁移产物应带速查注释头，且不被启动流程抹掉");
+        assertTrue(migrated.contains("/orzmc config reload"), migrated.substring(0, Math.min(400, migrated.length())));
+    }
 }

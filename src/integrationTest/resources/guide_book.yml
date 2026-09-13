@@ -1,1 +1,7 @@
+# 集成测试用：关闭指南书 + 使用 v2 格式（pages）保证解析路径被覆盖
 enable: false
+title: '集成测试指南'
+author: '服主'
+pages:
+  - - 集成测试指南第一行
+    - "[主页](https://orzmc.jokerhub.cn '悬停提示')"
