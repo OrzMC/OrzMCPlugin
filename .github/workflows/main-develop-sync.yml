@@ -14,6 +14,11 @@
 #   develop 独有的未冲突内容自然保留）。
 #   空转判定：sync-content 与 origin/develop 树相同（main ⊆ develop 已满足）→ 不创建 PR。
 #
+# 加固（2026-09-13，防陈旧同步 PR 事故）：任何自动合入前先跑 scripts/sync-preflight.sh 预检——
+#   VERDICT=skip   → 空转：**关闭已存在的陈旧同步 PR 并删除分支**（此前会留下带 auto-merge 的空转 PR）；
+#   VERDICT=manual → 合并预演有冲突 / 会删除 develop 内容 → 不开 auto-merge，留言人工处理；
+#   VERDICT=ok     → 有净内容、无删除、无冲突 → 才推送并 enable auto-merge。
+#
 # 说明：
 # - auto-merge 须用个人级 PAT（secrets.BOT_PAT）；Actions 内 GITHUB_TOKEN 无法 enable auto-merge（实测）。
 # - 反向同步方向不触发本 workflow（本 workflow 只听 push main），也无发布（publish 只听 main）。
@@ -51,9 +56,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 快速预筛：两分支树相同（内容一致）→ 无需同步
+          # 清理陈旧同步 PR 的辅助函数：内容已一致/空转时，关闭遗留 PR（含已开的 auto-merge）并删分支
+          close_stale_sync_pr() {
+            local reason="$1"
+            local n
+            n="$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head sync-content \
+                   --state open --json number,title -q \
+                   '.[] | select(.title | startswith("chore(sync):")) | .number' | head -1)"
+            if [ -n "$n" ]; then
+              gh pr merge "$n" --repo "$GITHUB_REPOSITORY" --disable-auto >/dev/null 2>&1 || true
+              gh pr close "$n" --repo "$GITHUB_REPOSITORY" \
+                --comment "自动清理：${reason} —— 本同步 PR 已无意义（main 内容已在 develop 中），关闭以免留下带 auto-merge 的空转 PR。" || true
+              echo "已关闭陈旧同步 PR #$n（$reason）"
+            fi
+            git push origin --delete sync-content >/dev/null 2>&1 || true
+          }
+
+          # 快速预筛：两分支树相同（内容一致）→ 无需同步 + 清理任何遗留同步 PR
           if git diff --quiet origin/main origin/develop; then
             echo "两分支内容一致，无需同步（里程碑合并后常态）"
+            close_stale_sync_pr "main 与 develop 内容一致"
             exit 0
           fi
 
@@ -65,11 +87,35 @@ jobs:
             exit 1
           fi
 
-          # 空转判定：合并后与 develop 树相同（无净内容）→ 不创建 PR
-          if git diff --quiet origin/develop HEAD; then
-            echo "sync-content 与 develop 无内容差异（main 内容已含于 develop），不创建同步 PR"
-            exit 0
-          fi
+          # 合并前预检（scripts/sync-preflight.sh）：skip=空转；manual=冲突或会删 develop 内容；ok=可自动合
+          set +e
+          preflight="$(bash scripts/sync-preflight.sh origin/develop HEAD)"
+          rc=$?
+          set -e
+          echo "$preflight"
+          verdict="$(printf '%s\n' "$preflight" | sed -n 's/^VERDICT=//p' | head -1)"
+
+          case "${verdict:-manual}" in
+            skip)
+              echo "预检：无需同步（空转）→ 不推送、不建 PR"
+              close_stale_sync_pr "预检判定为空转（sync-content 与 develop 树相同）"
+              exit 0 ;;
+            manual|*)
+              echo "⚠️ 预检要求人工处理（退出码 $rc）：不开 auto-merge"
+              # 若已有同步 PR，先撤 auto-merge 并留言，避免陈旧分支被自动合入
+              n="$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head sync-content \
+                     --state open --json number,title -q \
+                     '.[] | select(.title | startswith("chore(sync):")) | .number' | head -1)"
+              if [ -n "$n" ]; then
+                gh pr merge "$n" --repo "$GITHUB_REPOSITORY" --disable-auto >/dev/null 2>&1 || true
+                body="$(printf '⚠️ 同步预检未通过（需人工处理）：\n\n```\n%s\n```\n已撤销 auto-merge，请人工确认后再合。' "$preflight")"
+                gh pr comment "$n" --repo "$GITHUB_REPOSITORY" --body "$body" || true
+              fi
+              exit 1 ;;
+            ok)
+              echo "预检通过：有净内容、无删除、无冲突" ;;
+          esac
+
           echo "sync-content 领先 develop，推送并开同步 PR"
 
           git push --force origin HEAD:sync-content
