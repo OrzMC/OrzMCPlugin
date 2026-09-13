@@ -1,0 +1,121 @@
+# 功能点 ↔ 视频分集 双向映射（影响检测的唯一依据）
+#
+# 用途：`videos/tools/affected-episodes.py --base origin/main` 依 PR 变更判定「哪几集过期、怎么更新」。
+# 维护义务：新增/变更功能、Bot 命令、配置键、模板键时，同步登记到本文件（否则工具会告警「未登记」）。
+# 等级：L1 仅文案（换字幕不重录）· L2 交互/界面变（单镜重录 + 该集重合成）· L3 新增/退役（加集或归档集）
+
+version: 1
+
+# 分集清单（produced=true 表示源已落地；成片状态见 status.md）
+episodes:
+  EP0:  {id: ep00, slug: promo,         title: 宣传短片,            cap_s: 90,  produced: true}
+  EP1:  {id: ep01, slug: bot-commands,  title: 群指令总览,          cap_s: 150, produced: true}
+  EP2:  {id: ep02, slug: im-channels,   title: 接入通道选型,        cap_s: 150, produced: false}
+  EP3:  {id: ep03, slug: whitelist,     title: 白名单管理,          cap_s: 150, produced: false}
+  EP4:  {id: ep04, slug: inactive,      title: 不活跃玩家清理,      cap_s: 100, produced: false}
+  EP5:  {id: ep05, slug: notifications, title: 玩家通知,            cap_s: 120, produced: false}
+  EP6:  {id: ep06, slug: templates,     title: 消息模板定制,        cap_s: 100, produced: false}
+  EP7:  {id: ep07, slug: rank-tiers,    title: 四级权限与自动晋升,  cap_s: 150, produced: false}
+  EP8:  {id: ep08, slug: review-flow,   title: 申请审核闭环,        cap_s: 150, produced: false}
+  EP9:  {id: ep09, slug: rank-manual,   title: 手动升降级,          cap_s: 100, produced: false}
+  EP10: {id: ep10, slug: prison,        title: 坐牢治理,            cap_s: 100, produced: false}
+  EP11: {id: ep11, slug: geoip,         title: GeoIP 区域限制,      cap_s: 120, produced: false}
+  EP12: {id: ep12, slug: access-rules,  title: 访问规则与黑名单,    cap_s: 120, produced: false}
+  EP13: {id: ep13, slug: guard-chat,    title: 命令守卫与反垃圾,    cap_s: 120, produced: false}
+  EP14: {id: ep14, slug: hardening,     title: 登录限流与漏洞加固,  cap_s: 100, produced: false}
+  EP15: {id: ep15, slug: portal,        title: 跨服传送门,          cap_s: 150, produced: false}
+  EP16: {id: ep16, slug: tnt,           title: TNT 与重生锚保护,    cap_s: 100, produced: false}
+  EP17: {id: ep17, slug: tpbow,         title: 传送弓,              cap_s: 100, produced: false}
+  EP18: {id: ep18, slug: guide-book,    title: 新手指南书 v2,       cap_s: 150, produced: false}
+  EP19: {id: ep19, slug: menu-commands, title: 菜单与游戏内指令,    cap_s: 100, produced: false}
+  EP20: {id: ep20, slug: backup,        title: 世界备份,            cap_s: 150, produced: false}
+  EP21: {id: ep21, slug: optimize,      title: 世界优化,            cap_s: 120, produced: false}
+  EP22: {id: ep22, slug: config,        title: 运行时配置,          cap_s: 150, produced: false}
+  EP23: {id: ep23, slug: i18n,          title: 多语言 i18n,         cap_s: 120, produced: false}
+  EP24: {id: ep24, slug: self-update,   title: 插件自更新,          cap_s: 100, produced: false}
+  EP25: {id: ep25, slug: quickstart,    title: 服主快速上手,        cap_s: 180, produced: false}
+
+# 变更文件 → 判定方式
+sources:
+  docs/features.md: {mode: chapters}
+  src/main/resources/config.yml: {mode: config_keys}
+  src/main/resources/templates.yml: {mode: template_keys}
+  src/main/resources/im.yml: {mode: literal, episodes: [EP2], level: L2, note: 通道/凭据语义变更}
+  src/main/resources/permission.yml: {mode: literal, episodes: [EP7], level: L2, note: 权限链阈值}
+  src/main/java/com/jokerhub/paper/plugin/orzmc/features/botcommands/: {mode: literal, episodes: [EP1], level: L2, note: Bot 命令实现}
+  src/main/java/com/jokerhub/paper/plugin/orzmc/features/rank/: {mode: literal, episodes: [EP7, EP9], level: L2, note: 权限链实现}
+  src/main/java/com/jokerhub/paper/plugin/orzmc/features/review/: {mode: literal, episodes: [EP8], level: L2, note: 审核流程}
+  src/main/java/com/jokerhub/paper/plugin/orzmc/features/portal/: {mode: literal, episodes: [EP15], level: L2, note: 传送门实现}
+  src/main/java/com/jokerhub/paper/plugin/orzmc/features/maintenance/: {mode: literal, episodes: [EP20, EP21], level: L2, note: 维护编排}
+  src/main/java/com/jokerhub/paper/plugin/orzmc/features/guide/: {mode: literal, episodes: [EP18], level: L2, note: 指南书实现}
+  src/main/java/com/jokerhub/paper/plugin/orzmc/features/security/: {mode: literal, episodes: [EP11, EP12, EP13, EP14], level: L2, note: 安全能力}
+  videos/episodes/: {mode: ignore}
+
+# features.md 章节 → 集号（工具按 diff 行号定位章节）
+chapters:
+  "§1":  [EP3, EP4]
+  "§2":  [EP1, EP2, EP5, EP6]
+  "§3":  [EP15]
+  "§4":  [EP16]
+  "§5":  [EP11, EP12, EP13, EP14]
+  "§6":  [EP17]
+  "§7":  [EP20, EP21]
+  "§8":  [EP5]
+  "§9":  [EP18]
+  "§10": [EP22]
+  "§11": [EP19]
+  "§12": [EP19]
+  "§13": [EP2]
+  "§14": [EP23]
+  "§15": [EP7, EP8, EP9, EP10]
+  "§16": [EP24]
+
+# Bot 命令 → 集号（命令语义/参数变更时命中）
+commands:
+  "$l": [EP1, EP3]
+  "$w": [EP1, EP3]
+  "$h": [EP1]
+  "$a": [EP1, EP3]
+  "$r": [EP1, EP3]
+  "$b": [EP1, EP20]
+  "$o": [EP1, EP21]
+  "$e": [EP1, EP19]
+  "$v": [EP1, EP8]
+  "$p": [EP1, EP9]
+  "$d": [EP1, EP12]
+
+# config.yml 键 → 集号
+config_keys:
+  "whitelist": [EP3, EP4]
+  "bot": [EP1]
+  "command_policies": [EP19]
+  "tnt": [EP16]
+  "geoip": [EP11]
+  "guard": [EP13]
+  "chat": [EP13]
+  "login_rate_limit": [EP14]
+  "exploit_hardening": [EP14]
+  "rank_colors": [EP7]
+  "prison": [EP10]
+  "player_notify": [EP5]
+  "maintenance": [EP20, EP21]
+  "update": [EP24]
+  "i18n": [EP23]
+
+# templates.yml 键 → 集号（文案类 → L1）
+# 说明：具体键按名映射；`templates.*` 是兜底（diff 为纯删除/结构变化、无法定位具体键时命中画面中会出现
+#      消息文案的集），命中后只需替换字幕，不必重录。
+template_keys:
+  "templates.*": [EP1, EP5, EP20]
+  "templates.command_help": [EP1]
+  "templates.command_players": [EP1, EP3]
+  "templates.command_whitelist_header": [EP3]
+  "templates.command_whitelist_page": [EP3]
+  "templates.command_whitelist_add_result": [EP3]
+  "templates.command_whitelist_remove_result": [EP3]
+  "templates.command_blacklist_list": [EP12]
+  "templates.command_blacklist_add": [EP12]
+  "templates.command_blacklist_remove": [EP12]
+  "templates.maintenance_motd_backup": [EP20]
+  "templates.maintenance_motd_optimize": [EP21]
+  "templates.maintenance_backup_done": [EP20]
