@@ -1,3 +1,16 @@
+> **状态：归档（2026-09-13）** ｜ 被 [`../README.md`](../README.md) 的「EP0 宣传短片 + EP1–EP25 功能分集」取代
+>
+> **归档原因**：原设计「大而全」（12 章 / 8–10 分钟），与系列定位「小而美 + 一集一功能点 + 单集 ≤3 分钟」冲突；
+> 且其引用的素材目录（`source/ audio/ text_overlays/`）从未入库（新系列执行「只跟踪源与工具、零产物」策略，故占位目录已删除）。
+>
+> **仍有复用价值**：分镜结构、口播文风、视觉风格规范、录制注意事项、待补素材清单——新系列的品牌 token 已收敛到 [`../brand/brand.yml`](../brand/brand.yml)。
+>
+> 相关：[#145](https://github.com/OrzMC/OrzMCPlugin/pull/145)（原 PR）· [#481](https://github.com/OrzMC/OrzMCPlugin/issues/481)（系列总纲）
+
+---
+
+## 以下为原文（未改动）
+
 # OrzMC 插件宣传视频 — 制作清单
 
 > **本文件为 AI 视频生成（HyperFrames）准备的生产清单**  
