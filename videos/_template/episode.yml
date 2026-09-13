@@ -16,6 +16,8 @@ meta:
   prerequisites:                # 讲解前提（录屏环境须满足）
     - Paper 26.2 + OrzMC ≥ 1.0.28
     - QQ 群机器人已绑定（管理群）
+  information_points:            # 本集信息点（≤ budget.max_information_points，超限即拆集）
+    - 群里一条消息完成运维
   fallback_on_missing_assets: 用卡片占位并在看板标注「待录屏」
 
 budget:
@@ -24,7 +26,7 @@ budget:
   narration_chars: 290          # ≈ target × 4.5 × 0.85（允许 ±10%）
   max_information_points: 3
   max_shots: 10
-  speaking_rate_range: [4.0, 5.0]   # 字/秒
+  speaking_rate_range: [3.4, 5.2]   # 字/秒（含留白/停顿 = 语速 4.5 × 0.85；实测 say -v Tingting ≈4.48）
 
 documentation_anchors:          # 讲解依据的权威文档（CI 校验 §x.y 真实存在）
   - features.md §2.2
