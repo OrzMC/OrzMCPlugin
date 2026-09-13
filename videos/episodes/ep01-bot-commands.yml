@@ -1,0 +1,112 @@
+# EP1 群指令总览 —— 一集一个功能点：$ 命令体系与会话绑定（150s 上限）
+# 讲清「为什么用、怎么绑、怎么用、玩家侧看到什么」，作为系列分集的标准样例。
+
+meta:
+  id: ep01
+  slug: bot-commands
+  title: 群指令总览：$ 命令体系与会话绑定
+  baseline_version: "1.0.28"
+  priority: P0
+  audience: 服主 / 管理员
+  prerequisites:
+    - Paper 26.2 + OrzMC ≥ 1.0.28
+    - 已有一个可用的机器人（EasyBot 网关或内置直连其一）
+  information_points:
+    - $ 命令体系与 11 条命令的分工
+    - /config im bind 会话绑定（一次绑定、立即生效）
+    - 实操：$l / $w / $a / $r 与玩家侧反馈
+  fallback_on_missing_assets: 用卡片 + 终端日志占位并在 status.md 标注「待录屏」
+  end_card:
+    title: 下一集
+    text: 机器人接入的两条通道：EasyBot 网关与内置直连，怎么选、怎么配
+
+budget:
+  duration_cap_s: 180
+  target_duration_s: 145
+  narration_chars: 551
+  max_information_points: 3
+  max_shots: 10
+  speaking_rate_range: [3.4, 5.2]
+
+documentation_anchors:
+  - features.md §2
+  - features.md §2.2
+  - features.md §2.5
+
+facts:
+  commands: ["$l", "$w", "$h", "$a", "$r", "$b", "$o", "$e", "$v", "$p", "$d"]
+  config_keys: ["bot.cmd_prompt_char", "im.yml:backend"]
+  template_keys: []
+
+shots:
+  - id: 1
+    duration_s: 15
+    kind: card
+    asset: ep01_01_pain.png
+    visual: 痛点卡：三条社群提问气泡（「怎么加白名单？」「服务器卡了？」「谁能批权限？」）
+    narration: 半夜有人问白名单、开面板翻 RCON、群里刷屏报备——这些运维动作，其实在群聊里一条消息就能完成。
+    subtitle: ["半夜被问白名单", "开面板翻 RCON", "群里一条消息搞定"]
+    overlay: 痛点：白名单 / 备份 / 权限
+    transition: 淡入
+    music: bgm_intro
+  - id: 2
+    duration_s: 30
+    kind: group_chat
+    asset: ep01_02_cmd_system.mp4
+    visual: 群内依次输入 $h 与 $h ?，帮助与用法逐条回显（敏感信息已遮蔽）
+    narration: OrzMC 的群指令都以 $ 开头，一共十一条。常用的有 $h 看帮助、$l 看在线玩家、$w 查看或清理白名单、$a 添加白名单、$r 移除白名单、$b 触发世界备份、$o 做世界优化、$e 执行控制台命令并把输出回传、$p 升降权限组、$v 处理权限申请、$d 管理访问规则；任何命令后面加问号，都能查到详细用法，不用记参数顺序。
+    subtitle: ["$ 开头共 11 条命令", "$h 帮助 · $l 在线", "$w 白名单 · $a 加白", "$r 移除 · $b 备份", "命令后加 ? 查用法"]
+    overlay: 命令一览卡（$h $l $w $a $r）
+    transition: 交叉溶解
+    music: bgm_main
+  - id: 3
+    duration_s: 25
+    kind: terminal
+    asset: ep01_03_bind.mp4
+    visual: 控制台执行 /config im bind，接着 /config im status 显示已绑定（IP 与 Token 已遮蔽）
+    narration: 用之前先绑定会话，在控制台或游戏内执行绑定命令，把当前群设为管理群、玩家群或管理员私聊；绑定只做一次，立刻生效，未绑定的会话不会执行命令，只会出现在状态命令的候选列表里，方便你直接复制绑定命令；绑定结果写进配置文件，重启后依然有效。
+    subtitle: ["先绑定会话", "/config im bind", "管理群 / 玩家群 / 私聊", "一次绑定立即生效", "未绑定不会执行命令"]
+    overlay: 会话类型：管理群 / 玩家群 / 管理员私聊
+    transition: 交叉溶解
+    music: bgm_main
+  - id: 4
+    duration_s: 40
+    kind: group_chat
+    asset: ep01_04_ops.mp4
+    visual: 管理群实操：$l 在线列表 → $a 加白 → $w 查看 → $r 移除，玩家被拦截提示同屏
+    narration: 绑定完成后就能在群里开工。输入 $l，机器人立刻列出在线玩家、所在世界与坐标；输入 $a 加玩家名，新玩家直接进白名单，下次进服即可放行；$w 用来查看和清理白名单；$r 移除违规玩家，被移除的人会被拦在门外，管理群同时收到通知，整个过程不超过十秒。
+    subtitle: ["$l 看在线与坐标", "$a 加白名单", "$w 查看白名单", "$r 移除玩家", "被移除者被拦截", "玩家下次进服放行", "管理群收到通知"]
+    overlay: 四条命令逐条高亮
+    transition: 快速切
+    music: bgm_main
+  - id: 5
+    duration_s: 20
+    kind: group_chat
+    asset: ep01_05_notify.mp4
+    visual: 群内上下线通知、白名单拦截通知、备份进度推送滚动
+    narration: 玩家侧不需要额外操作：加入、退出、被踢都会推送，白名单拦截会带上原因；权限申请与备份进度这些事件也会回流到群里，管理员在手机上就能看到服务器状态，玩家侧完全无感。
+    subtitle: ["上下线自动推送", "拦截通知带原因", "申请与备份进度回流", "手机也能看服务器"]
+    overlay: 通知模板可自定义
+    transition: 交叉溶解
+    music: bgm_main
+  - id: 6
+    duration_s: 15
+    kind: card
+    asset: ep01_06_summary.png
+    visual: 要点卡：三条要点 + 下集预告
+    narration: 一句话总结：$ 命令把服务器运维搬进了群聊。下一集讲机器人接入的两条通道，EasyBot 网关与内置直连，怎么选、怎么配。
+    subtitle: ["群聊即运维台", "11 条命令 · bind 绑定", "下集：接入通道选型"]
+    overlay: 要点：11 条命令 / bind 绑定 / 玩家侧零操作
+    transition: 淡出
+    music: bgm_outro
+
+aspect_variants:
+  enabled: true
+  duration_cap_s: 60
+  shot_ids: [4]
+  note: 取「$l → $a → $w → $r 实操」做 9:16 切片，字幕字号 ≥48px、单行 ≤10 字
+
+notes: |
+  - 本集是分集模板的标准样例：痛点 → 体系 → 绑定 → 实操 → 玩家侧反馈 → 要点与预告。
+  - 每条命令的讲解顺序与 features.md §2.2 命令表一致，迭代后按 UPDATE.md 的 L1/L2/L3 处置。
+  - 成片命名：EP01-群指令-v1.0.28。

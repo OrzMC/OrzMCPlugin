@@ -26,19 +26,24 @@
 
 ## 已完成（按时间倒序）
 
-- 2026-09-13 PR1（分支 `feat/video-series-skeleton`）：`promo-video/` → `videos/`，旧 8–10 分钟长稿归档为 `videos/archive/script-full-v1.md`（含归档说明），删除素材占位目录（零产物策略），新增 `videos/README.md`（策略 + 命令 + 硬约束）、`videos/_template/episode.yml`（源 schema + 示例）、`videos/brand/brand.yml`（品牌 token）、`.gitignore` 零产物白名单、本交接文件
+- 2026-09-13 PR2（分支 `feat/video-series-tools`）：**工具链 + EP0/EP1 源 + 录制清单**
+  - 工具：`make.sh`（唯一入口）、`build-episode.py`（校验 + 人读稿/SRT/卡片 spec/口播稿）、`build-cards.py`（Pillow 渲染 16:9 与 9:16 卡片）、`tts-preview.sh`（`say` 样音）、`verify.sh`（零产物 + 源校验 + 幂等）、`tools/README.md`（环境事实）
+  - 源：`episodes/ep00-promo.yml`（5 镜 / 70s / 242 字 / 3.46 字/秒）、`episodes/ep01-bot-commands.yml`（6 镜 / 145s / 500 字 / 3.45 字/秒）
+  - 录制清单：`videos/checklist-recording.md`（按集分节 + 敏感信息遮蔽 + 9:16 安全框 + 镜号级命名）
+  - 实测：`make.sh all --check` 两集全绿；卡片 1920×1080 / 1080×1920；TTS 样音 EP0 55.6s、EP1 122.1s（均装得下分镜时长）；`verify.sh --with-cards` 幂等通过
+- 2026-09-13 PR1（已合入 develop `f6de881`）：`promo-video/` → `videos/`，旧 8–10 分钟长稿归档为 `videos/archive/script-full-v1.md`，删除素材占位目录（零产物策略），新增 `videos/README.md`、`videos/_template/episode.yml`、`videos/brand/brand.yml`、`.gitignore` 零产物白名单、本交接文件
 - 2026-09-13 跟踪锁定：建 epic **#481**（规格/26 集蓝本/发布矩阵/12 步计划）；建并关联 P0 子 issue **#482 EP0 · #483 EP1 · #484 EP3 · #485 EP7 · #486 EP8 · #487 EP15 · #488 EP20 · #489 EP22 · #490 EP25**；在 **#128** 留言说明「纳入系列、EP25 承接教程诉求」；新建 `video` 标签
 
 ## 进行中卡
 
-- **卡：PR1 骨架**（分支 `feat/video-series-skeleton`，基 `origin/develop`）
-  - 已完成：目录迁移、归档、README、模板、品牌 token、`.gitignore`、交接文件
+- **卡：PR2 工具链 + EP0/EP1 源 + 录制清单**（分支 `feat/video-series-tools`，基 `origin/develop`）
+  - 已完成：工具链五个脚本 + EP0/EP1 源 + 录制清单 + 本地门禁全绿（见上）
   - 下一步：提交 → push → PR（base=`develop`）→ CI 绿 → squash 合入 → 删分支 + `git fetch origin --prune` + 基线对齐
-  - 风险：`videos/assets/` 白名单豁免需在 PR2 用到时验证（当前无该目录）
+  - 风险：CI（Ubuntu）无 Pillow 时卡片渲染不可用——`verify.sh` 默认不渲染卡片（CI 只跑零产物 + 源校验 + 文本派生物幂等）
 
 ## 未完成清单（按依赖排序）
 
-1. **步骤 3 工具链**：`tools/make.sh`（唯一入口）、`build-episode.py`（YAML → `epNN.md` + SRT + 卡片 spec，含时长/语速/行宽校验）、`build-cards.sh`（ffmpeg + 系统中文字体）、`tts-preview.sh`（`say -v Tingting`）、`verify.sh`（零产物 + 幂等）、`affected-episodes.py`（`--base` 影响检测 + `--update-status`）
+1. **步骤 3 工具链**：`affected-episodes.py`（`--base` 影响检测 + `--update-status`）——其余工具（make/build-episode/build-cards/tts-preview/verify）已在 PR2 落地
 2. **步骤 4 SOP**：`videos/UPDATE.md`（一集一卡一 PR + L1/L2/L3 处置 + 平台版本标注/勘误写法）
 3. **步骤 5 映射与看板**：`videos/coverage.yml`（章/命令/配置键/模板键 ↔ 集号）、`videos/status.md`（EP0–EP25 初始行）
 4. **步骤 6 系列蓝本**：`videos/series.md`（26 集清单 + 拆集规则示例 + 发布矩阵）
@@ -57,7 +62,8 @@
 
 ## 下一棒开场指令
 
-> 读本文件（`docs/dev/video-series-handoff.md`）与 `videos/README.md`，从**步骤 3（工具链）**开始：
-> 在工作分支上实现 `videos/tools/{make.sh,build-episode.py,build-cards.sh,tts-preview.sh,verify.sh}`，
-> 用 EP0/EP1 源（步骤 7–8）验证 `make.sh all --check` 幂等；随后按未完成清单顺序推进，每完成一个 PR 即更新本文件的「已完成 / 进行中卡」。
-> 提交前 `./gradlew spotlessApply && ./gradlew test` 全绿；PR base=`develop`，CI 绿后 squash；合完删分支 + `git fetch origin --prune`。
+> 读本文件（`docs/dev/video-series-handoff.md`）与 `videos/README.md`，从**步骤 5（覆盖映射 `coverage.yml` + 看板 `status.md`）**开始，
+> 随后做步骤 6（`videos/series.md`：26 集蓝本 + 拆集规则 + 发布矩阵）、步骤 4（`videos/UPDATE.md`：L1/L2/L3 更新 SOP）、
+> 步骤 3 余项（`videos/tools/affected-episodes.py`）与步骤 10（一致性单测 `VideoScriptConsistencyTest` + CI `video impact` 步骤 + PR 模板 checkbox），
+> 最后步骤 12（文档索引 / CHANGELOG / epic 与子 issue 状态）。
+> 每个 PR 完成后更新本文件的「已完成 / 进行中卡」；提交前 `./gradlew spotlessApply && ./gradlew test` 全绿；PR base=`develop`，CI 绿后 squash。
