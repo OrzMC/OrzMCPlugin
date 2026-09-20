@@ -92,7 +92,7 @@ plugins {
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
-    id("com.modrinth.minotaur") version "2.9.0"
+    id("com.modrinth.minotaur") version "2.10.0"
     id("com.diffplug.spotless") version "8.10.2"
     id("jacoco")
 }
