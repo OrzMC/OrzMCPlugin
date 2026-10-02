@@ -113,9 +113,45 @@ tnt:
   # TNT/爆炸告警聚合窗口(ms)：同一区域(128×128×64区块)同类型事件在窗口内合并为一条告警(带 ×N 和首个坐标)；
   # 既是突发合并也限制持续刷屏频率。单发事件仍立即发，不受窗口延迟。
   notify_aggregate_ms: 3000
-  # 放行区域列表（空 = 全图禁止 TNT 放置/点燃；条目格式 {minX,maxX,minY,maxY,minZ,maxZ,world}）
+  # TNT 区域白名单（仅当上方 enable: false 时生效）：
+  #   · 留空 []          —— 全图禁止 TNT 的放置/点燃/发射器发射
+  #   · 填区域条目        —— 只在列出的区域内放行 TNT，区域外仍禁止
+  #   · enable: true     —— 全图放行，本列表被忽略
+  # 一条区域 = 某世界内的一个长方体；坐标【含边界】，min/max 写反会自动归正，world 省略时默认 world。
+  # 本列表只管 TNT 的「放置 / 点燃 / 发射器发射」；重生锚不受此列表控制，另由 enable_respawn_anchor 开关。
+  #
+  # 配置示例（把下面每行前的 "# " 去掉即生效）：
+  #   whitelist:
+  #     - world: world         # 世界名（可省略，默认 world）
+  #       minX: -50            # X 下限（可大于 maxX，代码会自动交换）
+  #       maxX: 50             # X 上限
+  #       minY: 60             # Y 下限
+  #       maxY: 120            # Y 上限
+  #       minZ: -50            # Z 下限
+  #       maxZ: 50             # Z 上限
+  #     - world: world_nether  # 可配置多个区域，玩家处于「任一」区域内即放行
+  #       minX: 0
+  #       maxX: 32
+  #       minY: 0
+  #       maxY: 255
+  #       minZ: 0
+  #       maxZ: 32
   whitelist: []
-  # 豁免实体由代码内置兜底（TntEventService.DEFAULT_EXEMPT_ENTITIES 11 项），如需自定义在此填 EntityType 大写名列表
+  # 爆炸通知豁免实体（EntityType 大写名列表）：列出的实体爆炸不再推送告警（如苦力怕、恶魂火球）。
+  # 下面已列出内置默认的 11 项（原版常见自然爆炸源），可直接增删；你填写后就【完全替换】
+  # 代码内置默认（不再叠加）；若整段留空 [] 则回退到代码内置默认（内容与下方列表一致，仅作兜底）。
+  exempt_entities:
+    - CREEPER # 苦力怕
+    - FIREBALL # 恶魂/焰人火球
+    - BREEZE # 旋风人
+    - WIND_CHARGE # 风弹
+    - BREEZE_WIND_CHARGE # 旋风人风弹
+    - ENDER_DRAGON # 末影龙
+    - END_CRYSTAL # 末地水晶
+    - WITHER # 凋灵
+    - WITHER_SKULL # 凋灵之首
+    - SLIME # 史莱姆
+    - STRAY # 流浪者（滞留型迟缓之箭）
 
 # ==================================================
 #          四、安全与访问控制（features 五）
