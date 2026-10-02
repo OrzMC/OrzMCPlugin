@@ -152,37 +152,44 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
 新增键开发时对照：先在对应层资源文件补默认 + `TemplateKeys`（模板事件）→ 抬 `LATEST_VERSION` →
 按本表自查命名/归属合规 → 跑 `ConfigSchemaResourceTest`。
 
-### 3.7 集合键空值语义（2026-10-02 增补，约定 β）
+### 3.7 集合键空值语义（2026-10-02 增补）
 
-配置里「列表 / 映射」型键在**键缺失**与**显式写空**（`[]` / 空段）时行为必须一致可预期。统一约定：
+配置里「列表 / 映射」型键的行为由**两个轴**共同决定——**每个键都能落到唯一一格，没有例外**：
 
-> **键缺失 / YAML null → 回落到内置默认；显式 `[]` → 空（用户意图，绝不回退默认）。**
+**空值轴**（β 核心，与升级层深合并「显式空列表不覆盖」一致）：
 
-理由：
+> **键缺失 / YAML null → 该键的「默认态」；显式 `[]` / `{}` → 空（用户意图，不回退默认）。**
 
-1. **与升级层一致**——`DefaultsMerger` 只补缺失键，**显式空列表一律不覆盖**（§2/§3）；读取层若把
-   `[]` 当默认，两层语义就会打架（本约定落地前的实际状态）。
-2. **「显式清空」必须可达**——否则用户无法关闭某项默认豁免 / 拦截。
-3. **「删键」必须安全**——回默认，避免手滑删行导致安全能力（如危险命令 deny-list）静默清零。
+理由：与升级层一致（`DefaultsMerger` 只补缺失键，显式空不覆盖，读取层若把 `[]` 当默认则两层打架）；
+「显式清空」必须可达（否则用户无法关闭默认豁免 / 拦截）；「删键」必须安全（回默认态，避免手滑删行静默失去能力）。
 
-配套规则：**凡是有内置默认的列表键，内置资源里必须把默认值逐项列出**（用户直接增删，不必猜默认），
-并由 `ConfigResourceSmokeTest` 钉死「资源清单 == 代码常量」，两侧改一漏一即挂测试。
+**默认轴**（决定「默认态」是什么）：
 
-**例外（登记，勿误改）**：
-
-- **C 类「空 = 语义状态」**：空不是「没配」，本身就是有效语义，不做默认回落：
-  `geoip.allow_country_code`（空 = 不限地区）、`tnt.whitelist`（区域列表，空 = 无放行区）、
-  `i18n.platform_langs` / `aliases`、`command_policies`、`whitelist.kick_message.ups`（空 = 非法，校验拦截）。
-- **B 类「逐键补默认」的映射**：`rank_colors.colors` / `styles.colors` / `templates.world_alias` /
-  `templates.stage_cn` 用 `putIfAbsent` 逐键回退，不存在「整表空」歧义，维持现状。
-- `templates.stage_cn` / `maintenance_motd_*` 的默认正文在**语言包**（P4c-2 迁移），资源文件不重复列出
-  （避免默认值双份漂移）。
-
-受本约定约束的键：
-
-| 键 | 内置默认（资源里显式列出） | 缺失 / null | 显式 `[]` |
+| 默认轴 ╲ 空值轴 | 键缺失 / null | 显式空 `[]` / `{}` | 键（现值） |
 |---|---|---|---|
-| `guard.blocked_commands` | op / publish / seed | → 默认 | 空 = 不拦截 |
-| `tnt.exempt_entities` | 11 项自然爆炸源 | → 默认 | 空 = 不豁免 |
-| `entity_teleport_whitelist` | 16 项友好实体 | → 默认 | 空 = 无实体可传送 |
-| `exploit_hardening.entity_count_exempt_types` | 8 项装饰实体 | → 默认 | 空 = 不豁免（严格计数） |
+| **整表默认** | → 内置默认清单 | → 空 | `guard.blocked_commands`、`tnt.exempt_entities`、`entity_teleport_whitelist`、`exploit_hardening.entity_count_exempt_types` |
+| **逐键默认** | 表内缺失键 → 该键默认 | 同左格（表内所有键都缺失 → 逐键回退） | `rank_colors.colors`、`styles.colors`、`templates.world_alias`、`templates.stage_cn`、`command_policies` |
+| **无默认** | → 空 | → 空 | `geoip.allow_country_code`、`tnt.whitelist`（区域）、`i18n.platform_langs` / `aliases` |
+
+三格说明：
+
+1. **整表默认**（β 完整形态）：有内置默认的列表键，内置资源里必须**逐项列出默认值**（用户直接增删，
+   不必猜默认），并由 `ConfigResourceSmokeTest` 钉死「资源清单 == 代码常量」，两侧改一漏一即挂测试。
+2. **逐键默认**：默认发生在**表内键粒度**（`putIfAbsent` 或读时回退），不存在「整表空」歧义——
+   `{}` 与「缺失」本就等价（表内所有键都缺失）。这类键不做整表回落；默认值是否写进资源由「用户是否
+   需要知道」决定（`rank_colors.colors` / `styles.colors` / `world_alias` 已在资源显式列出）。
+3. **无默认**：没有可回落的默认清单，「缺失」与「显式空」同为**语义状态**（空本身有效，如「不限地区」）。
+
+**无默认键的强制要求：缺失告警。** 没有默认态就没有回退保护——删键会**静默改变语义**。
+凡「缺失 ⇒ 放宽限制」的键，`ConfigHealthCheck` 必须对缺失给出「建议」级提示：
+
+- `geoip.allow_country_code`：缺失 ⇒ 静默变为「不限地区」（安全相关）→ 已告警
+  （`IpWhitelist.validate`，`ConfigHealthCheckTest.geoip_missingAllowCountryCode_reportsSuggestion` 锁测）；
+- 其余无默认键缺失取**安全默认**（`tnt.whitelist` 缺失 ⇒ TNT 全禁；`i18n` 缺失 ⇒ 无覆盖），
+  **不加告警**避免噪音。
+
+`whitelist.kick_message.ups` 属「必需项」：空/缺失均为**非法**（健康检查报错），不在本模型内。
+
+**范围**：本约定只管 schema 配置文件（`config.yml` / `templates.yml` / `easybot.yml`）；运行时数据文件
+（`portals.yml` / `access_rules.yml` / `permission.yml` / `im_bindings.yml`）的集合是数据而非配置，不适用。
+（`templates.stage_cn` / `maintenance_motd_*` 的默认正文在**语言包**，资源文件不重复列出，避免双份漂移。）
