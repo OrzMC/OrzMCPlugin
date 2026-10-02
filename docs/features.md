@@ -197,10 +197,10 @@ tnt:
       maxZ: 32
 ```
 
-**`tnt.exempt_entities`**（爆炸通知豁免实体，属通知配置、不影响拦截）：`config.yml` 中**已内置默认 11 项**
+**`tnt.exempt_entities`**（爆炸通知豁免实体，属通知配置、不影响拦截）：`config.yml` 中**已显式列出默认 11 项**
 （CREEPER / FIREBALL / BREEZE / WIND_CHARGE / BREEZE_WIND_CHARGE / ENDER_DRAGON / END_CRYSTAL / WITHER /
-WITHER_SKULL / SLIME / STRAY），可直接增删；填写后**完全替换**代码内置默认（不是叠加），整段留空
-`[]` 才回退到内置默认（内容相同，仅作兜底）。同为手改 YAML 键，非法 `EntityType` 名被忽略。
+WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠加）。空值语义：写 `[]` = 不豁免任何实体；
+删掉整个键 = 回内置默认。同为手改 YAML 键，非法 `EntityType` 名被忽略。
 
 ### 4.2 重生锚控制
 - 独立开关 `tnt.enable_respawn_anchor` 控制是否允许放置重生锚
@@ -256,6 +256,7 @@ WITHER_SKULL / SLIME / STRAY），可直接增删；填写后**完全替换**代
 - 运维命令（`stop` / `reload` / `deop` / `plugman` 等）不默认拦截——原生即受 OP 权限限制，避免管理员也无法停服/重载/管理 OP
 - `guard.audit_enabled` 开启时命令审计落盘 `audit/command_audit.log`；危险命令 WARN 不再重复刷控制台，细节由审计文件承载
 - 总开关：`guard.enabled`（关闭后拦截与审计全部停用）
+- `guard.blocked_commands` 空值语义：`[]` = 不拦截任何命令（主动清空）；删掉整个键 = 回内置默认（`op`/`publish`/`seed`）
 
 ### 5.6 聊天反垃圾（chat）
 - 聊天限流：60s 滑动窗口每玩家最多 20 条（`chat.max_messages_per_minute`）
@@ -308,6 +309,7 @@ WITHER_SKULL / SLIME / STRAY），可直接增删；填写后**完全替换**代
   - 任意大写 `EntityType` 名（如 `VILLAGER`）
 - 设为 `entity_teleport_enabled: true` 后所有实体均可被命令/插件传送
 - 默认白名单（16 项，仅被动/友好实体）：`TAMEABLE` / `ENDERMAN` / `ARMOR_STAND` / `SHULKER` / `VILLAGER` / `WANDERING_TRADER` / `COW` / `PIG` / `SHEEP` / `CHICKEN` / `RABBIT` / `GOAT` / `MOOSHROOM` / `AXOLOTL` / `BEE` / `IRON_GOLEM`
+- `entity_teleport_whitelist` 空值语义：`[]` = 无实体可被传送（主动清空）；删掉整个键 = 回内置默认 16 项
 
 ---
 
@@ -384,6 +386,12 @@ WITHER_SKULL / SLIME / STRAY），可直接增删；填写后**完全替换**代
 | `reload [name]` | 热重载指定或所有配置文件 | `/config reload` |
 
 ### 10.2 可配置项（29 项）
+
+> **集合键空值约定**：列表型键一律「删掉整个键 = 回内置默认；显式写 `[]` = 空（不回退默认）」。
+> 有内置默认的列表键（`guard.blocked_commands` / `tnt.exempt_entities` / `entity_teleport_whitelist` /
+> `exploit_hardening.entity_count_exempt_types`）已在 `config.yml` 里逐项列出，直接增删即可。
+> 例外：“空 = 语义状态”的键（`geoip.allow_country_code`、`tnt.whitelist` 等）不适用。
+> 详细契约见 [config-schema-governance.md §3.7](dev/config-schema-governance.md)。
 
 **白名单**
 | 配置路径 | 类型 | 默认值 | 描述 |
