@@ -219,8 +219,15 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
 - **正式发版**：owner 打 SemVer tag（如 `1.0.25`，不加 `v`）→ tag 触发：完整 `./gradlew check` →
   Hangar/Modrinth release → GitHub Release → 版本号自增 commit 回 main。
 
-**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合（0 审批）+ 必选检查 build/folia-smoke +
+**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke +
 禁强推/删除；默认分支 = develop；仓库 Allow auto-merge 已开。
+
+**自建 PR 审批自动化（`approval-gate`）**：owner 自建 PR 无法自审（GitHub 硬限制），且仓库仅 1 个协作者，
+故“外部 PR 需评审”改由必需检查 `approval-gate` 承载：**可信作者（owner / dependabot / github-actions）
+直接通过**，其他作者必须 `reviewDecision == APPROVED` 才通过；原生 `required_approving_review_count`
+已关闭（`enforce_admins` 也置 false，保留 `--admin` 紧急逃生口）。因此自建与 dependabot PR
+**CI 绿即可自动合并**（`gh pr merge <n> --squash --auto --delete-branch`），外部真人 PR 仍需评审。
+机制、配套 ruleset 设置与回滚步骤见 [`docs/dev/repo-automation.md`](docs/dev/repo-automation.md)。
 
 **铁律**
 
