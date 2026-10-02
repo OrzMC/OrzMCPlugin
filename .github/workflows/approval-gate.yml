@@ -1,0 +1,57 @@
+name: Approval Gate
+
+# 「外部 PR 需评审」门禁的自动化实现（保留门禁的同时让可信 PR 全自动合并）。
+#
+# 背景：本人自建 PR 无法自审（GitHub 硬限制），而仓库只有 1 个协作者 → 原生
+# `required_approving_review_count=1` 会让 owner 自己的 PR 永久无法合并。
+# ruleset 的 bypass 按“操作者”生效，给 owner bypass 会连带放行外部 PR，无法只豁免自己。
+# 因此把“外部 PR 需评审”实现为一个必需状态检查（本 workflow），并关闭原生审批要求：
+#
+#   - 可信作者（仓库 owner、dependabot、github-actions）→ 检查直接通过（不阻塞自动合并）
+#   - 其他作者 → 必须出现 APPROVED 评审，否则检查失败 → 合并被必需检查挡住
+#
+# 该检查必须登记进 ruleset 的 required_status_checks 才生效；配套设置与回滚步骤见
+# docs/dev/repo-automation.md。
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  pull_request_review:
+    types:
+      - submitted
+      - dismissed
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  approval-gate:
+    name: approval-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce review for external pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          case "$PR_AUTHOR" in
+            wangzhizhou|dependabot\[bot\]|github-actions\[bot\])
+              echo "可信作者 ${PR_AUTHOR}：跳过外部评审门禁"
+              exit 0
+              ;;
+          esac
+          decision="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.reviewDecision')"
+          echo "PR #${PR_NUMBER} 作者 ${PR_AUTHOR}，reviewDecision=${decision}"
+          if [ "$decision" != "APPROVED" ]; then
+            echo "::error::外部 PR 需要至少 1 位协作者批准（当前 ${decision}）"
+            exit 1
+          fi
