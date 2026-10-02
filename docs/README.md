@@ -15,6 +15,7 @@
 | [权限组节点表](permission-groups.md) | LP 各组权限节点明细与设计决策 | docs/ |
 | [新手指南书手册](guide-book.md) | guide_book.yml 3 分钟上手：速查表 / 全写法 / 上限降级 / 旧格式迁移 / 排查清单 | docs/ |
 | [视频系列](../videos/README.md) | EP0 宣传短片 + EP1–EP25 功能分集（一集一功能点、≤3 分钟）的源/工具/看板：零产物、可重生成、含单集 SOP 与功能迭代影响检测；总纲 [#481](https://github.com/OrzMC/OrzMCPlugin/issues/481) | videos/ |
+| [故障排查](troubleshooting.md) | 常见报错的判定与处置（含「启动完成前敲命令报 `CommandSourceStack.getLevel()` NPE」——Paper 上游缺陷，非插件问题） | docs/ |
 
 ### 🧑💻 开发者（改代码）
 | 文档 | 内容 | 位置 |
