@@ -151,3 +151,38 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
 
 新增键开发时对照：先在对应层资源文件补默认 + `TemplateKeys`（模板事件）→ 抬 `LATEST_VERSION` →
 按本表自查命名/归属合规 → 跑 `ConfigSchemaResourceTest`。
+
+### 3.7 集合键空值语义（2026-10-02 增补，约定 β）
+
+配置里「列表 / 映射」型键在**键缺失**与**显式写空**（`[]` / 空段）时行为必须一致可预期。统一约定：
+
+> **键缺失 / YAML null → 回落到内置默认；显式 `[]` → 空（用户意图，绝不回退默认）。**
+
+理由：
+
+1. **与升级层一致**——`DefaultsMerger` 只补缺失键，**显式空列表一律不覆盖**（§2/§3）；读取层若把
+   `[]` 当默认，两层语义就会打架（本约定落地前的实际状态）。
+2. **「显式清空」必须可达**——否则用户无法关闭某项默认豁免 / 拦截。
+3. **「删键」必须安全**——回默认，避免手滑删行导致安全能力（如危险命令 deny-list）静默清零。
+
+配套规则：**凡是有内置默认的列表键，内置资源里必须把默认值逐项列出**（用户直接增删，不必猜默认），
+并由 `ConfigResourceSmokeTest` 钉死「资源清单 == 代码常量」，两侧改一漏一即挂测试。
+
+**例外（登记，勿误改）**：
+
+- **C 类「空 = 语义状态」**：空不是「没配」，本身就是有效语义，不做默认回落：
+  `geoip.allow_country_code`（空 = 不限地区）、`tnt.whitelist`（区域列表，空 = 无放行区）、
+  `i18n.platform_langs` / `aliases`、`command_policies`、`whitelist.kick_message.ups`（空 = 非法，校验拦截）。
+- **B 类「逐键补默认」的映射**：`rank_colors.colors` / `styles.colors` / `templates.world_alias` /
+  `templates.stage_cn` 用 `putIfAbsent` 逐键回退，不存在「整表空」歧义，维持现状。
+- `templates.stage_cn` / `maintenance_motd_*` 的默认正文在**语言包**（P4c-2 迁移），资源文件不重复列出
+  （避免默认值双份漂移）。
+
+受本约定约束的键：
+
+| 键 | 内置默认（资源里显式列出） | 缺失 / null | 显式 `[]` |
+|---|---|---|---|
+| `guard.blocked_commands` | op / publish / seed | → 默认 | 空 = 不拦截 |
+| `tnt.exempt_entities` | 11 项自然爆炸源 | → 默认 | 空 = 不豁免 |
+| `entity_teleport_whitelist` | 16 项友好实体 | → 默认 | 空 = 无实体可传送 |
+| `exploit_hardening.entity_count_exempt_types` | 8 项装饰实体 | → 默认 | 空 = 不豁免（严格计数） |

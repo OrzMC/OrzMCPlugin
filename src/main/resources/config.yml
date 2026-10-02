@@ -86,6 +86,8 @@ command_policies:
 #     TAMEABLE / ENDERMAN / ARMOR_STAND / SHULKER
 #   - TAMEABLE 按接口判定，已覆盖猫/狗/鹦鹉 + 全部马科（马/驴/骡/羊驼/骆驼），无需重复列出
 #   - 白名单默认只含常见被动/友好实体（村民/牲畜/友好水生/傀儡等），敌对生物不在内
+#   - 空值语义：下方已显式列出内置默认 16 项，直接增删即可；
+#     删掉整个键 = 回内置默认；写成 [] = 空白名单（无实体可被传送，不回退默认）
 entity_teleport_enabled: false
 entity_teleport_whitelist:
   - TAMEABLE
@@ -113,9 +115,45 @@ tnt:
   # TNT/爆炸告警聚合窗口(ms)：同一区域(128×128×64区块)同类型事件在窗口内合并为一条告警(带 ×N 和首个坐标)；
   # 既是突发合并也限制持续刷屏频率。单发事件仍立即发，不受窗口延迟。
   notify_aggregate_ms: 3000
-  # 放行区域列表（空 = 全图禁止 TNT 放置/点燃；条目格式 {minX,maxX,minY,maxY,minZ,maxZ,world}）
+  # TNT 区域白名单（仅当上方 enable: false 时生效）：
+  #   · 留空 []          —— 全图禁止 TNT 的放置/点燃/发射器发射
+  #   · 填区域条目        —— 只在列出的区域内放行 TNT，区域外仍禁止
+  #   · enable: true     —— 全图放行，本列表被忽略
+  # 一条区域 = 某世界内的一个长方体；坐标【含边界】，min/max 写反会自动归正，world 省略时默认 world。
+  # 本列表只管 TNT 的「放置 / 点燃 / 发射器发射」；重生锚不受此列表控制，另由 enable_respawn_anchor 开关。
+  #
+  # 配置示例（把下面每行前的 "# " 去掉即生效）：
+  #   whitelist:
+  #     - world: world         # 世界名（可省略，默认 world）
+  #       minX: -50            # X 下限（可大于 maxX，代码会自动交换）
+  #       maxX: 50             # X 上限
+  #       minY: 60             # Y 下限
+  #       maxY: 120            # Y 上限
+  #       minZ: -50            # Z 下限
+  #       maxZ: 50             # Z 上限
+  #     - world: world_nether  # 可配置多个区域，玩家处于「任一」区域内即放行
+  #       minX: 0
+  #       maxX: 32
+  #       minY: 0
+  #       maxY: 255
+  #       minZ: 0
+  #       maxZ: 32
   whitelist: []
-  # 豁免实体由代码内置兜底（TntEventService.DEFAULT_EXEMPT_ENTITIES 11 项），如需自定义在此填 EntityType 大写名列表
+  # 爆炸通知豁免实体（EntityType 大写名列表）：列出的实体爆炸不再推送告警（如苦力怕、恶魂火球）。
+  # 下方已显式列出内置默认 11 项（原版常见自然爆炸源），直接增删即可（完全替换，不叠加）：
+  #   删掉整个键 = 回内置默认（与下方一致）；写成 [] = 不豁免任何实体，连苦力怕爆炸也告警
+  exempt_entities:
+    - CREEPER # 苦力怕
+    - FIREBALL # 恶魂/焰人火球
+    - BREEZE # 旋风人
+    - WIND_CHARGE # 风弹
+    - BREEZE_WIND_CHARGE # 旋风人风弹
+    - ENDER_DRAGON # 末影龙
+    - END_CRYSTAL # 末地水晶
+    - WITHER # 凋灵
+    - WITHER_SKULL # 凋灵之首
+    - SLIME # 史莱姆
+    - STRAY # 流浪者（滞留型迟缓之箭）
 
 # ==================================================
 #          四、安全与访问控制（features 五）
@@ -144,6 +182,8 @@ guard:
   # 总开关：关闭后危险命令拦截/审计全部停用
   enabled: true
   # 高危命令 deny-list（小写命令名，支持子命令项，如 plugman reload）
+  # 空值语义：下方已显式列出内置默认 3 项，直接增删即可；
+  #   删掉整个键 = 回内置默认；写成 [] = 不拦截任何命令（主动清空，不回退默认）
   blocked_commands:
     - op
     - publish
@@ -207,6 +247,20 @@ exploit_hardening:
   # 实体：单区块实体数上限（关闭请用 entity_enabled=false）
   entity_enabled: true
   entity_max_per_chunk: 128
+  # 实体计数豁免类型（EntityType 大写名）：下列实体【不计入】单区块实体数，其自身生成也不被拦截。
+  # 用途：地图画（物品展示框）、画、展示实体等纯装饰实体数量大，避免误触卡服上限导致无法放置。
+  # 下方已显式列出内置默认 8 项，直接增删即可：
+  #   删掉整个键 = 回内置默认（与下方一致）；写成 [] = 不豁免任何类型（严格按总量计数）
+  # 注意：铠甲架（ARMOR_STAND）刻意不在默认内——它既是装饰也是常见卡服机载体，需要时自行加入。
+  entity_count_exempt_types:
+    - ITEM_FRAME # 物品展示框（地图画载体）
+    - GLOW_ITEM_FRAME # 发光物品展示框
+    - PAINTING # 画
+    - LEASH_HITCH # 拴绳结
+    - BLOCK_DISPLAY # 方块展示实体（1.19.4+）
+    - ITEM_DISPLAY # 物品展示实体
+    - TEXT_DISPLAY # 文本展示实体（全息字）
+    - INTERACTION # 交互实体（1.19.4+）
   # 命中书页/物品时是否 PRIVATE 私信管理员（实体拦截静默，防刷屏）
   notify_admins: true
   # 命中时的提示文案

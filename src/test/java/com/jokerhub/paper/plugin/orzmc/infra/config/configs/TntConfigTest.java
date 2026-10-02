@@ -18,7 +18,7 @@ class TntConfigTest {
         assertEquals(5, config.placeCooldownSeconds());
         assertEquals(3000L, config.notifyAggregateMs());
         assertTrue(config.whitelistRegions().isEmpty());
-        assertTrue(config.exemptEntities().isEmpty());
+        assertEquals(TntConfig.DEFAULT_EXEMPT_ENTITIES, config.exemptEntities());
     }
 
     @Test
@@ -36,7 +36,8 @@ class TntConfigTest {
         assertEquals(5, config.placeCooldownSeconds());
         assertEquals(3000L, config.notifyAggregateMs());
         assertTrue(config.whitelistRegions().isEmpty());
-        assertTrue(config.exemptEntities().isEmpty());
+        // 键缺失 → 回内置默认（集合键约定 β）
+        assertEquals(TntConfig.DEFAULT_EXEMPT_ENTITIES, config.exemptEntities());
     }
 
     @Test
@@ -80,7 +81,17 @@ class TntConfigTest {
         when(cfg.get("exempt_entities")).thenReturn(null);
 
         TntConfig config = TntConfig.from(cfg);
-        assertTrue(config.whitelistRegions().isEmpty());
+        assertTrue(config.whitelistRegions().isEmpty()); // 区域列表空 = 无放行区（语义状态，不回落默认）
+        assertEquals(TntConfig.DEFAULT_EXEMPT_ENTITIES, config.exemptEntities()); // 键缺失 → 回默认
+    }
+
+    @Test
+    void fromSection_explicitEmptyExemptList_keptEmpty() {
+        // 显式 [] = 不豁免任何实体（集合键约定 β），不回退默认
+        ConfigurationSection cfg = mock(ConfigurationSection.class);
+        when(cfg.get("exempt_entities")).thenReturn(List.of());
+
+        TntConfig config = TntConfig.from(cfg);
         assertTrue(config.exemptEntities().isEmpty());
     }
 }

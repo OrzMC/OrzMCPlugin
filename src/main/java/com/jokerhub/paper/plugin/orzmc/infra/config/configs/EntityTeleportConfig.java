@@ -11,6 +11,9 @@ import org.bukkit.configuration.ConfigurationSection;
  * <p>{@code enabled=true} 表示允许命令/插件传送所有实体（原版行为）；{@code enabled=false}
  * 时仅白名单内实体可被传送（默认，防 @e 选择器误用）。注意与
  * {@code EntityTeleportPolicyService} 的 cancelEnabled 语义相反，装配层取反后传入。</p>
+ *
+ * <p>{@code entity_teleport_whitelist} 空值语义（集合键约定 β）：<b>键缺失/null → 内置默认</b>；
+ * <b>显式 {@code []} → 空白名单（无实体可被传送，不回退默认）</b>。</p>
  */
 public record EntityTeleportConfig(boolean enabled, List<String> whitelist) {
 
@@ -42,9 +45,13 @@ public record EntityTeleportConfig(boolean enabled, List<String> whitelist) {
             return new EntityTeleportConfig(false, DEFAULT_ENTITY_TELEPORT_WHITELIST);
         }
         boolean enabled = cfg.getBoolean("entity_teleport_enabled", false);
-        List<String> whitelist = new ArrayList<>(cfg.getStringList("entity_teleport_whitelist"));
-        if (whitelist.isEmpty()) {
-            // config.yml 白名单为空/未配置 → 回退内置 16 项（保持现语义）
+        List<String> whitelist = new ArrayList<>();
+        Object raw = cfg.get("entity_teleport_whitelist");
+        if (raw instanceof List<?>) {
+            // 显式列表以磁盘为准：显式 [] = 无实体可被传送，不回退默认
+            whitelist.addAll(cfg.getStringList("entity_teleport_whitelist"));
+        } else {
+            // 键缺失/类型错 → 回退内置 16 项（集合键约定 β）
             whitelist.addAll(DEFAULT_ENTITY_TELEPORT_WHITELIST);
         }
         return new EntityTeleportConfig(enabled, whitelist);
