@@ -42,14 +42,17 @@ ruleset 的 `bypass_actors` 按**执行操作的人**生效，不区分 PR 作�
 
 ### 4.2 main
 
-`main` **没有经典分支保护**，只由 ruleset `protection-main` 承载（`required_approving_review_count=0`、
-无 bypass、必需检查 `build`+`folia-smoke`）——即**当前 main 无审批要求**，owner 用
-`gh pr merge --squash --delete-branch` 即可（如需强制，用 `--admin`）。
+`main` **没有经典分支保护**，只由 ruleset `protection-main` 承载。与 develop 对齐后的设置为：
+`required_approving_review_count=0`、无 bypass、必需检查 `build` + `folia-smoke` + `approval-gate`、
+`strict_required_status_checks_policy=false`、`require_extra_approval_for_unattributed_changes=false`。
 
-> 若要 main 与 develop 一致（外部 PR 需评审），待 `approval-gate` 随下一次里程碑
-> （develop → main）进入 `main` 后，按 §4.1 给 `protection-main` 登记 `approval-gate` 必需检查。
-> 在此之前**不要**提前登记：`pull_request` 使用 **head 分支**的 workflow 文件，
-> 从 main 拉出的热修复分支不含该 workflow，会导致必需检查永为 pending、PR 被挂起。
+即 main 与 develop 一致：**外部 PR 需 APPROVED，可信作者（owner / dependabot）免审**，
+owner 用 `gh pr merge --squash --auto --delete-branch` 即可（紧急时 `--admin`）。
+
+> 时机注记：`approval-gate` 已随 #512 里程碑进入 `main`，故 `protection-main` 已登记该检查；
+> 从 main 拉出的热修复分支继承 main 的 workflow 文件，检查可正常上报。
+> ⚠️ 若将来重建仓库 / 回滚到不含该 workflow 的 main，**不要**提前登记 `approval-gate`：
+> `pull_request` 使用 **head 分支**的 workflow 文件，head 不含该 workflow 时必需检查永为 pending、PR 被挂起。
 
 ## 5. 日常用法
 
