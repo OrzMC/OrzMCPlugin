@@ -42,10 +42,14 @@ ruleset 的 `bypass_actors` 按**执行操作的人**生效，不区分 PR 作�
 
 ### 4.2 main
 
-里程碑 PR（head=develop）与热修复 PR 仍走**原生 `required_approving_review_count=1`**，
-配合 `enforce_admins=false`，owner 用 `gh pr merge --squash --admin` 合并。
+`main` **没有经典分支保护**，只由 ruleset `protection-main` 承载（`required_approving_review_count=0`、
+无 bypass、必需检查 `build`+`folia-smoke`）——即**当前 main 无审批要求**，owner 用
+`gh pr merge --squash --delete-branch` 即可（如需强制，用 `--admin`）。
 
-> 待 `approval-gate` 随里程碑进入 `main` 后，可再按 §4.1 把 main 也切到检查门禁。
+> 若要 main 与 develop 一致（外部 PR 需评审），待 `approval-gate` 随下一次里程碑
+> （develop → main）进入 `main` 后，按 §4.1 给 `protection-main` 登记 `approval-gate` 必需检查。
+> 在此之前**不要**提前登记：`pull_request` 使用 **head 分支**的 workflow 文件，
+> 从 main 拉出的热修复分支不含该 workflow，会导致必需检查永为 pending、PR 被挂起。
 
 ## 5. 日常用法
 
@@ -71,6 +75,9 @@ gh api -X PUT repos/OrzMC/OrzMCPlugin/branches/develop/protection/required_pull_
 
 ## 7. 已知失败模式
 
+- **workflow 文件只在 head 分支生效**（实测）：`pull_request` 用 **head 分支**的 workflow 文件。
+  所以新增 `approval-gate.yml` 后，**已存在的 PR 不会自动获得该检查**（其 head 里没有这个文件）；
+  需 rebase / 推一次提交让 head 包含它——仅 close→reopen 不够（head 不含该文件时依然不跑，实测）。
 - **`approval-gate` 是必需检查**：若 workflow 被禁用/删除/语法错误，所有 PR 到 develop 都会被挂起 →
   优先改用 `--admin` 或按 §6 回滚。
 - 可信作者白名单是**硬编码在 workflow 里**的；新增可信机器人需同步修改本文件与 `approval-gate.yml`。
