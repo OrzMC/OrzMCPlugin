@@ -43,19 +43,6 @@ public final class TntEventService {
     /** 聚合区域垂直跨度（方块数）：64 ≈ 常见一层建筑高度。同 XZ 立柱但不同高度层的爆炸分开聚合，告警坐标才可行动。 */
     private static final int REGION_VERTICAL_BLOCKS = 64;
 
-    private static final List<String> DEFAULT_EXEMPT_ENTITIES = List.of(
-            "CREEPER",
-            "FIREBALL",
-            "BREEZE",
-            "WIND_CHARGE",
-            "BREEZE_WIND_CHARGE",
-            "ENDER_DRAGON",
-            "END_CRYSTAL",
-            "WITHER",
-            "WITHER_SKULL",
-            "SLIME",
-            "STRAY");
-
     private final TypedConfigProvider configs;
     private final Map<UUID, Long> playerCooldowns = new ConcurrentHashMap<>();
     private final OrzTextStyles styles;
@@ -348,10 +335,8 @@ public final class TntEventService {
 
     private static EnumSet<EntityType> buildExemptTypes(TntConfig cfg) {
         EnumSet<EntityType> set = EnumSet.noneOf(EntityType.class);
+        // 空清单 = 不豁免任何实体（回退默认已在 TntConfig.from 完成，此处不再兜底）
         List<String> names = cfg.exemptEntities();
-        if (names.isEmpty()) {
-            names = DEFAULT_EXEMPT_ENTITIES;
-        }
         for (String name : names) {
             try {
                 set.add(EntityType.valueOf(name));

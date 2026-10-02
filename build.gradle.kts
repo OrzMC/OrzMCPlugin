@@ -58,8 +58,8 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
     testImplementation("io.papermc.paper:paper-api:${property("paper_api_version") as String}")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
-    testImplementation("org.mockito:mockito-core:5.23.0")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
+    testImplementation("org.mockito:mockito-core:5.24.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.24.0")
 }
 
 val integrationTestSourceSet = sourceSets.create("integrationTest") {
@@ -85,15 +85,15 @@ dependencies {
 
 // 项目编译时插件添加
 plugins {
-    kotlin("jvm") version "2.4.10"
+    kotlin("jvm") version "2.4.20"
     id("com.gradleup.shadow") version "9.6.1"
     // 工程内直接调试服务端插件：https://docs.papermc.io/paper/dev/debugging#using-direct-debugging
     id("xyz.jpenilla.run-paper") version "3.1.0"
     // 自动发布版本配置文档：https://docs.papermc.io/misc/hangar-publishing/
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
-    id("com.modrinth.minotaur") version "2.9.0"
-    id("com.diffplug.spotless") version "8.10.1"
+    id("com.modrinth.minotaur") version "2.10.0"
+    id("com.diffplug.spotless") version "8.10.3"
     id("jacoco")
 }
 

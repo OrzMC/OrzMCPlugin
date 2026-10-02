@@ -1,0 +1,103 @@
+# EP0 宣传短片 —— 聚焦核心功能、小而美（吸引用户的第一集）
+# 一集一个主张：在群里就能管好服务器。三个卖点各一镜，开场与收尾用卡片。
+# 参考：videos/_template/episode.yml 的字段说明；产物由 videos/tools/make.sh 生成，不入库。
+
+meta:
+  id: ep00
+  slug: promo
+  title: OrzMC 宣传短片
+  baseline_version: "1.0.28"
+  priority: P0
+  audience: 服主与潜在用户
+  prerequisites:
+    - Paper 26.2 + OrzMC ≥ 1.0.28
+    - QQ 群机器人已绑定（管理群 + 玩家群）
+  information_points:
+    - 群聊即运维台（$ 命令管白名单/踢人/控制台）
+    - 权限成长闭环（/apply → 群内 $v 一键通过）
+    - 安全与数据兜底（告警 + 一键备份）
+  fallback_on_missing_assets: 用卡片占位并在 status.md 标注「待录屏」
+  end_card:
+    title: OrzMC
+    text: Hangar / Modrinth 免费下载 · 官网文档 orzmc.jokerhub.cn · QQ 频道欢迎你
+
+budget:
+  duration_cap_s: 90
+  target_duration_s: 70
+  narration_chars: 266
+  max_information_points: 3
+  max_shots: 10
+  speaking_rate_range: [3.4, 5.2]
+
+documentation_anchors:
+  - features.md §2.2
+  - features.md §15
+  - features.md §7
+
+facts:
+  commands: ["$l", "$a", "$r", "$v"]
+  config_keys: ["whitelist.kick_message", "im.yml:backend"]
+  template_keys: []
+
+shots:
+  - id: 1
+    duration_s: 7
+    kind: card
+    asset: ep00_01_open.png
+    visual: 开场卡：OrzMC 标题 + 标语，半透明控制台日志滚动作背景
+    narration: 不用开面板、不用记命令——装上 OrzMC，在群里就能管好你的 Minecraft 服务器。
+    subtitle: ["群聊一条消息", "就能管好服务器"]
+    overlay: OrzMC 宣传短片
+    transition: 淡入
+    music: bgm_intro（0.5s 渐入）
+  - id: 2
+    duration_s: 22
+    kind: group_chat
+    asset: ep00_02_group_cmds.mp4
+    visual: QQ 管理群录屏：$l 看在线 → $a 加白名单 → $r 移除（昵称与群号已遮蔽）
+    narration: 白名单、踢人、备份、执行控制台命令，在群里发一条消息就完成，机器人把结果原样发回群里；配合强制白名单，非名单玩家进服即被拦下，管理群会同步收到通知。
+    subtitle: ["$l 看在线玩家", "$a 加白名单", "$r 移除违规玩家", "结果原样回群里"]
+    overlay: $a / $r / $l 命令高亮
+    transition: 交叉溶解
+    music: bgm_main
+  - id: 3
+    duration_s: 18
+    kind: group_chat
+    asset: ep00_03_review.mp4
+    visual: 玩家 /apply 申请 → 管理群 $v y 通过 → 群内晋升通知（两屏分列）
+    narration: 玩家用申请命令自助提交权限申请，管理员在群里回复一条指令就能通过，四级权限链自动维护并记录，晋升通知立刻同步全群。
+    subtitle: ["玩家自助申请权限", "群里回复一条指令通过", "晋升通知同步全群"]
+    overlay: /apply → $v y 流程高亮
+    transition: 交叉溶解
+    music: bgm_main
+  - id: 4
+    duration_s: 16
+    kind: ingame
+    asset: ep00_04_safety_backup.mp4
+    visual: 游戏内白名单拦截提示 + TNT 告警群消息 + $b 备份进度推送（三画面快切）
+    narration: TNT 与异常访问有实时告警，世界一键备份带进度回传，备份完成会回传耗时与文件体积，出事看得见，数据有保障。
+    subtitle: ["TNT 与异常访问实时告警", "一键备份带进度回传", "出事看得见，数据有保障"]
+    overlay: 告警与进度卡
+    transition: 快速切
+    music: bgm_main
+  - id: 5
+    duration_s: 7
+    kind: card
+    asset: ep00_05_end.png
+    visual: 结尾卡：下载渠道 + 官网 + QQ 频道二维码占位
+    narration: OrzMC，Hangar 与 Modrinth 免费下载，官网文档与 QQ 频道随时等你来。
+    subtitle: ["双平台免费下载", "官网文档与 QQ 频道"]
+    overlay: OrzMC · 下载与文档
+    transition: 淡出
+    music: bgm_outro（渐弱）
+
+aspect_variants:
+  enabled: true
+  duration_cap_s: 45
+  shot_ids: [2]
+  note: 取「群聊即运维台」一镜做 9:16 切片（抖音/视频号/QQ 频道），字幕字号 ≥48px、单行 ≤10 字
+
+notes: |
+  - 卖点顺序：先给最强差异点（群聊管服），再给成长闭环（审核），最后给信任背书（安全+备份）。
+  - 画面以 QQ 群录屏为主（成本最低），游戏内只需 1 个小片段；录屏要求见 checklist-recording.md。
+  - 成片命名：EP00-宣传-v1.0.28。

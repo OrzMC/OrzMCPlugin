@@ -21,6 +21,13 @@ Closes #(issue)
 - [ ] `./gradlew integrationTest` 通过（可选）
 - [ ] `./gradlew check` 通过
 
+## 视频分集影响（涉及功能行为变更时勾选）
+
+<!-- 功能/命令/配置/模板改动会影响视频分集（videos/）：跑 videos/tools/affected-episodes.py --base origin/main 评估 -->
+
+- [ ] 已评估：按 `videos/UPDATE.md` 处置（L1 换字幕 / L2 单镜重录 / L3 加集归档）并更新 `videos/status.md`
+- [ ] 不适用（纯文档 / 测试 / 无功能行为变更）
+
 ## 额外说明
 
 <!-- 任何 reviewers 需要知道的信息 -->

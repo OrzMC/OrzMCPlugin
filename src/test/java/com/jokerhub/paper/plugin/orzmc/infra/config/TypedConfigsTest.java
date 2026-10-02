@@ -23,11 +23,22 @@ public class TypedConfigsTest {
     }
 
     @Test
-    public void testEntityTeleportConfigEmptyWhitelistFallsBackToDefaults() {
-        // 根级 false + 空白名单 → 回退内置 16 项默认白名单（config.yml 未配置/清空时语义）
+    public void testEntityTeleportConfigEmptyWhitelistKeptEmpty() {
+        // 显式 [] = 空白名单（无实体可被传送，集合键约定 β），不回退默认
         YamlConfiguration cfg = new YamlConfiguration();
         cfg.set("entity_teleport_enabled", false);
         cfg.set("entity_teleport_whitelist", List.of());
+
+        EntityTeleportConfig ec = EntityTeleportConfig.from(cfg);
+        Assertions.assertFalse(ec.enabled());
+        Assertions.assertTrue(ec.whitelist().isEmpty());
+    }
+
+    @Test
+    public void testEntityTeleportConfigMissingWhitelistFallsBackToDefaults() {
+        // 键缺失 → 回退内置 16 项默认白名单（集合键约定 β）
+        YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("entity_teleport_enabled", false);
 
         EntityTeleportConfig ec = EntityTeleportConfig.from(cfg);
         Assertions.assertFalse(ec.enabled());

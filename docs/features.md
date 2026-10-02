@@ -162,6 +162,46 @@
 - 区域白名单：可在指定世界 + 坐标范围内允许 TNT
 - 放置冷却：每玩家默认 5 秒冷却（`tnt.place_cooldown`）
 
+**`tnt.whitelist` 语义**（三者互斥）：
+
+| 写法 | 效果 |
+|------|------|
+| `enable: true` | 全图放行 TNT，`whitelist` 被忽略 |
+| `enable: false` + `whitelist: []` | 全图禁止 TNT（默认行为） |
+| `enable: false` + 有区域条目 | 只在列出的区域内放行 TNT，区域外仍禁止 |
+
+- 生效的拦截点：TNT 的**放置**、**点燃**（打火石/红石/火焰蔓延）、**发射器发射**（TNT 与 TNT 矿车）；爆炸本身只告警、不拦截。
+- **重生锚不受 `whitelist` 控制**，只由 `enable_respawn_anchor` 单独开关。
+- 坐标**含边界**；`min`/`max` 写反会自动交换；`world` 省略时默认 `world`。
+- 该键为复杂类型，**不在 `/config set` 注册表中**（`/config get tnt.whitelist` 查不到），只能直接编辑 `config.yml` 后执行 `/config reload`。
+
+**配置示例**（`config.yml` 的 `tnt:` 段）：
+
+```yaml
+tnt:
+  enable: false            # 全局禁止，仅白名单区域放行
+  whitelist:
+    - world: world         # 世界名（可省略，默认 world）
+      minX: -50            # X 下限（可大于 maxX，代码会自动交换）
+      maxX: 50             # X 上限
+      minY: 60             # Y 下限
+      maxY: 120            # Y 上限
+      minZ: -50            # Z 下限
+      maxZ: 50             # Z 上限
+    - world: world_nether  # 可配置多个区域，处于「任一」区域内即放行
+      minX: 0
+      maxX: 32
+      minY: 0
+      maxY: 255
+      minZ: 0
+      maxZ: 32
+```
+
+**`tnt.exempt_entities`**（爆炸通知豁免实体，属通知配置、不影响拦截）：`config.yml` 中**已显式列出默认 11 项**
+（CREEPER / FIREBALL / BREEZE / WIND_CHARGE / BREEZE_WIND_CHARGE / ENDER_DRAGON / END_CRYSTAL / WITHER /
+WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠加）。空值语义：写 `[]` = 不豁免任何实体；
+删掉整个键 = 回内置默认。同为手改 YAML 键，非法 `EntityType` 名被忽略。
+
 ### 4.2 重生锚控制
 - 独立开关 `tnt.enable_respawn_anchor` 控制是否允许放置重生锚
 
@@ -216,6 +256,7 @@
 - 运维命令（`stop` / `reload` / `deop` / `plugman` 等）不默认拦截——原生即受 OP 权限限制，避免管理员也无法停服/重载/管理 OP
 - `guard.audit_enabled` 开启时命令审计落盘 `audit/command_audit.log`；危险命令 WARN 不再重复刷控制台，细节由审计文件承载
 - 总开关：`guard.enabled`（关闭后拦截与审计全部停用）
+- `guard.blocked_commands` 空值语义：`[]` = 不拦截任何命令（主动清空）；删掉整个键 = 回内置默认（`op`/`publish`/`seed`）
 
 ### 5.6 聊天反垃圾（chat）
 - 聊天限流：60s 滑动窗口每玩家最多 20 条（`chat.max_messages_per_minute`）
@@ -230,7 +271,16 @@
 ### 5.8 已知漏洞加固（exploit_hardening）
 - 书与笔：每本最多 100 页（`book_max_pages`）
 - 物品属性：单个物品属性修饰符上限 6 个（`item_max_attribute_modifiers`）
-- 实体：单区块最多 128 实体（`entity_max_per_chunk`）
+- 实体：单区块最多 128 个**计入类型**的实体（`entity_max_per_chunk`）
+- **装饰类实体豁免计数**（`entity_count_exempt_types`）：默认 8 项纯装饰/标记实体
+  （`ITEM_FRAME` 物品展示框、`GLOW_ITEM_FRAME`、`PAINTING` 画、`LEASH_HITCH` 拴绳结、
+  `BLOCK_DISPLAY` / `ITEM_DISPLAY` / `TEXT_DISPLAY` 展示实体、`INTERACTION` 交互实体）——
+  它们**不计入**单区块实体数、自身生成也不被拦，避免地图画墙等装饰被卡服上限误伤。
+  - `ARMOR_STAND`（盔甲架）**刻意不在默认内**（既是装饰也是常见卡服机载体），需要时自行加入；
+  - 判定口径：`chunk.getEntities()` 中**非豁免类型**实体数 ≥ `entity_max_per_chunk` 才拒绝新生成为；
+    掉落物与抛射物始终豁免（不计入也不拦）；
+  - 显式写 `[]` = 不豁免任何类型（严格按总量计数）；键缺失（老配置）才回落内置默认；
+  - 该键为复杂类型，**不在 `/config` 注册表内**，需手改 `config.yml` 后 `/config reload`。
 - 命中自动清除异常内容/实体并可告警管理员；总开关：`exploit_hardening.enabled`
 
 ---
@@ -259,6 +309,7 @@
   - 任意大写 `EntityType` 名（如 `VILLAGER`）
 - 设为 `entity_teleport_enabled: true` 后所有实体均可被命令/插件传送
 - 默认白名单（16 项，仅被动/友好实体）：`TAMEABLE` / `ENDERMAN` / `ARMOR_STAND` / `SHULKER` / `VILLAGER` / `WANDERING_TRADER` / `COW` / `PIG` / `SHEEP` / `CHICKEN` / `RABBIT` / `GOAT` / `MOOSHROOM` / `AXOLOTL` / `BEE` / `IRON_GOLEM`
+- `entity_teleport_whitelist` 空值语义：`[]` = 无实体可被传送（主动清空）；删掉整个键 = 回内置默认 16 项
 
 ---
 
@@ -336,6 +387,12 @@
 
 ### 10.2 可配置项（29 项）
 
+> **集合键空值约定**：列表型键一律「删掉整个键 = 回内置默认；显式写 `[]` = 空（不回退默认）」。
+> 有内置默认的列表键（`guard.blocked_commands` / `tnt.exempt_entities` / `entity_teleport_whitelist` /
+> `exploit_hardening.entity_count_exempt_types`）已在 `config.yml` 里逐项列出，直接增删即可。
+> 例外：“空 = 语义状态”的键（`geoip.allow_country_code`、`tnt.whitelist` 等）不适用。
+> 详细契约见 [config-schema-governance.md §3.7](dev/config-schema-governance.md)。
+
 **白名单**
 | 配置路径 | 类型 | 默认值 | 描述 |
 |---------|------|--------|------|
@@ -367,6 +424,8 @@
 | `tnt.enable_respawn_anchor` | Boolean | false | 启用重生锚检测 |
 | `tnt.place_cooldown` | Integer | 5 | TNT 放置冷却（秒） |
 | `tnt.notify_aggregate_ms` | Long | 3000 | TNT/爆炸告警聚合窗口（毫秒） |
+
+> `tnt.whitelist`（区域白名单）与 `tnt.exempt_entities`（爆炸通知豁免实体）为复杂类型，**不在 `/config` 注册表内**，需手改 `config.yml`（示例见 [§4.1](#41-放置控制)）。
 
 **插件自更新**
 | 配置路径 | 类型 | 默认值 | 描述 |

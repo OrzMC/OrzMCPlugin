@@ -272,7 +272,7 @@ AccessTokenProvider 接口
 | 项 | 内容 | 状态 |
 |----|------|------|
 | E1 | EasyBot#114 字段演进（0.0.33 vs main）——升级网关时适配 | ⏳ owner |
-| E2 | promo-video 文档 #145（PR `feat/promo-video-script`，DRAFT） | ⏳ owner |
+| E2 | ~~promo-video 文档 #145（PR `feat/promo-video-script`，DRAFT）~~ → 已收敛为**视频系列**（总纲 #481）：源与工具在 `videos/`（零产物、可重生成），旧 8–10 分钟长稿归档 `videos/archive/script-full-v1.md` | ✅ 2026-09-13 |
 | E3 | 上游 pi 贡献：#9185 auto-closed 待维护者 review；fork `wangzhizhou/pi` 分支 `fix/tui-keep-scrollback-on-full-redraw`（a646e51 去 3J + 868a6b0 视口上方变化跳过重画，tui 964 测试绿）；本地 dist 同源补丁 + 诊断 `/tmp/pi-diff.log` | ⏳ 等维护者 `lgtm` 后提 PR（未获批前不自行开 PR） |
 
 ### 本机环境（不入库，交接文件 `/Users/bot/im-gateway-handoff.md` 承载）

@@ -9,6 +9,9 @@ import org.bukkit.configuration.ConfigurationSection;
  *
  * <p>对应 config.yml 的 {@code guard:} 段，供 {@code CommandGuardService} 使用：
  * 配置高危命令 deny-list、拦截时是否私信管理员、是否记录命令审计。</p>
+ *
+ * <p>{@code blocked_commands} 空值语义（集合键约定 β）：<b>键缺失/null → 内置默认</b>；
+ * <b>显式 {@code []} → 空（用户主动清空 deny-list，不回退默认）</b>。</p>
  */
 public record SecurityGuardConfig(
         boolean enabled, List<String> blockedCommands, boolean notifyAdmins, boolean auditEnabled) {
@@ -32,11 +35,15 @@ public record SecurityGuardConfig(
         List<String> blocked = new ArrayList<>();
         Object rawBlocked = cfg.get("blocked_commands");
         if (rawBlocked instanceof List<?> list) {
+            // 显式列表以磁盘为准：显式 [] = 用户主动清空 deny-list，不回退默认
             for (Object o : list) {
                 if (o == null) continue;
                 String cmd = String.valueOf(o).trim().toLowerCase();
                 if (!cmd.isEmpty()) blocked.add(cmd);
             }
+        } else {
+            // 键缺失/类型错 → 内置默认，避免删键后静默失去全部拦截（集合键空值约定 β）
+            blocked.addAll(DEFAULT_BLOCKED_COMMANDS);
         }
         return new SecurityGuardConfig(enabled, List.copyOf(blocked), notifyAdmins, auditEnabled);
     }
