@@ -162,6 +162,46 @@
 - 区域白名单：可在指定世界 + 坐标范围内允许 TNT
 - 放置冷却：每玩家默认 5 秒冷却（`tnt.place_cooldown`）
 
+**`tnt.whitelist` 语义**（三者互斥）：
+
+| 写法 | 效果 |
+|------|------|
+| `enable: true` | 全图放行 TNT，`whitelist` 被忽略 |
+| `enable: false` + `whitelist: []` | 全图禁止 TNT（默认行为） |
+| `enable: false` + 有区域条目 | 只在列出的区域内放行 TNT，区域外仍禁止 |
+
+- 生效的拦截点：TNT 的**放置**、**点燃**（打火石/红石/火焰蔓延）、**发射器发射**（TNT 与 TNT 矿车）；爆炸本身只告警、不拦截。
+- **重生锚不受 `whitelist` 控制**，只由 `enable_respawn_anchor` 单独开关。
+- 坐标**含边界**；`min`/`max` 写反会自动交换；`world` 省略时默认 `world`。
+- 该键为复杂类型，**不在 `/config set` 注册表中**（`/config get tnt.whitelist` 查不到），只能直接编辑 `config.yml` 后执行 `/config reload`。
+
+**配置示例**（`config.yml` 的 `tnt:` 段）：
+
+```yaml
+tnt:
+  enable: false            # 全局禁止，仅白名单区域放行
+  whitelist:
+    - world: world         # 世界名（可省略，默认 world）
+      minX: -50            # X 下限（可大于 maxX，代码会自动交换）
+      maxX: 50             # X 上限
+      minY: 60             # Y 下限
+      maxY: 120            # Y 上限
+      minZ: -50            # Z 下限
+      maxZ: 50             # Z 上限
+    - world: world_nether  # 可配置多个区域，处于「任一」区域内即放行
+      minX: 0
+      maxX: 32
+      minY: 0
+      maxY: 255
+      minZ: 0
+      maxZ: 32
+```
+
+**`tnt.exempt_entities`**（爆炸通知豁免实体，属通知配置、不影响拦截）：`config.yml` 中**已内置默认 11 项**
+（CREEPER / FIREBALL / BREEZE / WIND_CHARGE / BREEZE_WIND_CHARGE / ENDER_DRAGON / END_CRYSTAL / WITHER /
+WITHER_SKULL / SLIME / STRAY），可直接增删；填写后**完全替换**代码内置默认（不是叠加），整段留空
+`[]` 才回退到内置默认（内容相同，仅作兜底）。同为手改 YAML 键，非法 `EntityType` 名被忽略。
+
 ### 4.2 重生锚控制
 - 独立开关 `tnt.enable_respawn_anchor` 控制是否允许放置重生锚
 
@@ -376,6 +416,8 @@
 | `tnt.enable_respawn_anchor` | Boolean | false | 启用重生锚检测 |
 | `tnt.place_cooldown` | Integer | 5 | TNT 放置冷却（秒） |
 | `tnt.notify_aggregate_ms` | Long | 3000 | TNT/爆炸告警聚合窗口（毫秒） |
+
+> `tnt.whitelist`（区域白名单）与 `tnt.exempt_entities`（爆炸通知豁免实体）为复杂类型，**不在 `/config` 注册表内**，需手改 `config.yml`（示例见 [§4.1](#41-放置控制)）。
 
 **插件自更新**
 | 配置路径 | 类型 | 默认值 | 描述 |
