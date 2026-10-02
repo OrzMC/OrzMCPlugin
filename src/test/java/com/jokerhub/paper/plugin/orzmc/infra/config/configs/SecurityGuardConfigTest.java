@@ -20,7 +20,8 @@ class SecurityGuardConfigTest {
     }
 
     @Test
-    void fromEmpty_returnsDefaults() {
+    void fromSection_missingBlockedCommands_fallsBackToDefaults() {
+        // 集合键约定 β：键缺失 → 回内置默认（避免删键后静默失去全部拦截）
         ConfigurationSection cfg = mock(ConfigurationSection.class);
         when(cfg.getBoolean("enabled", true)).thenReturn(true);
         when(cfg.getBoolean("notify_admins", true)).thenReturn(true);
@@ -29,7 +30,7 @@ class SecurityGuardConfigTest {
 
         SecurityGuardConfig config = SecurityGuardConfig.from(cfg);
         assertTrue(config.enabled());
-        assertTrue(config.blockedCommands().isEmpty());
+        assertEquals(SecurityGuardConfig.DEFAULT_BLOCKED_COMMANDS, config.blockedCommands());
         assertTrue(config.notifyAdmins());
         assertTrue(config.auditEnabled());
     }

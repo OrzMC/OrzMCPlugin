@@ -13,10 +13,29 @@ public record TntConfig(
         List<Map<String, Object>> whitelistRegions,
         List<String> exemptEntities) {
 
+    /**
+     * 爆炸通知默认豁免实体（原版常见自然爆炸源）。
+     *
+     * <p>{@code exempt_entities} 空值语义（集合键约定 β）：<b>键缺失/null → 本默认清单</b>；
+     * <b>显式 {@code []} → 空（不豁免任何实体，回退已在读取层完成，消费层不再兜底）</b>。</p>
+     */
+    public static final List<String> DEFAULT_EXEMPT_ENTITIES = List.of(
+            "CREEPER",
+            "FIREBALL",
+            "BREEZE",
+            "WIND_CHARGE",
+            "BREEZE_WIND_CHARGE",
+            "ENDER_DRAGON",
+            "END_CRYSTAL",
+            "WITHER",
+            "WITHER_SKULL",
+            "SLIME",
+            "STRAY");
+
     @SuppressWarnings("unchecked")
     public static TntConfig from(ConfigurationSection cfg) {
         if (cfg == null) {
-            return new TntConfig(false, false, 5, 3000L, List.of(), List.of());
+            return new TntConfig(false, false, 5, 3000L, List.of(), DEFAULT_EXEMPT_ENTITIES);
         }
         boolean enable = cfg.getBoolean("enable", false);
         boolean enableRespawnAnchor = cfg.getBoolean("enable_respawn_anchor", false);
@@ -38,9 +57,13 @@ public record TntConfig(
         List<String> exemptEntities = new ArrayList<>();
         Object rawExempt = cfg.get("exempt_entities");
         if (rawExempt instanceof List<?> list) {
+            // 显式列表以磁盘为准：显式 [] = 不豁免任何实体，不回退默认
             for (Object o : list) {
                 if (o != null) exemptEntities.add(String.valueOf(o));
             }
+        } else {
+            // 键缺失/类型错 → 回退内置默认（集合键约定 β；回退只在此处发生，消费层不再兜底）
+            exemptEntities.addAll(DEFAULT_EXEMPT_ENTITIES);
         }
         return new TntConfig(
                 enable, enableRespawnAnchor, placeCooldownSeconds, notifyAggregateMs, whitelistRegions, exemptEntities);

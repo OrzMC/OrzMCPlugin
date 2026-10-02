@@ -314,6 +314,20 @@ class ConfigHealthCheckTest {
     }
 
     // ================================================================
+    // geoip（无默认键：缺失放宽限制，必须有告警）
+    // ================================================================
+
+    @Test
+    void geoip_missingAllowCountryCode_reportsSuggestion() {
+        // 无默认键（governance §3.7）：缺失 ⇒ 静默变为「不限地区」（放宽限制）→ 必须给建议级提示
+        config.createSection("geoip");
+
+        List<String> issues = runValidate();
+
+        assertTrue(issues.contains("建议: geoip.allow_country_code 未配置，默认允许所有地区"), "实际问题: " + issues);
+    }
+
+    // ================================================================
     // rank_colors
     // ================================================================
 

@@ -158,3 +158,25 @@ banned-players.json
 \#*
 \"*
 '*
+
+# ── 视频系列（videos/）：只跟踪源与工具，产物与中间产物一律不入库 ──
+# 策略见 videos/README.md；产物统一生成到 videos/.build/（跑完 make.sh 后 git status 必须干净）
+videos/.build/
+videos/.preview/
+videos/**/*.mp4
+videos/**/*.mov
+videos/**/*.mkv
+videos/**/*.webm
+videos/**/*.mp3
+videos/**/*.wav
+videos/**/*.m4a
+videos/**/*.srt
+videos/**/*.ass
+videos/**/*.png
+videos/**/*.jpg
+videos/**/*.jpeg
+videos/**/*.psd
+# 唯一豁免：videos/assets/ 下的小型输入素材（Logo 等，许可干净、体积小）
+!videos/assets/
+!videos/assets/*.png
+!videos/assets/*.svg

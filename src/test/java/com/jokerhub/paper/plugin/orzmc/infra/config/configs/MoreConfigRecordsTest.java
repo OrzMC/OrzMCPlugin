@@ -25,6 +25,7 @@ class MoreConfigRecordsTest {
             ConfigurationSection cfg = mock(ConfigurationSection.class);
             // EntityTeleportConfig.from() 调用 cfg.getBoolean("entity_teleport_enabled", false)
             when(cfg.getBoolean("entity_teleport_enabled", false)).thenReturn(true);
+            when(cfg.get("entity_teleport_whitelist")).thenReturn(List.of("VILLAGER"));
             when(cfg.getStringList("entity_teleport_whitelist")).thenReturn(List.of("VILLAGER"));
             EntityTeleportConfig c = EntityTeleportConfig.from(cfg);
             assertTrue(c.enabled());

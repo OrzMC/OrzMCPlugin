@@ -14,6 +14,7 @@
 | [Bot 接入手册](manuals/README.md) | 两通道选型（含[双通道对比](manuals/channel-comparison.md)）+ 分步接入/验收手册（EasyBot 网关 / builtin QQ·飞书·Telegram·Discord；公共骨架） | docs/manuals/ |
 | [权限组节点表](permission-groups.md) | LP 各组权限节点明细与设计决策 | docs/ |
 | [新手指南书手册](guide-book.md) | guide_book.yml 3 分钟上手：速查表 / 全写法 / 上限降级 / 旧格式迁移 / 排查清单 | docs/ |
+| [视频系列](../videos/README.md) | EP0 宣传短片 + EP1–EP25 功能分集（一集一功能点、≤3 分钟）的源/工具/看板：零产物、可重生成、含单集 SOP 与功能迭代影响检测；总纲 [#481](https://github.com/OrzMC/OrzMCPlugin/issues/481) | videos/ |
 
 ### 🧑💻 开发者（改代码）
 | 文档 | 内容 | 位置 |

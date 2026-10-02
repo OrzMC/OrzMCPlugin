@@ -331,7 +331,7 @@ class TntEventServiceTest extends ServiceTestBase {
 
     @Test
     void onEntityExplode_exemptListChangedAfterConstruction_takesEffectImmediately() {
-        // setUp 的 config 空 exempt → 默认豁免（含 CREEPER，不含 ENDERMAN）。
+        // setUp 的 config 空 exempt = 不豁免任何实体（集合键约定 β）。
         // 模拟 reload：新配置把 ENDERMAN 加入豁免，不重建 service。
         TntConfig tntConfig = new TntConfig(false, true, 0, 3000L, List.of(), List.of("ENDERMAN"));
         when(configs.tnt()).thenReturn(tntConfig);
