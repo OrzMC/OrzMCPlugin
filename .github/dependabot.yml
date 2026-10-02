@@ -5,9 +5,26 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # 同生态的 minor/patch 合并为一个 PR（major 仍单列，便于单独评审）。
+    # 目的：减少 PR 数与人工审批次数；并避免同一文件 hunk 内的多个坐标
+    # （如 mockito-core + mockito-junit-jupiter）各开一个 PR，产生重复/冲突对。
+    groups:
+      gradle-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
