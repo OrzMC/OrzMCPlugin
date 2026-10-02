@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.BotConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.EntityTeleportConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ExploitHardeningConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.Portals;
@@ -36,6 +37,11 @@ public class ConfigResourceSmokeTest {
         Assertions.assertNotNull(TntConfig.from(cfg.getConfigurationSection("tnt")));
         Assertions.assertNotNull(IpWhitelist.from(cfg.getConfigurationSection("geoip")));
         Assertions.assertNotNull(CommandPolicies.from(cfg.getConfigurationSection("command_policies")));
+        // 内置默认实体计数豁免清单必须与代码常量一致（防 config.yml 与 ExploitHardeningConfig 漂移）
+        Assertions.assertEquals(
+                ExploitHardeningConfig.DEFAULT_ENTITY_COUNT_EXEMPT_TYPES,
+                ExploitHardeningConfig.from(cfg.getConfigurationSection("exploit_hardening"))
+                        .entityCountExemptTypes());
         // EntityTeleportConfig reads config.yml 根级扁平键 — verify it at least doesn't crash
         Assertions.assertNotNull(EntityTeleportConfig.from(cfg));
     }

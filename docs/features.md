@@ -230,7 +230,16 @@
 ### 5.8 已知漏洞加固（exploit_hardening）
 - 书与笔：每本最多 100 页（`book_max_pages`）
 - 物品属性：单个物品属性修饰符上限 6 个（`item_max_attribute_modifiers`）
-- 实体：单区块最多 128 实体（`entity_max_per_chunk`）
+- 实体：单区块最多 128 个**计入类型**的实体（`entity_max_per_chunk`）
+- **装饰类实体豁免计数**（`entity_count_exempt_types`）：默认 8 项纯装饰/标记实体
+  （`ITEM_FRAME` 物品展示框、`GLOW_ITEM_FRAME`、`PAINTING` 画、`LEASH_HITCH` 拴绳结、
+  `BLOCK_DISPLAY` / `ITEM_DISPLAY` / `TEXT_DISPLAY` 展示实体、`INTERACTION` 交互实体）——
+  它们**不计入**单区块实体数、自身生成也不被拦，避免地图画墙等装饰被卡服上限误伤。
+  - `ARMOR_STAND`（盔甲架）**刻意不在默认内**（既是装饰也是常见卡服机载体），需要时自行加入；
+  - 判定口径：`chunk.getEntities()` 中**非豁免类型**实体数 ≥ `entity_max_per_chunk` 才拒绝新生成为；
+    掉落物与抛射物始终豁免（不计入也不拦）；
+  - 显式写 `[]` = 不豁免任何类型（严格按总量计数）；键缺失（老配置）才回落内置默认；
+  - 该键为复杂类型，**不在 `/config` 注册表内**，需手改 `config.yml` 后 `/config reload`。
 - 命中自动清除异常内容/实体并可告警管理员；总开关：`exploit_hardening.enabled`
 
 ---
