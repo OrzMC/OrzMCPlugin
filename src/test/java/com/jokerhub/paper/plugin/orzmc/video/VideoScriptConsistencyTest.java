@@ -324,8 +324,8 @@ class VideoScriptConsistencyTest {
                 assertTrue(cfg.containsKey("cap_s"), entry.getKey() + " 缺少 cap_s");
             }
         }
-        assertEquals(26, episodes.size(), "分集蓝本应为 26 集（EP0–EP25）");
-        assertTrue(produced >= 2, "至少 EP0/EP1 应已产出源");
+        assertEquals(3, episodes.size(), "视频清单应为 3 项（V1 宣传 + V2 上手 + B1 短视频库）");
+        assertTrue(produced >= 2, "至少 V1 与短视频库应已产出源");
 
         for (Path source : episodeSources()) {
             String id = source.getFileName().toString().split("-")[0];

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""影响检测：功能改动 → 受影响的视频分集与更新等级。
+"""影响检测：功能改动 → 受影响的视频与更新等级。
 
 依赖 `videos/coverage.yml`（功能点 ↔ 集号 双向映射）。**非阻塞**工具：报告用于提示与看板更新，
 不阻断功能 PR（唯一阻塞项是 `verify.sh` 的零产物与源校验）。
@@ -270,7 +270,7 @@ def update_status(hits: dict[str, dict]) -> int:
                 status_col = cells.index("状态") + 1
             break
     for i, line in enumerate(lines):
-        m = re.match(r"^\|\s*(EP\d+)\s*\|", line)
+        m = re.match(r"^\|\s*((?:V|B)\d+)\s*\|", line)
         if not m:
             continue
         ep = m.group(1)
@@ -290,7 +290,7 @@ def update_status(hits: dict[str, dict]) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="视频分集影响检测")
+    ap = argparse.ArgumentParser(description="视频影响检测")
     ap.add_argument("--base", default="origin/main", help="对比基线（默认 origin/main）")
     ap.add_argument(
         "--since",
@@ -320,9 +320,9 @@ def main() -> int:
     else:
         print(f"== 影响检测（{args.base}..{args.head}，变更 {len(changed)} 个文件）==")
         if not ordered:
-            print("✅ 未命中任何分集映射（无需更新视频）")
+            print("✅ 未命中任何视频映射（无需更新视频）")
         else:
-            print("| 集 | 标题 | 等级 | 依据 |")
+            print("| 视频 | 标题 | 等级 | 依据 |")
             print("|:--|:--|:--|:--|")
             for ep, info in ordered:
                 title = (episodes.get(ep) or {}).get("title", "")

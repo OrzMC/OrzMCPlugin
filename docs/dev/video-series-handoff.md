@@ -5,27 +5,22 @@
 
 ## 任务与目标
 
-把 OrzMC 的宣传与教学视频做成 **可持续迭代的系列**：**EP0 宣传短片**（聚焦核心功能、小而美，≤90s）+
-**EP1–EP25 功能分集**（一集一个功能点、讲清讲透、**单集 ≤180s**）。
+把 OrzMC 的宣传与上手视频做成 **可持续迭代的小系列**：**V1 宣传短片**（聚焦核心功能、小而美，≤90s）+
+**V2 快速上手**（下载 → 接机器人 → 上线，≤180s，承接 #128）+ **按需短视频库**（backlog，不排产）。
 
-**完成验收定义**（12 步全部落地）：
+**完成验收定义**：
 
-1. 规格与跟踪锁定（epic #481 + P0 子 issue #482–#490 + 本文件）
-2. `videos/` 骨架与源模板可复制即用，`.gitignore` 保证**零产物**（跑完 `make.sh` 后 `git status` 干净）
-3. 工具链幂等：`make.sh all --check` 通过且两次产物哈希一致
-4. 单集独立推进 SOP（`videos/UPDATE.md`）可照做
-5. 覆盖映射 + 过期看板（`coverage.yml` / `status.md`）双向完整
-6. 系列蓝本（`videos/series.md`）26 集清单与拆集规则
-7–8. EP0 / EP1 源落地并通过全部预算与事实校验
-9. 录制清单覆盖 EP0/EP1 全部镜号（含敏感信息遮蔽）
-10. CI 门禁：`VideoScriptConsistencyTest` + `verify.sh` + 非阻塞 `video impact` 步骤 + PR 模板 checkbox
-11. PR1/PR2/PR3 串行合入 `develop`
-12. 看板/issue 状态更新，新会话可凭本文件直接续作
+1. 系列蓝本简化为「2 旗舰 + 短视频库」（`videos/series.md`）
+2. 覆盖映射/看板收敛为 V1/V2/B1（`coverage.yml` / `status.md`）
+3. 工具链/门禁/零产物策略复用（`make.sh` / `verify.sh` / `VideoScriptConsistencyTest` 改为 3 项）
+4. V1 源已就绪（`ep00-promo.yml`）；V2 源待建（`ep25-quickstart.yml`）
+5. 远端 issue 收口：关 #483–#490，改 epic #481 为新方案，#128 承接 V2
 
 **边界（不由 agent 产出）**：真机游戏画面录制（客户端 + OBS）、真人配音、成片剪辑、版权 BGM、平台上传。
 
 ## 已完成（按时间倒序）
 
+- 2026-10-02 简化（本 PR）：系列从 26 集收敛为 **V1 宣传 + V2 上手 + 短视频库**；`series.md`/`status.md`/`coverage.yml`（V1/V2/B1）/`README`/`UPDATE`/`_template`/`checklist-recording`/`brand` 同步；`VideoScriptConsistencyTest` 由 26 集改 3 项；`affected-episodes.py` 看板正则适配 V/B 编号
 - 2026-09-13 PR3b（分支 `feat/video-series-gate`）：**CI 门禁 + 流程挂点 + 文档联动**
   - `src/test/java/.../video/VideoScriptConsistencyTest.java`（6 测试类）：预算（时长/语速/镜头/信息点/字幕行宽与单句）、
     事实与锚点（命令表 / 配置键 / 模板键 / features.md 章节）、映射完整（26 集、已产出源已登记、命令表全登记、
@@ -45,9 +40,10 @@
 
 ## 未完成清单（按依赖排序）
 
-1. **成片清单（owner 侧）**：按 `videos/checklist-recording.md` 录屏（EP0/EP1）→ 配音（可用 `tts-preview.sh` 样音或真人）→ 合成（对齐 `.build/<epNN>/*.srt`）→ 横竖屏分发 → 在 `videos/status.md` 回填成片链接与适用版本 → 关闭子 issue
-2. **后续分集 EP2–EP25**：一集一卡（新增 `videos/episodes/epNN-*.yml` → `make.sh epNN --all` 自检 → PR），优先 P0：EP3 白名单 / EP7 四级权限 / EP8 审核闭环 / EP15 传送门 / EP20 备份 / EP22 运行时配置 / EP25 快速上手
-3. **发版联动**：每次 tag 发版后跑 `videos/tools/affected-episodes.py --since <上一 tag>`，把「本版影响的集数」附到 epic #481 评论
+1. **V2 快速上手源**：建 `videos/episodes/ep25-quickstart.yml`（下载 → 装 LP → 接机器人 → `$h` → `$a` 加白 → 上线，≤180s）→ `make.sh ep25 --all` + `verify.sh` 自检 → PR
+2. **成片清单（owner 侧）**：录屏 V1（按 `checklist-recording.md`）+ V2 → 配音 → 合成 → 横竖屏分发 → 回填 `status.md` → 关 issue
+3. **issue 收口**：关 #483–#490（内容并入 V1/V2/短视频库），改 epic #481 为「2 旗舰 + 短视频库」；#128 继续承接 V2
+4. **发版联动**：每次 tag 发版后跑 `affected-episodes.py --since <上一 tag>`，结论附 epic #481 评论
 
 ## 环境事实（避免重复考古）
 
@@ -58,9 +54,9 @@
 
 ## 下一棒开场指令
 
-> 读本文件（`docs/dev/video-series-handoff.md`）与 `videos/README.md`，**从 EP2 卡片开始**：
-> 在 epic #481 下建/取 EP2 子 issue → 从 `origin/develop` 拉 `feat/video-ep02` 分支 → 复制 `videos/_template/episode.yml`
-> 为 `videos/episodes/ep02-im-channels.yml`（痛点 → 两通道对比 → 绑定与验证 → 选型建议 → 要点卡，≤150s）→
-> `videos/tools/make.sh ep02 --all` 与 `verify.sh` 自检 → PR（base=`develop`）→ CI 绿后 squash。
-> 若本次是功能改动收尾：先跑 `videos/tools/affected-episodes.py --base origin/main --update-status` 看是否有集需更新。
+> 读本文件（`docs/dev/video-series-handoff.md`）与 `videos/README.md`，**从 V2 快速上手开始**：
+> 在 #128 下推进：从 `origin/develop` 拉 `feat/video-v2` 分支 → 复制 `videos/_template/episode.yml`
+> 为 `videos/episodes/ep25-quickstart.yml`（痛点 → 下载安装 → 装 LP → 接机器人 → $h → $a 加白 → 上线验证 → 要点卡，≤180s）→
+> `videos/tools/make.sh ep25 --all` 与 `verify.sh` 自检 → PR（base=`develop`）→ CI 绿后 squash。
+> 若本次是功能改动收尾：先跑 `videos/tools/affected-episodes.py --base origin/main --update-status` 看是否有视频需更新。
 > 每个 PR 完成后更新本文件的「已完成 / 进行中卡」；提交前 `./gradlew spotlessApply && ./gradlew test` 全绿。

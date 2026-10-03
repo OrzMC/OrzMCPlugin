@@ -14,7 +14,7 @@
 | [Bot 接入手册](manuals/README.md) | 两通道选型（含[双通道对比](manuals/channel-comparison.md)）+ 分步接入/验收手册（EasyBot 网关 / builtin QQ·飞书·Telegram·Discord；公共骨架） | docs/manuals/ |
 | [权限组节点表](permission-groups.md) | LP 各组权限节点明细与设计决策 | docs/ |
 | [新手指南书手册](guide-book.md) | guide_book.yml 3 分钟上手：速查表 / 全写法 / 上限降级 / 旧格式迁移 / 排查清单 | docs/ |
-| [视频系列](../videos/README.md) | EP0 宣传短片 + EP1–EP25 功能分集（一集一功能点、≤3 分钟）的源/工具/看板：零产物、可重生成、含单集 SOP 与功能迭代影响检测；总纲 [#481](https://github.com/OrzMC/OrzMCPlugin/issues/481) | videos/ |
+| [视频系列](../videos/README.md) | V1 宣传短片 + V2 快速上手 + 按需短视频库（零产物、可重生成、含影响检测）；教程诉求 [#128](https://github.com/OrzMC/OrzMCPlugin/issues/128)、总纲 [#481](https://github.com/OrzMC/OrzMCPlugin/issues/481) | videos/ |
 | [故障排查](troubleshooting.md) | 常见报错的判定与处置（含「启动完成前敲命令报 `CommandSourceStack.getLevel()` NPE」——Paper 上游缺陷，非插件问题） | docs/ |
 
 ### 🧑💻 开发者（改代码）
