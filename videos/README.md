@@ -1,10 +1,10 @@
 # OrzMC 视频系列（源与工具）
 
-> **状态：现行** ｜ **最后更新**：2026-09-13
-> 系列总纲：[Epic #481](https://github.com/OrzMC/OrzMCPlugin/issues/481) ｜ 教程诉求（EP25）：[#128](https://github.com/OrzMC/OrzMCPlugin/issues/128)
+> **状态：现行** ｜ **最后更新**：2026-10-02
+> 系列总纲：[Epic #481](https://github.com/OrzMC/OrzMCPlugin/issues/481) ｜ 教程诉求（V2）：[#128](https://github.com/OrzMC/OrzMCPlugin/issues/128)
 
-本目录是 **OrzMC 宣传短片与功能分集**的**唯一事实源**：一条 EP0 宣传短片（吸引用户）+
-EP1–EP25 功能分集（一集一个功能点，讲清楚讲明白，单集 ≤3 分钟）。
+本目录是 **OrzMC 宣传与上手视频**的**唯一事实源**：一条 **V1 宣传短片**（吸引用户）+ 一条 **V2 快速上手**（教会用户）+
+按需**短视频库**（backlog，不排产）。
 
 ## ⚠️ 仓库策略：只跟踪源与工具，**产物与中间产物一律不入库**
 
@@ -24,10 +24,10 @@ EP1–EP25 功能分集（一集一个功能点，讲清楚讲明白，单集 �
 ```
 videos/
 ├── README.md                 # 本文件（策略 + 用法）
-├── series.md                 # 系列蓝本：26 集清单 / 拆集规则 / 发布矩阵
+├── series.md                 # 系列蓝本：2 旗舰 + 短视频库清单 / 发布矩阵
 ├── UPDATE.md                 # 单集独立推进 SOP + 功能迭代后的 L1/L2/L3 处置
 ├── status.md                 # 过期看板（状态 / 基线版本 / 成片链接 / 最后更新）
-├── coverage.yml              # 功能点 ↔ 集号 双向映射（影响检测的依据）
+├── coverage.yml              # 功能点 ↔ 视频 双向映射（影响检测的依据）
 ├── checklist-recording.md    # 录制清单（含敏感信息遮蔽、9:16 安全框、镜号级命名）
 ├── _template/episode.yml     # 分集源模板（复制后填写）
 ├── brand/brand.yml           # 品牌 token（全系列共用）
@@ -40,22 +40,22 @@ videos/
 ```bash
 videos/tools/make.sh ep01 --all      # 单集一键重建（md + SRT + 卡片 + TTS 样音）→ .build/ep01/
 videos/tools/make.sh all --check     # 全部集：预算校验 + 生成器可跑 + 幂等（两次产物哈希一致）
-videos/tools/affected-episodes.py --base origin/main   # 功能改动 → 受影响集 + L1/L2/L3 等级
+videos/tools/affected-episodes.py --base origin/main   # 功能改动 → 受影响视频 + L1/L2/L3 等级
 ```
 
-## 单集独立推进（一集一卡一 PR）
+## 单条视频独立推进（一条一片一 PR）
 
-1. 从对应子 issue 开工（如 EP1 = #483），复制 `_template/episode.yml` 为 `episodes/ep01-bot-commands.yml`；
-2. 写源 → `videos/tools/make.sh ep01 --all` 本地校验（时长/语速/行宽/锚点/事实）；
+1. 从对应 issue 开工（V1 = 已有 `ep00-promo.yml`；V2 = #128，新建 `episodes/ep25-quickstart.yml`；短视频库按需建）；
+2. 写源 → `videos/tools/make.sh <id> --all` 本地校验（时长/语速/行宽/锚点/事实）；
 3. 按 `checklist-recording.md` 录屏（产物不入库）→ 配音/字幕 → 合成；
 4. 发布后在 `status.md` 回填成片链接与适用版本；
-5. 功能迭代后按 `UPDATE.md` 的 L1（仅文案，换字幕不重录）/ L2（单镜重录 + 该集重合成）/ L3（加集或归档）处置。
+5. 功能迭代后按 `UPDATE.md` 的 L1（仅文案，换字幕不重录）/ L2（单镜重录 + 该片重合成）/ L3（加片或归档）处置。
 
 ## 硬约束（CI 门禁校验）
 
 | 约束 | 值 |
 |:--|:--|
-| 单集时长 | **硬上限 180s**（EP0 ≤90s；功能集目标 120–150s） |
+| 单条时长 | **硬上限 180s**（V1 ≤90s；V2 ≤180s） |
 | 口播预算 | ≈ 时长 × 3.8 字/秒（= 4.5 字/秒 × 0.85 留白；150s ≈ 570 字） |
 | 语速校验 | 3.4–5.2 字/秒（含停顿折算；实测 `say -v Tingting` ≈4.48 字/秒） |
 | 结构 | 信息点 ≤3、镜头 ≤10；**超限即拆集**（不压缩语速） |
