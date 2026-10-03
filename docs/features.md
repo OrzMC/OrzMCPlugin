@@ -5,7 +5,7 @@
 >
 > 本文档系统梳理插件的所有功能模块，方便用户快速了解插件能力。
 >
-> **运行环境**：Paper 26.x 或 Folia（`folia-supported: true`，同一 JAR 双运行时兼容）。适配细节与测试策略见 [Folia 迁移评估文档](folia-migration.md)。
+> **运行环境**：Paper 26.x 或 Folia（`folia-supported: true`，同一 JAR 双运行时兼容）。
 
 ---
 
@@ -561,8 +561,8 @@ WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠
 - **Bot 平台**：可按平台配置 `i18n.platform_langs[平台]` 指定交互回复语言；群事件通知按默认语言渲染一次。
 - **命令描述（/help 可见）与运维 /config 面板**：随默认语言（R1）；`$h`/`$cmd ?` 群帮助随默认语言；`/bot` 状态面板、`$e` 回显（截断提示/执行状态）与维护通知变量（mode/duration）同样随语言包渲染。
 - **服主覆盖**：数据目录 `messages_custom_<lang>.yml` 覆盖同 key（即时 reload 生效；空串 = 屏蔽该条消息），升级不覆盖存量正文定制（升级链自动迁移）。
-- **边界**：配置帮助说明（`/config list` 里的「说明」列）与健康报告为 admin 数据文档，保持内置中文不随语言切换（详见 `docs/dev/i18n-plan.md` §8 豁免表）。
-- 迁移方案与决策见 `docs/dev/i18n-plan.md`；P6 交接见 `docs/dev/i18n-gap-handoff.md`。
+- **边界**：配置帮助说明（`/config list` 里的「说明」列）与健康报告为 admin 数据文档，保持内置中文不随语言切换。
+- 多语言迁移已完成（P0–P7，随 1.0.25 发布）；历史方案见 [历史快照索引](reports/README.md)。
 
 ---
 
@@ -636,7 +636,7 @@ WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠
 **说明**：
 - 权限组只应通过本系统（`/apply` 审核 / `$p` 升降级）管理，请勿用 `lp user X parent add` 手动叠加组，否则会造成权限判定异常
 - 结案申请记录每玩家自动保留最近 10 条，历史记录自动裁剪（文件大小有上限）
-- 详细设计见 [权限系统方案文档](reports/permission-system-v2.md)
+- 详细设计见 [历史快照索引](reports/README.md)（权限系统二期方案 v8）
 
 ### 15.7 坐牢治理（作弊玩家隔离，prison）
 

@@ -15,7 +15,7 @@
 # 【Adding a language】Add messages/messages_<code>.yml resource + one line in
 # I18nLoader.CODES — no business code changes needed.
 #
-# Keys were populated per migration PRs P1-P5 (docs/dev/i18n-plan.md §5, ledger §8);
+# Keys were populated per migration PRs P1-P5;
 # the file is kept structurally identical to the zh-CN master.
 #
 # --- common.* (cross-channel generic feedback; migrated with command interceptors, P1) ---

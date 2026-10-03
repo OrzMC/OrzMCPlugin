@@ -1,7 +1,7 @@
 # OrzMC 文档导航
 
 > 仓库所有文档的总索引。按「读者角色 + 文档时效」组织——**现行手册**在 `docs/` 根目录直接可见，
-> **历史快照与验收报告**归档在 [`reports/`](./reports/)、**进行中路线图**在 [`roadmap/`](./roadmap/)、
+> **历史快照与验收记录**见 [`reports/`](./reports/)（精简索引，完整见 git）、**进行中路线图**在 [`roadmap/`](./roadmap/）、
 > **开发者治理红线**在 [`dev/`](./dev/)。每份文档头部标注「状态 / 最后更新」，先看状态再决定是否采信内容。
 
 ## 按读者角色
@@ -27,8 +27,6 @@
 | [配置 Schema 治理](dev/config-schema-governance.md) | config.yml 结构、版本门控迁移规则、允许/禁止事项 | docs/dev/ |
 | [Folia × LuckPerms 红线](dev/folia-luckperms-gotchas.md) | 线程模型/LP 集成实战教训（**改 rank/review/prison 前必读**） | docs/dev/ |
 | [IM 网关内建方案](dev/im-gateway-inhouse.md) | EasyBot ↔ builtin 双通道切换方案定稿（backend/im.yml/决策记录/实施路线/§10 遗留清单） | docs/dev/ |
-| [多语言 i18n 方案](dev/i18n-plan.md) | 中英双语 + 可扩展语言包（**P0–P7 全部完成，1.0.25 发布**；完成台账 §8，交接见 [i18n-migration-handoff.md](dev/i18n-migration-handoff.md)） | docs/dev/ |
-| [Folia 开发参考](folia-migration.md) | Folia 适配决策与验证方式（迁移已完成，作参考保留） | docs/ |
 | 包级 javadoc（`package-info.java`） | 逐包职责/关键类型/依赖方向，定位最快入口 | src/ |
 
 ### 🧪 测试 / 质量
@@ -44,18 +42,10 @@
 | [发布平台运维手册](publishing-platforms.md) | Hangar/Modrinth 项目信息、自动发布（含 tag 发布后 bump 自动化 §5.5）、Token 管理 | docs/ |
 | [更新日志](../CHANGELOG.md) | 版本变更明细 | 仓库根 |
 
-### 📚 历史快照 / 验收报告（已归档，只读参考）
-| 文档 | 时点 | 说明 |
-|:--|:--|:--|
-| [安全能力对照（加固前快照）](reports/security-gap-analysis.md) | 2026-08-16 | 现状已被安全加固路线图落地取代 |
-| [安全加固路线图（✅ 已完结）](reports/security-hardening-roadmap.md) | 2026-08-19 | 全部落地（PR #179–#184） |
-| [E2E 测试报告 0806](reports/e2e-test-report-20260806.md) | 2026-08-06 | 单核心手工用例时代 |
-| [E2E 双核心验收报告 0820](reports/e2e-test-report-20260820.md) | 2026-08-20 | 自动化套件 62/62×2 |
-| [Folia 适配验收清单](reports/folia-acceptance.md) | 2026-08-20 | FA-01~ 逐项结果与证据 |
-| [权限系统二期方案 v8](reports/permission-system-v2.md) | 2026-08-07 | 设计决策记录（已交付） |
-| [权限系统二期验收报告](reports/permission-system-v2-acceptance.md) | 2026-08-07 | 验收当时记录 |
-| [功能测试用例（手工）](reports/test-cases.md) | 2026-08-06 | 已被 `e2e/cases/` 自动化取代 |
-| [世界目录结构三方对比](reports/world-directory-structure-comparison.md) | 2026-07-02 | 一次性调研 |
+### 📚 历史快照 / 验收记录（已归档，见精简索引）
+| 文档 | 说明 |
+|:--|:--|
+| [历史快照与验收记录索引](reports/README.md) | 安全加固 / E2E / Folia 适配 / 权限二期 / i18n / Folia 迁移 的精简摘要（完整报告见 git 历史） |
 
 ## 维护约定（文档工程师）
 

@@ -22,7 +22,7 @@ import org.bukkit.entity.Player;
  * 以 {@code volatile} 引用整体替换（{@code tables}），读路径无锁。渲染复用
  * {@code infra.templates.TemplateRenderer} 的 {@code {var}} 引擎（单一实现，不重复造轮子）。</p>
  *
- * <p>决议链（详见 docs/dev/i18n-plan.md §3.5）：游戏内 = 客户端 locale；Bot 交互回复 = 来源平台 →
+ * <p>决议链：游戏内 = 客户端 locale；Bot 交互回复 = 来源平台 →
  * {@code platform_langs}；广播/默认 = {@code default_lang}。兜底：请求码未安装 →
  * 别名 → 基础码唯一命中 → 默认语言 → zh-CN；zh 也缺 key → 返回 key 本体并按 key 去重告警一次。</p>
  */
