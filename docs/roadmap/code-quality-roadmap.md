@@ -3,7 +3,7 @@
 > **状态：现行**（进行中路线图，2026-09-03 最后复核）——活跃任务清单，随迭代更新。
 
 > 定位：执行路线图。六维审查（架构 / 质量保障 / 文档 / 性能 / PaperMC·Folia / 安全）的**完整问题清单 + 可独立推进的任务拆分**。
-> 与既有 [security-hardening-roadmap.md](../reports/security-hardening-roadmap.md)（安全功能已全部落地）互补——本文聚焦**已上线功能的缺陷修复、泄漏治理、测试补齐与文档校正**。
+> 与已完结的安全加固（PR #179–#184）互补——本文聚焦**已上线功能的缺陷修复、泄漏治理、测试补齐与文档校正**。
 >
 > 最后更新：2026-08-19（已对 HEAD `1248213` = 1.0.19 重新评估，#198–#203 的变更已核对：P0 命令绕过仍开放，新增 N1/N2 两项）
 >
@@ -500,8 +500,8 @@
 
 ## 6. 相关文档
 
-- [security-hardening-roadmap.md](../reports/security-hardening-roadmap.md) — 安全功能落地路线图（P0-P2 已完成）
-- [security-gap-analysis.md](../reports/security-gap-analysis.md) — 安全现状对照
 - [architecture.md](../architecture.md) — 架构设计
-- [folia-migration.md](../folia-migration.md)、[dev/folia-luckperms-gotchas.md](../dev/folia-luckperms-gotchas.md) — Folia 线程红线
+- [dev/folia-luckperms-gotchas.md](../dev/folia-luckperms-gotchas.md) — Folia 线程红线
 - [AGENTS.md](../../AGENTS.md) — 仓库协作约定（单一事实源）
+
+> 注：2026-10-02 文档精简后，security-gap-analysis / test-cases / folia-migration / permission-system-v2-acceptance 等历史文档已删除归档（见 [reports/README.md](../reports/README.md)），本清单中对应「文档校正」项（D2/D12/D13/D15/P2-22/P2-27）已随之解决。

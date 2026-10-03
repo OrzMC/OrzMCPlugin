@@ -180,3 +180,6 @@ videos/**/*.psd
 !videos/assets/
 !videos/assets/*.png
 !videos/assets/*.svg
+
+# E2E 运行报告（run-all.sh -r 产物，不入库）
+e2e/reports/
