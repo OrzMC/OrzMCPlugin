@@ -26,6 +26,12 @@
 - **已有资产全保留**：EP0 源 = V1、EP1 源 = 短视频库 B1（已备源不排产）；工具链 / 品牌 / 零产物门禁 / `affected-episodes` 影响检测不变，`coverage.yml` 映射收敛为 V1/V2/B1。
 - **门禁同步**：`VideoScriptConsistencyTest` 由「26 集」改为「3 项（V1/V2/B1）」。
 
+### 📺 视频系列再精简（只留 2 条 + 工具链，2026-10-02）
+
+- **删除非必需内容**：短视频库源 `ep01-bot-commands.yml`、归档长稿 `archive/`、影响检测 `coverage.yml` + `tools/affected-episodes.py` + `UPDATE.md`。
+- **只留最小集**：V1（`ep00-promo.yml`）+ V2（待建 `ep25-quickstart.yml`）+ 工具链（make/build-episode/build-cards/tts-preview/verify）+ 品牌 + 录制清单 + 看板。
+- **门禁同步**：`VideoScriptConsistencyTest` 删除「覆盖映射完整」测试（不再依赖 coverage.yml）；`build.yml` 删除非阻塞 `video impact` 步骤；PR 模板删除「视频影响」勾选。
+
 ## [1.0.27] - 2026-09-13
 
 > 本版为**功能版本**：新手指南书配置格式 v2（一眼可懂：一行一句话、一页一个列表 + 3 个记号）与旧 `content:` 格式的**启动自动迁移**（备份 + 回读校验 + 幂等），并补齐 guide_book 健康校验与文档一致性 CI 门禁；同批含 IM/QQ 出站异步化、QQ 被动回复配额降级主动消息、入站消息去重与密钥门禁加固。
