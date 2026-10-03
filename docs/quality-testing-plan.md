@@ -106,7 +106,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | ConfigIntegrationTest | 配置装载 |
 | Guide/Menu/PlayerNotify/Portal/Security/TeleportBow/Tnt/Whitelist IntegrationTest | 各领域事件绑定 |
 
-### 3.3 L2 真实服 E2E 用例（28 项，见 test-cases.md）
+### 3.3 L2 真实服 E2E 用例（28 项，脚本化至 e2e/cases/）
 
 | 分类 | 用例 | 状态 |
 |:--|:--|:--|
@@ -195,7 +195,7 @@ bash e2e/run-all.sh -h              # 帮助
 | 任务 | 计划 | 内容 |
 |:--|:--|:--|
 | **插件质量周报** | 每周一 9:30 | `gradlew test integrationTest jacocoTestReport` → 解析用例数/覆盖率 → GitHub API 拉最近 CI 通过率 → 飞书表格报告（对比上周基线） |
-| **E2E 回归** | 迭代合并后手动/PR 触发 | run-all.sh 全量 → 报告归档至 [docs/reports/](README.md)（见 docs/README「历史快照」节） |
+| **E2E 回归** | 迭代合并后手动/PR 触发 | run-all.sh 全量 → 报告落 `e2e/reports/`（不入库） |
 
 ---
 
@@ -205,7 +205,7 @@ bash e2e/run-all.sh -h              # 帮助
 |:--|:--|:--|
 | P0 基线建立 | 功能全图 + 覆盖率基线 + 薄弱模块定位 | ✅ 2026-08-19 |
 | P1 单测补强 | 薄弱模块补测；单测 1600+ 用例、覆盖率 ≥75%（当前 78%） | ✅（CI jacoco 门禁 + codecov 合并覆盖率已落地） |
-| P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2，[验收报告](reports/e2e-test-report-20260820.md)） |
+| P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2） |
 | P3 指标自动化 | 质量周报 cron（CI 覆盖率门禁已落地；周报 cron 未排期） | 🔄 |
 | P4 CI 深度集成 | folia-smoke 已转必须门禁（✅）；nightly E2E job 仍需测试服常驻方案 | 🔄 远期 |
 

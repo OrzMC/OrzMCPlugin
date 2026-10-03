@@ -31,6 +31,6 @@ ui:
   watermark: { text: "OrzMC", position: bottom_right, opacity: 0.15 }
 
 publish:
-  naming: "EP{nn}-{slug}-v{version}"        # 例：EP01-群指令-v1.0.28
+  naming: "V{n}-{slug}-v{version}"        # 例：V1-宣传-v1.0.28 / V2-快速上手-v1.0.28
   description_rule: 简介与置顶评论必须注明「以 docs/ 文档为唯一事实源」+ 适用版本
   reissue_policy: 重制发新版并保留旧版（标注「旧版」），不覆盖、不删号

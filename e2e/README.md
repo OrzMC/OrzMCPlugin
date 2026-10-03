@@ -28,7 +28,7 @@ export ORZMC_TEST_DIR=/Users/Shared/orzmc/mcsmanager/daemon/data/InstanceData/<u
 export ORZMC_CONSOLE_URL=https://mcs.jokerhub.cn/api/protected_instance/command
 export ORZMC_API_KEY=<MCSM_LOCAL_API_KEY>
 bash e2e/run-all.sh -c 03        # 只跑指定用例
-bash e2e/run-all.sh -r           # 全量 + Markdown 报告（reports/）
+bash e2e/run-all.sh -r           # 全量 + Markdown 报告（e2e/reports/，不入库）
 
 # 帮助
 bash e2e/run-all.sh -h
