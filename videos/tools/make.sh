@@ -2,7 +2,7 @@
 # OrzMC 视频分集 唯一入口：源（epNN.yml）→ 派生物（人读稿 / SRT / 卡片 / TTS 样音）
 #
 # 用法：
-#   videos/tools/make.sh <ep00|ep01|all> [--subs] [--cards] [--tts] [--all] [--check]
+#   videos/tools/make.sh <ep00|ep25|all> [--subs] [--cards] [--tts] [--all] [--check]
 #     默认动作 = --subs --cards --tts（全部派生物）
 #     --check   只做预算/事实校验（CI 用，不写任何文件）
 #
@@ -52,10 +52,10 @@ for t in "${targets[@]}"; do
   fi
 done
 if [ ${#sources[@]} -eq 0 ]; then
-  echo "⚠️ 没有分集源（videos/episodes/*.yml），跳过" ; exit 0
+  echo "⚠️ 没有视频源（videos/episodes/*.yml），跳过" ; exit 0
 fi
 
-echo "== OrzMC 视频构建：${#sources[@]} 集（workdir=${WORKDIR}）=="
+echo "== OrzMC 视频构建：${#sources[@]} 条（workdir=${WORKDIR}）=="
 for src in "${sources[@]}"; do
   ep_id="$(basename "$src" | cut -d- -f1)"
   ep_dir="$WORKDIR/$ep_id"

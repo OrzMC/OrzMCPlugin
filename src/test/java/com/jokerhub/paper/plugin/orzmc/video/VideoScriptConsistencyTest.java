@@ -31,13 +31,11 @@ import org.yaml.snakeyaml.Yaml;
  *   <li><b>事实与锚点</b>：{@code facts.commands} 必须是 features.md 命令表中的命令、{@code facts.config_keys}
  *       必须能在 {@code src/main/resources} 中解析、{@code documentation_anchors} 必须能定位到 features.md 标题
  *       ——防止视频脚本与实现漂移；
- *   <li><b>映射完整</b>：{@code videos/coverage.yml} 中的集号必须存在、已产出源必须登记、features.md 的命令表
- *       必须全部登记（新增命令会被门禁拦下，提醒补视频映射）；
  *   <li><b>零产物与隐私</b>：{@code git ls-files videos} 不得出现媒体/卡片等产物；源中不得出现真实 IP / 域名 /
  *       QQ 号 / 会话 key / Token（官方域名白名单除外）。
  * </ol>
  */
-@DisplayName("视频系列一致性（预算 / 事实锚点 / 映射完整 / 零产物）")
+@DisplayName("视频系列一致性（预算 / 事实锚点 / 零产物 / 隐私）")
 class VideoScriptConsistencyTest {
 
     private static final Path REPO = Path.of("").toAbsolutePath();
@@ -297,53 +295,6 @@ class VideoScriptConsistencyTest {
             assertFalse(anchors.isEmpty(), where + " 缺少 documentation_anchors（脚本必须绑定权威文档）");
             for (Object anchor : anchors) {
                 assertTrue(anchorExists(anchor.toString()), where + " 锚点 `" + anchor + "` 无法在 docs/features.md 定位");
-            }
-        }
-    }
-
-    // ── 3. 覆盖映射完整性 ──────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("映射完整：集号存在、已产出源已登记、命令表全部登记")
-    void coverageMappingComplete() throws IOException {
-        Map<String, Object> coverage = map(loadYaml(VIDEOS.resolve("coverage.yml")));
-        Map<String, Object> episodes = map(coverage.get("episodes"));
-        assertFalse(episodes.isEmpty(), "coverage.yml 缺少 episodes 段");
-
-        Set<String> registered = new LinkedHashSet<>();
-        int produced = 0;
-        for (Map.Entry<String, Object> entry : episodes.entrySet()) {
-            Map<String, Object> cfg = map(entry.getValue());
-            registered.add(String.valueOf(cfg.get("id")));
-            if (Boolean.TRUE.equals(cfg.get("produced"))) {
-                produced++;
-                assertTrue(
-                        Files.exists(episodeFile(String.valueOf(cfg.get("id")))),
-                        "coverage 标记 produced 却找不到源：" + cfg.get("id"));
-            } else {
-                assertTrue(cfg.containsKey("cap_s"), entry.getKey() + " 缺少 cap_s");
-            }
-        }
-        assertEquals(26, episodes.size(), "分集蓝本应为 26 集（EP0–EP25）");
-        assertTrue(produced >= 2, "至少 EP0/EP1 应已产出源");
-
-        for (Path source : episodeSources()) {
-            String id = source.getFileName().toString().split("-")[0];
-            assertTrue(registered.contains(id), "源 " + source.getFileName() + " 未登记到 coverage.yml");
-        }
-
-        // features.md 命令表 ↔ coverage.commands：新增命令必须补登记（提示视频需评估）
-        Map<String, Object> commandMap = map(coverage.get("commands"));
-        for (String cmd : documentedCommands()) {
-            assertTrue(commandMap.containsKey(cmd), "命令 " + cmd + " 未登记到 coverage.yml 的 commands 映射");
-        }
-
-        // 章节映射值必须是已知集号
-        for (String section : List.of("chapters", "commands", "config_keys", "template_keys")) {
-            for (Object eps : map(coverage.get(section)).values()) {
-                for (Object ep : (List<?>) eps) {
-                    assertTrue(episodes.containsKey(ep.toString()), section + " 映射引用了未知集号 " + ep);
-                }
             }
         }
     }

@@ -1,13 +1,13 @@
-# OrzMC 视频分集源模板（唯一事实源）
+# OrzMC 视频源模板（唯一事实源）
 #
 # 用法：复制为 videos/episodes/epNN-<slug>.yml 后填写；所有派生物由 videos/tools/make.sh 生成到 videos/.build/<id>/，
 #       SRT/卡片/音频/成片一律不入库（见 videos/README.md「仓库策略」）。
 #
-# 硬约束（CI 门禁校验）：单集 ≤180s（EP0 ≤90s）；口播 ≈ 时长 × 4.5 字/秒 × 0.85；
+# 硬约束（CI 门禁校验）：单条 ≤180s（V1 ≤90s）；口播 ≈ 时长 × 4.5 字/秒 × 0.85；
 #   信息点 ≤3；镜头 ≤10；字幕单行 ≤18 字、单句 ≤6s；facts 与 documentation_anchors 必须真实存在；不得出现真实 IP/QQ 号/会话 key/Token。
 
 meta:
-  id: ep00                      # 集号（ep00–ep25），决定产物目录名
+  id: ep00                      # 片 id（ep00=V1、ep25=V2 等），决定产物目录名
   slug: promo                   # 短名，产物前缀
   title: 宣传短片
   baseline_version: "1.0.28"    # 编制基线版本；功能迭代后据此判断「哪几集过期」
@@ -16,12 +16,12 @@ meta:
   prerequisites:                # 讲解前提（录屏环境须满足）
     - Paper 26.2 + OrzMC ≥ 1.0.28
     - QQ 群机器人已绑定（管理群）
-  information_points:            # 本集信息点（≤ budget.max_information_points，超限即拆集）
+  information_points:            # 本片信息点（≤ budget.max_information_points，超限即拆片）
     - 群里一条消息完成运维
   fallback_on_missing_assets: 用卡片占位并在看板标注「待录屏」
 
 budget:
-  duration_cap_s: 90            # 硬上限（EP0 ≤90；功能集 ≤180）
+  duration_cap_s: 90            # 硬上限（V1 ≤90；V2 ≤180）
   target_duration_s: 75
   narration_chars: 290          # ≈ target × 4.5 × 0.85（允许 ±10%）
   max_information_points: 3
@@ -62,9 +62,9 @@ shots:
 aspect_variants:                # 竖屏切片（9:16 ≤60s，用于抖音/视频号/QQ 频道）
   enabled: true
   duration_cap_s: 45
-  shot_ids: [2]                 # 取该集最强的一个操作
+  shot_ids: [2]                 # 取该片最强的一个操作
   note: 字幕字号 ≥48px、单行 ≤10 字；按安全框构图
 
 notes: |
   - 录制要求见 videos/checklist-recording.md（OBS 1920×1080/60fps、光标放大、敏感信息遮蔽）。
-  - 成片命名带版本：EP00-宣传-v1.0.28；重制后发新版，旧版标注「旧版」。
+  - 成片命名带版本：V1-宣传-v1.0.28；重制后发新版，旧版标注「旧版」。

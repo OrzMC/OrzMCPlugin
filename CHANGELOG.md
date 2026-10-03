@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.28] - 2026-10-03
 
 ### 🐛 修复（main→develop 反向同步 ok 分支不可达）
 - **同步预检 `VERDICT=ok` 被误判为"需人工处理"**：`main-develop-sync.yml` 的 `case` 里 `manual|*)` 含 `*` 兜底却排在 `ok)` 之前，
@@ -19,6 +19,30 @@
   该集重合成 / L3 加集或归档）+ `status.md` 过期看板 + `UPDATE.md` 单集 SOP；功能 PR 只**非阻塞**提示影响，不拦合入
 - **已落地**：EP0/EP1 源与全套工具链（#482/#483 的源部分）；成片待录屏合成；发布矩阵
   16:9 → B站/YouTube/官网/Hangar+Modrinth，9:16 ≤60s → 抖音/视频号/QQ 频道；总纲 #481
+
+### 📺 视频系列简化（V1 宣传 + V2 上手 + 短视频库，2026-10-02）
+
+- **从 26 集课程简化为「2 旗舰 + 按需短视频库」**：EP0–EP25 功能分集改为 **V1 宣传短片（≤90s）** + **V2 快速上手（≤180s，承接 #128）**；其余功能不单独排产，按需从主片素材剪 9:16 ≤60s 切片。
+- **已有资产全保留**：EP0 源 = V1、EP1 源 = 短视频库 B1（已备源不排产）；工具链 / 品牌 / 零产物门禁 / `affected-episodes` 影响检测不变，`coverage.yml` 映射收敛为 V1/V2/B1。
+- **门禁同步**：`VideoScriptConsistencyTest` 由「26 集」改为「3 项（V1/V2/B1）」。
+
+### 📺 视频系列再精简（只留 2 条 + 工具链，2026-10-02）
+
+- **删除非必需内容**：短视频库源 `ep01-bot-commands.yml`、归档长稿 `archive/`、影响检测 `coverage.yml` + `tools/affected-episodes.py` + `UPDATE.md`。
+- **只留最小集**：V1（`ep00-promo.yml`）+ V2（待建 `ep25-quickstart.yml`）+ 工具链（make/build-episode/build-cards/tts-preview/verify）+ 品牌 + 录制清单 + 看板。
+- **门禁同步**：`VideoScriptConsistencyTest` 删除「覆盖映射完整」测试（不再依赖 coverage.yml）；`build.yml` 删除非阻塞 `video impact` 步骤；PR 模板删除「视频影响」勾选。
+
+### ✨ 配置与安全（#504 / #505）
+- **单区块实体上限豁免装饰类实体**：新增 `exploit_hardening.entity_count_exempt_types`（默认 8 项：画 / 物品展示框 / 盔甲架 / 花盆 / 告示牌等），装饰实体不再误计入单区块实体上限导致无法放置；config.yml 显式列出默认值 + `ConfigResourceSmokeTest` 漂移守卫。
+- **集合键空值语义统一为二维模型**（空值轴 × 默认轴，消除例外）：键缺失 / null → 默认态；显式 `[]` / `{}` → 空（不回退）；整表 / 逐键 / 无默认三类默认轴 + 无默认键缺失告警（`geoip.allow_country_code`）。
+
+### 🔧 CI / 自动化（#506 / #507）
+- **approval-gate 审批门禁**：可信作者（owner / dependabot / github-actions）PR CI 绿即可自动合并，外部真人 PR 仍需 review 通过；配套 `docs/dev/repo-automation.md`（ruleset 设置 + 回滚步骤）。
+- **dependabot minor/patch 分组**：`gradle-minor-patch` / `actions-minor-patch` 减少 PR 数与重复，major 单列。
+
+### 📚 文档（#514 / #517）
+- **故障排查**：新增 `docs/troubleshooting.md`——Paper 启动期 console NPE 判定（上游 #13580，非插件问题）。
+- **文档精简**：57 → 41 个 Markdown；删除 `e2e/reports/` 生成产物与历史快照，合并为 `docs/reports/README.md` 单一索引；`e2e/reports/` 加入 .gitignore。
 
 ## [1.0.27] - 2026-09-13
 
