@@ -92,7 +92,7 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
   即可让 v10→v14 老装自动翻新——无需再单独区分 legacy/可信路径。
 - **键搬迁（§3.4 场景）示例**：v12 将业务层 bot 参数（`cmd_prompt_char`/`discord_server_link`/`qq_group_id`）
   从 easybot.yml 迁至 config.yml `bot:` 段——一次性搬迁器在 `ConfigService.migrateBotParamsToConfig`（幂等，
-  升级后自动执行），配合 BotConfig 双读回退与健康检查迁移提示，老装自定义值不丢。
+  升级后自动执行）会搬值并清除 easybot 旧键，老装自定义值不丢；搬迁后 BotConfig 单一事实源（不再双读回退）。
 - 若只是**新增键**（老装缺键由 `DefaultsMerger` 补新默认）或**接受老装保留旧值**，走 §3.1 + §3.2 中
   「只抬版本」即可，无需翻转表条目。
 

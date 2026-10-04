@@ -335,10 +335,6 @@ styles:
 api_server: 'http://127.0.0.1:8080'
 ws_server: 'ws://127.0.0.1:8080'
 api_key: ''
-parse_mode: 'none'
-cmd_prompt_char: '$'
-discord_server_link: ''
-qq_group_id: ''
 log_throttle_ms: 5000
 platforms:
   qq:
@@ -348,7 +344,9 @@ platforms:
     admin_dm: 'qq:conv_yyyyyyyy'
 ```
 
-- 支持多平台：QQ / Discord / Telegram / 飞书 / 微信
+> 业务层 bot 参数（`cmd_prompt_char` / `discord_server_link` / `qq_group_id`）权威在 config.yml `bot:` 段。
+
+- 支持多平台：QQ / Discord / Telegram / 飞书
 - 各平台独立配置消息路由（admin_group / player_group / admin_dm）
 - `player_group` 留空时 PUBLIC 消息自动降级到 `admin_group`
 - 全局开关自动检测：任一平台 `enabled=true` 即激活连接
@@ -382,7 +380,7 @@ command_policies:
 
 ## Bot 命令
 
-机器人命令前缀来自 `easybot.yml` → `cmd_prompt_char`（默认 `$`）：
+机器人命令前缀来自 `config.yml` → `bot.cmd_prompt_char`（默认 `$`）：
 
 | 命令 | 权限 | 说明 |
 |------|------|------|

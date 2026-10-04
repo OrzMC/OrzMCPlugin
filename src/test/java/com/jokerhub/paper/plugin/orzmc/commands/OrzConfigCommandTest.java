@@ -180,9 +180,9 @@ class OrzConfigCommandTest {
     @Test
     void set_configNull_sendsError() {
         // Return null config for a different config file
-        when(configService.getConfig("easybot")).thenReturn(null);
+        when(configService.getConfig("config")).thenReturn(null);
 
-        cmd.onCommand(sender, command, "orzmc", new String[] {"set", "cmd_prompt_char", "$"});
+        cmd.onCommand(sender, command, "orzmc", new String[] {"set", "bot.cmd_prompt_char", "$"});
 
         verify(textStyles).error(contains("配置文件未加载"));
     }
