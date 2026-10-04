@@ -25,7 +25,7 @@ config-version: 15
 # 语言包本体为内置资源 messages/messages_<code>.yml（随插件发布），服主可改。
 i18n:
   default_lang: zh-CN
-  # 群平台语言覆盖（key 为 IM 平台 id：qq / discord / telegram / feishu / wechat）。
+  # 群平台语言覆盖（key 为 IM 平台 id：qq / discord / telegram / feishu）。
   # 不配置的平台跟随 default_lang。示例：
   # platform_langs:
   #   qq: zh-CN

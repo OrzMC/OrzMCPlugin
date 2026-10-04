@@ -1084,19 +1084,6 @@ class ConfigHealthCheckTest {
     }
 
     @Test
-    void easyBotEmptyCmdPrompt_reportsIssue() {
-        easybot.set("cmd_prompt_char", "");
-        addFullValidConfig_whitelist();
-        addFullValidConfig_maintenance();
-        addFullValidConfig_tnt();
-        addFullValidConfig_geoip();
-        addFullValidConfig_commandPolicies();
-        addMinimalValidConfig_templates();
-        List<String> issues = runValidate();
-        assertTrue(issues.contains("非法: easybot.cmd_prompt_char 不可为空"));
-    }
-
-    @Test
     void easyBotNegativeHttpTimeout_reportsIssue() {
         addFullValidConfig_whitelist();
         addFullValidConfig_maintenance();

@@ -37,7 +37,7 @@ public final class ConfigHealthCheck {
         validateConfig(config, provider, issues);
         validateEasyBot(provider.apply("easybot"), issues);
         validateIm(provider.apply("im"), issues);
-        validateBotSection(config, provider.apply("easybot"), issues);
+        validateBotSection(config, issues);
         validateTemplates(provider.apply("templates"), issues);
         validatePortals(provider.apply("portals"), issues);
         validateAccessRules(provider.apply("access_rules"), issues);
@@ -66,31 +66,22 @@ public final class ConfigHealthCheck {
     }
 
     /**
-     * v12 起业务层 bot 参数权威在 config.yml {@code bot:} 段（easybot.yml 旧键仅作回退读取，搬迁见
-     * ConfigService.migrateBotParamsToConfig）。校验 bot 段类型；若 bot 段缺失且 easybot 仍持旧键 → 迁移提示。
+     * v12 起业务层 bot 参数权威在 config.yml {@code bot:} 段（easybot.yml 旧键已随迁移清理，见
+     * ConfigService.migrateBotParamsToConfig）。校验 bot 段类型；bot 段缺失由升级深合并补全，属异常。
      */
-    private static void validateBotSection(
-            FileConfiguration configCfg, FileConfiguration easybotCfg, List<String> issues) {
+    private static void validateBotSection(FileConfiguration configCfg, List<String> issues) {
         if (configCfg == null) {
             return; // config.yml 未加载已由 validateConfig 报
         }
         ConfigurationSection bot = configCfg.getConfigurationSection("bot");
-        if (bot != null) {
-            Object prompt = bot.get("cmd_prompt_char");
-            if (prompt != null && !(prompt instanceof String)) {
-                issues.add("类型错误: bot.cmd_prompt_char 需为字符串");
-            } else if (prompt != null && String.valueOf(prompt).isBlank()) {
-                issues.add("非法: bot.cmd_prompt_char 不可为空");
-            }
-            return; // bot 段存在即权威（含刚被搬迁/升级补齐）
+        if (bot == null) {
+            return; // 升级深合并应已补齐 bot 段；缺段时静默（validateConfig 已覆盖 config.yml 整体缺失）
         }
-        // bot 段整体缺失：检查 easybot 旧键是否仍被回退读取（老装未迁移或文件异常）→ 提示
-        if (easybotCfg != null
-                && (easybotCfg.contains("cmd_prompt_char")
-                        || easybotCfg.contains("discord_server_link")
-                        || easybotCfg.contains("qq_group_id"))) {
-            issues.add("建议迁移: bot 业务参数仍位于 easybot.yml（v12 起权威位置为 config.yml bot: 段，"
-                    + "当前按回退读取生效）——迁移由插件启动自动完成，或手动配置 config.yml bot: 后删除 easybot 旧键");
+        Object prompt = bot.get("cmd_prompt_char");
+        if (prompt != null && !(prompt instanceof String)) {
+            issues.add("类型错误: bot.cmd_prompt_char 需为字符串");
+        } else if (prompt != null && String.valueOf(prompt).isBlank()) {
+            issues.add("非法: bot.cmd_prompt_char 不可为空");
         }
     }
 
@@ -257,13 +248,6 @@ public final class ConfigHealthCheck {
             issues.add("easybot.yml 未加载");
             return;
         }
-        Object prompt = cfg.get("cmd_prompt_char");
-        if (prompt != null && !(prompt instanceof String)) {
-            issues.add("类型错误: easybot.cmd_prompt_char 需为字符串");
-        } else if (prompt != null && String.valueOf(prompt).isBlank()) {
-            issues.add("非法: easybot.cmd_prompt_char 不可为空");
-        }
-
         // apiKey 传输安全：远程网关（非本机）用明文 http/ws 时 apiKey 会明文传输
         validateScheme(cfg.getString("api_server", ""), "easybot.api_server", issues);
         validateScheme(cfg.getString("ws_server", ""), "easybot.ws_server", issues);
