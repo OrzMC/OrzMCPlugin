@@ -305,11 +305,11 @@ WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠
 - 默认**限制**命令/插件触发的实体传送（`entity_teleport_enabled: false`），仅白名单内实体可被传送，防 `@e` 选择器误用把海量实体传送到虚空/岩浆造成地图灾难
 - **下界传送门穿越不受限制**（`EntityPortalEvent` 始终放行）：掉落物/矿车/船/任意生物照常过传送门
 - 白名单项支持：
-  - 特殊键：`TAMEABLE`（按接口判定，覆盖猫/狗/鹦鹉 + 全部马科）、`ENDERMAN`、`ARMOR_STAND`、`SHULKER`
+  - 特殊键：`TAMEABLE`（按接口判定，覆盖猫/狗/鹦鹉 + 全部马科）、`MINECART`（按接口判定，覆盖全部矿车变体）、`ENDERMAN`、`ARMOR_STAND`、`SHULKER`
   - 任意大写 `EntityType` 名（如 `VILLAGER`）
 - 设为 `entity_teleport_enabled: true` 后所有实体均可被命令/插件传送
-- 默认白名单（16 项，仅被动/友好实体）：`TAMEABLE` / `ENDERMAN` / `ARMOR_STAND` / `SHULKER` / `VILLAGER` / `WANDERING_TRADER` / `COW` / `PIG` / `SHEEP` / `CHICKEN` / `RABBIT` / `GOAT` / `MOOSHROOM` / `AXOLOTL` / `BEE` / `IRON_GOLEM`
-- `entity_teleport_whitelist` 空值语义：`[]` = 无实体可被传送（主动清空）；删掉整个键 = 回内置默认 16 项
+- 默认白名单（17 项，仅被动/友好实体）：`TAMEABLE` / `ENDERMAN` / `ARMOR_STAND` / `SHULKER` / `MINECART` / `VILLAGER` / `WANDERING_TRADER` / `COW` / `PIG` / `SHEEP` / `CHICKEN` / `RABBIT` / `GOAT` / `MOOSHROOM` / `AXOLOTL` / `BEE` / `IRON_GOLEM`
+- `entity_teleport_whitelist` 空值语义：`[]` = 无实体可被传送（主动清空）；删掉整个键 = 回内置默认 17 项
 
 ---
 

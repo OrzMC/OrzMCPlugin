@@ -42,6 +42,13 @@ class EntityTeleportPolicyServiceTest extends ServiceTestBase {
         assertFalse(service.shouldCancel(entity));
     }
 
+    @Test
+    void shouldCancel_minecart_returnsFalse() {
+        // MINECART 按接口判定，覆盖全部矿车变体（Rideable/Storage/Powered/Explosive/Hopper/Spawner/Command）
+        Entity entity = mock(Minecart.class);
+        assertFalse(service.shouldCancel(entity));
+    }
+
     // ---- 2026-08-09 可配置化：默认不禁止（enabled=false 全放行）+ 白名单豁免 ----
 
     @Test

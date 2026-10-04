@@ -13,7 +13,7 @@
 
 # 配置 schema 版本：插件启动时若磁盘版本低于内置版本，会自动补齐缺失默认键并升级
 # （原文件备份为 easybot.yml.bak）。版本号由插件维护，无需手动修改。
-config-version: 14
+config-version: 15
 
 # Bot 命令前缀【已迁 config.yml bot:，此处保留回退读取】
 cmd_prompt_char: '$'

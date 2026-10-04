@@ -15,7 +15,7 @@
 
 # 配置 schema 版本：插件启动时若磁盘版本低于内置版本，会自动补齐缺失默认键并升级
 # （原文件备份为 config.yml.bak）。版本号由插件维护，无需手动修改。
-config-version: 14
+config-version: 15
 
 # ==================================================
 #          〇、多语言（i18n）
@@ -83,10 +83,11 @@ command_policies:
 # false = 仅白名单内实体可被命令/插件传送（默认，防 @e 选择器误用把海量实体传送到虚空/岩浆造成地图灾难）。
 # 下界传送门穿越（EntityPortalEvent）始终放行，不受此开关影响（掉落物/矿车/船/生物照常过门）。
 #   - 白名单项：大写 EntityType 名（如 VILLAGER），或特殊键
-#     TAMEABLE / ENDERMAN / ARMOR_STAND / SHULKER
+#     TAMEABLE / ENDERMAN / ARMOR_STAND / SHULKER / MINECART
 #   - TAMEABLE 按接口判定，已覆盖猫/狗/鹦鹉 + 全部马科（马/驴/骡/羊驼/骆驼），无需重复列出
+#   - MINECART 按接口判定，已覆盖全部矿车变体（普通/箱子/熔炉/TNT/漏斗/刷怪笼/命令方块矿车），无需逐项列出
 #   - 白名单默认只含常见被动/友好实体（村民/牲畜/友好水生/傀儡等），敌对生物不在内
-#   - 空值语义：下方已显式列出内置默认 16 项，直接增删即可；
+#   - 空值语义：下方已显式列出内置默认 17 项，直接增删即可；
 #     删掉整个键 = 回内置默认；写成 [] = 空白名单（无实体可被传送，不回退默认）
 entity_teleport_enabled: false
 entity_teleport_whitelist:
@@ -94,6 +95,7 @@ entity_teleport_whitelist:
   - ENDERMAN
   - ARMOR_STAND
   - SHULKER
+  - MINECART
   - VILLAGER
   - WANDERING_TRADER
   - COW

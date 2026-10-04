@@ -3,7 +3,7 @@
  *
  * <p>关键类型：{@code ConfigService}（存取入口）、{@code DefaultTypedConfigProvider}
  *（实现 core/ports/config 的 TypedConfigProvider，返回类型化 records）、
- * {@code AdvancedConfigManager}/{@code ConfigSchema}/{@code ConfigUpgrader}/{@code LegacyDefaultFlips}
+ * {@code AdvancedConfigManager}/{@code ConfigSchema}/{@code ConfigUpgrader}/{@code DefaultFlips}
  *（schema 版本门控 + do-no-harm 深合并）、{@code ConfigHealthCheck}（630 行逐节校验，P2 计划下沉到
  * 各 config record）、{@code PortalsWriter}、{@code TemplateKeys}/{@code SafeKeys}/{@code ConfigPath}。</p>
  *
