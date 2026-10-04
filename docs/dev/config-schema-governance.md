@@ -88,8 +88,8 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
 - `changedInVersion = MIN_TRUSTED_VERSION`（10）的条目 = 框架引入时一次性收编的 legacy 旧默认，
   只对无标记/旧 `2` 安装生效（等价于旧版 `LegacyDefaultFlips`）。
 - 默认值在可信中间版本之后变更（如 v15 `entity_teleport_whitelist` 增补 MINECART 16→17、v10 收编
-  `guard.blocked_commands` 旧 7 项），登记对应 `changedInVersion` 即可让 v10→v14 老装自动翻新——
-  无需再单独区分 legacy/可信路径。
+  `guard.blocked_commands` 旧 7 项、`tnt.whitelist` 旧 3 区域占位→`[]`），登记对应 `changedInVersion`
+  即可让 v10→v14 老装自动翻新——无需再单独区分 legacy/可信路径。
 - **键搬迁（§3.4 场景）示例**：v12 将业务层 bot 参数（`cmd_prompt_char`/`discord_server_link`/`qq_group_id`）
   从 easybot.yml 迁至 config.yml `bot:` 段——一次性搬迁器在 `ConfigService.migrateBotParamsToConfig`（幂等，
   升级后自动执行），配合 BotConfig 双读回退与健康检查迁移提示，老装自定义值不丢。
@@ -131,7 +131,7 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
 - `ConfigUpgraderTest`：legacy 无标记/旧 `2` 迁移、最新零动作、降级跳过、无默认源跳过、损坏跳过、
   merge 保留显式空列表/自定义值、翻转仅命中旧默认、`entity_teleport_whitelist` 仅旧 4 项默认时扩展、
   可信中间版本（v14）默认翻转（`entity_teleport_whitelist` 16→17、`guard.blocked_commands` 7→3）、
-  templates 缺键回填。
+  `tnt.whitelist` 旧 3 区域占位→空列表（自定义保留）、templates 缺键回填。
 - `DefaultsMergerTest`：嵌套补键、保留空值、段/标量冲突、空 disk 段补缺。
 - `TemplateKeysTest`：`ALL` 无重复、每个 key 在内置 `templates.yml` 有默认文本。
 - `ConfigHealthCheckTest`：健康夹具遍历 `TemplateKeys.ALL` 填充（勿退化为静态清单）。

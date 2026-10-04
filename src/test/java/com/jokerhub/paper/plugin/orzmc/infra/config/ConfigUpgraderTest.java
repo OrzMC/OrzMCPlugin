@@ -300,6 +300,40 @@ class ConfigUpgraderTest {
     }
 
     @Test
+    void legacy_flipsTntWhitelistWhenEqualToOld3RegionPlaceholder() throws Exception {
+        // #239 前 tnt.whitelist 默认是 3 个世界原点占位（意外放行 0,0,0），应翻为空列表（全图禁止）
+        String old = "tnt:\n"
+                + "  whitelist:\n"
+                + "    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world' }\n"
+                + "    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_nether' }\n"
+                + "    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_the_end' }\n";
+        File file = writeConfig("config.yml", old);
+        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream in = bundledResource("config.yml")) {
+            assertEquals(ConfigUpgrader.Outcome.MIGRATED, upgrader.upgrade(cfg, file, in));
+        }
+
+        assertTrue(cfg.getList("tnt.whitelist").isEmpty(), "旧 3 区域占位默认应翻为空列表（全图禁止）");
+    }
+
+    @Test
+    void legacy_keepsCustomizedTntWhitelist() throws Exception {
+        // 服主自定义区域（非 3 区域占位默认）不翻新，do-no-harm
+        String old = "tnt:\n"
+                + "  whitelist:\n"
+                + "    - { minX: -50, maxX: 50, minY: 60, maxY: 120, minZ: -50, maxZ: 50, world: 'world' }\n";
+        File file = writeConfig("config.yml", old);
+        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream in = bundledResource("config.yml")) {
+            assertEquals(ConfigUpgrader.Outcome.MIGRATED, upgrader.upgrade(cfg, file, in));
+        }
+
+        assertEquals(1, cfg.getList("tnt.whitelist").size(), "自定义区域应保留不被翻转");
+    }
+
+    @Test
     void legacy_templates_missingTemplateKeysAreBackfilled() throws Exception {
         File file = writeConfig("templates.yml", "templates:\n  coord:\n    scale: 1.0\n");
         FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
