@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -53,6 +54,42 @@ public final class DefaultFlips {
             new FlipSpec(
                     "guard.blocked_commands",
                     List.of("op", "deop", "publish", "seed", "reload", "plugman", "stop"),
+                    ConfigSchema.MIN_TRUSTED_VERSION),
+            // #239 前 tnt.whitelist 默认是 3 个世界原点占位（意外放行 0,0,0），收敛为空列表（全图禁止）
+            new FlipSpec(
+                    "tnt.whitelist",
+                    List.of(
+                            Map.of("minX", 0, "maxX", 0, "minY", 0, "maxY", 0, "minZ", 0, "maxZ", 0, "world", "world"),
+                            Map.of(
+                                    "minX",
+                                    0,
+                                    "maxX",
+                                    0,
+                                    "minY",
+                                    0,
+                                    "maxY",
+                                    0,
+                                    "minZ",
+                                    0,
+                                    "maxZ",
+                                    0,
+                                    "world",
+                                    "world_nether"),
+                            Map.of(
+                                    "minX",
+                                    0,
+                                    "maxX",
+                                    0,
+                                    "minY",
+                                    0,
+                                    "maxY",
+                                    0,
+                                    "minZ",
+                                    0,
+                                    "maxZ",
+                                    0,
+                                    "world",
+                                    "world_the_end")),
                     ConfigSchema.MIN_TRUSTED_VERSION),
             // ---- v15：entity_teleport_whitelist 增补 MINECART（16 → 17 项）----
             new FlipSpec(
