@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.29] - 2026-10-05
 
 ### 🐛 修复（集合键默认值变更无法自动翻新老装）
 - **默认值翻转表泛化为版本门控**：`LegacyDefaultFlips` → `DefaultFlips`，`FlipSpec` 增加 `changedInVersion`，
@@ -12,6 +12,16 @@
 ### ✨ 实体传送豁免新增矿车
 - `entity_teleport_whitelist` 增补特殊键 `MINECART`（按接口判定，覆盖普通/箱子/熔炉/TNT/漏斗/刷怪笼/命令方块矿车
   共 7 种变体），默认白名单 16 → 17 项；config.yml / features.md 同步。
+
+### 🐛 修复（tnt.whitelist 旧默认占位）
+- 补登 `tnt.whitelist` 旧 3 区域占位默认的翻转条目（v10 收编），legacy 老装升级后自动翻为空列表（全图禁止）；
+  自定义区域保留不覆盖。
+
+### 🧹 配置精简（最小可用）
+- 删 `easybot.yml` 未实现的 `wechat` 平台块（全仓 0 处业务引用、无 builtin 适配器）与顶层 3 个 legacy 回退键
+  （`cmd_prompt_char`/`discord_server_link`/`qq_group_id`），`BotConfig` 收敛单一事实源（config.yml `bot:` 段）。
+- 收敛 easybot HTTP/WS 重试旋钮 10→6：删 `ws_jitter_percent`/`ws_stable_reset_ms`/`ws_message_log_*`
+  下沉为代码固定默认（抖动 10%、稳定重置 20000ms、移除 WS 消息日志调试特性）。
 
 ## [1.0.28] - 2026-10-03
 
