@@ -27,10 +27,6 @@ class RobustWebSocketClientReconnectTest {
                 int maxRetries,
                 long baseRetryInterval,
                 long maxRetryInterval,
-                int jitterPercent,
-                long stableResetMs,
-                boolean logMessageEnabled,
-                long logMessageThrottleMs,
                 Map<String, String> httpHeaders,
                 String heartbeatPayload,
                 WebSocketEventListener listener)
@@ -42,10 +38,6 @@ class RobustWebSocketClientReconnectTest {
                     maxRetries,
                     baseRetryInterval,
                     maxRetryInterval,
-                    jitterPercent,
-                    stableResetMs,
-                    logMessageEnabled,
-                    logMessageThrottleMs,
                     httpHeaders,
                     heartbeatPayload,
                     listener);
@@ -83,10 +75,6 @@ class RobustWebSocketClientReconnectTest {
                 maxRetries,
                 100,
                 1000,
-                0,
-                20000,
-                false,
-                0,
                 Map.of(),
                 null,
                 listener);
@@ -137,33 +125,33 @@ class RobustWebSocketClientReconnectTest {
         assertDoesNotThrow(() -> invokePrivate(client, "scheduleReconnect"));
     }
 
-    /** 指数退避：retryCount=1 → base*2^0=100；retryCount=3 → base*2^2=400（上限 1000 内） */
+    /** 指数退避（固定 10% 抖动）：retryCount=1 → base≈100；retryCount=3 → base≈400（上限 1000 内） */
     @Test
     void calculateBackoffDelay_exponentialWithCap() throws Exception {
         Testable client = createClient(listenerWith(ex -> {}), 10);
-        // jitter=0 → 精确值
+        // 固定 10% 抖动 → 退避落在 [0.9x, 1.1x] 区间
         setPrivate(client, "retryCount", 1);
         long d1 = (long) invokePrivate(client, "calculateBackoffDelay");
-        assertEquals(100L, d1, "第 1 次重试 delay=100ms");
+        assertTrue(d1 >= 90L && d1 <= 110L, "第 1 次重试 delay≈100ms，实际 " + d1);
 
         setPrivate(client, "retryCount", 3);
         long d3 = (long) invokePrivate(client, "calculateBackoffDelay");
-        assertEquals(400L, d3, "第 3 次重试 delay=400ms");
+        assertTrue(d3 >= 360L && d3 <= 440L, "第 3 次重试 delay≈400ms，实际 " + d3);
 
-        // 封顶：retryCount 很大时不超过 maxRetryInterval(1000)
+        // 封顶：retryCount 很大时退避不超过 maxRetryInterval(1000) 的 1.1x 抖动上限
         setPrivate(client, "retryCount", 99);
         long dCap = (long) invokePrivate(client, "calculateBackoffDelay");
-        assertTrue(dCap <= 1000L, "退避应封顶 maxRetryInterval，实际 " + dCap);
+        assertTrue(dCap <= 1100L, "退避应封顶 maxRetryInterval 附近，实际 " + dCap);
     }
 
-    /** jitter 边界：0% 无抖动；100% 抖动不超过 [0.5, 1.5]x */
+    /** 固定 10% 抖动：退避始终落在 [0.9x, 1.1x] 区间 */
     @Test
     void calculateBackoffDelay_jitterBounds() throws Exception {
         Testable client = createClient(listenerWith(ex -> {}), 10);
         setPrivate(client, "retryCount", 2); // base=200
         for (int i = 0; i < 50; i++) {
             long d = (long) invokePrivate(client, "calculateBackoffDelay");
-            assertTrue(d >= 100L && d <= 300L, "jitter=0 应精确 200，实际 " + d);
+            assertTrue(d >= 180L && d <= 220L, "10% 抖动应落在 [180, 220]，实际 " + d);
         }
     }
 

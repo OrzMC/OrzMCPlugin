@@ -312,16 +312,10 @@ public final class ConfigHealthCheck {
         int wsRetries = cfg.getInt("ws_max_retries", 10);
         long wsBaseRetry = cfg.getLong("ws_base_retry_ms", 5000);
         long wsMaxDelay = cfg.getLong("ws_max_delay_ms", 60000);
-        int wsJitter = cfg.getInt("ws_jitter_percent", 10);
-        long wsStableReset = cfg.getLong("ws_stable_reset_ms", 20000);
-        long wsLogThrottle = cfg.getLong("ws_message_log_throttle_ms", 60000);
         long logThrottle = cfg.getLong("log_throttle_ms", 5000);
         if (wsRetries < 0) issues.add("非法: easybot.ws_max_retries 不得为负数");
         if (wsBaseRetry <= 0) issues.add("非法: easybot.ws_base_retry_ms 必须为正数");
         if (wsMaxDelay < wsBaseRetry) issues.add("非法: easybot.ws_max_delay_ms 不得小于 ws_base_retry_ms");
-        if (wsJitter < 0 || wsJitter > 100) issues.add("非法: easybot.ws_jitter_percent 范围 0-100");
-        if (wsStableReset <= 0) issues.add("非法: easybot.ws_stable_reset_ms 必须为正数");
-        if (wsLogThrottle <= 0) issues.add("非法: easybot.ws_message_log_throttle_ms 必须为正数");
         if (logThrottle <= 0) issues.add("非法: easybot.log_throttle_ms 必须为正数");
     }
 
