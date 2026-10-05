@@ -111,7 +111,7 @@ public final class ConfigService {
     /**
      * v12 一次性键搬迁（幂等）：easybot.yml 顶层旧 bot 参数 → config.yml {@code bot:} 段。
      * 规则：config bot 段键缺失或仍为默认值时，若 easybot 旧键存在——非默认值搬入 bot 段，默认/空旧键直接清；
-     * config bot 段已被用户手改（非默认）→ 以 config 为准，easybot 旧键一并清除（双读回退防御可移除）。
+     * config bot 段已被用户手改（非默认）→ 以 config 为准，easybot 旧键一并清除（双读回退已移除）。
      */
     private void migrateBotParamsToConfig() {
         FileConfiguration config = configManager.getConfig("config");

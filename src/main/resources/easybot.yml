@@ -1,26 +1,19 @@
 # ===========================================================================
 #          EasyBot IM Gateway Configuration
 # ===========================================================================
-# EasyBot 是一个统一的 IM 网关，支持 QQ / Telegram / Discord / 飞书 / 微信，
+# EasyBot 是一个统一的 IM 网关，支持 QQ / Telegram / Discord / 飞书，
 # 对外暴露统一的 REST API + WebSocket 事件推送。
 #
-# 【职责声明】本文件 = EasyBot 通道层（连接参数 + 会话绑定）+ 跨 backend 兼容旧键。
+# 【职责声明】本文件 = EasyBot 通道层（连接参数 + 平台会话目标）。
 #  - backend 通道选择在 im.yml；
-#  - 业务层 bot 参数（cmd_prompt_char / discord_server_link / qq_group_id）v12 起
-#    权威在 config.yml bot: 段——此处保留仅作老装回退读取（新装请配置 config.yml bot:）。
+#  - 业务层 bot 参数（cmd_prompt_char / discord_server_link / qq_group_id）权威在
+#    config.yml bot: 段（easybot.yml 旧键已随 v12 迁移自动清理，不再回退读取）；
 #  - 全局开关已取消，插件自动检测是否有任一平台 enabled=true 来决定连接。
 # ===========================================================================
 
 # 配置 schema 版本：插件启动时若磁盘版本低于内置版本，会自动补齐缺失默认键并升级
 # （原文件备份为 easybot.yml.bak）。版本号由插件维护，无需手动修改。
-config-version: 14
-
-# Bot 命令前缀【已迁 config.yml bot:，此处保留回退读取】
-cmd_prompt_char: '$'
-
-# 展示给玩家的社区入口（可选，不参与 EasyBot 消息路由）
-discord_server_link: ''
-qq_group_id: ''
+config-version: 15
 
 # 日志限流周期
 log_throttle_ms: 5000
@@ -83,16 +76,6 @@ platforms:
     # 管理员私聊会话 key
     admin_dm: 'feishu:conv_yyyyyyyy'
 
-  # ===== 微信（仅支持私聊 DM） =====
-  wechat:
-    enabled: false
-    # 微信不支持群聊，admin_group 仅作为 PUBLIC 降级目标
-    admin_group: 'wechat:conv_xxxxxxxx'
-    # 微信无群聊概念，player_group 通常不填
-    player_group: ''
-    # 管理员私聊会话 key
-    admin_dm: 'wechat:conv_yyyyyyyy'
-
 # ===========================================================================
 #  HTTP 超时与重试
 # ===========================================================================
@@ -107,7 +90,3 @@ http_max_retries: 3
 ws_max_retries: 10
 ws_base_retry_ms: 5000
 ws_max_delay_ms: 60000
-ws_jitter_percent: 10
-ws_stable_reset_ms: 20000
-ws_message_log_enabled: false
-ws_message_log_throttle_ms: 60000

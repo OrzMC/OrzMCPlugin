@@ -14,7 +14,7 @@ class MoreConfigRecordsTest {
     class EntityTeleportConfigFromTest {
         @Test
         void fromNull_returnsDefaults() {
-            // cfg 缺失/未加载 → enabled=false + 内置 16 项默认白名单
+            // cfg 缺失/未加载 → enabled=false + 内置 17 项默认白名单
             EntityTeleportConfig c = EntityTeleportConfig.from(null);
             assertFalse(c.enabled());
             assertEquals(EntityTeleportConfig.DEFAULT_ENTITY_TELEPORT_WHITELIST, c.whitelist());

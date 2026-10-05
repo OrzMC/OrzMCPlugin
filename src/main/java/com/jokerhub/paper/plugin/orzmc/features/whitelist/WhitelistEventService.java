@@ -55,7 +55,7 @@ public final class WhitelistEventService {
         TextComponent.Builder kickMsgBuilder = Component.text();
         // 踢出消息发生在登录前（无客户端 locale），语言随服务器默认（i18n P2b）
         var lang = i18n.langFor();
-        // QQ 群号单一事实源：easybot.qq_group_id（whitelist.kick_message.qq_group_id 已废弃删除，2026-09-02）
+        // QQ 群号单一事实源：config.yml bot: 段（whitelist.kick_message.qq_group_id 已废弃删除，2026-09-02）
         String qqGroupId = configs.bot().qqGroupId();
         if (qqGroupId != null && !qqGroupId.isEmpty()) {
             if (!kickMsgBuilder.build().equals(Component.empty())) {

@@ -20,7 +20,7 @@
 | **portal** | PortalCommandService / PortalEventService | `/portal <host> [port]` 建门（4×5 黑曜石框架+文字标签）；`/portal remove`；跨服 transfer；未登录禁传送（LoginSecurity 集成）；portals.yml 持久化；Folia PlayerMoveEvent 补偿路径（#195） | 单测+集成+E2E(部分) |
 | **tnt** | TntEventService / TntPolicy | TNT 放置拦截（4 拦截点）；区域白名单；5s 放置冷却；重生锚控制；爆炸通知聚合（128×128×64 + 3s 窗口 + ×N）；exempt_entities 豁免 | 单测+集成 |
 | **security** | 12 个服务（见 1.2） | GeoIP 国家限制；IP 黑名单（精确/CIDR/通配符）；玩家名规则（exact/prefix/suffix/contains/glob/regex）；危险命令拦截；命令审计；聊天反垃圾；进服限流；漏洞加固；登录验证 | 单测+集成+E2E |
-| **teleport** | TeleportBowService / TeleportBowEventService / EntityTeleportPolicyService | `/tpbow` 传送弓（无限附魔）；飞行路径 force-load（提前 24 格）；落点安全检查+最近安全点搜索；猫咕噜声；实体传送策略（白名单 TAMEABLE/ENDERMAN/ARMOR_STAND/SHULKER） | 单测+集成+E2E |
+| **teleport** | TeleportBowService / TeleportBowEventService / EntityTeleportPolicyService | `/tpbow` 传送弓（无限附魔）；飞行路径 force-load（提前 24 格）；落点安全检查+最近安全点搜索；猫咕噜声；实体传送策略（白名单 TAMEABLE/ENDERMAN/ARMOR_STAND/SHULKER/MINECART） | 单测+集成+E2E |
 | **maintenance** | WorldMaintenanceService / ScheduledBackupService | `$b` 备份（踢人→save-off→ZIP→save-on→保留 N 份）；`$o` 优化（tick 阈值过滤）；三阶段进度报告；维护 MOTD；定时自动备份（backup_interval_hours）；完成耗时中文可读化（duration_human） | 单测+E2E |
 | **player** | PlayerEventService / PlayerEventAggregator | 上下线/踢出通知（世界别名/坐标/权限组/在线列表）；3s 聚合窗口+摘要；max_list_items 截断；限流 | 单测+集成+E2E |
 | **guide** | GuideService / GuideBookConfigParser / GuideLineMarkup / GuideBookRenderer / GuideBookMigrator（真机：`foliaSmoke` 以旧格式文件起服验证迁移） | `/guide` 新手书；首次进入自动发放；v2 简化格式（pages + 行记号，兼容旧 content 格式）；旧格式启动自动迁移（备份 `.bak` + 回读校验 + 幂等）；解析缓存 + `/orzmc config reload` 即改即生效；页数/字符上限降级；startup 健康校验带页号/行号 | 单测+集成+E2E |

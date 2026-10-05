@@ -16,7 +16,7 @@
 （历史缺陷，已随 #127 修复：移除该空 `setDefaults` 调用）。需要写盘时请明确承担「注释丢失」并另附文档来源。
 
 机制代码入口：`ConfigSchema`（版本常量/文件清单）、`ConfigUpgrader`（门控与流水线）、
-`DefaultsMerger`（do-no-harm 深合并）、`LegacyDefaultFlips`（旧默认翻转表）、
+`DefaultsMerger`（do-no-harm 深合并）、`DefaultFlips`（版本门控的旧默认翻转表）、
 `ConfigService.upgradeSchemaFiles()`（启动挂载点）。
 
 ---
@@ -30,12 +30,12 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
 |---|---|---|
 | 缺失 / 非数字 / `2`（#238 前的旧值） | **legacy**（不可信） | 备份 → 旧默认翻转 → 深合并 → 回写最新版本 |
 | `1`–`MIN_TRUSTED_VERSION-1` | **legacy**（不可信） | 同上（与上两行等价对账） |
-| `>= MIN_TRUSTED_VERSION` 且 `< LATEST` | 可信但落后 | 备份 → 深合并（**不跑** legacy 翻转）→ 回写最新版本 |
+| `>= MIN_TRUSTED_VERSION` 且 `< LATEST` | 可信但落后 | 备份 → 旧默认翻转（版本门控）→ 深合并 → 回写最新版本 |
 | `== LATEST_VERSION` | 最新 | 零动作（不写文件、不告警、不备份） |
 | `> LATEST_VERSION` | 插件降级 | 跳过，告警提示可能降级，**不做逆向迁移** |
 
-当前 `MIN_TRUSTED_VERSION = 10`、`LATEST_VERSION = 12`：v10/v11 为已发布的可信中间版本（v11 曾随
-一次配置改动发布），存在「可信但落后」区间——可信旧装升级只做深合并补缺（不跑 legacy 翻转）。见 §3.3。
+当前 `MIN_TRUSTED_VERSION = 10`、`LATEST_VERSION = 15`：v10→v14 为已发布的可信中间版本，存在
+「可信但落后」区间——可信旧装升级做深合并补缺 + 版本门控的默认翻转（见 §3.3）。
 
 ## 2. 升级流水线（顺序有讲究，勿打乱）
 
@@ -71,27 +71,30 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
 
 不能只改资源里的默认值——已存在的旧值会被 `DefaultsMerger` 视为「已自定义」而**永不覆盖**。必须：
 
-1. 在 `LegacyDefaultFlips.SPECS` 登记一条：`new FlipSpec(path, 旧默认值)`。**只登记旧默认**，
-   新默认运行时从内置默认资源取（避免新旧默认在代码里双份漂移）。
+1. 在 `DefaultFlips.SPECS` 登记一条：`new FlipSpec(path, 旧默认值, changedInVersion)`。
+   **只登记旧默认与变更版本**，新默认运行时从内置默认资源取（避免新旧默认在代码里双份漂移）；
+   `changedInVersion` = 本次抬升后的 `LATEST_VERSION`（让老装 `from < changedInVersion` 命中）。
 2. 提升 `LATEST_VERSION` 并同步资源版本标记。
 3. 效果：仅当磁盘值 == 旧默认（可推断管理员未自定义）才翻到新默认；已自定义的值保留并在升级报告列出
    「保留自定义」。
 4. 语义保证：数值按 `longValue()` 比较（`6` 与 `3000L` 等价）；列表按整体 `equals`。
 
-### 3.3 legacy 翻转表的边界（诚实声明，勿误用）
+### 3.3 默认翻转表的版本门控（v15 起）
 
-`LegacyDefaultFlips` 只在「磁盘版本 < `MIN_TRUSTED_VERSION`」时执行，语义是**一次性收编不可信旧装**
-（无标记 / 旧 `2` → v10）。它**不是**版本链迁移表：
+`DefaultFlips` 按源版本门控：每条 `FlipSpec(path, 旧默认值, changedInVersion)` 仅当磁盘
+`config-version < changedInVersion` 且磁盘值 == 旧默认时翻到新默认（新默认取内置资源当前值）。
+它**不再是「只对 legacy 生效」**，而是统一的版本链翻转表：
 
-- 当前可信中间版本 v10/v11（`MIN_TRUSTED = 10`）——`LegacyDefaultFlips` 条目 = v10 发布时的旧默认
-  收编（仅对无标记/旧 `2` 的 legacy 安装生效）；v10/v11 老装走可信深合并路径（§1 判定表第三行）。
+- `changedInVersion = MIN_TRUSTED_VERSION`（10）的条目 = 框架引入时一次性收编的 legacy 旧默认，
+  只对无标记/旧 `2` 安装生效（等价于旧版 `LegacyDefaultFlips`）。
+- 默认值在可信中间版本之后变更（如 v15 `entity_teleport_whitelist` 增补 MINECART 16→17、v10 收编
+  `guard.blocked_commands` 旧 7 项、`tnt.whitelist` 旧 3 区域占位→`[]`），登记对应 `changedInVersion`
+  即可让 v10→v14 老装自动翻新——无需再单独区分 legacy/可信路径。
 - **键搬迁（§3.4 场景）示例**：v12 将业务层 bot 参数（`cmd_prompt_char`/`discord_server_link`/`qq_group_id`）
   从 easybot.yml 迁至 config.yml `bot:` 段——一次性搬迁器在 `ConfigService.migrateBotParamsToConfig`（幂等，
-  升级后自动执行），配合 BotConfig 双读回退与健康检查迁移提示，老装自定义值不丢。
-- 将来 v10 → v11 若需要**再次翻转默认值**，本机制不会对 v10 安装生效（v10 已 trusted，不跑 legacy 翻转）。
-  届时请扩展为**按源版本门控的翻转表**（例：给 FlipSpec 增加 `minFromVersion` 语义），不要在
-  `LegacyDefaultFlips` 里堆叠新条目——那只会影响「无标记/旧 2」的安装，达不到 v10 老装目的。
-- 若只是**新增键或修改默认且愿意接受老装保留旧值**，走 §3.1 + §3.2 中「只抬版本」即可，无需翻转表。
+  升级后自动执行）会搬值并清除 easybot 旧键，老装自定义值不丢；搬迁后 BotConfig 单一事实源（不再双读回退）。
+- 若只是**新增键**（老装缺键由 `DefaultsMerger` 补新默认）或**接受老装保留旧值**，走 §3.1 + §3.2 中
+  「只抬版本」即可，无需翻转表条目。
 
 ### 3.4 结构性变更（禁止静默）
 
@@ -107,7 +110,7 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
 
 ### 3.5 不要在 ConfigUpgrader 里做业务判断
 
-`ConfigUpgrader`/`DefaultsMerger`/`LegacyDefaultFlips` 是纯结构升级设施，不感知任何业务键含义。
+`ConfigUpgrader`/`DefaultsMerger`/`DefaultFlips` 是纯结构升级设施，不感知任何业务键含义。
 业务侧校验（类型、取值域、占位符、颜色合法性）一律放 `ConfigHealthCheck`，保持「迁移只负责形态，
 校验只负责语义」。
 
@@ -127,7 +130,8 @@ schema 文件顶层统一携带 `config-version: N`，三个文件共享同一�
   运行时数据文件不在清单里。
 - `ConfigUpgraderTest`：legacy 无标记/旧 `2` 迁移、最新零动作、降级跳过、无默认源跳过、损坏跳过、
   merge 保留显式空列表/自定义值、翻转仅命中旧默认、`entity_teleport_whitelist` 仅旧 4 项默认时扩展、
-  templates 缺键回填。
+  可信中间版本（v14）默认翻转（`entity_teleport_whitelist` 16→17、`guard.blocked_commands` 7→3）、
+  `tnt.whitelist` 旧 3 区域占位→空列表（自定义保留）、templates 缺键回填。
 - `DefaultsMergerTest`：嵌套补键、保留空值、段/标量冲突、空 disk 段补缺。
 - `TemplateKeysTest`：`ALL` 无重复、每个 key 在内置 `templates.yml` 有默认文本。
 - `ConfigHealthCheckTest`：健康夹具遍历 `TemplateKeys.ALL` 填充（勿退化为静态清单）。

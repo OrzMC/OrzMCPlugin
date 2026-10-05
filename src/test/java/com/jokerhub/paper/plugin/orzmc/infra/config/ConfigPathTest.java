@@ -55,12 +55,12 @@ class ConfigPathTest {
     void all_containsNullDefaultValues() {
         Map<String, ConfigPath> all = ConfigPath.all();
 
-        ConfigPath discordLink = all.get("discord_server_link");
+        ConfigPath discordLink = all.get("bot.discord_server_link");
         assertNotNull(discordLink);
         assertEquals(String.class, discordLink.type());
         assertNull(discordLink.defaultValue());
 
-        ConfigPath qqGroupId = all.get("qq_group_id");
+        ConfigPath qqGroupId = all.get("bot.qq_group_id");
         assertNotNull(qqGroupId);
         assertEquals(String.class, qqGroupId.type());
         assertNull(qqGroupId.defaultValue());
@@ -122,7 +122,7 @@ class ConfigPathTest {
         String[] keys = all.keySet().toArray(new String[0]);
 
         // 各组起始键按注册顺序单调递增：whitelist 最早，随后 maintenance/tnt/player_notify/
-        // command_policies/easybot/templates/rank_colors/gamemode-correction/prison，
+        // command_policies/bot/templates/rank_colors/gamemode-correction/prison，
         // 末尾为后补齐的 chat/guard/login_rate_limit/exploit_hardening/geoip/entity_teleport_enabled。
         String[] groupStartPrefixes = {
             "whitelist.",
@@ -130,7 +130,7 @@ class ConfigPathTest {
             "tnt.",
             "player_notify.",
             "command_policies.",
-            "cmd_prompt_char",
+            "bot.",
             "templates.",
             "rank_colors.",
             "gamemode-correction.",

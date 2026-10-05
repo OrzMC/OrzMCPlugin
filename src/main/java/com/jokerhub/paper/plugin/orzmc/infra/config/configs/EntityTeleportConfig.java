@@ -21,12 +21,14 @@ public record EntityTeleportConfig(boolean enabled, List<String> whitelist) {
      * 实体传送白名单兜底：与 config.yml 保持一致。只含常见被动/友好实体
      * （村民/牲畜/友好水生/傀儡等），敌对生物不在内——防止 @e 选择器误用。
      * TAMEABLE 按接口判定，已覆盖猫/狗/鹦鹉 + 全部马科，无需重复列出。
+     * MINECART 按接口判定，已覆盖全部矿车变体（普通/箱子/熔炉/TNT/漏斗/刷怪笼/命令方块矿车）。
      */
     public static final List<String> DEFAULT_ENTITY_TELEPORT_WHITELIST = List.of(
             "TAMEABLE",
             "ENDERMAN",
             "ARMOR_STAND",
             "SHULKER",
+            "MINECART",
             "VILLAGER",
             "WANDERING_TRADER",
             "COW",
@@ -51,7 +53,7 @@ public record EntityTeleportConfig(boolean enabled, List<String> whitelist) {
             // 显式列表以磁盘为准：显式 [] = 无实体可被传送，不回退默认
             whitelist.addAll(cfg.getStringList("entity_teleport_whitelist"));
         } else {
-            // 键缺失/类型错 → 回退内置 16 项（集合键约定 β）
+            // 键缺失/类型错 → 回退内置 17 项（集合键约定 β）
             whitelist.addAll(DEFAULT_ENTITY_TELEPORT_WHITELIST);
         }
         return new EntityTeleportConfig(enabled, whitelist);
