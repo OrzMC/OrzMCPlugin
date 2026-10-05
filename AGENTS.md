@@ -216,8 +216,17 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
   ③ 本地实测三方合并：`git merge-tree $(git merge-base origin/main origin/develop) origin/main origin/develop`
      输出 0 冲突 = GitHub 历史拓扑误报（里程碑 squash 使两侧相对旧 base 各自演进），内容一致即可安全关闭；
   ④ 确有真实冲突 → 取 develop 优先人工合并（#293/#301 教训：先并 main 独有内容，再人工解冲突）。
-- **正式发版**：owner 打 SemVer tag（如 `1.0.25`，不加 `v`）→ tag 触发：完整 `./gradlew check` →
-  Hangar/Modrinth release → GitHub Release → 版本号自增 commit 回 main。
+- **正式发版（完整流程，2026-10-05 1.0.29 实战固化，详见 docs/publishing-platforms.md §5.6）**：
+  1. **CHANGELOG 归拢**（发布前）：`[Unreleased]` 节改名 `[<version>] - <date>`，并补齐里程碑内各 PR 缺失条目
+     （1.0.29 时 #523/#524/#525 曾漏记）——纯文档 PR 合 main（CHANGELOG.md 在 paths-ignore，不触发发布）。
+  2. **打 tag 发布**：`git tag <version> origin/main`（轻量、纯 SemVer、不加 `v`）→ `git push origin <version>`
+     → 触发 publish.yml：完整 `./gradlew check` → Hangar/Modrinth release → GitHub Release → 版本自增 bump。
+  3. **版本自增**（自动化）：publish 末尾开 `bump-version/<next>` PR，CI 绿 auto-merge 合 main → 版本推进 <next>。
+  4. **bump 父仓库指针**（发布完成后，手动）：插件是父仓库 `OrzMC/OrzMC` 的 submodule（path=plugin, branch=main）——
+     `git -C plugin checkout main && git -C plugin reset --hard origin/main` 对齐发布后 main，再到父仓库
+     `git add plugin && git commit -m "chore(submodule): bump plugin 指针到 main 最新（<v> 正式版已发布 + 版本推进 <next>）"`
+     + `git push origin main`（父仓库 main 会打印 `Changes must be made through a pull request`，owner 有 bypass 可推入）。
+  5. **切回 develop**：`git -C plugin checkout develop && git fetch origin --prune && git reset --hard origin/develop`。
 
 **门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke +
 禁强推/删除；默认分支 = develop；仓库 Allow auto-merge 已开。
