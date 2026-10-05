@@ -107,13 +107,6 @@ public final class ConfigUpgrader {
             bodies = TemplatesBodyMigration.migrate(cfg);
         }
 
-        // i18n P4d：templates.yml 存量盘旧正文迁移（config-version 13→14 触发；磁盘正文 == 旧内置默认
-        // → 删键/翻 {message} 走语言包，服主定制保留）。须在备份后（可回滚）、merge 前执行；幂等。
-        TemplatesBodyMigration.MigrationSummary bodies = TemplatesBodyMigration.NONE;
-        if ("templates.yml".equals(file.getName())) {
-            bodies = TemplatesBodyMigration.migrate(cfg);
-        }
-
         DefaultsMerger.MergeResult merge = DefaultsMerger.mergeMissingKeys(cfg, defaults);
         for (String conflict : merge.conflicts()) {
             logger.warning("配置合并冲突（" + file.getName() + " " + conflict + " 与内置默认结构不一致，已保留磁盘值，请人工检查）");

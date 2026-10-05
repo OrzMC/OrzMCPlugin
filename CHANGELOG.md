@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.28] - 2026-10-03
+## [Unreleased]
 
 ### 🐛 修复（集合键默认值变更无法自动翻新老装）
 - **默认值翻转表泛化为版本门控**：`LegacyDefaultFlips` → `DefaultFlips`，`FlipSpec` 增加 `changedInVersion`，
