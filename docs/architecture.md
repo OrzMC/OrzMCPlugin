@@ -56,7 +56,7 @@ PlatformModule
 
 - **config/** — 配置加载、类型化包装与健康检查
     - ConfigService, ConfigManager, ConfigHealthCheck
-    - schema 自动升级（ConfigSchema / ConfigUpgrader / DefaultsMerger / LegacyDefaultFlips）：
+    - schema 自动升级（ConfigSchema / ConfigUpgrader / DefaultsMerger / DefaultFlips）：
       版本门控的备份→补缺→旧默认翻转→回写，规则见 [配置 Schema 升级治理规范](dev/config-schema-governance.md)
     - `configs/` 子包中每个配置段对应一个记录类（共 23 个：`BotConfig`, `Styles`, `TntConfig`, `WhitelistConfig`, `WhitelistKickMessage`, `Portals`, `MaintenanceConfig`, `CommandPolicies`, `CommandPolicy`, `TemplateOptions`, `Templates`, `ChatConfig`, `SecurityGuardConfig`, `LoginRateLimitConfig`, `ExploitHardeningConfig`, `RankColorsConfig`, `PrisonConfig`, `UpdateConfig`, `EntityTeleportConfig`, `GamemodeCorrectionConfig`, `IpWhitelist`, `PlayerNotifyConfig`, `EasyBotConfig`）
     - `SafeKeys` YAML 键名安全编码（解决 '.' 被识别为层级分隔的问题）
@@ -251,7 +251,7 @@ OrzServices.assemble(OrzMC)
 | 改事件响应 | `events/OrzXxxEvent.java`（薄适配器）+ `features/<feat>/<Feat>EventService.java` |
 | 改启动装配/接线顺序 | `OrzServices.assemble/setupAll` + `assembly/FeatureModule.java` 构造函数（跨特性 DAG，勿乱动次序） |
 | 改群通知/站内消息文案模板 | `src/main/resources/templates.yml` + `features/<feat>/` 的渲染/Notifier + `infra/templates` |
-| 改配置 schema 迁移/旧默认翻转 | `infra/config/ConfigUpgrader.java` + `LegacyDefaultFlips.java` + `DefaultsMerger.java`（版本门控，勿手改存量文件） |
+| 改配置 schema 迁移/旧默认翻转 | `infra/config/ConfigUpgrader.java` + `DefaultFlips.java` + `DefaultsMerger.java`（版本门控，勿手改存量文件） |
 | 新增一个 feature | 建 `features/<feat>/`（服务 + package-info）→ 需要事件则加 `events/OrzXxxEvent` → 命令则加 `assembly/<Feat>CommandRegistrar` + 注册进协调器 → `FeatureModule` 装配接线 → 配置段/默认/校验 → 测试 |
 
 ## 模块边界与已知取舍
@@ -335,10 +335,6 @@ styles:
 api_server: 'http://127.0.0.1:8080'
 ws_server: 'ws://127.0.0.1:8080'
 api_key: ''
-parse_mode: 'none'
-cmd_prompt_char: '$'
-discord_server_link: ''
-qq_group_id: ''
 log_throttle_ms: 5000
 platforms:
   qq:
@@ -348,7 +344,9 @@ platforms:
     admin_dm: 'qq:conv_yyyyyyyy'
 ```
 
-- 支持多平台：QQ / Discord / Telegram / 飞书 / 微信
+> 业务层 bot 参数（`cmd_prompt_char` / `discord_server_link` / `qq_group_id`）权威在 config.yml `bot:` 段。
+
+- 支持多平台：QQ / Discord / Telegram / 飞书
 - 各平台独立配置消息路由（admin_group / player_group / admin_dm）
 - `player_group` 留空时 PUBLIC 消息自动降级到 `admin_group`
 - 全局开关自动检测：任一平台 `enabled=true` 即激活连接
@@ -382,7 +380,7 @@ command_policies:
 
 ## Bot 命令
 
-机器人命令前缀来自 `easybot.yml` → `cmd_prompt_char`（默认 `$`）：
+机器人命令前缀来自 `config.yml` → `bot.cmd_prompt_char`（默认 `$`）：
 
 | 命令 | 权限 | 说明 |
 |------|------|------|

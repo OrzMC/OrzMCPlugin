@@ -54,10 +54,6 @@ public class RobustWebSocketClientHeartbeatTest {
                 int maxRetries,
                 long baseRetryInterval,
                 long maxRetryInterval,
-                int jitterPercent,
-                long stableResetMs,
-                boolean logMessageEnabled,
-                long logMessageThrottleMs,
                 Map<String, String> httpHeaders,
                 String heartbeatPayload,
                 WebSocketEventListener listener)
@@ -69,10 +65,6 @@ public class RobustWebSocketClientHeartbeatTest {
                     maxRetries,
                     baseRetryInterval,
                     maxRetryInterval,
-                    jitterPercent,
-                    stableResetMs,
-                    logMessageEnabled,
-                    logMessageThrottleMs,
                     httpHeaders,
                     heartbeatPayload,
                     listener);
@@ -95,10 +87,6 @@ public class RobustWebSocketClientHeartbeatTest {
                 1,
                 100,
                 1000,
-                10,
-                200,
-                false,
-                60000,
                 Map.of(),
                 "{\"action\":\"get_status\"}",
                 null);
@@ -135,10 +123,6 @@ public class RobustWebSocketClientHeartbeatTest {
                 1,
                 100,
                 1000,
-                10,
-                200,
-                false,
-                60000,
                 Map.of(),
                 "{\"action\":\"get_status\"}",
                 null);

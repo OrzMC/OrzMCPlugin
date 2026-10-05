@@ -36,14 +36,14 @@ public class TypedConfigsTest {
 
     @Test
     public void testEntityTeleportConfigMissingWhitelistFallsBackToDefaults() {
-        // 键缺失 → 回退内置 16 项默认白名单（集合键约定 β）
+        // 键缺失 → 回退内置 17 项默认白名单（集合键约定 β）
         YamlConfiguration cfg = new YamlConfiguration();
         cfg.set("entity_teleport_enabled", false);
 
         EntityTeleportConfig ec = EntityTeleportConfig.from(cfg);
         Assertions.assertFalse(ec.enabled());
         Assertions.assertEquals(EntityTeleportConfig.DEFAULT_ENTITY_TELEPORT_WHITELIST, ec.whitelist());
-        Assertions.assertEquals(16, ec.whitelist().size());
+        Assertions.assertEquals(17, ec.whitelist().size());
     }
 
     @Test

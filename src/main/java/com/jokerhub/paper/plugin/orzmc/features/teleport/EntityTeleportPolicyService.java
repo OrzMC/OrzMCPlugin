@@ -6,6 +6,7 @@ import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Enderman;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Shulker;
 import org.bukkit.entity.Tameable;
 import org.bukkit.event.entity.EntityPortalEvent;
@@ -18,7 +19,7 @@ import org.bukkit.event.entity.EntityPortalEvent;
  *       {@link EntityTeleportConfig#DEFAULT_ENTITY_TELEPORT_WHITELIST}，覆盖常见被动/友好实体，
  *       敌对生物不在内——防止 @e 选择器误用造成地图灾难）</li>
  * </ul>
- * 白名单项：大写 EntityType 名（如 VILLAGER）或特殊接口键（TAMEABLE）。
+ * 白名单项：大写 EntityType 名（如 VILLAGER）或特殊接口键（TAMEABLE / MINECART）。
  * 注意：config.yml 的 {@code entity_teleport_enabled} 语义与此相反（true = 允许所有实体传送），
  * 装配层（FeatureModule）传入前取反。
  * 另注意：下界传送门穿越（{@link EntityPortalEvent} 及其子类）由 {@code OrzTPEvent} 放行，
@@ -58,6 +59,7 @@ public final class EntityTeleportPolicyService {
             case "ENDERMAN" -> entity instanceof Enderman;
             case "ARMOR_STAND" -> entity instanceof ArmorStand;
             case "SHULKER" -> entity instanceof Shulker;
+            case "MINECART" -> entity instanceof Minecart;
             default -> {
                 EntityType type = entity.getType();
                 yield type != null && type.name().equals(key);

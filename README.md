@@ -90,8 +90,9 @@ The plugin talks to the platform APIs itself — no gateway process, text-only, 
 ### Migrating from the old setup
 
 The legacy `bot.yml` is no longer loaded. Before upgrading, migrate any values
-you still need — `cmd_prompt_char`, `discord_server_link`, `qq_group_id` and
-`log_throttle_ms` — into `easybot.yml`, and finish the per-platform session
+you still need — `cmd_prompt_char`, `discord_server_link`, `qq_group_id`
+(into `config.yml` → `bot:`) and `log_throttle_ms` (into `easybot.yml`) — and
+finish the per-platform session
 setup in the EasyBot console. The old NapCatQQ, Discord JDA and Feishu Webhook
 direct-connection parameters are no longer needed and can be removed.
 

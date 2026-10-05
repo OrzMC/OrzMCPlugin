@@ -2,6 +2,19 @@
 
 ## [1.0.28] - 2026-10-03
 
+### 🐛 修复（集合键默认值变更无法自动翻新老装）
+- **默认值翻转表泛化为版本门控**：`LegacyDefaultFlips` → `DefaultFlips`，`FlipSpec` 增加 `changedInVersion`，
+  翻转表对所有 `config-version < LATEST` 的安装执行（不再只对 legacy 生效）；schema `config-version` 14 → 15。
+- **补登此前缺失的默认变更**：`guard.blocked_commands` 旧 7 项（op/deop/publish/seed/reload/plugman/stop）
+  → `op/publish/seed`（#658ac7e 早于 v10 框架，归入 v10 收编）；`entity_teleport_whitelist` 16 → 17 项。
+- 治理文档 §3.3 重写为「默认翻转表版本门控」；`ConfigUpgraderTest` 增可信中间版本（v14）翻新/自定义保留用例。
+
+### ✨ 实体传送豁免新增矿车
+- `entity_teleport_whitelist` 增补特殊键 `MINECART`（按接口判定，覆盖普通/箱子/熔炉/TNT/漏斗/刷怪笼/命令方块矿车
+  共 7 种变体），默认白名单 16 → 17 项；config.yml / features.md 同步。
+
+## [1.0.28] - 2026-10-03
+
 ### 🐛 修复（main→develop 反向同步 ok 分支不可达）
 - **同步预检 `VERDICT=ok` 被误判为"需人工处理"**：`main-develop-sync.yml` 的 `case` 里 `manual|*)` 含 `*` 兜底却排在 `ok)` 之前，
   导致预检通过（退出码 0）仍走人工分支并 `exit 1`（2026-09-13 发版实测：CHANGELOG 归拢提交无法自动同步回 develop）。

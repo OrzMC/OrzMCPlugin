@@ -1084,19 +1084,6 @@ class ConfigHealthCheckTest {
     }
 
     @Test
-    void easyBotEmptyCmdPrompt_reportsIssue() {
-        easybot.set("cmd_prompt_char", "");
-        addFullValidConfig_whitelist();
-        addFullValidConfig_maintenance();
-        addFullValidConfig_tnt();
-        addFullValidConfig_geoip();
-        addFullValidConfig_commandPolicies();
-        addMinimalValidConfig_templates();
-        List<String> issues = runValidate();
-        assertTrue(issues.contains("非法: easybot.cmd_prompt_char 不可为空"));
-    }
-
-    @Test
     void easyBotNegativeHttpTimeout_reportsIssue() {
         addFullValidConfig_whitelist();
         addFullValidConfig_maintenance();
@@ -1145,18 +1132,12 @@ class ConfigHealthCheckTest {
         easybot.set("ws_max_retries", -1);
         easybot.set("ws_base_retry_ms", 5000);
         easybot.set("ws_max_delay_ms", 1000);
-        easybot.set("ws_jitter_percent", 101);
-        easybot.set("ws_stable_reset_ms", 0);
-        easybot.set("ws_message_log_throttle_ms", 0);
         easybot.set("log_throttle_ms", 0);
 
         List<String> issues = runValidate();
 
         assertTrue(issues.contains("非法: easybot.ws_max_retries 不得为负数"));
         assertTrue(issues.contains("非法: easybot.ws_max_delay_ms 不得小于 ws_base_retry_ms"));
-        assertTrue(issues.contains("非法: easybot.ws_jitter_percent 范围 0-100"));
-        assertTrue(issues.contains("非法: easybot.ws_stable_reset_ms 必须为正数"));
-        assertTrue(issues.contains("非法: easybot.ws_message_log_throttle_ms 必须为正数"));
         assertTrue(issues.contains("非法: easybot.log_throttle_ms 必须为正数"));
     }
 

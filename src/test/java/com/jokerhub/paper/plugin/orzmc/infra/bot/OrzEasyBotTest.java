@@ -482,20 +482,7 @@ class OrzEasyBotTest {
         WsClient wsClient = mock(WsClient.class);
         AtomicReference<WebSocketEventListener> listenerRef = new AtomicReference<>();
         WebSocketClientFactory factory =
-                (server,
-                        url,
-                        logs,
-                        retries,
-                        baseRetry,
-                        maxRetry,
-                        jitter,
-                        stableReset,
-                        logMessages,
-                        logThrottle,
-                        headers,
-                        heartbeat,
-                        listener,
-                        handler) -> {
+                (server, url, logs, retries, baseRetry, maxRetry, headers, heartbeat, listener, handler) -> {
                     listenerRef.set(listener);
                     return wsClient;
                 };
@@ -560,20 +547,7 @@ class OrzEasyBotTest {
             List<WsClient> clients,
             AtomicReference<WebSocketEventListener> listenerRef,
             AtomicReference<Integer> creates) {
-        return (server,
-                url,
-                logs,
-                retries,
-                baseRetry,
-                maxRetry,
-                jitter,
-                stableReset,
-                logMessages,
-                logThrottle,
-                headers,
-                heartbeat,
-                listener,
-                handler) -> {
+        return (server, url, logs, retries, baseRetry, maxRetry, headers, heartbeat, listener, handler) -> {
             int index = creates.getAndUpdate(value -> value + 1);
             listenerRef.set(listener);
             return clients.get(index);

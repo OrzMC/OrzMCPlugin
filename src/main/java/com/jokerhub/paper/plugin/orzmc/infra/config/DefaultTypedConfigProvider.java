@@ -35,9 +35,8 @@ public final class DefaultTypedConfigProvider implements TypedConfigProvider {
 
     @Override
     public BotConfig bot() {
-        // v12：业务层 bot 参数权威在 config.yml bot: 段；easybot.yml 旧键作回退（老装兼容）
-        return BotConfig.from(
-                configService.getConfig("config").getConfigurationSection("bot"), configService.getConfig("easybot"));
+        // v12：业务层 bot 参数权威在 config.yml bot: 段（easybot.yml 旧键已随迁移清理，不再回退）
+        return BotConfig.from(configService.getConfig("config").getConfigurationSection("bot"));
     }
 
     @Override

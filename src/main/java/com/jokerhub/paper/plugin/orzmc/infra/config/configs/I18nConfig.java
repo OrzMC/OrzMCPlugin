@@ -11,7 +11,7 @@ import org.bukkit.configuration.ConfigurationSection;
  * i18n 配置（config.yml {@code i18n:} 段，snake_case）。
  *
  * <p>语言决议参数：服务器默认语言（{@code default_lang}）、群平台语言覆盖（{@code platform_langs}，
- * key 为 IM 平台 id：qq/discord/telegram/feishu/wechat）、可选语言别名（{@code aliases}，
+ * key 为 IM 平台 id：qq/discord/telegram/feishu）、可选语言别名（{@code aliases}，
  * 把未安装语言码指向已安装语言，如 {@code zh-TW: zh-CN}）。键名归属与命名规范见
  * docs/dev/config-schema-governance.md §3.6。</p>
  *

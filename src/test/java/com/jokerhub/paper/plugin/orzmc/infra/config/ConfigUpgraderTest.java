@@ -228,6 +228,112 @@ class ConfigUpgraderTest {
     }
 
     @Test
+    void trusted_v14_flipsEntityTeleportWhitelistWhenEqualTo16ItemDefault() throws Exception {
+        // v15 起默认翻转按源版本门控：可信中间版本（v14）持有 16 项旧默认也应翻新补 MINECART（17 项）
+        String old = "config-version: 14\n"
+                + "entity_teleport_whitelist:\n"
+                + "  - TAMEABLE\n"
+                + "  - ENDERMAN\n"
+                + "  - ARMOR_STAND\n"
+                + "  - SHULKER\n"
+                + "  - VILLAGER\n"
+                + "  - WANDERING_TRADER\n"
+                + "  - COW\n"
+                + "  - PIG\n"
+                + "  - SHEEP\n"
+                + "  - CHICKEN\n"
+                + "  - RABBIT\n"
+                + "  - GOAT\n"
+                + "  - MOOSHROOM\n"
+                + "  - AXOLOTL\n"
+                + "  - BEE\n"
+                + "  - IRON_GOLEM\n";
+        File file = writeConfig("config.yml", old);
+        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream in = bundledResource("config.yml")) {
+            assertEquals(ConfigUpgrader.Outcome.MIGRATED, upgrader.upgrade(cfg, file, in));
+        }
+
+        assertEquals(17, cfg.getStringList("entity_teleport_whitelist").size(), "16 项旧默认应翻新为 17 项");
+        assertTrue(cfg.getStringList("entity_teleport_whitelist").contains("MINECART"), "翻新后应含 MINECART");
+        assertEquals(ConfigSchema.LATEST_VERSION, cfg.getInt(ConfigSchema.VERSION_KEY));
+    }
+
+    @Test
+    void trusted_v14_keepsCustomizedEntityTeleportWhitelist() throws Exception {
+        // 已自定义（非 16 项默认）的可信安装不翻新，do-no-harm
+        File file = writeConfig("config.yml", "config-version: 14\nentity_teleport_whitelist:\n  - VILLAGER\n");
+        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream in = bundledResource("config.yml")) {
+            assertEquals(ConfigUpgrader.Outcome.MIGRATED, upgrader.upgrade(cfg, file, in));
+        }
+
+        assertEquals(java.util.List.of("VILLAGER"), cfg.getStringList("entity_teleport_whitelist"));
+    }
+
+    @Test
+    void legacy_flipsGuardBlockedCommandsWhenEqualToOld7ItemDefault() throws Exception {
+        // #658ac7e 前默认 deny-list 含运维生命周期命令（op/deop/publish/seed/reload/plugman/stop），
+        // 应翻新为 op/publish/seed（旧 7 项默认归入 v10 收编）
+        String old = "guard:\n"
+                + "  blocked_commands:\n"
+                + "    - op\n"
+                + "    - deop\n"
+                + "    - publish\n"
+                + "    - seed\n"
+                + "    - reload\n"
+                + "    - plugman\n"
+                + "    - stop\n";
+        File file = writeConfig("config.yml", old);
+        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream in = bundledResource("config.yml")) {
+            assertEquals(ConfigUpgrader.Outcome.MIGRATED, upgrader.upgrade(cfg, file, in));
+        }
+
+        assertEquals(
+                java.util.List.of("op", "publish", "seed"),
+                cfg.getStringList("guard.blocked_commands"),
+                "旧 7 项默认 deny-list 应翻新为 op/publish/seed");
+    }
+
+    @Test
+    void legacy_flipsTntWhitelistWhenEqualToOld3RegionPlaceholder() throws Exception {
+        // #239 前 tnt.whitelist 默认是 3 个世界原点占位（意外放行 0,0,0），应翻为空列表（全图禁止）
+        String old = "tnt:\n"
+                + "  whitelist:\n"
+                + "    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world' }\n"
+                + "    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_nether' }\n"
+                + "    - { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0, world: 'world_the_end' }\n";
+        File file = writeConfig("config.yml", old);
+        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream in = bundledResource("config.yml")) {
+            assertEquals(ConfigUpgrader.Outcome.MIGRATED, upgrader.upgrade(cfg, file, in));
+        }
+
+        assertTrue(cfg.getList("tnt.whitelist").isEmpty(), "旧 3 区域占位默认应翻为空列表（全图禁止）");
+    }
+
+    @Test
+    void legacy_keepsCustomizedTntWhitelist() throws Exception {
+        // 服主自定义区域（非 3 区域占位默认）不翻新，do-no-harm
+        String old = "tnt:\n"
+                + "  whitelist:\n"
+                + "    - { minX: -50, maxX: 50, minY: 60, maxY: 120, minZ: -50, maxZ: 50, world: 'world' }\n";
+        File file = writeConfig("config.yml", old);
+        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream in = bundledResource("config.yml")) {
+            assertEquals(ConfigUpgrader.Outcome.MIGRATED, upgrader.upgrade(cfg, file, in));
+        }
+
+        assertEquals(1, cfg.getList("tnt.whitelist").size(), "自定义区域应保留不被翻转");
+    }
+
+    @Test
     void legacy_templates_missingTemplateKeysAreBackfilled() throws Exception {
         File file = writeConfig("templates.yml", "templates:\n  coord:\n    scale: 1.0\n");
         FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
@@ -300,7 +406,7 @@ class ConfigUpgraderTest {
 
     @Test
     void templates14_upToDate_doesNotMigrateAgain() throws Exception {
-        // 二次启动（磁盘已 14，正文已删）→ UP_TO_DATE 早退，零触碰（迁移幂等由版本门控保证）
+        // 二次启动（磁盘已最新版，正文已删）→ UP_TO_DATE 早退，零触碰（迁移幂等由版本门控保证）
         File file = writeConfig(
                 "templates.yml",
                 "config-version: " + ConfigSchema.LATEST_VERSION + "\ntemplates:\n  coord:\n    scale: 1.0\n");

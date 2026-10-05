@@ -96,11 +96,16 @@ public final class ConfigUpgrader {
             return Outcome.BACKUP_FAILED;
         }
 
-        // legacy 旧默认翻转须先于深合并：若缺键由 merge 补成新默认后再判，会被误报为「已自定义保留」。
-        boolean legacy = from < ConfigSchema.MIN_TRUSTED_VERSION;
-        LegacyDefaultFlips.FlipResult flips = legacy
-                ? LegacyDefaultFlips.apply(cfg, defaults)
-                : new LegacyDefaultFlips.FlipResult(new ArrayList<>(), new ArrayList<>());
+        // 旧默认翻转须先于深合并：若缺键由 merge 补成新默认后再判，会被误报为「已自定义保留」。
+        // v15 起改为版本门控（from < changedInVersion 才生效），可信中间版本也能自动翻新默认值。
+        DefaultFlips.FlipResult flips = DefaultFlips.apply(cfg, defaults, from);
+
+        // i18n P4d：templates.yml 存量盘旧正文迁移（config-version 13→14 触发；磁盘正文 == 旧内置默认
+        // → 删键/翻 {message} 走语言包，服主定制保留）。须在备份后（可回滚）、merge 前执行；幂等。
+        TemplatesBodyMigration.MigrationSummary bodies = TemplatesBodyMigration.NONE;
+        if ("templates.yml".equals(file.getName())) {
+            bodies = TemplatesBodyMigration.migrate(cfg);
+        }
 
         // i18n P4d：templates.yml 存量盘旧正文迁移（config-version 13→14 触发；磁盘正文 == 旧内置默认
         // → 删键/翻 {message} 走语言包，服主定制保留）。须在备份后（可回滚）、merge 前执行；幂等。
@@ -158,7 +163,7 @@ public final class ConfigUpgrader {
             File file,
             int from,
             List<String> addedKeys,
-            LegacyDefaultFlips.FlipResult flips,
+            DefaultFlips.FlipResult flips,
             TemplatesBodyMigration.MigrationSummary bodies) {
         String fromLabel = from >= ConfigSchema.MIN_TRUSTED_VERSION
                 ? String.valueOf(from)

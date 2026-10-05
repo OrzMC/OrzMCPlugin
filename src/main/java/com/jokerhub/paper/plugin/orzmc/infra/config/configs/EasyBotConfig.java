@@ -21,11 +21,7 @@ public record EasyBotConfig(
         int httpMaxRetries,
         int wsMaxRetries,
         long wsBaseRetryMs,
-        long wsMaxDelayMs,
-        int wsJitterPercent,
-        long wsStableResetMs,
-        boolean wsMessageLogEnabled,
-        long wsMessageLogThrottleMs) {
+        long wsMaxDelayMs) {
 
     public EasyBotConfig {
         apiServer = normalizeBaseUrl(apiServer);
@@ -54,11 +50,7 @@ public record EasyBotConfig(
                 String.valueOf(httpMaxRetries),
                 String.valueOf(wsMaxRetries),
                 String.valueOf(wsBaseRetryMs),
-                String.valueOf(wsMaxDelayMs),
-                String.valueOf(wsJitterPercent),
-                String.valueOf(wsStableResetMs),
-                String.valueOf(wsMessageLogEnabled),
-                String.valueOf(wsMessageLogThrottleMs));
+                String.valueOf(wsMaxDelayMs));
     }
 
     /**
@@ -97,8 +89,7 @@ public record EasyBotConfig(
      */
     public static EasyBotConfig from(ConfigurationSection cfg) {
         if (cfg == null) {
-            return new EasyBotConfig(
-                    "", "", "", Collections.emptyMap(), 3, 3, 3, 10, 5000, 60000, 10, 20000, false, 60000);
+            return new EasyBotConfig("", "", "", Collections.emptyMap(), 3, 3, 3, 10, 5000, 60000);
         }
 
         // 解析 platforms 段
@@ -124,11 +115,7 @@ public record EasyBotConfig(
                 cfg.getInt("http_max_retries", 3),
                 cfg.getInt("ws_max_retries", 10),
                 cfg.getLong("ws_base_retry_ms", 5000),
-                cfg.getLong("ws_max_delay_ms", 60000),
-                cfg.getInt("ws_jitter_percent", 10),
-                cfg.getLong("ws_stable_reset_ms", 20000),
-                cfg.getBoolean("ws_message_log_enabled", false),
-                cfg.getLong("ws_message_log_throttle_ms", 60000));
+                cfg.getLong("ws_max_delay_ms", 60000));
     }
 
     private static Map<String, PlatformEntry> immutablePlatforms(Map<String, PlatformEntry> values) {

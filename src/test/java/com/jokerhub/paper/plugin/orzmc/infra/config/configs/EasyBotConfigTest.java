@@ -51,51 +51,12 @@ class EasyBotConfigTest {
 
     @Test
     void connectionFingerprintChangesForTransportSettingsOnly() {
-        EasyBotConfig first = new EasyBotConfig(
-                "http://gateway/",
-                "ws://gateway/",
-                "secret",
-                Map.of(),
-                3,
-                3,
-                3,
-                10,
-                5000,
-                60000,
-                10,
-                20000,
-                false,
-                60000);
-        EasyBotConfig same = new EasyBotConfig(
-                "http://gateway",
-                "ws://gateway",
-                "secret",
-                Map.of(),
-                3,
-                3,
-                3,
-                10,
-                5000,
-                60000,
-                10,
-                20000,
-                false,
-                60000);
-        EasyBotConfig changed = new EasyBotConfig(
-                "http://gateway",
-                "ws://gateway",
-                "new-secret",
-                Map.of(),
-                3,
-                3,
-                3,
-                10,
-                5000,
-                60000,
-                10,
-                20000,
-                false,
-                60000);
+        EasyBotConfig first =
+                new EasyBotConfig("http://gateway/", "ws://gateway/", "secret", Map.of(), 3, 3, 3, 10, 5000, 60000);
+        EasyBotConfig same =
+                new EasyBotConfig("http://gateway", "ws://gateway", "secret", Map.of(), 3, 3, 3, 10, 5000, 60000);
+        EasyBotConfig changed =
+                new EasyBotConfig("http://gateway", "ws://gateway", "new-secret", Map.of(), 3, 3, 3, 10, 5000, 60000);
 
         assertEquals(first.connectionFingerprint(), same.connectionFingerprint());
         assertFalse(first.connectionFingerprint().equals(changed.connectionFingerprint()));
@@ -104,20 +65,7 @@ class EasyBotConfigTest {
     @Test
     void connectionFingerprint_doesNotContainPlaintextApiKey() {
         EasyBotConfig cfg = new EasyBotConfig(
-                "http://gateway",
-                "ws://gateway",
-                "super-secret-key",
-                Map.of(),
-                3,
-                3,
-                3,
-                10,
-                5000,
-                60000,
-                10,
-                20000,
-                false,
-                60000);
+                "http://gateway", "ws://gateway", "super-secret-key", Map.of(), 3, 3, 3, 10, 5000, 60000);
 
         assertFalse(cfg.connectionFingerprint().contains("super-secret-key"), "指纹不应携带明文 apiKey");
     }
