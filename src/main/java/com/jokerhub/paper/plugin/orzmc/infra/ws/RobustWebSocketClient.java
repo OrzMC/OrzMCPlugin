@@ -19,10 +19,6 @@ public class RobustWebSocketClient implements WsClient {
     private final int maxRetries;
     private final long baseRetryInterval;
     private final long maxRetryInterval;
-    private final int jitterPercent;
-    private final long stableResetMs;
-    private final boolean logMessageEnabled;
-    private final long logMessageThrottleMs;
     private final Map<String, String> httpHeaders;
     private final WebSocketEventListener listener;
     private volatile WebSocketClient client;
@@ -44,10 +40,6 @@ public class RobustWebSocketClient implements WsClient {
             int maxRetries,
             long baseRetryInterval,
             long maxRetryInterval,
-            int jitterPercent,
-            long stableResetMs,
-            boolean logMessageEnabled,
-            long logMessageThrottleMs,
             Map<String, String> httpHeaders,
             String heartbeatPayload,
             WebSocketEventListener listener)
@@ -58,10 +50,6 @@ public class RobustWebSocketClient implements WsClient {
         this.maxRetries = maxRetries;
         this.baseRetryInterval = baseRetryInterval;
         this.maxRetryInterval = maxRetryInterval;
-        this.jitterPercent = jitterPercent;
-        this.stableResetMs = stableResetMs;
-        this.logMessageEnabled = logMessageEnabled;
-        this.logMessageThrottleMs = logMessageThrottleMs;
         this.httpHeaders = httpHeaders;
         this.listener = listener;
         this.executor = Executors.newSingleThreadScheduledExecutor();
@@ -82,20 +70,13 @@ public class RobustWebSocketClient implements WsClient {
                                 retryCount.set(0);
                             }
                         },
-                        stableResetMs <= 0 ? 20000 : stableResetMs,
+                        20000, // 稳定连接后重置重试计数（原 ws_stable_reset_ms 已收敛）
                         TimeUnit.MILLISECONDS);
                 if (listener != null) listener.onOpen();
             }
 
             @Override
             public void onMessage(String message) {
-                if (logMessageEnabled) {
-                    String clipped = message == null ? "" : message;
-                    if (clipped.length() > 256) {
-                        clipped = clipped.substring(0, 256) + "...";
-                    }
-                    throttledLogger.info("ws-message", "接收到消息: " + clipped, logMessageThrottleMs);
-                }
                 handleMessage(message);
                 lastMessageTs = System.currentTimeMillis();
             }
@@ -211,8 +192,7 @@ public class RobustWebSocketClient implements WsClient {
     private long calculateBackoffDelay() {
         long base = (long) (baseRetryInterval * Math.pow(2, Math.max(0, retryCount.get() - 1)));
         long capped = Math.min(base, maxRetryInterval > 0 ? maxRetryInterval : base);
-        int jitter = Math.max(0, Math.min(100, jitterPercent));
-        double factor = 1.0 + ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * (jitter / 100.0));
+        double factor = 1.0 + ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * 0.10); // 固定 10% 抖动
         return (long) Math.max(0, capped * factor);
     }
 

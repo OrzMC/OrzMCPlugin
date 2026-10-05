@@ -112,10 +112,6 @@ class RobustWebSocketClientLifecycleTest {
                 int maxRetries,
                 long baseRetryInterval,
                 long maxRetryInterval,
-                int jitterPercent,
-                long stableResetMs,
-                boolean logMessageEnabled,
-                long logMessageThrottleMs,
                 Map<String, String> httpHeaders,
                 String heartbeatPayload,
                 WebSocketEventListener listener)
@@ -127,10 +123,6 @@ class RobustWebSocketClientLifecycleTest {
                     maxRetries,
                     baseRetryInterval,
                     maxRetryInterval,
-                    jitterPercent,
-                    stableResetMs,
-                    logMessageEnabled,
-                    logMessageThrottleMs,
                     httpHeaders,
                     heartbeatPayload,
                     listener);
@@ -158,10 +150,6 @@ class RobustWebSocketClientLifecycleTest {
                 3,
                 100,
                 1000,
-                10,
-                200,
-                false,
-                60000,
                 Map.of(),
                 null, // no heartbeat
                 listener);
@@ -325,10 +313,6 @@ class RobustWebSocketClientLifecycleTest {
                 3,
                 100,
                 1000,
-                10,
-                200,
-                false,
-                60000,
                 Map.of(),
                 "{\"action\":\"ping\"}",
                 null);
@@ -347,10 +331,6 @@ class RobustWebSocketClientLifecycleTest {
                 3,
                 100,
                 1000,
-                10,
-                200,
-                false,
-                60000,
                 Map.of(),
                 null, // null payload → heartbeat disabled
                 null);
