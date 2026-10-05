@@ -1,7 +1,7 @@
 # 发布平台运维手册
 
 > **状态：现行**（发布平台运维手册）｜ OrzMC 插件发布平台统一信息源与运维指南
-> 最后更新：2026-09-10（tag 发布 bump 自动化踩坑记录 + §5.5）
+> 最后更新：2026-10-05（正式发版完整流程固化 §5.6：CHANGELOG 归拢 + 父仓库 submodule 指针 bump + 切回 develop）
 
 ---
 
@@ -212,6 +212,46 @@ git push origin --delete tmp-branch
 ```
 
 另：改动 workflow 后跑 `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/publish.yml'))"` 与提取该 step 的 `run` 脚本做 `bash -n` 语法校验。
+
+### 5.6 正式发版完整流程（2026-10-05 1.0.29 实战固化）
+
+一次正式发版（`x.y.z` tag）的完整操作链：① ② ④ ⑤ 手动，③ 自动化。
+
+**① CHANGELOG 归拢（发布前，手动）**
+- 把 `CHANGELOG.md` 顶部 `## [Unreleased]` 改为 `## [<version>] - <date>`（date 用 `date +%F`）。
+- 补齐里程碑内各 PR 的缺失条目——1.0.29 时 #522 记了、#523/#524/#525 漏记，靠归拢 PR 一次性补上。
+- 纯文档 PR 合 main（`CHANGELOG.md` 在 `publish.yml` paths-ignore，**不触发发布**）。
+
+**② 打 tag 触发发布（手动）**
+```bash
+git tag <version> origin/main        # 轻量 tag，纯 SemVer，不加 v 前缀
+git push origin <version>
+```
+tag 推送触发 `publish.yml`：完整 `./gradlew check` → Hangar release → Modrinth release → GitHub Release。
+
+**③ 版本自增（自动化）**
+`publish.yml` 末尾 `bump version` 自动把 `paper-plugin.yml` 版本 +1，开 `bump-version/<next>` PR 并
+auto-merge 合入 main（详见 §5.5）。
+
+**④ bump 父仓库指针（发布完成后，手动）**
+插件是 monorepo `OrzMC/OrzMC` 的 submodule（`path=plugin, branch=main`）。发布 + 版本自增完成后，把父仓库
+的 submodule 指针推进到发布后的 main：
+```bash
+cd /path/to/OrzMC/plugin
+git checkout main && git reset --hard origin/main   # 对齐发布后 main（含版本自增）
+cd /path/to/OrzMC                                   # 回到父仓库
+git add plugin
+git commit -m "chore(submodule): bump plugin 指针到 main 最新（<version> 正式版已发布 + 版本推进 <next>）"
+git push origin main
+```
+注意：父仓库 `main` 有分支保护，push 会打印 `Changes must be made through a pull request`，但
+**owner 有 bypass 权限，实际可推入**（用 `git ls-remote origin main` 核验远端 HEAD 已更新）。
+
+**⑤ 切回 develop（手动）**
+```bash
+cd /path/to/OrzMC/plugin
+git checkout develop && git fetch origin --prune && git reset --hard origin/develop
+```
 
 ---
 
