@@ -238,6 +238,12 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
 **CI 绿即可自动合并**（`gh pr merge <n> --squash --auto --delete-branch`），外部真人 PR 仍需评审。
 机制、配套 ruleset 设置与回滚步骤见 [`docs/dev/repo-automation.md`](docs/dev/repo-automation.md)。
 
+**依赖安全告警（Dependabot）**：`Dependabot Updates` 作业曾每天红一片——依赖图里残留了 2026-01-09
+已删除的 `pom.xml` manifest（仓库早已改用 Gradle），security update 必然 `pom.xml not found`。
+7 条告警已于 2026-10-22 按「残留 manifest / 测试套件传递依赖」两类处置（0 open）；
+新增告警先看 `dependency.manifest_path` 是否还在默认分支，处置结论与复核条件见
+[`docs/dev/dependency-security-alerts.md`](docs/dev/dependency-security-alerts.md)。
+
 **铁律**
 
 - 禁止直接 push main/develop；一切改动经 PR（squash 合并）。

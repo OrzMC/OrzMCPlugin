@@ -27,6 +27,7 @@
 | [配置 Schema 治理](dev/config-schema-governance.md) | config.yml 结构、版本门控迁移规则、允许/禁止事项 | docs/dev/ |
 | [Folia × LuckPerms 红线](dev/folia-luckperms-gotchas.md) | 线程模型/LP 集成实战教训（**改 rank/review/prison 前必读**） | docs/dev/ |
 | [IM 网关内建方案](dev/im-gateway-inhouse.md) | EasyBot ↔ builtin 双通道切换方案定稿（backend/im.yml/决策记录/实施路线/§10 遗留清单） | docs/dev/ |
+| [依赖安全告警处置](dev/dependency-security-alerts.md) | Dependabot 红作业根因（残留 `pom.xml` manifest）、7 条告警的处置结论与复核条件 | docs/dev/ |
 | 包级 javadoc（`package-info.java`） | 逐包职责/关键类型/依赖方向，定位最快入口 | src/ |
 
 ### 🧪 测试 / 质量
