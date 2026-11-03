@@ -43,6 +43,7 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
     private Server bukkitServer;
     private TypedConfigProvider configs;
     private WorldMaintenanceService service;
+    private Notifier notifier;
     private ServerFacade heldServer; // serviceWithHeldAsync 创建的 held mock（互斥测试用）
     private java.util.concurrent.atomic.AtomicInteger heldRunSyncCount; // held.runSync 调用计数
     private File worldDir;
@@ -101,8 +102,9 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         when(worldMock.getWorldPath()).thenReturn(dimensionFolder.toPath());
         when(bukkitServer.getWorlds()).thenReturn(List.of(worldMock));
 
+        notifier = mock(Notifier.class);
         service = new WorldMaintenanceService(
-                server, configs, mock(OrzTextStyles.class), mock(Notifier.class), new MaintenanceModeService(), null);
+                server, configs, mock(OrzTextStyles.class), notifier, new MaintenanceModeService(), null);
     }
 
     // ===== 静态方法（原有；formatDuration 已实例化 P7-D，i18n null 回落 zh 原样） =====
@@ -221,6 +223,77 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
     }
 
     @Test
+    public void runExclusive_busyWorkRunsAndReturnsFalse() {
+        // 互斥时返回 false 并执行 busyWork（给触发者回一句，而不是静默吞掉命令）
+        WorldMaintenanceService runningSvc = serviceWithHeldAsync();
+        Assertions.assertTrue(
+                runningSvc.runExclusive(MaintenanceModeService.MaintenanceReason.BACKUP, () -> {}, null, null),
+                "首次应启动");
+
+        AtomicBoolean busyRan = new AtomicBoolean(false);
+        Assertions.assertFalse(
+                runningSvc.runExclusive(
+                        MaintenanceModeService.MaintenanceReason.BACKUP, () -> {}, null, () -> busyRan.set(true)),
+                "进行中应返回 false");
+        Assertions.assertTrue(busyRan.get(), "busyWork 应执行");
+    }
+
+    @Test
+    public void backup_whileRunning_repliesBusyInsteadOfSilence() {
+        // 2026-11-03 盘点发现的第二类问题：$b/$o 正在跑时再发一次，旧实现直接 return，
+        // 用户什么回执都收不到（以为命令没生效）。现在必须回一句「已有备份/优化正在进行」。
+        WorldMaintenanceService runningSvc = serviceWithHeldAsync();
+        runningSvc.backup(300L, 5, msg -> {}, true);
+        Assertions.assertTrue(runningSvc.isRunning(), "首次应进入运行态（runAsync 被 hold）");
+
+        List<String> replies = new java.util.concurrent.CopyOnWriteArrayList<>();
+        runningSvc.backup(300L, 5, replies::add, true);
+        Assertions.assertTrue(replies.stream().anyMatch(m -> m.contains("已有备份/优化正在进行")), "忙碌时应回执: " + replies);
+    }
+
+    @Test
+    public void backup_completionStaysOnCallbackWhenNotifyCompletionFalse() throws Exception {
+        // 定时备份（notifyCompletion=false）：完成通知仍只回执/日志（不打扰群聊）——保持旧行为
+        List<String> replies = new java.util.concurrent.CopyOnWriteArrayList<>();
+        progressHandlerOf(false, replies::add).invoke(doneEvent());
+
+        verify(notifier, org.mockito.Mockito.never()).event(anyString(), any(MessageEnvelope.class));
+        Assertions.assertFalse(replies.isEmpty(), "定时备份的完成回执应仍走 callback");
+    }
+
+    @Test
+    public void backup_completionNotifiesGroupWhenNotifyCompletionTrue() throws Exception {
+        // $b（notifyCompletion=true）：完成通知走**主动群通知**（与失败通知同构），不再走命令回执——
+        // 备份是分钟级任务，命令回执的 QQ 被动回复 5 分钟窗口早已过期（2026-11-03 事故）
+        List<String> replies = new java.util.concurrent.CopyOnWriteArrayList<>();
+        kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> handler = progressHandlerOf(true, replies::add);
+
+        handler.invoke(doneEvent());
+
+        verify(notifier).event(anyString(), any(MessageEnvelope.class));
+        Assertions.assertTrue(replies.isEmpty(), "完成通知不应再走命令回执（被动回复会超窗）: " + replies);
+    }
+
+    /** 反射取私有 progressHandler（notifyCompletion 控制完成通知通道）。 */
+    @SuppressWarnings("unchecked")
+    private kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> progressHandlerOf(
+            boolean notifyCompletion, Consumer<String> callback) throws Exception {
+        java.lang.reflect.Method m = WorldMaintenanceService.class.getDeclaredMethod(
+                "progressHandler", boolean.class, Consumer.class, boolean.class);
+        m.setAccessible(true);
+        return (kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit>)
+                m.invoke(service, true, callback, notifyCompletion);
+    }
+
+    private static ProgressEvent doneEvent() {
+        ProgressEvent evt = mock(ProgressEvent.class);
+        when(evt.getCurrent()).thenReturn(100L);
+        when(evt.getTotal()).thenReturn(100L);
+        when(evt.getStage()).thenReturn(ProgressStage.Done);
+        return evt;
+    }
+
+    @Test
     public void runExclusive_asyncWorkThrows_stillResetsState() {
         AtomicBoolean finallyRan = new AtomicBoolean(false);
 
@@ -311,13 +384,13 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         WorldMaintenanceService svc = new WorldMaintenanceService(
                 server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode, null);
         // 反射取私有 progressHandler，用 mock ProgressEvent 驱动进度同步（真实备份链路已由 backup_* 覆盖）
-        java.lang.reflect.Method m =
-                WorldMaintenanceService.class.getDeclaredMethod("progressHandler", boolean.class, Consumer.class);
+        java.lang.reflect.Method m = WorldMaintenanceService.class.getDeclaredMethod(
+                "progressHandler", boolean.class, Consumer.class, boolean.class);
         m.setAccessible(true);
         @SuppressWarnings("unchecked")
         kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> handler =
                 (kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit>)
-                        m.invoke(svc, true, (Consumer<String>) msg -> {});
+                        m.invoke(svc, true, (Consumer<String>) msg -> {}, false);
         ProgressEvent evt = mock(ProgressEvent.class);
         when(evt.getCurrent()).thenReturn(50L);
         when(evt.getTotal()).thenReturn(100L);

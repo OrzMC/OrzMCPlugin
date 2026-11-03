@@ -25,6 +25,8 @@ class ScheduledBackupServiceTest {
         configs = mock(TypedConfigProvider.class);
         task = mock(ScheduledTask.class);
         when(server.runTaskTimer(any(Runnable.class), anyLong(), anyLong())).thenReturn(task);
+        // 回执回调会走 server.logger()（定时备份的进度/完成/忙碌提示都进控制台日志）
+        when(server.logger()).thenReturn(java.util.logging.Logger.getLogger("sched-backup-test"));
     }
 
     private static MaintenanceConfig config(long intervalHours) {
@@ -69,7 +71,7 @@ class ScheduledBackupServiceTest {
 
         service.tick(); // 第 60 分钟 → 触发一次备份
 
-        verify(maintenance).backup(eq(300L), eq(5), any());
+        verify(maintenance).backup(eq(300L), eq(5), any(), eq(false));
     }
 
     @Test
@@ -82,7 +84,7 @@ class ScheduledBackupServiceTest {
             service.tick();
         }
 
-        verify(maintenance, times(2)).backup(eq(300L), eq(5), any());
+        verify(maintenance, times(2)).backup(eq(300L), eq(5), any(), eq(false));
     }
 
     @Test
@@ -102,7 +104,7 @@ class ScheduledBackupServiceTest {
             service.tick(); // 按新间隔重新累计
         }
 
-        verify(maintenance, times(1)).backup(eq(300L), eq(5), any());
+        verify(maintenance, times(1)).backup(eq(300L), eq(5), any(), eq(false));
     }
 
     @Test

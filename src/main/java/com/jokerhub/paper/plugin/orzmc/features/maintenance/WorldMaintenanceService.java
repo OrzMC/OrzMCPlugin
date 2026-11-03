@@ -137,7 +137,8 @@ public class WorldMaintenanceService {
         return sb.toString();
     }
 
-    private Function1<ProgressEvent, Unit> progressHandler(boolean backupMode, Consumer<String> callback) {
+    private Function1<ProgressEvent, Unit> progressHandler(
+            boolean backupMode, Consumer<String> callback, boolean notifyCompletion) {
         String label = modeWord(backupMode);
         return progressEvent -> {
             Long current = progressEvent.getCurrent();
@@ -200,7 +201,14 @@ public class WorldMaintenanceService {
                                 String.valueOf(durationMs),
                                 "duration_human",
                                 formatDuration(durationMs)));
-                callback.accept(done.message());
+                // 完成通知不走命令回执（被动回复）通道：备份/优化是**分钟级**任务，回执到达时 QQ 被动回复
+                // 窗口（群 5 分钟）早已过期（2026-11-03 实测 25 分钟 → 40034005 完成通知丢失）。
+                // 人工触发（$b/$o）→ 主动群通知（与失败通知同构）；定时备份 → 仍只进控制台日志（不打扰群）。
+                if (notifyCompletion) {
+                    notifier.event(doneKey, done);
+                } else {
+                    callback.accept(done.message());
+                }
                 // 聚合提示：chunk 级错误（损坏区块已安全保留）完成后汇总一次
                 long chunkErrors = chunkErrorCount.get();
                 if (chunkErrors > 0) {
@@ -265,7 +273,12 @@ public class WorldMaintenanceService {
     }
 
     private void runOptimizerJob(
-            boolean backupMode, Path input, Path outputOrNull, long tickTimeThreshold, Consumer<String> callback) {
+            boolean backupMode,
+            Path input,
+            Path outputOrNull,
+            long tickTimeThreshold,
+            Consumer<String> callback,
+            boolean notifyCompletion) {
         String label = modeWord(backupMode);
         callback.accept(
                 backupMode
@@ -277,7 +290,7 @@ public class WorldMaintenanceService {
             builder.setFilter(new FilterOptions(tickTimeThreshold, false, true));
             builder.setOutputOptions(new OutputOptions(!backupMode, backupMode, true, true, false));
             builder.setProgress(new ProgressOptions(100L, 1000L, event -> {
-                progressHandler(backupMode, callback).invoke(event);
+                progressHandler(backupMode, callback, notifyCompletion).invoke(event);
             }));
             builder.setRuntime(new RuntimeOptions(cpuParallelism()));
             builder.setHooks(new Hooks(errorHandler(backupMode, callback), null, null));
@@ -290,25 +303,50 @@ public class WorldMaintenanceService {
 
     public void runExclusive(
             MaintenanceModeService.MaintenanceReason reason, Runnable asyncWork, Runnable finallyWork) {
+        runExclusive(reason, asyncWork, finallyWork, null);
+    }
+
+    /**
+     * 独占执行备份/优化（同一时刻只允许一个）。
+     *
+     * @param busyWork 已在运行时执行（用于给触发者回一句「正在进行中」，{@code null} = 静默跳过）
+     * @return {@code true} 已启动；{@code false} 已有任务在跑（未启动）
+     */
+    public boolean runExclusive(
+            MaintenanceModeService.MaintenanceReason reason,
+            Runnable asyncWork,
+            Runnable finallyWork,
+            Runnable busyWork) {
         // 状态转移收敛到同一把锁（维护模式状态机实例）：CAS running + 读 wasManual + enter(reason)
         // 与 /maintenance on|off（MaintenanceCommandService）的校验 + enter/exit 同锁互斥，
         // 消除 check-then-act 竞态——避免 reason 被覆盖或手动维护被静默清除。
         boolean wasManual;
         String kickText;
+        boolean busy;
         synchronized (maintenanceModeService) {
-            if (!running.compareAndSet(false, true)) {
-                return;
+            busy = !running.compareAndSet(false, true);
+            if (busy) {
+                wasManual = false;
+                kickText = null;
+            } else {
+                // 复位本次运行的错误聚合计数器：否则跨 run 累积——fatalErrorReported 一旦置 true，
+                // 后续 run 的致命错误不再发群通知；chunkErrorCount 累积导致干净 run 误报「含 N 个损坏区块」。
+                chunkErrorCount.set(0);
+                fatalErrorReported.set(false);
+                // 手动维护期间备份/优化照常执行：reason 被备份/优化覆盖，结束后恢复手动维护（wasManual 还原）
+                wasManual = maintenanceModeService.isActive()
+                        && maintenanceModeService.reason() == MaintenanceModeService.MaintenanceReason.MANUAL;
+                maintenanceModeService.enter(reason);
+                // 踢人无进度：统一场景文案（maintenance.motd.* 磁盘正文优先→语言包，P4c-2）
+                kickText = MaintenanceModeService.renderMotdText(reason, configs.maintenanceTexts(), null);
             }
-            // 复位本次运行的错误聚合计数器：否则跨 run 累积——fatalErrorReported 一旦置 true，
-            // 后续 run 的致命错误不再发群通知；chunkErrorCount 累积导致干净 run 误报「含 N 个损坏区块」。
-            chunkErrorCount.set(0);
-            fatalErrorReported.set(false);
-            // 手动维护期间备份/优化照常执行：reason 被备份/优化覆盖，结束后恢复手动维护（wasManual 还原）
-            wasManual = maintenanceModeService.isActive()
-                    && maintenanceModeService.reason() == MaintenanceModeService.MaintenanceReason.MANUAL;
-            maintenanceModeService.enter(reason);
-            // 踢人无进度：统一场景文案（maintenance.motd.* 磁盘正文优先→语言包，P4c-2）
-            kickText = MaintenanceModeService.renderMotdText(reason, configs.maintenanceTexts(), null);
+        }
+        if (busy) {
+            // 锁外回调：busyWork 是调用方代码（会发消息/落日志），不应在持有维护模式锁时执行
+            if (busyWork != null) {
+                busyWork.run();
+            }
+            return false;
         }
         try {
             server.runSync(() -> {
@@ -337,6 +375,7 @@ public class WorldMaintenanceService {
                     }
                 });
             });
+            return true;
         } catch (RuntimeException e) {
             // runSync 调度被拒（关服/插件禁用等）：async 分支不会执行，兜底还原状态，
             // 避免 running + 维护模式残留（否则 /maintenance off 也因 running 卡死无法退出）
@@ -345,6 +384,7 @@ public class WorldMaintenanceService {
                 restoreMaintenanceMode(wasManual);
                 running.set(false);
             }
+            return false;
         }
     }
 
@@ -357,7 +397,19 @@ public class WorldMaintenanceService {
         }
     }
 
+    /**
+     * 地图备份（默认不发群完成通知，仅回执/日志——同旧行为；{@code $b} 走 {@link #backup(long, int, Consumer, boolean)}）。
+     */
     public void backup(long tickTimeThreshold, int retainCount, Consumer<String> callback) {
+        backup(tickTimeThreshold, retainCount, callback, false);
+    }
+
+    /**
+     * 地图备份（人工触发：完成/失败走主动群通知）。
+     *
+     * @param notifyCompletion 完成通知走主动群通知（{@code true}，{@code $b}）还是仅回执/日志（{@code false}，定时备份）
+     */
+    public void backup(long tickTimeThreshold, int retainCount, Consumer<String> callback, boolean notifyCompletion) {
         runExclusive(
                 MaintenanceModeService.MaintenanceReason.BACKUP,
                 () -> {
@@ -384,7 +436,7 @@ public class WorldMaintenanceService {
                             "地图备份目录：{dir}",
                             java.util.Map.of("dir", String.valueOf(worldBackupDir))));
                     long before = latestBackupZipMtime(worldBackupDir);
-                    runOptimizerJob(true, input, output, tickTimeThreshold, callback);
+                    runOptimizerJob(true, input, output, tickTimeThreshold, callback, notifyCompletion);
                     if (latestBackupZipMtime(worldBackupDir) <= before) {
                         // backup-core 完成但 backup/ 无新 zip（压缩失败被内部吞掉等）：
                         // 明确报失败且跳过 prune——旧备份是唯一可靠副本，不能误删
@@ -394,7 +446,9 @@ public class WorldMaintenanceService {
                     }
                     pruneOldZipsWithLogger(worldBackupDir, retainCount, server.logger());
                 },
-                null);
+                null,
+                // 忙碌时给触发者回一句（否则用户发了 $b 毫无反应，以为命令没生效）
+                () -> callback.accept(mt("maintenance.cmd.busy", "已有备份/优化正在进行，请稍后再试")));
     }
 
     /** 世界根目录（备份/优化 input）：以 worldContainer 为基准解析 level-name 世界目录
@@ -482,14 +536,25 @@ public class WorldMaintenanceService {
         }
     }
 
+    /** 地图优化（默认不发群完成通知，仅回执/日志——同旧行为）。 */
     public void optimize(long tickTimeThreshold, Consumer<String> callback) {
+        optimize(tickTimeThreshold, callback, false);
+    }
+
+    /**
+     * 地图优化（人工触发：完成/失败走主动群通知）。
+     *
+     * @param notifyCompletion 完成通知走主动群通知（{@code true}，{@code $o}）还是仅回执/日志（{@code false}）
+     */
+    public void optimize(long tickTimeThreshold, Consumer<String> callback, boolean notifyCompletion) {
         runExclusive(
                 MaintenanceModeService.MaintenanceReason.OPTIMIZE,
                 () -> {
                     Path input = worldFolder().toPath();
-                    runOptimizerJob(false, input, null, tickTimeThreshold, callback);
+                    runOptimizerJob(false, input, null, tickTimeThreshold, callback, notifyCompletion);
                 },
-                null);
+                null,
+                () -> callback.accept(mt("maintenance.cmd.busy", "已有备份/优化正在进行，请稍后再试")));
     }
 
     public static void pruneOldZips(File backupDir, int retain) {

@@ -266,7 +266,8 @@ class QqInboundProcessorTest {
         final List<QqReplySinkReply> replies = new CopyOnWriteArrayList<>();
 
         @Override
-        public void sendReply(String chatType, String chatId, String text, String replyMsgId) {
+        public void sendReply(
+                String chatType, String chatId, String text, String replyMsgId, java.time.Instant receivedAt) {
             replies.add(new QqReplySinkReply(chatType, chatId, text, replyMsgId));
         }
     }

@@ -31,6 +31,73 @@ class GeoIpAccessServiceTest {
         service = new GeoIpAccessService(client, configs);
     }
 
+    // ---- 多源兜底 + 失败短缓存（2026-11，#538）----
+
+    /** 桩：服务现在走 4 参重载（provider 链 + 单源超时 + 总预算）。 */
+    private void stubLookup(String ip, CompletableFuture<GeoIpClient.GeoIpResult> future) {
+        when(client.lookup(eq(ip), anyList(), any(java.time.Duration.class), any(java.time.Duration.class)))
+                .thenReturn(future);
+    }
+
+    private void verifyLookup(String ip, int times) {
+        verify(client, times(times))
+                .lookup(eq(ip), anyList(), any(java.time.Duration.class), any(java.time.Duration.class));
+    }
+
+    @Test
+    void decide_passesConfiguredProviderChainAndTimeoutsToClient() {
+        when(configs.ipWhitelist())
+                .thenReturn(new IpWhitelist(List.of("CN"), false, List.of("countryis", "ipwhois"), 800L, 30));
+        stubLookup("1.2.3.4", CompletableFuture.completedFuture(new GeoIpClient.GeoIpResult("CN", "{}", "countryis")));
+
+        assertTrue(service.decide("1.2.3.4").join().allowed());
+
+        var chain = org.mockito.ArgumentCaptor.forClass(List.class);
+        var perProvider = org.mockito.ArgumentCaptor.forClass(java.time.Duration.class);
+        var budget = org.mockito.ArgumentCaptor.forClass(java.time.Duration.class);
+        verify(client).lookup(eq("1.2.3.4"), chain.capture(), perProvider.capture(), budget.capture());
+        assertEquals(
+                List.of(GeoIpClient.Provider.COUNTRY_IS, GeoIpClient.Provider.IPWHOIS),
+                chain.getValue(),
+                "应把配置里的 provider 顺序原样传给客户端");
+        assertEquals(800L, perProvider.getValue().toMillis(), "单源超时应取配置值");
+        assertTrue(budget.getValue().toMillis() < GeoIpAccessService.DECISION_TIMEOUT_MS, "查询总预算必须小于登录决策窗，否则结果来不及用");
+    }
+
+    @Test
+    void decide_failureCacheDisabled_requeriesEveryLogin() {
+        // failure_cache_seconds=0 → 回到「每次都问」的旧行为（排查上游时用）
+        when(configs.ipWhitelist())
+                .thenReturn(new IpWhitelist(List.of("CN"), false, IpWhitelist.DEFAULT_PROVIDERS, 1200L, 0));
+        CompletableFuture<GeoIpClient.GeoIpResult> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("timeout"));
+        stubLookup("1.2.3.4", failed);
+
+        service.decide("1.2.3.4").join();
+        service.decide("1.2.3.4").join();
+
+        verifyLookup("1.2.3.4", 2);
+    }
+
+    @Test
+    void decide_failureNotCachedAsSuccess_afterWindowRequeried() throws Exception {
+        // 失败只进短缓存：过期后必须重新查询（不能把临时故障固定成 12h 误拦）
+        when(configs.ipWhitelist())
+                .thenReturn(new IpWhitelist(List.of("CN"), false, IpWhitelist.DEFAULT_PROVIDERS, 1200L, 1));
+        CompletableFuture<GeoIpClient.GeoIpResult> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("timeout"));
+        stubLookup("1.2.3.4", failed);
+
+        service.decide("1.2.3.4").join();
+        org.junit.jupiter.api.Assertions.assertFalse(
+                service.decide("1.2.3.4").join().allowed(), "窗口内沿用失败结果");
+        verifyLookup("1.2.3.4", 1);
+
+        Thread.sleep(1200);
+        service.decide("1.2.3.4").join();
+        verifyLookup("1.2.3.4", 2);
+    }
+
     // ---- 内网 IP 直接放行（不查 GeoIP）----
 
     @Test
@@ -99,19 +166,19 @@ class GeoIpAccessServiceTest {
     void decide_publicIp_stillQueriesGeoIp() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("CN", "{}");
-        when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.completedFuture(res));
+        stubLookup("1.2.3.4", CompletableFuture.completedFuture(res));
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
         assertTrue(d.allowed());
-        verify(client).lookup("1.2.3.4");
+        verifyLookup("1.2.3.4", 1);
     }
 
     @Test
     void decide_publicIpNotInAllowList_blocked() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("US", "{}");
-        when(client.lookup("8.8.8.8")).thenReturn(CompletableFuture.completedFuture(res));
+        stubLookup("8.8.8.8", CompletableFuture.completedFuture(res));
 
         GeoIpAccessService.Decision d = service.decide("8.8.8.8").join();
 
@@ -134,7 +201,7 @@ class GeoIpAccessServiceTest {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         CompletableFuture<GeoIpClient.GeoIpResult> failed = new CompletableFuture<>();
         failed.completeExceptionally(new RuntimeException("timeout"));
-        when(client.lookup("1.2.3.4")).thenReturn(failed);
+        stubLookup("1.2.3.4", failed);
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
@@ -147,7 +214,7 @@ class GeoIpAccessServiceTest {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN"), true));
         CompletableFuture<GeoIpClient.GeoIpResult> failed = new CompletableFuture<>();
         failed.completeExceptionally(new RuntimeException("timeout"));
-        when(client.lookup("1.2.3.4")).thenReturn(failed);
+        stubLookup("1.2.3.4", failed);
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
@@ -161,21 +228,21 @@ class GeoIpAccessServiceTest {
     void decide_successfulLookup_cachesResult() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("CN", "{}");
-        when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.completedFuture(res));
+        stubLookup("1.2.3.4", CompletableFuture.completedFuture(res));
 
         GeoIpAccessService.Decision d1 = service.decide("1.2.3.4").join();
         GeoIpAccessService.Decision d2 = service.decide("1.2.3.4").join();
 
         assertTrue(d1.allowed());
         assertTrue(d2.allowed());
-        verify(client, times(1)).lookup("1.2.3.4");
+        verifyLookup("1.2.3.4", 1);
     }
 
     @Test
     void decide_cacheExpired_triggersNewLookup() throws Exception {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("CN", "{}");
-        when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.completedFuture(res));
+        stubLookup("1.2.3.4", CompletableFuture.completedFuture(res));
         // TTL 5ms：第一次成功后缓存立即过期，第二次应重新查询
         GeoIpAccessService shortTtlService = new GeoIpAccessService(client, configs, 5L);
 
@@ -183,52 +250,53 @@ class GeoIpAccessServiceTest {
         Thread.sleep(50);
         shortTtlService.decide("1.2.3.4").join();
 
-        verify(client, times(2)).lookup("1.2.3.4");
+        verifyLookup("1.2.3.4", 2);
     }
 
     @Test
-    void decide_queryFailure_notCached() {
+    void decide_queryFailure_cachedBriefly_noRequeryWithinWindow() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         CompletableFuture<GeoIpClient.GeoIpResult> failed = new CompletableFuture<>();
         failed.completeExceptionally(new RuntimeException("timeout"));
-        when(client.lookup("1.2.3.4")).thenReturn(failed);
+        stubLookup("1.2.3.4", failed);
 
         GeoIpAccessService.Decision d1 = service.decide("1.2.3.4").join();
         GeoIpAccessService.Decision d2 = service.decide("1.2.3.4").join();
 
         assertFalse(d1.allowed());
         assertFalse(d2.allowed());
-        verify(client, times(2)).lookup("1.2.3.4");
+        // 失败短缓存（默认 30s）：抖动期同一 IP 不再反复打第三方（否则会把配额打光）
+        verifyLookup("1.2.3.4", 1);
     }
 
     @Test
-    void decide_emptyCountryCode_defaultFailClose_deniesAndAlertsWithoutCaching() {
+    void decide_emptyCountryCode_defaultFailClose_deniesAndAlerts() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("", "{}");
-        when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.completedFuture(res));
+        stubLookup("1.2.3.4", CompletableFuture.completedFuture(res));
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
         assertFalse(d.allowed(), "默认 fail-close：空国家码（上游无法定位）应拒绝进入");
         assertTrue(d.lookupFailed(), "空国家码应标记 lookupFailed 以便告警管理员");
-        // 不缓存：再次查询仍走上游
+        // 短缓存：窗口内不再重复查询（成功后才会 12h 缓存，失败绝不长缓存）
         service.decide("1.2.3.4").join();
-        verify(client, times(2)).lookup("1.2.3.4");
+        verifyLookup("1.2.3.4", 1);
     }
 
     @Test
-    void decide_emptyCountryCode_failOpen_allowsAndAlertsWithoutCaching() {
+    void decide_emptyCountryCode_failOpen_allowsAndAlerts() {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN"), true));
         GeoIpClient.GeoIpResult res = new GeoIpClient.GeoIpResult("", "{}");
-        when(client.lookup("1.2.3.4")).thenReturn(CompletableFuture.completedFuture(res));
+        stubLookup("1.2.3.4", CompletableFuture.completedFuture(res));
 
         GeoIpAccessService.Decision d = service.decide("1.2.3.4").join();
 
         assertTrue(d.allowed(), "fail_open=true：空国家码应放行，不误拦合法玩家");
         assertTrue(d.lookupFailed(), "空国家码应标记 lookupFailed 以便告警管理员");
-        // 不缓存：再次查询仍走上游
+        // 短缓存：窗口内不再重复查询（成功后才会 12h 缓存，失败绝不长缓存）
         service.decide("1.2.3.4").join();
-        verify(client, times(2)).lookup("1.2.3.4");
+        verifyLookup("1.2.3.4", 1);
     }
 
     @Test
@@ -236,10 +304,8 @@ class GeoIpAccessServiceTest {
         when(configs.ipWhitelist()).thenReturn(new IpWhitelist(List.of("CN")));
         // 容量 1 + TTL 5ms：写入第二条时 size=2 > 1，触发 evictExpired 清理已过期条目
         GeoIpAccessService tinyCache = new GeoIpAccessService(client, configs, 5L, 1);
-        when(client.lookup("1.1.1.1"))
-                .thenReturn(CompletableFuture.completedFuture(new GeoIpClient.GeoIpResult("CN", "{}")));
-        when(client.lookup("2.2.2.2"))
-                .thenReturn(CompletableFuture.completedFuture(new GeoIpClient.GeoIpResult("CN", "{}")));
+        stubLookup("1.1.1.1", CompletableFuture.completedFuture(new GeoIpClient.GeoIpResult("CN", "{}")));
+        stubLookup("2.2.2.2", CompletableFuture.completedFuture(new GeoIpClient.GeoIpResult("CN", "{}")));
 
         tinyCache.decide("1.1.1.1").join(); // 写入 A，5ms 后过期
         Thread.sleep(50);
@@ -247,6 +313,7 @@ class GeoIpAccessServiceTest {
 
         // A 已被清理：再次查询应重新走上游
         tinyCache.decide("1.1.1.1").join();
-        verify(client, times(2)).lookup("1.1.1.1");
+        verify(client, times(2))
+                .lookup(eq("1.1.1.1"), anyList(), any(java.time.Duration.class), any(java.time.Duration.class));
     }
 }

@@ -18,6 +18,9 @@ import java.util.function.Supplier;
  */
 final class PermissionCommandHandler extends BotCommandContext {
 
+    /** 升降级总超时：超过即回失败，避免「永久无回执」。 */
+    private static final long PERMISSION_OP_TIMEOUT_SECONDS = 60L;
+
     private final Supplier<RankService> rankService;
 
     PermissionCommandHandler(ServerFacade server, TypedConfigProvider configs, Supplier<RankService> rankService) {
@@ -73,8 +76,11 @@ final class PermissionCommandHandler extends BotCommandContext {
         }
         final var id = playerId;
         // 异步升降级：LP 操作（loadUser/saveUser 等待）在非服务器线程执行，绝不 runSync+join
-        // （服务器调度线程同步等待 LP future 会自锁超时，Folia LP 适配器行为）
-        java.util.concurrent.CompletableFuture<String> future = upgrade ? rank.promoteAsync(id) : rank.demoteAsync(id);
+        // （服务器调度线程同步等待 LP future 会自锁超时，Folia LP 适配器行为）。
+        // 总超时：LP 内部每次调用 3s 超时，但执行器排队/异常路径仍可能永不完成——
+        // 无超时的话用户永远收不到回执（发了 $p 却没有任何反馈）。
+        java.util.concurrent.CompletableFuture<String> future = (upgrade ? rank.promoteAsync(id) : rank.demoteAsync(id))
+                .orTimeout(PERMISSION_OP_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
         future.whenComplete((target, err) -> {
             if (err != null) {
                 emitMsg(

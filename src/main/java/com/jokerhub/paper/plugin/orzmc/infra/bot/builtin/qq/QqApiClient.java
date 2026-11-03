@@ -171,12 +171,26 @@ public final class QqApiClient implements QqGatewayUrlFetcher {
      * 旧文案 {@code token not exist or expire} 保留兼容（老版本响应）。
      */
     /**
-     * 是否为「被动回复被拒」：HTTP 400 + code 40034128（同一源消息被动回复次数超限，或 5 分钟回复窗口已过期）。
+     * 是否为「被动回复被平台拒绝」（= 平台<strong>明确未投递</strong>，可安全改主动消息重投一次）。
      *
-     * <p>平台明确返回失败（<strong>未投递</strong>），故可安全改用主动消息重投一次——不属于「结果未知」的重复风险场景。</p>
+     * <p>已知的被动通道失败码（HTTP 400）：
+     * <ul>
+     *   <li>{@code 40034128} 被动回复时间或者次数超过限制（配额用尽 / 5 分钟窗口过期）；</li>
+     *   <li>{@code 40034005} <b>回复消息 msg_id 已过期</b>——长任务（{@code $b}/{@code $o} 备份优化，实测 25 分钟）
+     *       的命令回执在窗口外才发出时的真实返回（2026-11-03 线上事故）；</li>
+     * </ul>
+     * 另按文案兜底 {@code msg_id 已过期/已失效/无效}（平台偶发不回 code 时仍能识别）。</p>
+     *
+     * <p>这类失败与「结果未知」不同：平台未投递，重投不会造成重复通知（不违反 D7 的「不重试」本意）。</p>
      */
-    static boolean isPassiveReplyLimit(int status, String body) {
-        return status == 400 && body != null && body.contains("40034128");
+    static boolean isPassiveReplyRejected(int status, String body) {
+        if (status != 400 || body == null) {
+            return false;
+        }
+        if (body.contains("40034128") || body.contains("40034005")) {
+            return true;
+        }
+        return body.contains("msg_id已过期") || body.contains("msg_id 已过期") || body.contains("msg_id已失效");
     }
 
     static boolean isTokenRejected(int status, String body) {

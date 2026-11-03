@@ -147,13 +147,18 @@ class ReconnectingGatewayTest {
 
         gw.start();
         awaitTrue("首次建连", () -> gw.opens.get() == 1);
+        // 等 identify 落地后再断线：否则「断线比首帧 flush 更快」时首条连接可能没记录到 identify，
+        // 断言必然超时（2026-11 全量测试并行/负载高时复现过一次假失败）
+        awaitTrue(
+                "首条连接发过 identify",
+                () -> server.connections().get(0).receivedText().contains("identify:t0"));
 
         server.connections().get(0).closeSocket(); // 模拟网络断开（1006）
 
         awaitTrue("自动重连建立第二条连接", () -> server.connections().size() >= 2);
         assertEquals(1, listener.disconnected.get());
         awaitTrue(
-                "首条连接发过 identify",
+                "首条连接发过 identify（断线后快照仍可读）",
                 () -> server.connections().get(0).receivedText().contains("identify:t0"));
         awaitTrue(
                 "重连后再次 identify",

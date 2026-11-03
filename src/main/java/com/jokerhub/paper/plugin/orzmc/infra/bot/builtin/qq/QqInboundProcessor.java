@@ -112,21 +112,25 @@ public final class QqInboundProcessor implements QqEventSink {
             logUnbound(message);
             return; // D11：未绑定会话只进控制台日志，不打扰陌生会话
         }
-        // R12：WS 回调线程只做解析/门槛（无 Bukkit API）；命令层必须落在服务器线程
-        scheduler.runSync(() -> dispatch(message));
+        // R12：WS 回调线程只做解析/门槛（无 Bukkit API）；命令层必须落在服务器线程。
+        // receivedAt 取「解析到入站的时刻」而不是「发送时刻」：长任务（$b/$o）的业务回执可能几十分钟后才发，
+        // 被动回复窗口以此为准（QqSender 据此提前降级为主动消息）。
+        java.time.Instant receivedAt = java.time.Instant.now();
+        scheduler.runSync(() -> dispatch(message, receivedAt));
     }
 
-    private void dispatch(QqInboundMessage message) {
+    private void dispatch(QqInboundMessage message, java.time.Instant receivedAt) {
         try {
             BotInboundDispatcher.dispatch(
-                    inbound, message.text(), message.isAdmin(), message.senderName(), replySink(message));
+                    inbound, message.text(), message.isAdmin(), message.senderName(), replySink(message, receivedAt));
         } catch (RuntimeException e) {
             log.warning("[qq] 入站消息处理异常: " + e);
         }
     }
 
-    /** 回复回执：业务信封 → 格式分段 → 逐条送回来源会话（被动通道带 msg_id，D14）。 */
-    private java.util.function.Consumer<MessageEnvelope> replySink(QqInboundMessage message) {
+    /** 回复回执：业务信封 → 格式分段 → 逐条送回来源会话（被动通道带 msg_id，D14；超窗/超限由 QqSender 降级为主动消息）。 */
+    private java.util.function.Consumer<MessageEnvelope> replySink(
+            QqInboundMessage message, java.time.Instant receivedAt) {
         return envelope -> {
             if (envelope == null) {
                 return;
@@ -135,7 +139,7 @@ public final class QqInboundProcessor implements QqEventSink {
                     envelope.format() == null ? MessageEnvelope.Format.DEFAULT : envelope.format();
             try {
                 for (String part : formatter.format(envelope.message(), format)) {
-                    outbound.sendReply(message.chatType(), message.chatId(), part, message.msgId());
+                    outbound.sendReply(message.chatType(), message.chatId(), part, message.msgId(), receivedAt);
                 }
             } catch (RuntimeException e) {
                 log.warning("[qq] 回复发送异常: " + e);

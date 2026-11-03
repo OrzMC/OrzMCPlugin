@@ -2,6 +2,7 @@ package com.jokerhub.paper.plugin.orzmc.features.botcommands;
 
 import com.jokerhub.paper.plugin.orzmc.core.bot.MessageEnvelope;
 import com.jokerhub.paper.plugin.orzmc.core.ports.config.TypedConfigProvider;
+import com.jokerhub.paper.plugin.orzmc.infra.i18n.I18nServiceHolder;
 import com.jokerhub.paper.plugin.orzmc.infra.server.ServerFacade;
 import java.util.ArrayList;
 import java.util.function.Consumer;
@@ -37,6 +38,8 @@ final class PlayerListCommandHandler extends BotCommandContext {
                 emit(callback, "command_players", listFeedbackService.get().onlineVars(online), online.fallback());
             } catch (Exception e) {
                 server.logger().log(Level.SEVERE, "onlinePlayersInfo 异步任务异常", e);
+                // 静默失败变显式回执：否则用户发了 $l 什么都收不到
+                emitMsg(callback, "command_review_error", I18nServiceHolder.msg("bot.list.error"));
             }
         });
     }
