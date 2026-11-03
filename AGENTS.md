@@ -224,6 +224,10 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
      输出 0 冲突 = GitHub 历史拓扑误报（里程碑 squash 使两侧相对旧 base 各自演进），内容一致即可安全关闭；
   ④ 确有真实冲突 → 取 develop 优先人工合并（#293/#301 教训：先并 main 独有内容，再人工解冲突）。
 - **正式发版（完整流程，2026-10-05 1.0.29 实战固化，详见 docs/publishing-platforms.md §5.6）**：
+  0. **发布流水线的手动兜底**：`publish.yml` 支持 `workflow_dispatch`（默认 `dry_run=true` 只跑 check+构建，
+     不发布）。tag 触发被 `paths-ignore` 吞掉或中途失败时用它重跑：
+     `gh workflow run publish.yml --ref <tag|main> -f dry_run=false`（`--ref <tag>` 走 release，`--ref main` 走 beta）。
+     ⚠️ 始终先用默认的 `dry_run=true` 跑一次确认产物正常。
   1. **CHANGELOG 归拢**（发布前）：`[Unreleased]` 节改名 `[<version>] - <date>`，并补齐里程碑内各 PR 缺失条目
      （1.0.29 时 #523/#524/#525 曾漏记）——纯文档 PR 合 main（CHANGELOG.md 在 paths-ignore，不触发发布）。
   2. **打 tag 发布**：`git tag <version> origin/main`（轻量、纯 SemVer、不加 `v`）→ `git push origin <version>`

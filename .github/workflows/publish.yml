@@ -16,6 +16,16 @@ on:
       - 'src/main/resources/paper-plugin.yml'
     tags:
       - '*.*.*'             # → Release 发布 (release channel, 纯 SemVer)
+  # 手动兜底：tag 触发被 paths-ignore 吞掉（或流水线中途失败）时唯一的重跑入口。
+  #   dry_run=true（默认）：只跑 check + 构建 shadowJar 并上传 artifact，不发布、不建 Release、不 bump 版本；
+  #   dry_run=false：按触发 ref 走真实发布（ref=tag → release；ref=main → beta）。
+  # 用法：gh workflow run publish.yml --ref <tag|main> -f dry_run=true|false
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '只构建+校验，不发布（false 才走真实发布）'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -49,7 +59,26 @@ jobs:
         if: github.ref_type == 'tag'
         run: ./gradlew check --stacktrace
 
+      # 手动触发（workflow_dispatch）：完整门禁 + 产物构建，跑完即止（不含发布步骤）
+      - name: check + build (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          ./gradlew check --stacktrace
+          ./gradlew shadowJar --stacktrace
+          JAR="$(ls build/libs/*-all.jar 2>/dev/null | head -1)"
+          echo "产物: $JAR ($(du -h "$JAR" | cut -f1))"
+          test -n "$JAR"
+
+      - name: upload artifact (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: orzmc-plugin-manual-${{ github.run_number }}
+          path: build/libs/*-all.jar
+          if-no-files-found: error
+
       - name: publish to Hangar
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
         env:
           HANGAR_API_TOKEN: ${{ secrets.HANGAR_API_TOKEN }}
         run: |
@@ -92,6 +121,7 @@ jobs:
           exit 1
 
       - name: publish to Modrinth
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
         run: |
@@ -149,7 +179,7 @@ jobs:
           exit 1
 
       - name: create GitHub Release
-        if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
+        if: github.event_name == 'push' && github.ref_type == 'tag' && !contains(github.ref_name, '-')
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
@@ -158,7 +188,7 @@ jobs:
           generate_release_notes: true
 
       - name: bump version
-        if: github.ref_type == 'tag' && !contains(github.ref_name, '-')
+        if: github.event_name == 'push' && github.ref_type == 'tag' && !contains(github.ref_name, '-')
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
