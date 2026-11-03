@@ -169,7 +169,18 @@ geoip:
   # GeoIP 查询失败/超时/无法定位国家码时的登录策略（默认 fail-close，安全优先）：
   #   false = fail-close：无法验证地区 → 拒绝进入，防绕过地区白名单
   #   true  = fail-open ：无法验证地区 → 放行并告警管理员，防误拦（可用性优先）
+  # 提示：地区白名单只在「真的按地区封禁」时才需要 fail-close；若只想粗粒度限制，
+  #      建议先观察一段时间，抖动期可临时置 true（解析失败只告警、不踢人）。
   fail_open: false
+  # 查询源顺序（多源兜底）：依次尝试，首个拿到国家码的胜出；单源超时/限流不再直接导致登录失败。
+  # 可选：geojs（get.geojs.io）/ countryis（api.country.is）/ ipwhois（ipwho.is），均为 HTTPS 且无需 key。
+  # 全部失败的处置由上面的 fail_open 决定；留空列表 = 使用默认链（geojs → countryis → ipwhois）。
+  providers: [geojs, countryis, ipwhois]
+  # 单个查询源的单次超时（毫秒）：登录决策窗只有 3s，需留出切换下一家的时间。
+  per_provider_timeout_ms: 1200
+  # 解析失败的短缓存（秒）：上游抖动时同一 IP 不反复重试（0 = 关闭；不缓存失败会放大上游压力）。
+  # 仅缓存「失败」很短时间，成功后仍按 12h 缓存国家码。
+  failure_cache_seconds: 30
 
 # --- 危险命令拦截与审计 ---
 # 高危命令 deny-list：命中即拦截执行并（可选）私信管理员。

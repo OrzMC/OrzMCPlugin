@@ -11,7 +11,7 @@ class ConfigPathTest {
     void all_containsExpectedEntries() {
         Map<String, ConfigPath> all = ConfigPath.all();
         assertNotNull(all);
-        assertEquals(68, all.size());
+        assertEquals(71, all.size(), "新增 geoip.providers / per_provider_timeout_ms / failure_cache_seconds 后应为 71");
     }
 
     @Test
