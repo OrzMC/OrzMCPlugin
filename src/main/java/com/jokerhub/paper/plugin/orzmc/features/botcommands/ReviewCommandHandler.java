@@ -108,8 +108,19 @@ final class ReviewCommandHandler extends BotCommandContext {
                 I18nServiceHolder.msg("bot.v.list_empty"),
                 lines,
                 5,
-                page);
+                page,
+                AUTO_PAGE_LIMIT,
+                I18nServiceHolder.msg(
+                        "bot.list.page_limit_hint",
+                        Map.of(
+                                "shown",
+                                String.valueOf(AUTO_PAGE_LIMIT),
+                                "cmd",
+                                botConfig().cmdPromptChar() + OrzUserCmd.REVIEW.cmdName() + " l")));
     }
+
+    /** 无页码参数时最多自动发的页数（与 $w 同值：被动回复配额群 5 条）。 */
+    private static final int AUTO_PAGE_LIMIT = 5;
 
     private void handleReviewDecision(
             Consumer<MessageEnvelope> callback, String rest, boolean approved, String senderName) {
@@ -146,21 +157,27 @@ final class ReviewCommandHandler extends BotCommandContext {
                 } else {
                     future = reviewService.get().reviewByApplicantName(playerOrType, approved, reviewer);
                 }
-                future.whenComplete((result, err) -> {
-                    if (err != null) {
-                        result = ReviewService.Result.fail(reviewError(err.getMessage()));
-                    }
-                    emit(
-                            callback,
-                            result.success() ? "command_review_result" : "command_review_error",
-                            Map.of("message", result.message()),
-                            result.message());
-                });
+                // 总超时：LP 侧每次调用有 3s 超时，但排队/异常路径仍可能永不完成——
+                // 无超时的话用户永远收不到回执（发了 $v y 却没有任何反馈）。
+                future.orTimeout(REVIEW_DECISION_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                        .whenComplete((result, err) -> {
+                            if (err != null) {
+                                result = ReviewService.Result.fail(reviewError(err.getMessage()));
+                            }
+                            emit(
+                                    callback,
+                                    result.success() ? "command_review_result" : "command_review_error",
+                                    Map.of("message", result.message()),
+                                    result.message());
+                        });
             } catch (Throwable t) {
                 emitMsg(callback, "command_review_error", reviewError(t.getMessage()));
             }
         });
     }
+
+    /** 审核授权（含 LP 晋升）总超时：超过即回失败，避免「永久无回执」。 */
+    private static final long REVIEW_DECISION_TIMEOUT_SECONDS = 60L;
 
     /** $v 列表摘要（群 R1）：前缀词表 + 类型词表 + 理由分隔随语言。 */
     private static String summaryText(

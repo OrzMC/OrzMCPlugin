@@ -265,6 +265,7 @@ maintenance:
     min: "m"
     sec: "s"
   cmd:
+    busy: "A backup/optimization is already running, please try again later"
     busy_manual_enter: "A map backup/optimization is running; manual maintenance cannot start right now."
     already_manual: "The server is already in manual maintenance mode."
     not_active: "The server is not in maintenance mode right now."
@@ -363,6 +364,8 @@ bot:
     cleanup_title: "------ Whitelist cleanup ------"
     page_meta: "Page {page}/{total}"
     empty_whitelist: "(no whitelisted players)"
+    page_limit_hint: "... only the first {shown} pages are shown ({total} in total); send {cmd} <page> for the rest"
+    error: "Failed to fetch the list, please try again later"
   e:
     overflow: "⚠️ Log buffer overflow; output may be incomplete."
     truncated: "… (output too long — truncated; {count} lines total)"

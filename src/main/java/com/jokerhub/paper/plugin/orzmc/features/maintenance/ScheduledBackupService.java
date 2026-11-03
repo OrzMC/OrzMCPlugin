@@ -105,11 +105,12 @@ public final class ScheduledBackupService {
         }
     }
 
-    /** 触发一次备份；进行中的备份互斥跳过，进度仅落服务器日志（不打扰群聊）。 */
+    /** 触发一次备份；进行中的备份互斥跳过，进度与完成通知仅落服务器日志（不打扰群聊）。 */
     private void runBackup(MaintenanceConfig cfg) {
         maintenance.backup(
                 cfg.optimizeTickTimeThreshold(),
                 cfg.backupRetentionCount(),
-                msg -> server.logger().info("[定时备份] " + msg));
+                msg -> server.logger().info("[定时备份] " + msg),
+                false);
     }
 }

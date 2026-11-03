@@ -49,6 +49,8 @@ final class WhitelistCommandHandler extends BotCommandContext {
                 }
             } catch (Exception e) {
                 server.logger().log(Level.SEVERE, "whiteListInfo 异步任务异常", e);
+                // 静默失败变显式回执：否则用户发了 $w 什么都收不到（以为命令没生效）
+                emitMsg(callback, "command_review_error", I18nServiceHolder.msg("bot.list.error"));
             }
         });
     }
@@ -99,6 +101,7 @@ final class WhitelistCommandHandler extends BotCommandContext {
                     emitWhitelistPages(callback, headerInfo.header(), updatedLines, delayTicks, page);
                 } catch (Exception e) {
                     server.logger().log(Level.SEVERE, "renderWhitelistWithCleanup 异步任务异常", e);
+                    emitMsg(callback, "command_review_error", I18nServiceHolder.msg("bot.list.error"));
                 }
             });
         });
@@ -111,6 +114,12 @@ final class WhitelistCommandHandler extends BotCommandContext {
                 listFeedbackService.get().buildWhitelistHeader(lines.size());
         emitWhitelistPages(callback, headerInfo.header(), lines, delayTicks, page);
     }
+
+    /**
+     * 无页码参数时最多自动发 {@link #AUTO_PAGE_LIMIT} 页（被动回复配额消耗 + 降级主动消息频控双重考虑），
+     * 其余页面追加提示让用户用 {@code $w <页码>} 单独查看。
+     */
+    private static final int AUTO_PAGE_LIMIT = 5;
 
     private void emitWhitelistPages(
             Consumer<MessageEnvelope> callback, String header, ArrayList<String> lines, int delayTicks, Integer page) {
@@ -126,6 +135,14 @@ final class WhitelistCommandHandler extends BotCommandContext {
                 I18nServiceHolder.msg("bot.list.empty_whitelist"),
                 lines,
                 delayTicks,
-                page);
+                page,
+                AUTO_PAGE_LIMIT,
+                I18nServiceHolder.msg(
+                        "bot.list.page_limit_hint",
+                        java.util.Map.of(
+                                "shown",
+                                String.valueOf(AUTO_PAGE_LIMIT),
+                                "cmd",
+                                botConfig().cmdPromptChar() + OrzUserCmd.SHOW_WHITELIST.cmdName())));
     }
 }
