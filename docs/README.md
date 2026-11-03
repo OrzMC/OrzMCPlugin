@@ -16,6 +16,7 @@
 | [新手指南书手册](guide-book.md) | guide_book.yml 3 分钟上手：速查表 / 全写法 / 上限降级 / 旧格式迁移 / 排查清单 | docs/ |
 | [视频系列](../videos/README.md) | V1 宣传短片 + V2 快速上手（零产物、可重生成）；教程诉求 [#128](https://github.com/OrzMC/OrzMCPlugin/issues/128) → [#490](https://github.com/OrzMC/OrzMCPlugin/issues/490)、总纲 [#481](https://github.com/OrzMC/OrzMCPlugin/issues/481) | videos/ |
 | [故障排查](troubleshooting.md) | 常见报错的判定与处置（含「启动完成前敲命令报 `CommandSourceStack.getLevel()` NPE」——Paper 上游缺陷，非插件问题） | docs/ |
+| [GeoIP 网络受限机房配置](manuals/geoip-restricted-network.md) | 出海不稳导致「地区解析服务不可用」时的推荐做法（自建 country.is / 换源 / 调超时）——**保持 fail-close**，不用 `fail_open` 换可用性 | docs/manuals/ |
 
 ### 🧑💻 开发者（改代码）
 | 文档 | 内容 | 位置 |

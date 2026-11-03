@@ -231,8 +231,11 @@ WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠
   自建紧凑表 2.18 MB，jar 3.3 MB 分别涨到 ≈7.5 MB 与 ≈4.6 MB），但**月度数据刷新流程 + CC BY 署名义务 +
   判定口径变化需复核白名单**会让项目复杂度与长期维护成本不可控，故**明确不做**。需要「少依赖第三方」时改用：
   ① 自建 `country.is`（开源，Docker）后把 `geoip.providers` 指向自己的域名；② 调整 `providers` 顺序/增删源；
-  ③ 网络受限机房直接 `geoip.fail_open: true`（解析失败只告警、不踢人）。
-- 所有源都失败/返回空国家码时默认 **fail-close 拒绝进入**（安全优先；需放行时手动设 `geoip.fail_open: true`），拦截与放行均私信告警管理员（1 分钟限频，日志始终保留完整现场），告警不入玩家群
+  ③ 网络受限机房见 [`manuals/geoip-restricted-network.md`](manuals/geoip-restricted-network.md)——
+  **保持 fail-close**，不用 `fail_open` 换可用性（那会把地区不明的玩家放进来）。
+- 所有源都失败/返回空国家码时默认 **fail-close 拒绝进入**（安全优先）。`geoip.fail_open` 仅作**调试/应急**开关：
+  置 `true` 会把「地区未能验证」的玩家放进来（等于地区限制失效），**生产环境建议保持 `false`**；网络受限请按
+  [`manuals/geoip-restricted-network.md`](manuals/geoip-restricted-network.md) 处理，拦截与放行均私信告警管理员（1 分钟限频，日志始终保留完整现场），告警不入玩家群
 - 被拒玩家踢出消息中显示其所在国家及允许的国家列表；拦截时 Bot 推送通知
 
 ### 5.2 访问规则
