@@ -257,6 +257,7 @@ maintenance:
     min: "分"
     sec: "秒"
   cmd:
+    busy: "已有备份/优化正在进行，请稍后再试"
     busy_manual_enter: "当前正在执行地图备份/优化，无法手动进入维护模式"
     already_manual: "服务器已处于手动维护模式"
     not_active: "服务器当前未处于维护模式"
@@ -355,6 +356,8 @@ bot:
     cleanup_title: "------白名单清理------"
     page_meta: "第{page}/{total}页"
     empty_whitelist: "(暂无白名单玩家)"
+    page_limit_hint: "……仅显示前 {shown} 页（共 {total} 页）；查看其余请发送 {cmd} <页码>"
+    error: "获取列表失败，请稍后再试"
   e:
     overflow: "⚠️ 日志缓冲溢出，输出可能不完整"
     truncated: "…（输出过长，已截断，共 {count} 行）"

@@ -136,6 +136,13 @@ OrzMC/
 - `ThrottledNotifier.shouldRun` 判定+更新必须原子（`ConcurrentHashMap.compute`），多 region 线程并发时 check-then-act 有竞态。
 - 限频 key 防「换马甲刷」用**全局 key**（per-player key 会放行每马甲一条）；玩家侧提示不受节流影响。
 - 新增通知类型先评估触发频率：单事件直发 → 需限频/聚合。
+- **长任务（分钟级）的结果通知不得走被动回复通道**（2026-11-03 事故）：QQ 被动回复窗口只有群 5 分钟 /
+  单聊 60 分钟，`$b` 备份实测 25 分钟 → 完成回执被平台以 `40034005 msg_id 已过期` 拒收，且旧兜底只认
+  `40034128` → 消息只打一条 WARN 就丢（备份成功、群里零通知）。规则：① 业务层用 `notifier.event` 主动通知
+  （与失败通知同构）；② 平台层必须按入站时刻预判降级（`QqSender.isPassiveWindowExpired`）；
+  ③ 被动报错码兜底覆盖同一语义家族（超限/超窗/msg_id 过期）。详见 `docs/dev/qq-passive-reply-expiry.md`。
+- **「没有回复」也是缺陷**：命令触发的异步链路 `catch` 里必须回一句失败回执；互斥跳过也要回执
+  （否则用户连发同一命令）。
 
 ### 审核/命令/测试
 

@@ -31,6 +31,57 @@ public class PaginatorTest extends ServiceTestBase {
     }
 
     @Test
+    public void paginatePagesWithMaxPages_capsAutoPagesAndAppendsHintOnLast() {
+        // 无页码参数时最多自动发 maxPages 页：一次入站的全部页面都是「同一条源消息的回复」，
+        // 超出 QQ 被动回复配额（群 5）的部分会降级为主动消息、吃掉主动频控，
+        // 因此超额页面不再自动发送，改为在最后一页追加提示（$w <页码> 查看其余）。
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < 140; i++) { // 每页 20 行 → 7 页
+            lines.add("line-" + i);
+        }
+        List<String> bodies = new ArrayList<>();
+
+        Paginator.paginatePages(
+                new ImmediateScheduler(),
+                (page, total, header, body) -> bodies.add(body),
+                "HEADER",
+                "EMPTY",
+                lines,
+                0,
+                null,
+                5,
+                "... 仅显示前 5 页");
+
+        Assertions.assertEquals(5, bodies.size(), "应只自动发前 5 页");
+        Assertions.assertFalse(bodies.get(3).contains("仅显示前 5 页"), "提示只追加在最后一页");
+        Assertions.assertTrue(bodies.get(4).contains("仅显示前 5 页"), "最后一页应带提示: " + bodies.get(4));
+    }
+
+    @Test
+    public void paginatePagesWithMaxPages_explicitPageBeyondCapStillServed() {
+        // 显式 `$w <页码>` 不受自动页数上限影响（用户主动翻页）
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < 140; i++) {
+            lines.add("line-" + i);
+        }
+        List<String> bodies = new ArrayList<>();
+
+        Paginator.paginatePages(
+                new ImmediateScheduler(),
+                (page, total, header, body) -> bodies.add(body),
+                "HEADER",
+                "EMPTY",
+                lines,
+                0,
+                7,
+                5,
+                "... 仅显示前 5 页");
+
+        Assertions.assertEquals(1, bodies.size());
+        Assertions.assertTrue(bodies.get(0).contains("line-120"), "第 7 页应正常返回: " + bodies.get(0));
+    }
+
+    @Test
     public void testPaginatePagesRunsAllPages() {
         List<String> lines = new ArrayList<>();
         for (int i = 0; i < 25; i++) {
