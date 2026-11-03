@@ -217,6 +217,21 @@ git push origin --delete tmp-branch
 
 一次正式发版（`x.y.z` tag）的完整操作链：① ② ④ ⑤ 手动，③ 自动化。
 
+**⓪ 发布流水线的手动兜底（2026-11 加固）**
+`publish.yml` 支持 `workflow_dispatch`，这是 tag 触发被 `paths-ignore` 吞掉（例如 tag 打在纯 CHANGELOG 提交上）、
+或流水线中途失败时**唯一的重跑入口**：
+
+```bash
+# 先干跑：完整 check + 构建 shadowJar + 上传 artifact；不发布、不建 Release、不 bump 版本
+gh workflow run publish.yml --ref <tag 或 main> -f dry_run=true
+
+# 确认产物正常后按 ref 真实发布
+gh workflow run publish.yml --ref <tag>  -f dry_run=false   # → release 通道
+gh workflow run publish.yml --ref main   -f dry_run=false   # → beta 通道
+```
+`dry_run` 默认 **true**（忘了传参只会"只构建、不发布"，不会误发）；手动补跑时 `create GitHub Release`
+与 `bump version` 受 `github.event_name == 'push'` 守卫，**不会**重复建 Release 或重复 bump 版本。
+
 **① CHANGELOG 归拢（发布前，手动）**
 - 把 `CHANGELOG.md` 顶部 `## [Unreleased]` 改为 `## [<version>] - <date>`（date 用 `date +%F`）。
 - 补齐里程碑内各 PR 的缺失条目——1.0.29 时 #522 记了、#523/#524/#525 漏记，靠归拢 PR 一次性补上。
