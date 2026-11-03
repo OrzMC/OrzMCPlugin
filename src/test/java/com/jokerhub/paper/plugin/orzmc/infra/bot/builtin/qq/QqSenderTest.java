@@ -197,6 +197,78 @@ class QqSenderTest {
     }
 
     @Test
+    void passiveReplyRejectedWithExpiredMsgId_retriesOnceAsActiveMessage() throws Exception {
+        // 2026-11-03 线上事故（$b 备份 25 分钟→完成通知丢失）：平台对超窗的 msg_id 返回
+        // HTTP 400 + code 40034005「回复消息msg_id已过期」——与 40034128 同类（明确未投递），
+        // 必须同样改主动消息重投一次，否则完成通知直接丢失。
+        server.enqueue(new MockResponse()
+                .setResponseCode(400)
+                .setBody("{\"message\":\"回复消息msg_id已过期\",\"code\":40034005,\"err_code\":40034005}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"id\":\"mid-active\"}"));
+
+        assertEquals(QqSender.Outcome.SENT, awaitSend(sender().sendGroupMessage("G", "备份完成", "src-expired-code")));
+
+        String first = server.takeRequest().getBody().readUtf8();
+        assertTrue(first.contains("\"msg_id\":\"src-expired-code\""), "首次应为被动回复: " + first);
+        String retry = server.takeRequest().getBody().readUtf8();
+        assertFalse(retry.contains("msg_id"), "重投应改用主动消息: " + retry);
+        assertEquals(2, server.getRequestCount(), "只应重投一次");
+    }
+
+    @Test
+    void passiveWindowExpired_sendsActiveFromTheStart() throws Exception {
+        // 窗口预判：群聊被动回复窗口 5 分钟（提前 1 分钟降级）——长任务回执根本不该带 msg_id 发出去，
+        // 否则平台必回 40034005。这里收到消息已 6 分钟，首发就应是主动消息（不浪费一次失败请求）。
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        assertEquals(
+                QqSender.Outcome.SENT,
+                awaitSend(sender().sendGroupMessage(
+                                "G", "备份完成", "src-old", java.time.Instant.now().minusSeconds(6 * 60))));
+
+        String body = server.takeRequest().getBody().readUtf8();
+        assertFalse(body.contains("msg_id"), "超窗应直接发主动消息: " + body);
+        assertEquals(1, server.getRequestCount(), "超窗不应先发一次必败的被动回复");
+    }
+
+    @Test
+    void passiveWindowWithinSafetyMargin_stillUsesPassive() throws Exception {
+        // 窗口内（3 分钟前收到，群聊 5 分钟窗口）仍走被动回复——预判只针对「必然超窗」的长任务
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        assertEquals(
+                QqSender.Outcome.SENT,
+                awaitSend(sender().sendGroupMessage(
+                                "G", "列表", "src-fresh", java.time.Instant.now().minusSeconds(3 * 60))));
+
+        String body = server.takeRequest().getBody().readUtf8();
+        assertTrue(body.contains("\"msg_id\":\"src-fresh\""), "窗口内应为被动回复: " + body);
+    }
+
+    @Test
+    void c2cPassiveWindow_isSixtyMinutes() throws Exception {
+        // 单聊窗口 60 分钟（提前 1 分钟降级）：30 分钟前→被动；70 分钟前→主动
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+        QqSender sender = sender();
+
+        assertFalse(
+                QqSender.isPassiveWindowExpired(false, java.time.Instant.now().minusSeconds(30 * 60)),
+                "单聊 30 分钟前应仍在窗口内");
+        assertTrue(
+                QqSender.isPassiveWindowExpired(false, java.time.Instant.now().minusSeconds(70 * 60)), "单聊 70 分钟前应已超窗");
+        assertTrue(QqSender.isPassiveWindowExpired(true, java.time.Instant.now().minusSeconds(5 * 60)), "群聊 5 分钟前应已超窗");
+
+        awaitSend(sender.sendDirectMessage(
+                "U", "a", "src-c2c-in", java.time.Instant.now().minusSeconds(30 * 60)));
+        awaitSend(sender.sendDirectMessage(
+                "U", "b", "src-c2c-out", java.time.Instant.now().minusSeconds(70 * 60)));
+
+        assertTrue(server.takeRequest().getBody().readUtf8().contains("\"msg_id\":\"src-c2c-in\""));
+        assertTrue(!server.takeRequest().getBody().readUtf8().contains("msg_id"), "70 分钟前应降级为主动消息");
+    }
+
+    @Test
     void activeMessageRejectedWithLimitCode_isNotRetried() throws Exception {
         // 已是主动消息（无 msg_id）时收到 40034128 不应再重试（避免无意义循环/刷屏）
         server.enqueue(new MockResponse().setResponseCode(400).setBody("{\"code\":40034128}"));

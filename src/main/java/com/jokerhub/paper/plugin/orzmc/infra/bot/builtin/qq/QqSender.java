@@ -72,11 +72,38 @@ public final class QqSender {
     private static final int PASSIVE_REPLY_LIMIT_GROUP = 5;
 
     private static final int PASSIVE_REPLY_LIMIT_C2C = 4;
-    /** 被动回复序号表上限（msg_id → 已用序号）：仅作防重复，条数极小，超限整体清空。 */
+
+    /**
+     * 被动回复有效窗口（官方 2026-09：群聊 5 分钟 / 单聊 60 分钟）。
+     *
+     * <p>超出窗口后平台返回 {@code 40034005 回复消息 msg_id 已过期}——{@code $b}/{@code $o} 这类分钟级任务的
+     * <b>完成回执</b>必然落在窗口外（2026-11-03 实测备份 25 分钟），所以本类必须在窗口内/外<b>事先</b>决策，
+     * 而不是等平台报错。</p>
+     */
+    private static final Duration PASSIVE_WINDOW_GROUP = Duration.ofMinutes(5);
+
+    private static final Duration PASSIVE_WINDOW_C2C = Duration.ofMinutes(60);
+
+    /** 窗口安全余量：提前 1 分钟改走主动消息，抵掉 token 换发/连接重试/网络抖动。 */
+    private static final Duration PASSIVE_WINDOW_SAFETY = Duration.ofMinutes(1);
+
+    /** 被动回复序号表上限（msg_id → 已用序号）：仅作防重复；超限按「首次出现时间」淘汰旧条目（不清空）。 */
     private static final int REPLY_SEQ_MAX_ENTRIES = 256;
 
-    /** msg_id → 已用被动回复序号（同一入站消息的多条回复需递增 msg_seq，否则被平台判重）。 */
-    private final ConcurrentHashMap<String, AtomicInteger> replySeq = new ConcurrentHashMap<>();
+    /** msg_id 状态最长保留时间（单聊窗口 60 分钟 + 余量）；超过即可安全淘汰。 */
+    private static final long REPLY_STATE_MAX_AGE_MS = Duration.ofMinutes(61).toMillis();
+
+    /** msg_id → 被动回复序号状态（同一入站消息的多条回复需递增 msg_seq，否则被平台判重 40054005）。 */
+    private final ConcurrentHashMap<String, ReplyState> replySeq = new ConcurrentHashMap<>();
+
+    /** 已就「被动窗口过期」打过 INFO 的 msg_id（同一入站只提示一次，不刷屏）。 */
+    private final java.util.Set<String> expiryLogged = ConcurrentHashMap.newKeySet();
+
+    /** 单条 msg_id 的被动回复状态：已用序号 + 首次出现时间（窗口判定/淘汰用）。 */
+    private static final class ReplyState {
+        final AtomicInteger seq = new AtomicInteger();
+        final long firstSeenMs = System.currentTimeMillis();
+    }
 
     private final Logger log;
     private final TokenProvider tokens;
@@ -133,7 +160,17 @@ public final class QqSender {
      * @return {@link Outcome#SENT}（平台 2xx）/ {@link Outcome#FAILED}（确定失败）/ {@link Outcome#UNKNOWN}（响应超时，结果未知）
      */
     public CompletableFuture<Outcome> sendGroupMessage(String groupOpenid, String text, String replyMsgId) {
-        return send("/v2/groups/" + groupOpenid + "/messages", text, replyMsgId, true);
+        return send("/v2/groups/" + groupOpenid + "/messages", text, replyMsgId, null, true);
+    }
+
+    /**
+     * 发送群消息（带来源消息接收时间）。
+     *
+     * @param receivedAt 来源入站消息的接收时刻；用于判定被动回复窗口是否已过（{@code null} = 不判定）
+     */
+    public CompletableFuture<Outcome> sendGroupMessage(
+            String groupOpenid, String text, String replyMsgId, java.time.Instant receivedAt) {
+        return send("/v2/groups/" + groupOpenid + "/messages", text, replyMsgId, receivedAt, true);
     }
 
     /**
@@ -145,17 +182,29 @@ public final class QqSender {
      * @return 同 {@link #sendGroupMessage}
      */
     public CompletableFuture<Outcome> sendDirectMessage(String userOpenid, String text, String replyMsgId) {
-        return send("/v2/users/" + userOpenid + "/messages", text, replyMsgId, false);
+        return send("/v2/users/" + userOpenid + "/messages", text, replyMsgId, null, false);
     }
 
-    private CompletableFuture<Outcome> send(String path, String text, String replyMsgId, boolean group) {
+    /**
+     * 发送 C2C 私聊消息（带来源消息接收时间）。
+     *
+     * @param receivedAt 来源入站消息的接收时刻；用于判定被动回复窗口是否已过（{@code null} = 不判定）
+     */
+    public CompletableFuture<Outcome> sendDirectMessage(
+            String userOpenid, String text, String replyMsgId, java.time.Instant receivedAt) {
+        return send("/v2/users/" + userOpenid + "/messages", text, replyMsgId, receivedAt, false);
+    }
+
+    private CompletableFuture<Outcome> send(
+            String path, String text, String replyMsgId, java.time.Instant receivedAt, boolean group) {
         if (text == null || text.isBlank()) {
             throw new IllegalArgumentException("text must not be blank");
         }
         String url = apiBase + path;
-        // 被动回复计划：配额内带 msg_id+递增 msg_seq；配额用尽则降级为主动消息（不带 msg_id）——
-        // 保证分页列表/长文分段/多条回复等「一次入站发多条」的流程不会因官方次数上限（群 5 / 单聊 4）丢内容。
-        ReplyPlan plan = planReply(path, replyMsgId, group);
+        // 被动回复计划：窗口内且配额未用尽 → 带 msg_id + 递增 msg_seq；否则降级为主动消息（不带 msg_id）。
+        // 两条降级路径缺一不可：① 次数配额（群 5 / 单聊 4）——一次入站的多条回复；
+        // ② 时间窗口（群 5 分钟 / 单聊 60 分钟）——长任务（$b/$o 备份优化）的完成回执，实测 25 分钟。
+        ReplyPlan plan = planReply(path, replyMsgId, group, receivedAt);
         int msgSeq = plan.msgSeq();
         String effectiveReplyId = plan.replyMsgId();
         // token 获取卸载到 IM 专用线程池：tokens.fresh() 在临期/过期时会同步换发 token（阻塞 HTTP ≤15s），
@@ -185,9 +234,10 @@ public final class QqSender {
                                                     ? classifyThrowable(ex, path)
                                                     : classifyResponse(resp2, path));
                                 }
-                                if (plan.passive() && QqApiClient.isPassiveReplyLimit(resp.statusCode(), body)) {
-                                    // 被动通道被平台拒（次数超限/5 分钟窗口过期；平台未投递）→ 改主动消息重投一次，内容不丢
-                                    log.info("[qq] 被动回复被平台拒绝（40034128：次数或时间超限），改用主动消息重投一次: " + path);
+                                if (plan.passive() && QqApiClient.isPassiveReplyRejected(resp.statusCode(), body)) {
+                                    // 被动通道被平台拒（次数超限 40034128 / msg_id 已过期 40034005；平台明确未投递）
+                                    // → 改主动消息重投一次，内容不丢
+                                    log.info("[qq] 被动回复被平台拒绝（平台未投递，改主动消息重投一次）: " + path + " " + clip(body));
                                     return postWithConnectRetry(url, firstToken, text, null, 0, path)
                                             .handle((resp2, ex) -> ex != null
                                                     ? classifyThrowable(ex, path)
@@ -309,9 +359,10 @@ public final class QqSender {
     /**
      * 被动回复配额计划：配额内用 msg_id + 递增 msg_seq；配额用尽则降级为主动消息（msg_id/msg_seq 均省略）。
      *
-     * <p>降级是「内容不丢」的关键：一次入站消息产生的多条回复（列表分页、长文分段、提示+正文组合等）
-     * 超过官方上限（群 5 / 单聊 4）时，平台会对后续被动回复返回 40034128（“被动回复时间或者次数超过限制”）；
-     * 改走主动通道即可全部送达（主动消息自带频控，见官方「主动消息频率限制」）。</p>
+     * <p>降级是「内容不丢」的关键，两条路径：① <b>次数</b>——一次入站消息产生的多条回复（列表分页、长文分段、
+     * 提示+正文组合等）超过官方上限（群 5 / 单聊 4）时，平台对后续被动回复返回 40034128；② <b>时间</b>——
+     * 被动回复窗口（群 5 分钟 / 单聊 60 分钟）过后，平台返回 {@code 40034005 msg_id 已过期}（长任务
+     * {@code $b}/{@code $o} 的完成回执典型表现）。两种都改走主动通道，内容不丢。</p>
      */
     record ReplyPlan(String replyMsgId, int msgSeq) {
         /** 本次是否走被动通道（false = 已降级为主动消息）。 */
@@ -320,10 +371,23 @@ public final class QqSender {
         }
     }
 
-    /** 计算本次发送的回复计划（内部递增被动计数；超限时降级为主动消息）。 */
+    /** 计算本次发送的回复计划（窗口/配额任一越界即降级为主动消息）。 */
     ReplyPlan planReply(String path, String replyMsgId, boolean group) {
+        return planReply(path, replyMsgId, group, null);
+    }
+
+    /**
+     * 计算本次发送的回复计划（窗口/配额任一越界即降级为主动消息）。
+     *
+     * @param receivedAt 来源入站消息接收时刻（{@code null} = 无法判定，按窗口内处理）
+     */
+    ReplyPlan planReply(String path, String replyMsgId, boolean group, java.time.Instant receivedAt) {
         if (replyMsgId == null || replyMsgId.isBlank()) {
             return new ReplyPlan(null, 0);
+        }
+        if (isPassiveWindowExpired(group, receivedAt)) {
+            logPassiveExpiryOnce(path, replyMsgId, group, receivedAt);
+            return new ReplyPlan(null, 0); // 降级：主动消息（窗口已过，带 msg_id 必被 40034005 拒）
         }
         int seq = nextReplySeq(path, replyMsgId, group);
         if (seq > passiveLimit(group)) {
@@ -337,6 +401,37 @@ public final class QqSender {
     }
 
     /**
+     * 被动回复窗口是否已过（含安全余量）。
+     *
+     * <p>官方窗口：群聊 5 分钟 / 单聊 60 分钟；本方法提前 1 分钟返回 {@code true}，把「回复迟到」的判定
+     * 放在<b>发送前</b>——平台超窗后只会回 {@code 40034005}，而长任务回执 100% 超窗（实测 25 分钟）。</p>
+     */
+    static boolean isPassiveWindowExpired(boolean group, java.time.Instant receivedAt) {
+        if (receivedAt == null) {
+            return false;
+        }
+        Duration window = group ? PASSIVE_WINDOW_GROUP : PASSIVE_WINDOW_C2C;
+        Duration safe = window.minus(PASSIVE_WINDOW_SAFETY);
+        return receivedAt.plus(safe).isBefore(java.time.Instant.now());
+    }
+
+    /** 窗口过期降级只提示一次 INFO（同一入站消息的多段/多页回复不刷屏）。 */
+    private void logPassiveExpiryOnce(String path, String replyMsgId, boolean group, java.time.Instant receivedAt) {
+        if (expiryLogged.size() >= REPLY_SEQ_MAX_ENTRIES) {
+            expiryLogged.clear();
+        }
+        if (expiryLogged.add(replyMsgId)) {
+            Duration window = group ? PASSIVE_WINDOW_GROUP : PASSIVE_WINDOW_C2C;
+            log.info("[qq] 被动回复窗口已过（" + window.toMinutes() + " 分钟，来源消息 "
+                    + (receivedAt == null
+                            ? "?"
+                            : (Duration.between(receivedAt, java.time.Instant.now())
+                                            .toMinutes() + " 分钟前"))
+                    + "），改用主动消息发送: " + path);
+        }
+    }
+
+    /**
      * 下一条被动回复序号（1 起）：同一入站消息的多条回复必须递增 {@code msg_seq}，否则第 2 条起被平台判重（40054005）。
      *
      * <p>主动消息（无 msg_id）恒返回 0（不写字段）。超过官方次数上限（群 5 / 单聊 4）时<strong>只在该 msg_id 首次越限时
@@ -346,16 +441,40 @@ public final class QqSender {
         if (replyMsgId == null || replyMsgId.isBlank()) {
             return 0;
         }
-        if (replySeq.size() >= REPLY_SEQ_MAX_ENTRIES) {
-            replySeq.clear(); // 防无界（msg_id 窗口仅 5 分钟，条目极小）
-        }
-        int seq = replySeq.computeIfAbsent(replyMsgId, k -> new AtomicInteger()).incrementAndGet();
+        evictStaleReplyStates();
+        ReplyState state = replySeq.computeIfAbsent(replyMsgId, k -> new ReplyState());
+        int seq = state.seq.incrementAndGet();
         int limit = passiveLimit(group);
         if (seq == limit + 1) {
             log.warning("[qq] 被动回复次数已达官方上限（上限 " + limit + " 条，msg_id=" + replyMsgId
                     + "）：后续回复已自动改用主动消息发送（被动超限平台返回 40034128），path=" + path);
         }
         return seq;
+    }
+
+    /**
+     * 淘汰过期的 msg_id 序号状态（防表无界增长）。
+     *
+     * <p><b>不做整体 {@code clear()}</b>：清空会让仍在窗口内的 msg_id 的 {@code msg_seq} 从 1 重来，
+     * 平台对「相同 msg_id + msg_seq」判重（{@code 40054005}）直接丢消息。这里按「首次出现时间」淘汰——
+     * 先删超过最宽窗口（单聊 60 分钟 + 余量）的条目，仍超限时淘汰最旧的一半，保留最近（即在窗口内）的。</p>
+     */
+    private void evictStaleReplyStates() {
+        if (replySeq.size() < REPLY_SEQ_MAX_ENTRIES) {
+            return;
+        }
+        long cutoff = System.currentTimeMillis() - REPLY_STATE_MAX_AGE_MS;
+        replySeq.entrySet().removeIf(e -> e.getValue().firstSeenMs < cutoff);
+        if (replySeq.size() < REPLY_SEQ_MAX_ENTRIES) {
+            return;
+        }
+        int keep = REPLY_SEQ_MAX_ENTRIES / 2;
+        replySeq.entrySet().stream()
+                .sorted(java.util.Comparator.comparingLong(e -> e.getValue().firstSeenMs))
+                .limit(Math.max(0, replySeq.size() - keep))
+                .map(java.util.Map.Entry::getKey)
+                .toList()
+                .forEach(replySeq::remove);
     }
 
     private static boolean is2xx(HttpResponse<String> resp) {
