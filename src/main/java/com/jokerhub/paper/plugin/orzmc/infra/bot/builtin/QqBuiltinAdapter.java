@@ -140,15 +140,21 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
             return;
         }
         if (parsed.isGroup()) {
-            sendChunked(target, parsed.openid(), text, null, true);
+            sendChunked(target, parsed.openid(), text, null, true, null);
         } else {
-            sendChunked(target, parsed.openid(), text, null, false);
+            sendChunked(target, parsed.openid(), text, null, false, null);
         }
     }
 
-    /** 被动回复（msg_id = 来源消息，D14）；长文本按平台上限分段（每段递增 msg_seq）。 */
-    private void sendReply(String chatType, String chatId, String text, String replyMsgId) {
-        sendChunked(chatId, chatId, text, replyMsgId, QqTarget.CHAT_GROUP.equals(chatType));
+    /**
+     * 被动回复（msg_id = 来源消息，D14）；长文本按平台上限分段（每段递增 msg_seq）。
+     *
+     * <p>{@code receivedAt} 用于被动回复窗口判定：超窗（群 5 分钟 / 单聊 60 分钟）时 QqSender 自动改走主动消息，
+     * 避免长任务（{@code $b}/{@code $o}）的完成回执被平台以 {@code 40034005 msg_id 已过期} 拒收。</p>
+     */
+    private void sendReply(
+            String chatType, String chatId, String text, String replyMsgId, java.time.Instant receivedAt) {
+        sendChunked(chatId, chatId, text, replyMsgId, QqTarget.CHAT_GROUP.equals(chatType), receivedAt);
     }
 
     /**
@@ -157,7 +163,13 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
      * <p>QQ 官方未公开单条文本上限（只给错误码 {@code 40054007 消息长度超限}），故默认保守（3KB）且可经
      * {@code im.yml → platforms.qq.max_text_bytes} 调优；被动回复每段携带递增 {@code msg_seq}（由 QqSender 维护）。</p>
      */
-    private void sendChunked(String alertTarget, String chatId, String text, String replyMsgId, boolean group) {
+    private void sendChunked(
+            String alertTarget,
+            String chatId,
+            String text,
+            String replyMsgId,
+            boolean group,
+            java.time.Instant receivedAt) {
         TextChunker.Result chunked = maxTextBytes <= 0
                 ? new TextChunker.Result(java.util.List.of(text), false)
                 : TextChunker.byUtf8Bytes(text, maxTextBytes, MAX_TEXT_PARTS);
@@ -167,9 +179,9 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         }
         for (String part : chunked.parts()) {
             if (group) {
-                fire(sender.sendGroupMessage(chatId, part, replyMsgId), alertTarget);
+                fire(sender.sendGroupMessage(chatId, part, replyMsgId, receivedAt), alertTarget);
             } else {
-                fire(sender.sendDirectMessage(chatId, part, replyMsgId), alertTarget);
+                fire(sender.sendDirectMessage(chatId, part, replyMsgId, receivedAt), alertTarget);
             }
         }
     }
