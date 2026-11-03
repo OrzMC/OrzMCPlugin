@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.29] - 2026-10-05
+## [Unreleased]
 
 ### 📚 文档（GeoIP 网络受限机房的推荐配置，fail-close 策略不变）
 - 新增 `docs/manuals/geoip-restricted-network.md`：出海受限/第三方不可达时的**不出卖安全**做法——
