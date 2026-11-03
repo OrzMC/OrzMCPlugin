@@ -173,9 +173,13 @@ geoip:
   #      建议先观察一段时间，抖动期可临时置 true（解析失败只告警、不踢人）。
   fail_open: false
   # 查询源顺序（多源兜底）：依次尝试，首个拿到国家码的胜出；单源超时/限流不再直接导致登录失败。
-  # 可选：geojs（get.geojs.io）/ countryis（api.country.is）/ ipwhois（ipwho.is），均为 HTTPS 且无需 key。
-  # 全部失败的处置由上面的 fail_open 决定；留空列表 = 使用默认链（geojs → countryis → ipwhois）。
-  providers: [geojs, countryis, ipwhois]
+  # 各源条款（2026-11 核对；均 HTTPS、无需 API key、无需付费）：
+  #   countryis = api.country.is —— 免费、允许商业使用、无配额（仅 10 req/s/IP 防滥用）、
+  #                               数据源 MaxMind GeoLite2 每日更新；开源，可 Docker 自托管后改成自己的域名
+  #   geojs     = get.geojs.io   —— 免费、官方标注无速率限制（"No rate limits (yet)"）
+  #   ipwhois   = ipwho.is       —— 免费额度有限、商业条款需自行确认 → 默认不启用
+  # 留空列表 = 使用默认链（countryis → geojs）。全部失败的处置由上面的 fail_open 决定。
+  providers: [countryis, geojs]
   # 单个查询源的单次超时（毫秒）：登录决策窗只有 3s，需留出切换下一家的时间。
   per_provider_timeout_ms: 1200
   # 解析失败的短缓存（秒）：上游抖动时同一 IP 不反复重试（0 = 关闭；不缓存失败会放大上游压力）。

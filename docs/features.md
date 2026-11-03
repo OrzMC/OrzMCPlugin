@@ -221,8 +221,9 @@ WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠
 - 玩家登录前异步查询 IP 地理位置
 - 仅允许配置的国家代码（`allow_country_code`）通过；未配置时放行所有 IP
 - 内网/私有地址（RFC1918、环回、CGNAT、链路本地及 IPv6 内网段）直接放行，不触发 GeoIP 查询
-- **多源兜底（2026-11，开关 #538）**：`providers` 按顺序依次尝试（默认 `geojs → countryis → ipwhois`，均 HTTPS、免 key），
+- **多源兜底（2026-11，开关 #538）**：`providers` 按顺序依次尝试（默认 `countryis → geojs`；均 HTTPS、免 key、无需付费），
   首个拿到国家码的胜出——单源超时/限流不再直接导致登录失败（之前只打一家，上游抖动就成了「把正常玩家踢掉，重试一次才进来」）
+  - 默认链为什么是这个顺序：`country.is` 免费且**明确允许商业使用、无配额**（仅 10 req/s/IP 防滥用）、数据源 MaxMind GeoLite2 每日更新、**开源可 Docker 自托管**；`get.geojs.io` 免费且官方标注**无速率限制**；`ipwho.is` 免费额度有限 → **不进默认链**，需要时在 `providers` 里显式加
   - 单源超时 `per_provider_timeout_ms`（默认 1200ms）；查询总预算自动卡在登录决策窗（3s）内，用尽即切下一家/失败，**绝不因多试几家把窗撑爆**
   - 解析失败的**短缓存** `failure_cache_seconds`（默认 30s）：上游抖动时同一 IP 不反复重试（否则配额被打光更慢恢复），成功结果仍缓存 12h
   - 日志可观测：`[geoip] <ip> → CN（主源失败，兜底源 countryis，180ms）` / `[geoip] <ip> 解析失赦（按 fail-close 拒绝）: geojs: HttpTimeoutException(timeout); …`

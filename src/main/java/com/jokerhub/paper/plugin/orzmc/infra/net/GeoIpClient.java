@@ -32,9 +32,19 @@ import java.util.concurrent.CompletionException;
  */
 public final class GeoIpClient {
 
-    /** 默认 provider 链：国内可达性较好的三家（均 HTTPS、无需 API key）。 */
-    public static final List<Provider> DEFAULT_PROVIDERS =
-            List.of(Provider.GEOJS, Provider.COUNTRY_IS, Provider.IPWHOIS);
+    /**
+     * 默认 provider 链：**先选免费额度最宽松、条款最明确的那家**，再退到备选。
+     *
+     * <ul>
+     *   <li>{@code country.is}：免费且<b>明确允许商业使用</b>、<b>无配额</b>（仅基础设施 10 req/s/IP 防滥用）、
+     *       数据源 MaxMind GeoLite2 每日更新、不记录请求，且<b>开源可 Docker 自托管</b>——首选；</li>
+     *   <li>{@code geojs}：免费、官方标注<b>无速率限制</b>（"No rate limits (yet)"，即保留将来加限制的权利）。</li>
+     * </ul>
+     *
+     * <p>{@code ipwho.is} 免费额度有限、商业条款需自查，故<b>不进默认链</b>；仅在 {@code geoip.providers}
+     * 显式启用时参与兜底。</p>
+     */
+    public static final List<Provider> DEFAULT_PROVIDERS = List.of(Provider.COUNTRY_IS, Provider.GEOJS);
 
     /** 单 provider 默认超时：决策窗 3s 内要能跑完 2~3 家，故单次压到 1.2s（失败快速切换）。 */
     public static final Duration DEFAULT_PER_PROVIDER_TIMEOUT = Duration.ofMillis(1200);
@@ -62,11 +72,11 @@ public final class GeoIpClient {
 
     /** 支持的第三方源；{@code id} 是配置里可写的名字。 */
     public enum Provider {
-        /** get.geojs.io（默认首选，字段 {@code country_code}）。 */
+        /** get.geojs.io（字段 {@code country_code}；免费、官方标注无速率限制）。 */
         GEOJS("geojs", "https://get.geojs.io/v1/ip/geo/%s.json", "country_code"),
-        /** api.country.is（极简，字段 {@code country}）。 */
+        /** api.country.is（字段 {@code country}；免费、无配额、允许商业使用、开源可自托管）。 */
         COUNTRY_IS("countryis", "https://api.country.is/%s", "country"),
-        /** ipwho.is（字段 {@code country_code}，失败时 {@code success=false}）。 */
+        /** ipwho.is（字段 {@code country_code}；免费额度有限 + 商业条款需自查，默认不启用）。 */
         IPWHOIS("ipwhois", "https://ipwho.is/%s", "country_code");
 
         private final String id;
