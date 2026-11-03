@@ -227,6 +227,11 @@ WITHER_SKULL / SLIME / STRAY），可直接增删（**完全替换**，不是叠
   - 单源超时 `per_provider_timeout_ms`（默认 1200ms）；查询总预算自动卡在登录决策窗（3s）内，用尽即切下一家/失败，**绝不因多试几家把窗撑爆**
   - 解析失败的**短缓存** `failure_cache_seconds`（默认 30s）：上游抖动时同一 IP 不反复重试（否则配额被打光更慢恢复），成功结果仍缓存 12h
   - 日志可观测：`[geoip] <ip> → CN（主源失败，兜底源 countryis，180ms）` / `[geoip] <ip> 解析失赦（按 fail-close 拒绝）: geojs: HttpTimeoutException(timeout); …`
+- **决策：不内置离线 IP 库**（2026-11 评估结论）——做过体积与维护成本测算（DB-IP Lite country 原始 mmdb 8.12 MB /
+  自建紧凑表 2.18 MB，jar 3.3 MB 分别涨到 ≈7.5 MB 与 ≈4.6 MB），但**月度数据刷新流程 + CC BY 署名义务 +
+  判定口径变化需复核白名单**会让项目复杂度与长期维护成本不可控，故**明确不做**。需要「少依赖第三方」时改用：
+  ① 自建 `country.is`（开源，Docker）后把 `geoip.providers` 指向自己的域名；② 调整 `providers` 顺序/增删源；
+  ③ 网络受限机房直接 `geoip.fail_open: true`（解析失败只告警、不踢人）。
 - 所有源都失败/返回空国家码时默认 **fail-close 拒绝进入**（安全优先；需放行时手动设 `geoip.fail_open: true`），拦截与放行均私信告警管理员（1 分钟限频，日志始终保留完整现场），告警不入玩家群
 - 被拒玩家踢出消息中显示其所在国家及允许的国家列表；拦截时 Bot 推送通知
 
