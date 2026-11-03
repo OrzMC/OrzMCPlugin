@@ -137,11 +137,14 @@ final class WhitelistCommandHandler extends BotCommandContext {
                 delayTicks,
                 page,
                 AUTO_PAGE_LIMIT,
-                I18nServiceHolder.msg(
+                // 提示用真实总页数渲染（{total} 必须填，否则占位符会原样发到群里）
+                total -> I18nServiceHolder.msg(
                         "bot.list.page_limit_hint",
                         java.util.Map.of(
                                 "shown",
                                 String.valueOf(AUTO_PAGE_LIMIT),
+                                "total",
+                                String.valueOf(total),
                                 "cmd",
                                 botConfig().cmdPromptChar() + OrzUserCmd.SHOW_WHITELIST.cmdName())));
     }

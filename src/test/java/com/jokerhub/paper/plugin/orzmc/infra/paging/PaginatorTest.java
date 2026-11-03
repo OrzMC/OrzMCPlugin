@@ -50,11 +50,11 @@ public class PaginatorTest extends ServiceTestBase {
                 0,
                 null,
                 5,
-                "... 仅显示前 5 页");
+                total -> "... 仅显示前 5 页（共 " + total + " 页）");
 
         Assertions.assertEquals(5, bodies.size(), "应只自动发前 5 页");
         Assertions.assertFalse(bodies.get(3).contains("仅显示前 5 页"), "提示只追加在最后一页");
-        Assertions.assertTrue(bodies.get(4).contains("仅显示前 5 页"), "最后一页应带提示: " + bodies.get(4));
+        Assertions.assertTrue(bodies.get(4).contains("仅显示前 5 页（共 7 页）"), "最后一页应带提示且用真实总页数渲染: " + bodies.get(4));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class PaginatorTest extends ServiceTestBase {
                 0,
                 7,
                 5,
-                "... 仅显示前 5 页");
+                total -> "... 仅显示前 5 页（共 " + total + " 页）");
 
         Assertions.assertEquals(1, bodies.size());
         Assertions.assertTrue(bodies.get(0).contains("line-120"), "第 7 页应正常返回: " + bodies.get(0));
