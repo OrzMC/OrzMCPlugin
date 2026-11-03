@@ -11,6 +11,7 @@
 
 | 告警 | 生态 / 依赖 | 结论 | 原因 |
 |:--|:--|:--|:--|
+| #8 | maven：`guava`（2026-11-03 新公告 `GHSA-xxph-c9ww-hj94`） | `not_used`（dismissed） | 同 #2–#7：幽灵 `pom.xml` manifest；仓库内无可改文件，无法用 PR 修复 |
 | #2–#7 | maven：`snakeyaml` `guava`×2 `commons-lang3` `plexus-utils` `log4j-api` | `not_used`（dismissed） | manifest 是 `pom.xml`，而它在 **2026-01-09 的 `6a246ce`「remove maven build method」** 里已删除；此后唯一构建方式是 Gradle。Dependabot 每次照旧去 checkout 里找 `/pom.xml`，报 `Error during file fetching; aborting: …/pom.xml not found` → 作业必红且**无法用 PR 修复**（没有可改的文件）。这些版本号都是 pom 时代的（guava 31.1、snakeyaml 1.33、plexus-utils 3.3.0、log4j 2.17.1、commons-lang3 3.8.1）。 |
 | #1 | npm：`uuid`（`e2e/package-lock.json`） | `tolerable_risk`（dismissed） | 传递依赖路径 `mineflayer → prismarine-auth → @azure/msal-node@2.16.3`（要求 `uuid ^8.3.0`）+ `yggdrasil@1.8.0`（`^10.0.0`）。Dependabot 自报 `fix_available=false`：唯一修复路径会把 `mineflayer` 从 4.37.1 **降级到 1.4.0**。该公告（GHSA-w5hq-g745-h8pq）只在调用方自带 buffer 的 `v3()/v5()/v6()` 触发，msal-node 只用 `v4()`；且 `e2e/` 是测试套件，node 依赖不随插件 jar 分发。 |
 

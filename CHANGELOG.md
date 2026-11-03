@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### 📚 文档（GeoIP 网络受限机房的推荐配置，fail-close 策略不变）
+- 新增 `docs/manuals/geoip-restricted-network.md`：出海受限/第三方不可达时的**不出卖安全**做法——
+  自建 `country.is`（开源，Docker）→ 指向自有域名、调 `providers` 顺序、调单源超时；
+  明确说明 `geoip.fail_open: true` **不是可用性开关**（它会把「地区未验证」的玩家放进来，等于地区限制失效）。
+
 ### 🐛 修复（GeoIP 解析不可靠 → 正常玩家被踢：#538）
 - **多源兜底**：`geoip.providers`（默认 `geojs → countryis → ipwhois`，均 HTTPS、免 key）依次尝试，
   首个拿到国家码的胜出。此前只打 `get.geojs.io` 一家，上游超时即落进「解析失败」分支——
