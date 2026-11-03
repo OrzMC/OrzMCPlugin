@@ -40,13 +40,21 @@ class GeoIpClientTest {
     }
 
     @Test
-    void lookup_primarySuccessUsesGeojsAndParsesCountryCode() throws Exception {
+    void defaultChain_prefersCountryIs_thenGeojs() {
+        // 默认链顺序 = 免费条款最宽松者优先（country.is：无配额 + 允许商业使用 + 可自托管），
+        // ipwho.is 免费额度有限，不进默认链
+        assertEquals(
+                List.of(GeoIpClient.Provider.COUNTRY_IS, GeoIpClient.Provider.GEOJS), GeoIpClient.DEFAULT_PROVIDERS);
+    }
+
+    @Test
+    void lookup_primarySuccessParsesCountryCodeAndNormalizesCase() throws Exception {
         // 先构造响应再进入静态桩（在 when(...) 里再 mock 会触发 UnfinishedStubbing）
-        CompletableFuture<HttpResponse<String>> primary = respond(200, "{\"country_code\":\"cn\"}");
+        CompletableFuture<HttpResponse<String>> primary = respond(200, "{\"ip\":\"1.2.3.4\",\"country\":\"cn\"}");
         try (MockedStatic<AsyncHttp> asyncHttp = mockStatic(AsyncHttp.class)) {
             asyncHttp
                     .when(() -> AsyncHttp.get(
-                            startsWith("https://get.geojs.io/v1/ip/geo/1.2.3.4.json"),
+                            startsWith("https://api.country.is/1.2.3.4"),
                             anyMap(),
                             any(Duration.class),
                             any(Duration.class),
@@ -56,10 +64,10 @@ class GeoIpClientTest {
             GeoIpClient.GeoIpResult result = client.lookup("1.2.3.4").join();
 
             assertEquals("CN", result.countryCode(), "国家码应归一化为大写");
-            assertEquals("geojs", result.provider());
+            assertEquals("countryis", result.provider());
             // 单源超时默认 1.2s（决策窗 3s 内要能切下一家）
             asyncHttp.verify(() -> AsyncHttp.get(
-                    startsWith("https://get.geojs.io/v1/ip/geo/1.2.3.4.json"),
+                    startsWith("https://api.country.is/1.2.3.4"),
                     anyMap(),
                     eq(Duration.ofMillis(1200)),
                     eq(Duration.ofMillis(1200)),
@@ -68,7 +76,7 @@ class GeoIpClientTest {
     }
 
     @Test
-    void lookup_primaryTimeout_fallsBackToSecondary() throws Exception {
+    void lookup_primaryTimeout_fallsBackToNextProvider() throws Exception {
         CompletableFuture<HttpResponse<String>> timeout = fail(new java.net.http.HttpTimeoutException("timed out"));
         CompletableFuture<HttpResponse<String>> secondary = respond(200, "{\"ip\":\"1.2.3.4\",\"country\":\"JP\"}");
         try (MockedStatic<AsyncHttp> asyncHttp = mockStatic(AsyncHttp.class)) {
@@ -89,7 +97,9 @@ class GeoIpClientTest {
                             anyInt()))
                     .thenReturn(secondary);
 
-            GeoIpClient.GeoIpResult result = client.lookup("1.2.3.4").join();
+            GeoIpClient.GeoIpResult result = lookupWith(
+                            List.of(GeoIpClient.Provider.GEOJS, GeoIpClient.Provider.COUNTRY_IS))
+                    .join();
 
             assertEquals("JP", result.countryCode());
             assertEquals("countryis", result.provider(), "主源超时应由第二家兜底");
@@ -128,7 +138,9 @@ class GeoIpClientTest {
                             anyInt()))
                     .thenReturn(third);
 
-            GeoIpClient.GeoIpResult result = client.lookup("1.2.3.4").join();
+            GeoIpClient.GeoIpResult result = lookupWith(List.of(
+                            GeoIpClient.Provider.GEOJS, GeoIpClient.Provider.COUNTRY_IS, GeoIpClient.Provider.IPWHOIS))
+                    .join();
 
             assertEquals("SG", result.countryCode());
             assertEquals("ipwhois", result.provider());
@@ -145,7 +157,8 @@ class GeoIpClientTest {
                             AsyncHttp.get(anyString(), anyMap(), any(Duration.class), any(Duration.class), anyInt()))
                     .thenReturn(reserved);
 
-            GeoIpClient.LookupException ex = assertLookupFailure("1.2.3.4");
+            GeoIpClient.LookupException ex = assertLookupFailure(
+                    List.of(GeoIpClient.Provider.GEOJS, GeoIpClient.Provider.COUNTRY_IS, GeoIpClient.Provider.IPWHOIS));
             assertEquals(3, ex.attempts().size(), "三家都应尝试过: " + ex.attempts());
         }
     }
@@ -159,7 +172,8 @@ class GeoIpClientTest {
                             AsyncHttp.get(anyString(), anyMap(), any(Duration.class), any(Duration.class), anyInt()))
                     .thenReturn(refused);
 
-            GeoIpClient.LookupException ex = assertLookupFailure("1.2.3.4");
+            GeoIpClient.LookupException ex = assertLookupFailure(
+                    List.of(GeoIpClient.Provider.GEOJS, GeoIpClient.Provider.COUNTRY_IS, GeoIpClient.Provider.IPWHOIS));
 
             assertEquals(3, ex.attempts().size());
             assertTrue(ex.attempts().get(0).startsWith("geojs:"), ex.attempts().toString());
@@ -229,12 +243,17 @@ class GeoIpClientTest {
     }
 
     /** join() 会把失败包进 CompletionException，这里统一剥出 {@link GeoIpClient.LookupException} 断言。 */
-    private GeoIpClient.LookupException assertLookupFailure(String ip) {
+    private GeoIpClient.LookupException assertLookupFailure(List<GeoIpClient.Provider> chain) {
         java.util.concurrent.CompletionException ce = assertThrows(
                 java.util.concurrent.CompletionException.class,
-                () -> client.lookup(ip).join());
+                () -> lookupWith(chain).join());
         assertInstanceOf(GeoIpClient.LookupException.class, ce.getCause(), "根因应为 LookupException: " + ce);
         return (GeoIpClient.LookupException) ce.getCause();
+    }
+
+    /** 用显式 provider 链查询（默认链顺序另有专门用例，测试不依赖它）。 */
+    private CompletableFuture<GeoIpClient.GeoIpResult> lookupWith(List<GeoIpClient.Provider> chain) {
+        return client.lookup("1.2.3.4", chain, Duration.ofMillis(1200), Duration.ofMillis(2500));
     }
 
     @SuppressWarnings("unchecked")

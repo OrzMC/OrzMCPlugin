@@ -13,6 +13,9 @@
 - **可观测**：`[geoip] <ip> → CN（主源失败，兜底源 countryis，180ms）`、
   `[geoip] <ip> 解析失败（按 fail-close 拒绝）: geojs: HttpTimeoutException(timeout); countryis: HTTP 503; …`
   ——逐条 provider 失败原因一次打全，排障不必再猜是超时/限流/空响应。
+- **默认链改为 `countryis → geojs`**（原 `geojs → countryis → ipwhois`）：`country.is` 免费且明确允许商业使用、
+  无配额、数据每日更新、开源可 Docker 自托管；`ipwho.is` 免费额度有限且商业条款需自查，**移出默认链**
+  （仍需时在 `geoip.providers` 显式添加）。三个源都无需 API key、无需付费。
 - 配置校验：未知 provider 名、超时越界、失败缓存越界都会进启动健康报告（写错不会静默只用默认链）。
 
 ### 🐛 修复（`$b`/`$o` 完成通知进群 + 命令“静默无回执”）
