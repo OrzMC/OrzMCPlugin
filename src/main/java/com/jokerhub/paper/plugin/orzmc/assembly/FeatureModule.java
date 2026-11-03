@@ -130,7 +130,9 @@ public final class FeatureModule implements ServiceModule {
             MaintenanceModule maintenanceModule,
             UpdateModule updateModule) {
         // Feature services
-        this.geoIpAccessService = new GeoIpAccessService(platform.configs());
+        // 注入 logger：多源兜底后需要看到「主源失败→兜底命中」与「逐条失败原因」（#538 排障）
+        this.geoIpAccessService = new GeoIpAccessService(
+                platform.configs(), platform.serverFacade().logger());
         this.accessRuleService = new AccessRuleService(
                 platform.configService(), platform.serverFacade().logger());
         // 命令审计 + 危险命令判定核心：由平台模块统一持有（$e 与事件共享同一实例）

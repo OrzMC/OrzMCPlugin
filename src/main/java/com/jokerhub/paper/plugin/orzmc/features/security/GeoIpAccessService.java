@@ -8,17 +8,37 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.logging.Logger;
 
+/**
+ * GeoIP 地区访问判定（登录前）。
+ *
+ * <p><b>2026-11 重构（#538「解析不可靠」）</b>：</p>
+ * <ol>
+ *   <li><b>多源兜底</b>：查询交给 {@link GeoIpClient} 的 provider 链（geojs → countryis → ipwhois），
+ *       单源超时/限流不再直接落到「解析失败」；</li>
+ *   <li><b>失败短缓存</b>：解析失败只缓存很短时间（{@code geoip.failure_cache_seconds}，默认 30s），
+ *       防止上游抖动期同一 IP 反复打第三方把配额打光，同时不延长误拦（成功结果仍缓存 12h）；</li>
+ *   <li><b>可观测</b>：成功/失败都打一行带「命中源 + 耗时」或「逐条失败原因」的日志，
+ *       排查时不必再猜是超时、限流还是空响应。</li>
+ * </ol>
+ *
+ * <p>失败策略保持原语义：{@code geoip.fail_open} 决定「无法验证地区」时放行（可用性优先）还是拒绝
+ * （安全优先，默认）。</p>
+ */
 public final class GeoIpAccessService {
     /**
      * 单次登录时 GeoIP 查询的阻塞等待上限（毫秒）。
      *
      * <p>阻塞发生在异步的 AsyncPlayerPreLoginEvent 处理器线程（netty 线程），不会阻塞主线程。
-     * 超时未拿到结果则 fail-open 放行，并告警到日志与群。</p>
+     * 超时未拿到结果则按 {@code fail_open} 策略处理，并告警到日志与群。</p>
      */
     public static final long DECISION_TIMEOUT_MS = 3_000L;
 
-    /** 单条 IP 的国家码缓存时长。国家码基本不变，12h 足够，同时大幅减少对 geojs.io 的重复查询。 */
+    /** 留给「判定 + 调度」的余量：查询总预算 = 决策窗 - 该余量，确保结果在窗口内返回。 */
+    private static final long DECISION_BUDGET_MARGIN_MS = 400L;
+
+    /** 单条 IP 的国家码缓存时长。国家码基本不变，12h 足够，同时大幅减少对第三方源的重复查询。 */
     private static final long CACHE_TTL_MS = Duration.ofHours(12).toMillis();
 
     /**
@@ -29,6 +49,7 @@ public final class GeoIpAccessService {
      */
     private static final int MAX_CACHE_ENTRIES = 4096;
 
+    /** 缓存条目：成功（长 TTL）与失败（短 TTL）分开计时，避免把临时故障固定成 12h 误拦。 */
     private record CacheEntry(GeoIpClient.GeoIpResult result, long expiresAtMillis) {}
 
     public record Decision(
@@ -44,24 +65,38 @@ public final class GeoIpAccessService {
     private final long cacheTtlMillis;
     private final int maxCacheEntries;
     private final ConcurrentMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    /** 失败短缓存（独立计时；{@code failureCacheSeconds<=0} 时不写）。 */
+    private final ConcurrentMap<String, CacheEntry> failureCache = new ConcurrentHashMap<>();
+
+    private final Logger logger;
 
     public GeoIpAccessService(TypedConfigProvider configs) {
-        this(new GeoIpClient(), configs, CACHE_TTL_MS, MAX_CACHE_ENTRIES);
+        this(new GeoIpClient(), configs, CACHE_TTL_MS, MAX_CACHE_ENTRIES, null);
+    }
+
+    public GeoIpAccessService(TypedConfigProvider configs, Logger logger) {
+        this(new GeoIpClient(), configs, CACHE_TTL_MS, MAX_CACHE_ENTRIES, logger);
     }
 
     GeoIpAccessService(GeoIpClient client, TypedConfigProvider configs) {
-        this(client, configs, CACHE_TTL_MS, MAX_CACHE_ENTRIES);
+        this(client, configs, CACHE_TTL_MS, MAX_CACHE_ENTRIES, null);
     }
 
     GeoIpAccessService(GeoIpClient client, TypedConfigProvider configs, long cacheTtlMillis) {
-        this(client, configs, cacheTtlMillis, MAX_CACHE_ENTRIES);
+        this(client, configs, cacheTtlMillis, MAX_CACHE_ENTRIES, null);
     }
 
     GeoIpAccessService(GeoIpClient client, TypedConfigProvider configs, long cacheTtlMillis, int maxCacheEntries) {
+        this(client, configs, cacheTtlMillis, maxCacheEntries, null);
+    }
+
+    GeoIpAccessService(
+            GeoIpClient client, TypedConfigProvider configs, long cacheTtlMillis, int maxCacheEntries, Logger logger) {
         this.client = client;
         this.configs = configs;
         this.cacheTtlMillis = cacheTtlMillis;
         this.maxCacheEntries = maxCacheEntries;
+        this.logger = logger;
     }
 
     public CompletableFuture<Decision> decide(String ipAddress) {
@@ -72,7 +107,7 @@ public final class GeoIpAccessService {
             return CompletableFuture.completedFuture(new Decision(true, "", allow, ""));
         }
         if (isPrivateIp(ipAddress)) {
-            // 内网/环回/CGNAT 地址直接放行，不触发 GeoIP 查询（geojs.io 无法解析私有段，
+            // 内网/环回/CGNAT 地址直接放行，不触发 GeoIP 查询（第三方无法解析私有段，
             // 会返回未知国家码导致白名单误拦截内网用户，2026-08-06 MCSM 线上问题）
             return CompletableFuture.completedFuture(new Decision(true, "", allow, ""));
         }
@@ -80,23 +115,75 @@ public final class GeoIpAccessService {
         if (cached != null) {
             return CompletableFuture.completedFuture(toDecision(cached, allow));
         }
-        return client.lookup(ipAddress).handle((res, ex) -> {
-            if (ex != null || res == null) {
-                // 查询失败按 fail_open 策略处理（默认 fail-close 拒绝，可配置 fail-open 放行）：
-                // 不缓存，避免把临时故障误固定；置 lookupFailed=true，由调用方告警管理员
-                return new Decision(failOpen, "", allow, "", true);
-            }
-            String cc = res.countryCode() == null ? "" : res.countryCode();
-            if (cc.isEmpty()) {
-                // geojs.io 返回了可解析但无国家码的响应（无法定位的保留段/云段 IP，
-                // 或 429/5xx 的错误体恰好是可解析 JSON）。同样按 fail_open 策略处理，
-                // 延续 2026-08-06 内网误拦教训：未知国家码不应静默误拦合法玩家；
-                // 不缓存（避免误锁 12h），置 lookupFailed 告警管理员。
-                return new Decision(failOpen, "", allow, res.rawJson(), true);
-            }
-            cachePut(ipAddress, res);
-            return toDecision(res, allow);
-        });
+        CacheEntry failedEntry = failureCacheGet(ipAddress);
+        if (failedEntry != null) {
+            // 失败短缓存命中：不再打第三方（上游抖动时保护配额），直接按 fail_open 策略处置
+            return CompletableFuture.completedFuture(new Decision(failOpen, "", allow, "", true));
+        }
+        long startNanos = System.nanoTime();
+        Duration perProvider = Duration.ofMillis(whitelist.perProviderTimeoutMs());
+        Duration totalBudget = Duration.ofMillis(Math.max(200L, DECISION_TIMEOUT_MS - DECISION_BUDGET_MARGIN_MS));
+        return client.lookup(ipAddress, whitelist.resolvedProviders(), perProvider, totalBudget)
+                .handle((res, ex) -> {
+                    if (ex != null || res == null) {
+                        // 查询失败：短缓存 + 一次性告警（带逐条 provider 失败原因）
+                        cacheFailure(ipAddress, whitelist.failureCacheSeconds());
+                        logWarning("[geoip] " + ipAddress + " 解析失败（按 fail-" + (failOpen ? "open 放行" : "close 拒绝")
+                                + "）: " + describe(ex));
+                        return new Decision(failOpen, "", allow, "", true);
+                    }
+                    String cc = res.countryCode() == null ? "" : res.countryCode();
+                    if (cc.isEmpty()) {
+                        // 拿到了响应但没有国家码（保留段/云段/第三方错误体）：同样按 fail_open 处置
+                        cacheFailure(ipAddress, whitelist.failureCacheSeconds());
+                        logWarning("[geoip] " + ipAddress + " 无国家码（源 " + res.provider() + "，按 fail-"
+                                + (failOpen ? "open 放行" : "close 拒绝") + "）");
+                        return new Decision(failOpen, "", allow, res.rawJson(), true);
+                    }
+                    cachePut(ipAddress, res);
+                    logLookupSuccess(ipAddress, res, startNanos);
+                    return toDecision(res, allow);
+                });
+    }
+
+    /** 成功查询的一行观测：IP → 国家码，命中源与耗时（跨源兜底时尤其需要）。 */
+    private void logLookupSuccess(String ipAddress, GeoIpClient.GeoIpResult res, long startNanos) {
+        if (logger == null) {
+            return;
+        }
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000L;
+        boolean fellBack = !GeoIpClient.DEFAULT_PROVIDERS.isEmpty()
+                && !GeoIpClient.DEFAULT_PROVIDERS.get(0).id().equals(res.provider());
+        // 主源命中走 FINE（正常路径，避免刷屏）；兜底命中走 INFO（值得关注的降级信号）
+        if (fellBack) {
+            logger.info("[geoip] " + ipAddress + " → " + res.countryCode() + "（主源失败，兜底源 " + res.provider() + "，"
+                    + elapsedMs + "ms）");
+        } else if (logger.isLoggable(java.util.logging.Level.FINE)) {
+            logger.fine("[geoip] " + ipAddress + " → " + res.countryCode() + "（" + res.provider() + "，" + elapsedMs
+                    + "ms）");
+        }
+    }
+
+    private void logWarning(String message) {
+        if (logger != null) {
+            logger.warning(message);
+        }
+    }
+
+    /** 失败原因摘要（{@link GeoIpClient.LookupException} 带逐条尝试，其他异常退化为类型+消息）。 */
+    private static String describe(Throwable ex) {
+        if (ex == null) {
+            return "无结果";
+        }
+        Throwable cur = ex;
+        while (cur.getCause() != null && cur.getCause() != cur && !(cur instanceof GeoIpClient.LookupException)) {
+            cur = cur.getCause();
+        }
+        if (cur instanceof GeoIpClient.LookupException lookupException) {
+            return String.join("; ", lookupException.attempts());
+        }
+        String message = cur.getMessage();
+        return cur.getClass().getSimpleName() + (message == null || message.isBlank() ? "" : "(" + message + ")");
     }
 
     private Decision toDecision(GeoIpClient.GeoIpResult res, List<String> allow) {
@@ -126,6 +213,31 @@ public final class GeoIpAccessService {
         }
     }
 
+    private CacheEntry failureCacheGet(String ip) {
+        CacheEntry entry = failureCache.get(ip);
+        if (entry == null) {
+            return null;
+        }
+        if (System.currentTimeMillis() > entry.expiresAtMillis()) {
+            failureCache.remove(ip, entry);
+            return null;
+        }
+        return entry;
+    }
+
+    /** 失败短缓存（{@code seconds<=0} 时不缓存，保持「每次重试都问一次」的旧行为）。 */
+    private void cacheFailure(String ip, int seconds) {
+        if (seconds <= 0) {
+            return;
+        }
+        failureCache.put(
+                ip, new CacheEntry(new GeoIpClient.GeoIpResult("", ""), System.currentTimeMillis() + seconds * 1000L));
+        if (failureCache.size() > maxCacheEntries) {
+            long now = System.currentTimeMillis();
+            failureCache.entrySet().removeIf(e -> now > e.getValue().expiresAtMillis());
+        }
+    }
+
     private void evictExpired() {
         long now = System.currentTimeMillis();
         cache.entrySet().removeIf(e -> now > e.getValue().expiresAtMillis());
@@ -148,7 +260,7 @@ public final class GeoIpAccessService {
                 || "::".equals(lower)) {
             return true;
         }
-        // IPv4-mapped IPv6（::ffff:x.x.x.x）：剥离前缀后按 IPv4 判断，避免对注定失败的内网地址发起查询
+        // IPv4-mapped IPv6（::ffff:x.x.x.x)：剥离前缀后按 IPv4 判断，避免对注定失败的内网地址发起查询
         String candidate = lower.startsWith("::ffff:") ? ip.substring("::ffff:".length()) : ip;
         // 仅处理 IPv4
         String[] parts = candidate.split("\\.");
