@@ -13,7 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 时 fail-open（放行，保持既有行为，不因缺字段吞消息）。判定与写入原子（{@code ConcurrentHashMap.compute}
  * 返回值 + 时间戳引用相等，避免 CAS 重试污染外部状态——同 {@code ThrottledNotifier} 的教训）。</p>
  *
- * <p>容量有界：超过 {@link #MAX_ENTRIES} 时清理过期项，仍超限则整体清空（去重是尽力而为的防护，不占内存）。</p>
+ * <p>容量有界：超过 {@link #MAX_ENTRIES} 时先清理过期项；仍超限（异常洪峰）则淘汰最早记录的一半——
+ * 不整体清空（clear 会忘掉已处理的消息 id，洪峰期间的重连重放可能二次执行非幂等命令）。</p>
  */
 public final class InboundDedup {
 
@@ -61,7 +62,16 @@ public final class InboundDedup {
             seen.entrySet().removeIf(e -> now - e.getValue() >= ttlMs);
         }
         if (seen.size() >= MAX_ENTRIES) {
-            seen.clear(); // 全在窗口内仍超限（异常洪峰）：整体清空，丢旧保新
+            // 全在窗口内仍超限（异常洪峰）：淘汰<b>最早记录的一半</b>，而不是整体 clear。
+            // clear 会让「已处理过的消息 id」全部忘掉——洪峰期间的重连重放可能二次执行
+            // 非幂等命令（$b/$o/$e/$r）。淘汰最旧的条目仍能对最新消息去重，风险小得多。
+            int drop = seen.size() / 2;
+            seen.entrySet().stream()
+                    .sorted(java.util.Comparator.comparingLong(java.util.Map.Entry::getValue))
+                    .limit(drop)
+                    .map(java.util.Map.Entry::getKey)
+                    .toList()
+                    .forEach(seen::remove);
         }
     }
 }

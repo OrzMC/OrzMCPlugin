@@ -322,23 +322,31 @@ public class WorldMaintenanceService {
         // 消除 check-then-act 竞态——避免 reason 被覆盖或手动维护被静默清除。
         boolean wasManual;
         String kickText;
+        boolean busy;
         synchronized (maintenanceModeService) {
-            if (!running.compareAndSet(false, true)) {
-                if (busyWork != null) {
-                    busyWork.run(); // 忙碌回路：调用方给触发者回一句，避免「发了命令毫无反应」
-                }
-                return false;
+            busy = !running.compareAndSet(false, true);
+            if (busy) {
+                wasManual = false;
+                kickText = null;
+            } else {
+                // 复位本次运行的错误聚合计数器：否则跨 run 累积——fatalErrorReported 一旦置 true，
+                // 后续 run 的致命错误不再发群通知；chunkErrorCount 累积导致干净 run 误报「含 N 个损坏区块」。
+                chunkErrorCount.set(0);
+                fatalErrorReported.set(false);
+                // 手动维护期间备份/优化照常执行：reason 被备份/优化覆盖，结束后恢复手动维护（wasManual 还原）
+                wasManual = maintenanceModeService.isActive()
+                        && maintenanceModeService.reason() == MaintenanceModeService.MaintenanceReason.MANUAL;
+                maintenanceModeService.enter(reason);
+                // 踢人无进度：统一场景文案（maintenance.motd.* 磁盘正文优先→语言包，P4c-2）
+                kickText = MaintenanceModeService.renderMotdText(reason, configs.maintenanceTexts(), null);
             }
-            // 复位本次运行的错误聚合计数器：否则跨 run 累积——fatalErrorReported 一旦置 true，
-            // 后续 run 的致命错误不再发群通知；chunkErrorCount 累积导致干净 run 误报「含 N 个损坏区块」。
-            chunkErrorCount.set(0);
-            fatalErrorReported.set(false);
-            // 手动维护期间备份/优化照常执行：reason 被备份/优化覆盖，结束后恢复手动维护（wasManual 还原）
-            wasManual = maintenanceModeService.isActive()
-                    && maintenanceModeService.reason() == MaintenanceModeService.MaintenanceReason.MANUAL;
-            maintenanceModeService.enter(reason);
-            // 踢人无进度：统一场景文案（maintenance.motd.* 磁盘正文优先→语言包，P4c-2）
-            kickText = MaintenanceModeService.renderMotdText(reason, configs.maintenanceTexts(), null);
+        }
+        if (busy) {
+            // 锁外回调：busyWork 是调用方代码（会发消息/落日志），不应在持有维护模式锁时执行
+            if (busyWork != null) {
+                busyWork.run();
+            }
+            return false;
         }
         try {
             server.runSync(() -> {
