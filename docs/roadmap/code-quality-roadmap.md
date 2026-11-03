@@ -1,6 +1,12 @@
 # OrzMC 代码质量与架构改进路线图
 
 > **状态：现行**（进行中路线图，2026-09-03 最后复核）——活跃任务清单，随迭代更新。
+>
+> ⚠️ **2026-11 注：本文引用的部分一次性交付报告已随 #517（文档精简）删除**——
+> `security-gap-analysis.md`、`test-cases.md`、`folia-migration.md`、`permission-system-v2*.md`、
+> `e2e-test-report-*.md`、`world-directory-structure-comparison.md` 等。
+> 表格中指向它们的条目保留为**历史记录**（问题描述与结论仍可读，但链接会 404）；
+> 现状以代码与 `docs/features.md` 为准。
 
 > 定位：执行路线图。六维审查（架构 / 质量保障 / 文档 / 性能 / PaperMC·Folia / 安全）的**完整问题清单 + 可独立推进的任务拆分**。
 > 与已完结的安全加固（PR #179–#184）互补——本文聚焦**已上线功能的缺陷修复、泄漏治理、测试补齐与文档校正**。

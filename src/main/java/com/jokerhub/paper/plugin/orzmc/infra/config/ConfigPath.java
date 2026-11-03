@@ -136,6 +136,15 @@ public final class ConfigPath {
         reg(map, "config", "exploit_hardening.message", String.class, "检测到异常内容，已自动处理", "命中时提示文案");
         // geoip (config.yml)
         reg(map, "config", "geoip.fail_open", Boolean.class, false, "GeoIP查询失败放行(fail-open)");
+        reg(
+                map,
+                "config",
+                "geoip.providers",
+                java.util.List.class,
+                java.util.List.of("geojs", "countryis", "ipwhois"),
+                "GeoIP 查询源顺序（多源兜底，首个拿到国家码的胜出）");
+        reg(map, "config", "geoip.per_provider_timeout_ms", Long.class, 1200L, "GeoIP 单个查询源超时(毫秒)，登录决策窗 3s");
+        reg(map, "config", "geoip.failure_cache_seconds", Integer.class, 30, "GeoIP 解析失败的短缓存(秒)，0=关闭");
         // 根级键（config.yml）
         reg(map, "config", "entity_teleport_enabled", Boolean.class, false, "实体传送总开关");
         // update 自更新 (config.yml)

@@ -10,6 +10,11 @@ import java.util.logging.Logger;
 public final class Paginator {
     private Paginator() {}
 
+    /**
+     * 分页发送（不限页数）。
+     *
+     * @see #paginatePages(ServerScheduler, PageConsumer, String, String, List, int, Integer, int, String)
+     */
     public static void paginatePages(
             ServerScheduler server,
             PageConsumer callback,
@@ -18,6 +23,30 @@ public final class Paginator {
             List<String> lines,
             int delayTicks,
             Integer page) {
+        paginatePages(server, callback, header, emptyBody, lines, delayTicks, page, 0, null);
+    }
+
+    /**
+     * 分页发送（无页码参数时最多自动发 {@code maxPages} 页）。
+     *
+     * <p><b>为什么要上限：</b>一次入站消息的全部页面都是「同一条源消息的回复」——QQ 被动回复配额只有
+     * 群 5 / 单聊 4 条，超出的部分会降级为<b>主动消息</b>（群 1000 条/天频控）。白名单大服一条 `$w`
+     * 打十几页会抽干主动配额，还可能静默丢页。因此无页码参数时只发前 {@code maxPages} 页，
+     * 并在最后一页追加提示（提示用 {@code $w <页码>} 看其余）。</p>
+     *
+     * @param maxPages 无页码参数时的自动发送页数上限（{@code <= 0} = 不限）
+     * @param truncatedHint 被截断时用<b>实际总页数</b>生成追加在最后一页尾部的提示（{@code null} = 不追加）
+     */
+    public static void paginatePages(
+            ServerScheduler server,
+            PageConsumer callback,
+            String header,
+            String emptyBody,
+            List<String> lines,
+            int delayTicks,
+            Integer page,
+            int maxPages,
+            java.util.function.IntFunction<String> truncatedHint) {
         ArrayList<String> chunks = buildChunks(lines);
         int total = chunks.size();
         if (total == 0) {
@@ -29,13 +58,23 @@ public final class Paginator {
             String body = chunks.get(idx);
             callback.accept(idx + 1, total, header, body);
         } else {
-            for (int i = 0; i < total; i++) {
+            int send = (maxPages > 0 && total > maxPages) ? maxPages : total;
+            boolean truncated = send < total;
+            // 提示由调用方渲染（i18n 归调用方）：用真实总页数填 {total}，避免占位符残留
+            String renderedHint = null;
+            if (truncated && truncatedHint != null) {
+                String rendered = truncatedHint.apply(total);
+                renderedHint = (rendered == null || rendered.isBlank()) ? null : rendered;
+            }
+            final String hint = renderedHint;
+            for (int i = 0; i < send; i++) {
                 final int pageIndex = i;
+                final boolean appendHint = hint != null && pageIndex == send - 1;
                 Schedulers.runLater(
                         server,
                         () -> {
                             try {
-                                String body = chunks.get(pageIndex);
+                                String body = chunks.get(pageIndex) + (appendHint ? "\n" + hint : "");
                                 callback.accept(pageIndex + 1, total, header, body);
                             } catch (Exception e) {
                                 Logger.getGlobal().log(Level.SEVERE, "Paginator paginatePages 延迟任务异常", e);

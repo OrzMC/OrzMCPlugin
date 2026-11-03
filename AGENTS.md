@@ -136,6 +136,13 @@ OrzMC/
 - `ThrottledNotifier.shouldRun` 判定+更新必须原子（`ConcurrentHashMap.compute`），多 region 线程并发时 check-then-act 有竞态。
 - 限频 key 防「换马甲刷」用**全局 key**（per-player key 会放行每马甲一条）；玩家侧提示不受节流影响。
 - 新增通知类型先评估触发频率：单事件直发 → 需限频/聚合。
+- **长任务（分钟级）的结果通知不得走被动回复通道**（2026-11-03 事故）：QQ 被动回复窗口只有群 5 分钟 /
+  单聊 60 分钟，`$b` 备份实测 25 分钟 → 完成回执被平台以 `40034005 msg_id 已过期` 拒收，且旧兜底只认
+  `40034128` → 消息只打一条 WARN 就丢（备份成功、群里零通知）。规则：① 业务层用 `notifier.event` 主动通知
+  （与失败通知同构）；② 平台层必须按入站时刻预判降级（`QqSender.isPassiveWindowExpired`）；
+  ③ 被动报错码兜底覆盖同一语义家族（超限/超窗/msg_id 过期）。详见 `docs/dev/qq-passive-reply-expiry.md`。
+- **「没有回复」也是缺陷**：命令触发的异步链路 `catch` 里必须回一句失败回执；互斥跳过也要回执
+  （否则用户连发同一命令）。
 
 ### 审核/命令/测试
 
@@ -216,8 +223,21 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
   ③ 本地实测三方合并：`git merge-tree $(git merge-base origin/main origin/develop) origin/main origin/develop`
      输出 0 冲突 = GitHub 历史拓扑误报（里程碑 squash 使两侧相对旧 base 各自演进），内容一致即可安全关闭；
   ④ 确有真实冲突 → 取 develop 优先人工合并（#293/#301 教训：先并 main 独有内容，再人工解冲突）。
-- **正式发版**：owner 打 SemVer tag（如 `1.0.25`，不加 `v`）→ tag 触发：完整 `./gradlew check` →
-  Hangar/Modrinth release → GitHub Release → 版本号自增 commit 回 main。
+- **正式发版（完整流程，2026-10-05 1.0.29 实战固化，详见 docs/publishing-platforms.md §5.6）**：
+  0. **发布流水线的手动兜底**：`publish.yml` 支持 `workflow_dispatch`（默认 `dry_run=true` 只跑 check+构建，
+     不发布）。tag 触发被 `paths-ignore` 吞掉或中途失败时用它重跑：
+     `gh workflow run publish.yml --ref <tag|main> -f dry_run=false`（`--ref <tag>` 走 release，`--ref main` 走 beta）。
+     ⚠️ 始终先用默认的 `dry_run=true` 跑一次确认产物正常。
+  1. **CHANGELOG 归拢**（发布前）：`[Unreleased]` 节改名 `[<version>] - <date>`，并补齐里程碑内各 PR 缺失条目
+     （1.0.29 时 #523/#524/#525 曾漏记）——纯文档 PR 合 main（CHANGELOG.md 在 paths-ignore，不触发发布）。
+  2. **打 tag 发布**：`git tag <version> origin/main`（轻量、纯 SemVer、不加 `v`）→ `git push origin <version>`
+     → 触发 publish.yml：完整 `./gradlew check` → Hangar/Modrinth release → GitHub Release → 版本自增 bump。
+  3. **版本自增**（自动化）：publish 末尾开 `bump-version/<next>` PR，CI 绿 auto-merge 合 main → 版本推进 <next>。
+  4. **bump 父仓库指针**（发布完成后，手动）：插件是父仓库 `OrzMC/OrzMC` 的 submodule（path=plugin, branch=main）——
+     `git -C plugin checkout main && git -C plugin reset --hard origin/main` 对齐发布后 main，再到父仓库
+     `git add plugin && git commit -m "chore(submodule): bump plugin 指针到 main 最新（<v> 正式版已发布 + 版本推进 <next>）"`
+     + `git push origin main`（父仓库 main 会打印 `Changes must be made through a pull request`，owner 有 bypass 可推入）。
+  5. **切回 develop**：`git -C plugin checkout develop && git fetch origin --prune && git reset --hard origin/develop`。
 
 **门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke +
 禁强推/删除；默认分支 = develop；仓库 Allow auto-merge 已开。
@@ -228,6 +248,12 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
 已关闭（`enforce_admins` 也置 false，保留 `--admin` 紧急逃生口）。因此自建与 dependabot PR
 **CI 绿即可自动合并**（`gh pr merge <n> --squash --auto --delete-branch`），外部真人 PR 仍需评审。
 机制、配套 ruleset 设置与回滚步骤见 [`docs/dev/repo-automation.md`](docs/dev/repo-automation.md)。
+
+**依赖安全告警（Dependabot）**：`Dependabot Updates` 作业曾每天红一片——依赖图里残留了 2026-01-09
+已删除的 `pom.xml` manifest（仓库早已改用 Gradle），security update 必然 `pom.xml not found`。
+7 条告警已于 2026-10-22 按「残留 manifest / 测试套件传递依赖」两类处置（0 open）；
+新增告警先看 `dependency.manifest_path` 是否还在默认分支，处置结论与复核条件见
+[`docs/dev/dependency-security-alerts.md`](docs/dev/dependency-security-alerts.md)。
 
 **铁律**
 

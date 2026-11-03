@@ -16,6 +16,7 @@
 | [新手指南书手册](guide-book.md) | guide_book.yml 3 分钟上手：速查表 / 全写法 / 上限降级 / 旧格式迁移 / 排查清单 | docs/ |
 | [视频系列](../videos/README.md) | V1 宣传短片 + V2 快速上手（零产物、可重生成）；教程诉求 [#128](https://github.com/OrzMC/OrzMCPlugin/issues/128) → [#490](https://github.com/OrzMC/OrzMCPlugin/issues/490)、总纲 [#481](https://github.com/OrzMC/OrzMCPlugin/issues/481) | videos/ |
 | [故障排查](troubleshooting.md) | 常见报错的判定与处置（含「启动完成前敲命令报 `CommandSourceStack.getLevel()` NPE」——Paper 上游缺陷，非插件问题） | docs/ |
+| [GeoIP 网络受限机房配置](manuals/geoip-restricted-network.md) | 出海不稳导致「地区解析服务不可用」时的推荐做法（自建 country.is / 换源 / 调超时）——**保持 fail-close**，不用 `fail_open` 换可用性 | docs/manuals/ |
 
 ### 🧑💻 开发者（改代码）
 | 文档 | 内容 | 位置 |
@@ -27,6 +28,8 @@
 | [配置 Schema 治理](dev/config-schema-governance.md) | config.yml 结构、版本门控迁移规则、允许/禁止事项 | docs/dev/ |
 | [Folia × LuckPerms 红线](dev/folia-luckperms-gotchas.md) | 线程模型/LP 集成实战教训（**改 rank/review/prison 前必读**） | docs/dev/ |
 | [IM 网关内建方案](dev/im-gateway-inhouse.md) | EasyBot ↔ builtin 双通道切换方案定稿（backend/im.yml/决策记录/实施路线/§10 遗留清单） | docs/dev/ |
+| [依赖安全告警处置](dev/dependency-security-alerts.md) | Dependabot 红作业根因（残留 `pom.xml` manifest）、7 条告警的处置结论与复核条件 | docs/dev/ |
+| [QQ 被动回复窗口越界](dev/qq-passive-reply-expiry.md) | `$b`/`$o` 完成通知丢失的根因（`40034005`）、双层修复与「长任务不走被动回复」红线 | docs/dev/ |
 | 包级 javadoc（`package-info.java`） | 逐包职责/关键类型/依赖方向，定位最快入口 | src/ |
 
 ### 🧪 测试 / 质量

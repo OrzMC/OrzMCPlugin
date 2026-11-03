@@ -50,3 +50,23 @@ java.lang.NullPointerException: Cannot invoke "net.minecraft.server.level.Server
   — `open` / `status: accepted` / `upstream: vanilla`。
   https://github.com/PaperMC/Paper/issues/13580
 - 复现版本：Paper `26.2-126`、`26.2-129`（最初报告为 `1.21.11-90`）。
+
+## 2. 玩家被踢「地区解析服务暂时不可用，无法验证你的地区」
+
+### 现象
+```
+IP地址解析查询失败，已拒绝（fail-close）: 玩家名(1.2.3.4)
+[群消息:geoip_unverifiable] 地区解析服务暂时不可用，无法验证你的地区（IP:1.2.3.4）
+```
+
+### 判定
+- 插件多源兜底（默认 `countryis → geojs`）**全部失败**才走到这里；
+  日志里先看 `[geoip] … 解析失败（按 fail-close 拒绝）: countryis: …; geojs: …` 的逐条原因。
+- `HttpTimeoutException` / `ConnectException` / `UnknownHostException` → 机房出海不稳（**网络问题**）。
+- `HTTP 429` → 被限流；`空国家码` → 该 IP 段第三方库无数据。
+
+### 处置
+按 [`manuals/geoip-restricted-network.md`](manuals/geoip-restricted-network.md) 处理。
+**注意**：`geoip.fail_open: true` 会把「地区未验证」的玩家放进来（等于地区限制在故障期失效），
+本项目默认且推荐 `fail_close` —— 不要用它换可用性。
+

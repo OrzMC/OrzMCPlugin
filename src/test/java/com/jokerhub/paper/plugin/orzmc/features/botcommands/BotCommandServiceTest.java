@@ -593,7 +593,7 @@ class BotCommandServiceTest {
         assertEquals(
                 new BotCommandFeedbackService().usageTip(OrzUserCmd.BACKUP, "$"),
                 captor.getValue().message());
-        verify(maintenance, never()).backup(anyLong(), anyInt(), any());
+        verify(maintenance, never()).backup(anyLong(), anyInt(), any(), anyBoolean());
     }
 
     @Test
@@ -608,7 +608,7 @@ class BotCommandServiceTest {
         assertEquals(
                 new BotCommandFeedbackService().usageTip(OrzUserCmd.BACKUP, "$"),
                 captor.getValue().message());
-        verify(maintenance, never()).backup(anyLong(), anyInt(), any());
+        verify(maintenance, never()).backup(anyLong(), anyInt(), any(), anyBoolean());
     }
 
     @Test
@@ -623,7 +623,7 @@ class BotCommandServiceTest {
         assertEquals(
                 new BotCommandFeedbackService().usageTip(OrzUserCmd.BACKUP, "$"),
                 captor.getValue().message());
-        verify(maintenance, never()).backup(anyLong(), anyInt(), any());
+        verify(maintenance, never()).backup(anyLong(), anyInt(), any(), anyBoolean());
     }
 
     @Test
@@ -637,7 +637,7 @@ class BotCommandServiceTest {
         assertEquals(
                 new BotCommandFeedbackService().usageTip(OrzUserCmd.OPTIMIZE_WORLD, "$"),
                 captor.getValue().message());
-        verify(maintenance, never()).optimize(anyLong(), any());
+        verify(maintenance, never()).optimize(anyLong(), any(), anyBoolean());
     }
 
     @Test
