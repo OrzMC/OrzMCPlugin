@@ -1,6 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.30] - 2026-11-04
+
+> **升级须知（1.0.30）**
+> - **无需手动迁移**：`config-version` 15 → 16 由插件启动时自动完成（原文件会先备份，新增 3 个 `geoip.*` 键）。
+> - **行为变化（通常是你要的）**：① `$b`/`$o` 的进度/完成/坏块提示**只回发起命令的那个会话**，不再广播到
+>   其它已绑定的群；② `$w` / `$v l` 不带页码时最多自动发 5 页（末页给提示，用 `$w <页码>` 看其余）；
+>   ③ GeoIP 默认查询源改为 `countryis → geojs`（`ipwho.is` 移出默认链，需要时在 `geoip.providers` 加回）。
+> - **地区限制策略不变**：仍是 `fail_close`。`geoip.fail_open` 只是调试/应急开关，**不建议**用它换可用性
+>   （网络受限请见 [`docs/manuals/geoip-restricted-network.md`](docs/manuals/geoip-restricted-network.md)）。
 
 ### 🔧 工程 / CI / 配置
 - **config-version 15 → 16**：本版新增 `geoip.providers` / `geoip.per_provider_timeout_ms` /
