@@ -243,46 +243,56 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         // 2026-11-03 盘点发现的第二类问题：$b/$o 正在跑时再发一次，旧实现直接 return，
         // 用户什么回执都收不到（以为命令没生效）。现在必须回一句「已有备份/优化正在进行」。
         WorldMaintenanceService runningSvc = serviceWithHeldAsync();
-        runningSvc.backup(300L, 5, msg -> {}, true);
+        runningSvc.backup(300L, 5, msg -> {});
         Assertions.assertTrue(runningSvc.isRunning(), "首次应进入运行态（runAsync 被 hold）");
 
         List<String> replies = new java.util.concurrent.CopyOnWriteArrayList<>();
-        runningSvc.backup(300L, 5, replies::add, true);
+        runningSvc.backup(300L, 5, replies::add);
         Assertions.assertTrue(replies.stream().anyMatch(m -> m.contains("已有备份/优化正在进行")), "忙碌时应回执: " + replies);
     }
 
     @Test
-    public void backup_completionStaysOnCallbackWhenNotifyCompletionFalse() throws Exception {
-        // 定时备份（notifyCompletion=false）：完成通知仍只回执/日志（不打扰群聊）——保持旧行为
+    public void backup_completionGoesToCommandOrigin_neverBroadcastsToAllGroups() throws Exception {
+        // 2026-11 线上：飞书群发 $b，完成通知同时出现在 QQ 群（notifier 的 PUBLIC 会广播到所有已绑定公开会话）。
+        // 完成通知必须只回**命令来源会话**（callback），因此这里同时断言 callback 有消息、notifier 未被调用。
         List<String> replies = new java.util.concurrent.CopyOnWriteArrayList<>();
-        progressHandlerOf(false, replies::add).invoke(doneEvent());
+        progressHandlerOf(replies::add).invoke(doneEvent());
 
+        Assertions.assertFalse(replies.isEmpty(), "完成通知应回到命令来源会话");
         verify(notifier, org.mockito.Mockito.never()).event(anyString(), any(MessageEnvelope.class));
-        Assertions.assertFalse(replies.isEmpty(), "定时备份的完成回执应仍走 callback");
     }
 
     @Test
-    public void backup_completionNotifiesGroupWhenNotifyCompletionTrue() throws Exception {
-        // $b（notifyCompletion=true）：完成通知走**主动群通知**（与失败通知同构），不再走命令回执——
-        // 备份是分钟级任务，命令回执的 QQ 被动回复 5 分钟窗口早已过期（2026-11-03 事故）
+    public void chunkSummary_isLocalizedWithModeAndCount() throws Exception {
+        // 坏块跳过的汇总提示不能硬编码中文（飞书/英文服会看到 zh），须走语言包（i18n 未注入时回落 zh 模板）
+        chunkErrorCountOf(service).addAndGet(3);
         List<String> replies = new java.util.concurrent.CopyOnWriteArrayList<>();
-        kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> handler = progressHandlerOf(true, replies::add);
+        progressHandlerOf(replies::add).invoke(doneEvent());
 
-        handler.invoke(doneEvent());
-
-        verify(notifier).event(anyString(), any(MessageEnvelope.class));
-        Assertions.assertTrue(replies.isEmpty(), "完成通知不应再走命令回执（被动回复会超窗）: " + replies);
+        String summary = replies.stream()
+                .filter(m -> m.contains("损坏区块"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("应有坏块汇总提示: " + replies));
+        Assertions.assertTrue(summary.contains("3"), "应带坏块数量: " + summary);
+        Assertions.assertTrue(summary.contains("备份"), "应带模式词（备份/优化）: " + summary);
     }
 
-    /** 反射取私有 progressHandler（notifyCompletion 控制完成通知通道）。 */
     @SuppressWarnings("unchecked")
-    private kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> progressHandlerOf(
-            boolean notifyCompletion, Consumer<String> callback) throws Exception {
-        java.lang.reflect.Method m = WorldMaintenanceService.class.getDeclaredMethod(
-                "progressHandler", boolean.class, Consumer.class, boolean.class);
+    private static java.util.concurrent.atomic.AtomicInteger chunkErrorCountOf(WorldMaintenanceService svc)
+            throws Exception {
+        java.lang.reflect.Field f = WorldMaintenanceService.class.getDeclaredField("chunkErrorCount");
+        f.setAccessible(true);
+        return (java.util.concurrent.atomic.AtomicInteger) f.get(svc);
+    }
+
+    /** 反射取私有 progressHandler（完成通知只回命令来源会话）。 */
+    @SuppressWarnings("unchecked")
+    private kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> progressHandlerOf(Consumer<String> callback)
+            throws Exception {
+        java.lang.reflect.Method m =
+                WorldMaintenanceService.class.getDeclaredMethod("progressHandler", boolean.class, Consumer.class);
         m.setAccessible(true);
-        return (kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit>)
-                m.invoke(service, true, callback, notifyCompletion);
+        return (kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit>) m.invoke(service, true, callback);
     }
 
     private static ProgressEvent doneEvent() {
@@ -384,13 +394,13 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         WorldMaintenanceService svc = new WorldMaintenanceService(
                 server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode, null);
         // 反射取私有 progressHandler，用 mock ProgressEvent 驱动进度同步（真实备份链路已由 backup_* 覆盖）
-        java.lang.reflect.Method m = WorldMaintenanceService.class.getDeclaredMethod(
-                "progressHandler", boolean.class, Consumer.class, boolean.class);
+        java.lang.reflect.Method m =
+                WorldMaintenanceService.class.getDeclaredMethod("progressHandler", boolean.class, Consumer.class);
         m.setAccessible(true);
         @SuppressWarnings("unchecked")
         kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> handler =
                 (kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit>)
-                        m.invoke(svc, true, (Consumer<String>) msg -> {}, false);
+                        m.invoke(svc, true, (Consumer<String>) msg -> {});
         ProgressEvent evt = mock(ProgressEvent.class);
         when(evt.getCurrent()).thenReturn(50L);
         when(evt.getTotal()).thenReturn(100L);

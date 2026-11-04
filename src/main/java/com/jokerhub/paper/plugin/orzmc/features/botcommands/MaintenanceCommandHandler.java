@@ -32,13 +32,8 @@ final class MaintenanceCommandHandler extends BotCommandContext {
         int retain = maintenance.backupRetentionCount();
         WorldMaintenanceService svc = maintenanceService.get();
         if (svc != null) {
-            // notifyCompletion=true：完成通知走**主动群通知**（与失败通知同构）——
-            // 备份是分钟级任务，命令回执（QQ 被动回复）5 分钟窗口早已过期（2026-11-03 事故）。
-            svc.backup(
-                    tickTimeThreshold,
-                    retain,
-                    msg -> emit(callback, "command_backup", Map.of("message", msg), msg),
-                    true);
+            // 完成/进度通知只回**命令来源会话**（不能走全局广播，否则飞书发起会串到 QQ 群）
+            svc.backup(tickTimeThreshold, retain, msg -> emit(callback, "command_backup", Map.of("message", msg), msg));
         }
     }
 
@@ -49,9 +44,8 @@ final class MaintenanceCommandHandler extends BotCommandContext {
         long tickTimeThreshold = maintenance.optimizeTickTimeThreshold();
         WorldMaintenanceService svc = maintenanceService.get();
         if (svc != null) {
-            // notifyCompletion=true：完成通知走主动群通知（同 $b，避免被动回复窗口过期丢通知）
-            svc.optimize(
-                    tickTimeThreshold, msg -> emit(callback, "command_optimize", Map.of("message", msg), msg), true);
+            // 通知语义同 $b：只回命令来源会话
+            svc.optimize(tickTimeThreshold, msg -> emit(callback, "command_optimize", Map.of("message", msg), msg));
         }
     }
 }

@@ -277,6 +277,7 @@ maintenance:
     starting_backup: "Backing up the world, please wait......"
     starting_optimize: "Optimizing the world, please wait......"
     chunk_found: "Found corrupted chunks during {mode}; original data preserved safely (no loss)..."
+    chunk_summary: "({mode} contained {count} corrupted chunk(s); original data preserved safely, see the server log)"
     map_failed: "World {mode} failed"
     world_dir: "Server world directory: {dir}"
     backup_dir: "Backup directory: {dir}"
