@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### 🐛 修复（`$b`/`$o` 完成通知串台到其它平台 + 坏块提示未本地化）
+- **完成通知不再全局广播**：飞书群发 `$b`，完成后 QQ 群也收到同一条「地图备份 完成」——原因是完成通知走了
+  `notifier.event`（PUBLIC = 所有已绑定公开会话）。现改回**只回命令来源会话**：谁发起回给谁，多平台互不串台。
+  QQ 长任务回执的送达仍由「按来源消息接收时刻预判窗口 + 超窗改主动消息」保证（不依赖广播）。
+- **坏块跳过汇总走语言包**：`（备份含 N 个损坏区块…）` 原本硬编码中文，英文/飞书群看到的是中文；
+  新增 `maintenance.cmd.chunk_summary`（zh/en，含 `{mode}`/`{count}` 占位符）。
+- 定时备份（`maintenance.backup_interval_hours`）行为不变：通知只进服务器日志。
+
 ### 📚 文档（GeoIP 网络受限机房的推荐配置，fail-close 策略不变）
 - 新增 `docs/manuals/geoip-restricted-network.md`：出海受限/第三方不可达时的**不出卖安全**做法——
   自建 `country.is`（开源，Docker）→ 指向自有域名、调 `providers` 顺序、调单源超时；
