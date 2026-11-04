@@ -399,6 +399,15 @@ public class WorldMaintenanceService {
      * 多平台串台问题见 {@link #progressHandler} 内注释。定时备份的 callback 是控制台日志，天然不打扰群。</p>
      */
     public void backup(long tickTimeThreshold, int retainCount, Consumer<String> callback) {
+        backup(tickTimeThreshold, retainCount, callback, false);
+    }
+
+    /**
+     * 地图备份（人工触发：完成/失败走主动群通知）。
+     *
+     * @param notifyCompletion 完成通知走主动群通知（{@code true}，{@code $b}）还是仅回执/日志（{@code false}，定时备份）
+     */
+    public void backup(long tickTimeThreshold, int retainCount, Consumer<String> callback, boolean notifyCompletion) {
         runExclusive(
                 MaintenanceModeService.MaintenanceReason.BACKUP,
                 () -> {
