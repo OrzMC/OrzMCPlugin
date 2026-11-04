@@ -24,8 +24,11 @@ public final class ConfigSchema {
      *  {@code ConfigUpgrader} 内执行。
      *  v15（集合键默认翻转版本门控）：{@code LegacyDefaultFlips} 泛化为 {@code DefaultFlips}
      *  按源版本门控，可信中间版本（v10→v14）也能自动翻新默认值（entity_teleport_whitelist
-     *  增补 MINECART 16→17 项、guard.blocked_commands 旧 7 项收编）。 */
-    public static final int LATEST_VERSION = 15;
+     *  增补 MINECART 16→17 项、guard.blocked_commands 旧 7 项收编）。
+     *  v16（GeoIP 多源，2026-11）：`geoip.providers` / `geoip.per_provider_timeout_ms` /
+     *  `geoip.failure_cache_seconds` 三个新键（无默认翻转，只需抬版本让 {@code DefaultsMerger}
+     *  给老装补键；代码侧本来就有同值兜底，缺键也能跑）。 */
+    public static final int LATEST_VERSION = 16;
 
     /** 可信版本下限：磁盘值低于此值（含缺失、旧版 config-version: 2）一律按 legacy 处理。 */
     public static final int MIN_TRUSTED_VERSION = 10;
