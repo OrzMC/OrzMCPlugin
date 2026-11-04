@@ -65,16 +65,18 @@ jobs:
         run: |
           ./gradlew check --stacktrace
           ./gradlew shadowJar --stacktrace
-          JAR="$(ls build/libs/*-all.jar 2>/dev/null | head -1)"
-          echo "产物: $JAR ($(du -h "$JAR" | cut -f1))"
-          test -n "$JAR"
+          # 产物名是 OrzMC-<version>.jar（shadow 插件未加 -all classifier），与 release 步骤同一口径
+          ls -lh build/libs/
+          JAR="$(ls build/libs/*.jar 2>/dev/null | head -1)"
+          echo "产物: ${JAR:-<none>}"
+          test -s "${JAR:-}"
 
       - name: upload artifact (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
           name: orzmc-plugin-manual-${{ github.run_number }}
-          path: build/libs/*-all.jar
+          path: build/libs/*.jar
           if-no-files-found: error
 
       - name: publish to Hangar
