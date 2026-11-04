@@ -71,7 +71,7 @@ class ScheduledBackupServiceTest {
 
         service.tick(); // 第 60 分钟 → 触发一次备份
 
-        verify(maintenance).backup(eq(300L), eq(5), any(), eq(false));
+        verify(maintenance).backup(eq(300L), eq(5), any());
     }
 
     @Test
@@ -84,7 +84,7 @@ class ScheduledBackupServiceTest {
             service.tick();
         }
 
-        verify(maintenance, times(2)).backup(eq(300L), eq(5), any(), eq(false));
+        verify(maintenance, times(2)).backup(eq(300L), eq(5), any());
     }
 
     @Test
@@ -104,7 +104,7 @@ class ScheduledBackupServiceTest {
             service.tick(); // 按新间隔重新累计
         }
 
-        verify(maintenance, times(1)).backup(eq(300L), eq(5), any(), eq(false));
+        verify(maintenance, times(1)).backup(eq(300L), eq(5), any());
     }
 
     @Test

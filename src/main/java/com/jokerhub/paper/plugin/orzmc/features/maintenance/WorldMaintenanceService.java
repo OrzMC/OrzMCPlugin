@@ -431,7 +431,7 @@ public class WorldMaintenanceService {
                             "地图备份目录：{dir}",
                             java.util.Map.of("dir", String.valueOf(worldBackupDir))));
                     long before = latestBackupZipMtime(worldBackupDir);
-                    runOptimizerJob(true, input, output, tickTimeThreshold, callback, notifyCompletion);
+                    runOptimizerJob(true, input, output, tickTimeThreshold, callback);
                     if (latestBackupZipMtime(worldBackupDir) <= before) {
                         // backup-core 完成但 backup/ 无新 zip（压缩失败被内部吞掉等）：
                         // 明确报失败且跳过 prune——旧备份是唯一可靠副本，不能误删
@@ -533,20 +533,11 @@ public class WorldMaintenanceService {
 
     /** 地图优化（通知语义同 {@link #backup}：只回命令来源会话）。 */
     public void optimize(long tickTimeThreshold, Consumer<String> callback) {
-        optimize(tickTimeThreshold, callback, false);
-    }
-
-    /**
-     * 地图优化（人工触发：完成/失败走主动群通知）。
-     *
-     * @param notifyCompletion 完成通知走主动群通知（{@code true}，{@code $o}）还是仅回执/日志（{@code false}）
-     */
-    public void optimize(long tickTimeThreshold, Consumer<String> callback, boolean notifyCompletion) {
         runExclusive(
                 MaintenanceModeService.MaintenanceReason.OPTIMIZE,
                 () -> {
                     Path input = worldFolder().toPath();
-                    runOptimizerJob(false, input, null, tickTimeThreshold, callback, notifyCompletion);
+                    runOptimizerJob(false, input, null, tickTimeThreshold, callback);
                 },
                 null,
                 () -> callback.accept(mt("maintenance.cmd.busy", "已有备份/优化正在进行，请稍后再试")));

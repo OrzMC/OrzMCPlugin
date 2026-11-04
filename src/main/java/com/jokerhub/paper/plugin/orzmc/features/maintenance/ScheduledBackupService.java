@@ -110,7 +110,6 @@ public final class ScheduledBackupService {
         maintenance.backup(
                 cfg.optimizeTickTimeThreshold(),
                 cfg.backupRetentionCount(),
-                msg -> server.logger().info("[定时备份] " + msg),
-                false);
+                msg -> server.logger().info("[定时备份] " + msg));
     }
 }
