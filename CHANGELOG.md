@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### 🔧 工程 / CI / 配置
+- **config-version 15 → 16**：本版新增 `geoip.providers` / `geoip.per_provider_timeout_ms` /
+  `geoip.failure_cache_seconds` 三个键（GeoIP 多源），按 `docs/dev/config-schema-governance.md` §3.1
+  抬版本；老装启动自动补键并备份原文件，无人工迁移。代码侧对缺键有同值兜底，不补键也能正常运行。
+- **`publish.yml` 加 `workflow_dispatch` 手动兜底**（`dry_run` 默认 true）：tag 被 `paths-ignore` 吞掉
+  或流水线中途失败时可手动重跑（`gh workflow run publish.yml --ref <tag> -f dry_run=false`）。
+- `gradle/actions` 6.4.0 → **6.4.1**（官方安全修复）。
+- 清理 `WorldMaintenanceService.backup` 的死参数 `notifyCompletion`（#540 引入、#550 后已无调用方）。
+- CHANGELOG 合并重复的 `[Unreleased]` 小节（两次并行插入各带了一个标题）。
+
 ### 🐛 修复（`$b`/`$o` 完成通知串台到其它平台 + 坏块提示未本地化）
 - **完成通知不再全局广播**：飞书群发 `$b`，完成后 QQ 群也收到同一条「地图备份 完成」——原因是完成通知走了
   `notifier.event`（PUBLIC = 所有已绑定公开会话）。现改回**只回命令来源会话**：谁发起回给谁，多平台互不串台。
