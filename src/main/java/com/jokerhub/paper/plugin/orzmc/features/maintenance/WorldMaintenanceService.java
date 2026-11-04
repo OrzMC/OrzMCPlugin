@@ -137,8 +137,7 @@ public class WorldMaintenanceService {
         return sb.toString();
     }
 
-    private Function1<ProgressEvent, Unit> progressHandler(
-            boolean backupMode, Consumer<String> callback, boolean notifyCompletion) {
+    private Function1<ProgressEvent, Unit> progressHandler(boolean backupMode, Consumer<String> callback) {
         String label = modeWord(backupMode);
         return progressEvent -> {
             Long current = progressEvent.getCurrent();
@@ -201,18 +200,19 @@ public class WorldMaintenanceService {
                                 String.valueOf(durationMs),
                                 "duration_human",
                                 formatDuration(durationMs)));
-                // 完成通知不走命令回执（被动回复）通道：备份/优化是**分钟级**任务，回执到达时 QQ 被动回复
-                // 窗口（群 5 分钟）早已过期（2026-11-03 实测 25 分钟 → 40034005 完成通知丢失）。
-                // 人工触发（$b/$o）→ 主动群通知（与失败通知同构）；定时备份 → 仍只进控制台日志（不打扰群）。
-                if (notifyCompletion) {
-                    notifier.event(doneKey, done);
-                } else {
-                    callback.accept(done.message());
-                }
-                // 聚合提示：chunk 级错误（损坏区块已安全保留）完成后汇总一次
+                // 完成通知走**命令来源会话**（callback）：多平台下只回发起 `$b`/`$o` 的那个群，
+                // 不能走 notifier.event —— 它的 PUBLIC 会按 im_bindings/easybot.yml 把消息广播到**所有**已绑定的
+                // 公开会话（2026-11 实测：飞书群发 `$b`，完成通知同时出现在 QQ 群，属串台）。
+                // QQ 长任务回执超窗的问题由 QqSender 的 receivedAt 预判 + 主动消息兜底解决（#539），
+                // 不需要、也不应该再用「全局广播」来保送达。
+                callback.accept(done.message());
+                // 聚合提示：chunk 级错误（损坏区块已安全保留）完成后汇总一次（文案走语言包，勿硬编码中文）
                 long chunkErrors = chunkErrorCount.get();
                 if (chunkErrors > 0) {
-                    String summary = "（" + label + "含 " + chunkErrors + " 个损坏区块，已安全保留原始数据，详见服务器日志）";
+                    String summary = mt(
+                            "maintenance.cmd.chunk_summary",
+                            "（{mode}含 {count} 个损坏区块，已安全保留原始数据，详见服务器日志）",
+                            java.util.Map.of("mode", label, "count", String.valueOf(chunkErrors)));
                     server.logger().info(summary);
                     callback.accept(summary);
                 }
@@ -273,12 +273,7 @@ public class WorldMaintenanceService {
     }
 
     private void runOptimizerJob(
-            boolean backupMode,
-            Path input,
-            Path outputOrNull,
-            long tickTimeThreshold,
-            Consumer<String> callback,
-            boolean notifyCompletion) {
+            boolean backupMode, Path input, Path outputOrNull, long tickTimeThreshold, Consumer<String> callback) {
         String label = modeWord(backupMode);
         callback.accept(
                 backupMode
@@ -290,7 +285,7 @@ public class WorldMaintenanceService {
             builder.setFilter(new FilterOptions(tickTimeThreshold, false, true));
             builder.setOutputOptions(new OutputOptions(!backupMode, backupMode, true, true, false));
             builder.setProgress(new ProgressOptions(100L, 1000L, event -> {
-                progressHandler(backupMode, callback, notifyCompletion).invoke(event);
+                progressHandler(backupMode, callback).invoke(event);
             }));
             builder.setRuntime(new RuntimeOptions(cpuParallelism()));
             builder.setHooks(new Hooks(errorHandler(backupMode, callback), null, null));
@@ -436,7 +431,7 @@ public class WorldMaintenanceService {
                             "地图备份目录：{dir}",
                             java.util.Map.of("dir", String.valueOf(worldBackupDir))));
                     long before = latestBackupZipMtime(worldBackupDir);
-                    runOptimizerJob(true, input, output, tickTimeThreshold, callback, notifyCompletion);
+                    runOptimizerJob(true, input, output, tickTimeThreshold, callback);
                     if (latestBackupZipMtime(worldBackupDir) <= before) {
                         // backup-core 完成但 backup/ 无新 zip（压缩失败被内部吞掉等）：
                         // 明确报失败且跳过 prune——旧备份是唯一可靠副本，不能误删
@@ -536,22 +531,13 @@ public class WorldMaintenanceService {
         }
     }
 
-    /** 地图优化（默认不发群完成通知，仅回执/日志——同旧行为）。 */
+    /** 地图优化（通知语义同 {@link #backup}：只回命令来源会话）。 */
     public void optimize(long tickTimeThreshold, Consumer<String> callback) {
-        optimize(tickTimeThreshold, callback, false);
-    }
-
-    /**
-     * 地图优化（人工触发：完成/失败走主动群通知）。
-     *
-     * @param notifyCompletion 完成通知走主动群通知（{@code true}，{@code $o}）还是仅回执/日志（{@code false}）
-     */
-    public void optimize(long tickTimeThreshold, Consumer<String> callback, boolean notifyCompletion) {
         runExclusive(
                 MaintenanceModeService.MaintenanceReason.OPTIMIZE,
                 () -> {
                     Path input = worldFolder().toPath();
-                    runOptimizerJob(false, input, null, tickTimeThreshold, callback, notifyCompletion);
+                    runOptimizerJob(false, input, null, tickTimeThreshold, callback);
                 },
                 null,
                 () -> callback.accept(mt("maintenance.cmd.busy", "已有备份/优化正在进行，请稍后再试")));

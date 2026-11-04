@@ -269,6 +269,7 @@ maintenance:
     starting_backup: "正在备份地图，请稍等......"
     starting_optimize: "正在优化地图，请稍等......"
     chunk_found: "发现{mode}目标包含损坏区块，将安全保留原始数据（不丢失）..."
+    chunk_summary: "（{mode}含 {count} 个损坏区块，已安全保留原始数据，详见服务器日志）"
     map_failed: "地图{mode}失败"
     world_dir: "服务器地图目录：{dir}"
     backup_dir: "地图备份目录：{dir}"
