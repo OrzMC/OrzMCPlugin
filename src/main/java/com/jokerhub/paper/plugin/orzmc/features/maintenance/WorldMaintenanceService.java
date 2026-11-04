@@ -393,18 +393,12 @@ public class WorldMaintenanceService {
     }
 
     /**
-     * 地图备份（默认不发群完成通知，仅回执/日志——同旧行为；{@code $b} 走 {@link #backup(long, int, Consumer, boolean)}）。
+     * 地图备份。
+     *
+     * <p>进度/完成/失败的**用户可见通知**全部经 {@code callback} 送回<b>命令来源会话</b>（谁发起回给谁）；
+     * 多平台串台问题见 {@link #progressHandler} 内注释。定时备份的 callback 是控制台日志，天然不打扰群。</p>
      */
     public void backup(long tickTimeThreshold, int retainCount, Consumer<String> callback) {
-        backup(tickTimeThreshold, retainCount, callback, false);
-    }
-
-    /**
-     * 地图备份（人工触发：完成/失败走主动群通知）。
-     *
-     * @param notifyCompletion 完成通知走主动群通知（{@code true}，{@code $b}）还是仅回执/日志（{@code false}，定时备份）
-     */
-    public void backup(long tickTimeThreshold, int retainCount, Consumer<String> callback, boolean notifyCompletion) {
         runExclusive(
                 MaintenanceModeService.MaintenanceReason.BACKUP,
                 () -> {
