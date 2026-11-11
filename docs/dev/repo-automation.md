@@ -1,6 +1,6 @@
 # 仓库 PR 审批自动化（Approval Gate）
 
-> 状态：现行 ｜ 最后更新：2026-10-02
+> 状态：现行 ｜ 最后更新：2026-11-09
 > 适用：`OrzMC/OrzMCPlugin`（public，org 仓库，默认分支 = `develop`）
 
 ## 1. 要解决的问题
@@ -67,6 +67,35 @@ gh pr review <n> --approve && gh pr merge <n> --squash --auto --delete-branch
 gh pr merge <n> --squash --admin
 ```
 
+## 5.1 依赖 PR 的自动合并（`dependabot-merge.yml`）
+
+依赖 PR 从「每周 N 个、每个都要人点」收敛成「**每周 1 个 minor/patch 分组 PR，CI 绿即自动合**」，
+分两层：
+
+| 层 | 位置 | 作用 |
+|---|---|---|
+| 分组 | `.github/dependabot.yml` | 同生态 minor/patch → 一个分组 PR（`gradle-minor-patch` / `actions-minor-patch`）；major 逐个单列；security 单独分组（`applies-to: security-updates`）；`cooldown` 7 天（major 14 天）避开上游刚发布就回滚的窗口 |
+| 自动合并 | `.github/workflows/dependabot-merge.yml` | `workflow_run`（`Pull Request Build Check` 整跑成功）后，对**标题含 `minor-patch`** 的 dependabot PR 显式 `gh pr merge --squash` |
+
+**为什么不用 `gh pr merge --auto`**：Actions 内的 `GITHUB_TOKEN` 无法 enable auto-merge（实测），
+所以改成「CI 整跑成功 → 显式合并」，用 `workflow_run` 而非 `pull_request` 是因为需要
+`build` + `folia-smoke` 两个 job 都跑完才有结论。
+
+**不会自动合并的**（静默跳过，不留评论）：
+
+- 非 dependabot 作者（所有人的日常 PR —— 不会收到机器人评论）、目标分支非 `develop`、草稿；
+- **major 单列 PR**、**security 分组 PR**：需要人看 release notes / 破坏性变更；
+- head 已不是本次 CI 的提交（等待期间又推了新提交，等下一轮 CI）。
+
+**会留言说明的**：分组 PR 但 `mergeStateStatus` 等待超时（约 10 分钟）或轮询期间 head 变化 ——
+避免 PR 无声挂在那里。
+
+**门禁依赖**：自动合并用的是仓库侧 ruleset（`build` + `folia-smoke` + `approval-gate`），
+本 workflow 只加「低风险」这一层筛选，不绕过任何必需检查。
+
+**关闭方式**：删除 `.github/workflows/dependabot-merge.yml` 即恢复全人工；
+或把 `.github/dependabot.yml` 的分组名从 `*-minor-patch` 改掉（标题匹配不到就不会自动合并）。
+
 ## 6. 回滚
 
 ```bash
@@ -85,3 +114,9 @@ gh api -X PUT repos/OrzMC/OrzMCPlugin/branches/develop/protection/required_pull_
   优先改用 `--admin` 或按 §6 回滚。
 - 可信作者白名单是**硬编码在 workflow 里**的；新增可信机器人需同步修改本文件与 `approval-gate.yml`。
 - 该检查在 fork PR 上使用只读 `GITHUB_TOKEN`，仅调用 `GET /pulls/{n}`，无需写权限。
+- **`workflow_run` 只在「默认分支上的 workflow 文件」触发**：`dependabot-merge.yml` 合并进 `develop`
+  （默认分支）后才会生效；合并进前的 push 不会触发它。改文件名/改名 workflow 会一并失效。
+- **`dependabot-merge.yml` 依赖 PR 标题里的分组名**（`minor-patch`）：改 `.github/dependabot.yml`
+  的分组命名时，必须同步改 workflow 的匹配条件，否则自动合并会静默停止（不报错）。
+- **合并前 head 核验**：`workflow_run.head_sha` 与 `gh pr view --json headRefOid` 不一致时跳过，
+  避免「旧 run 绿了 → 合并了更新的提交」。
