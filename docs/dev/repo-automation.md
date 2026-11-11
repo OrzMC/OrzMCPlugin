@@ -74,7 +74,7 @@ gh pr merge <n> --squash --admin
 
 | 层 | 位置 | 作用 |
 |---|---|---|
-| 分组 | `.github/dependabot.yml` | 同生态 minor/patch → 一个分组 PR（`gradle-minor-patch` / `actions-minor-patch`）；major 逐个单列；security 单独分组（`applies-to: security-updates`）；`cooldown` 7 天（major 14 天）避开上游刚发布就回滚的窗口 |
+| 分组 | `.github/dependabot.yml` | 同生态 minor/patch → 一个分组 PR（`gradle-minor-patch` / `actions-minor-patch`）；major 逐个单列；security 单独分组（`applies-to: security-updates`）；`cooldown` 7 天（Gradle 额外 major 14 天）避开上游刚发布就回滚的窗口 |
 | 自动合并 | `.github/workflows/dependabot-merge.yml` | `workflow_run`（`Pull Request Build Check` 整跑成功）后，对**标题含 `minor-patch`** 的 dependabot PR 显式 `gh pr merge --squash` |
 
 **为什么不用 `gh pr merge --auto`**：Actions 内的 `GITHUB_TOKEN` 无法 enable auto-merge（实测），
@@ -120,3 +120,7 @@ gh api -X PUT repos/OrzMC/OrzMCPlugin/branches/develop/protection/required_pull_
   的分组命名时，必须同步改 workflow 的匹配条件，否则自动合并会静默停止（不报错）。
 - **合并前 head 核验**：`workflow_run.head_sha` 与 `gh pr view --json headRefOid` 不一致时跳过，
   避免「旧 run 绿了 → 合并了更新的提交」。
+- **`dependabot.yml` 写错会静默停更**（2026-11-11 实测）：非法字段不会报在 Actions 里，而是把默认分支
+  上一个叫 `.github/dependabot.yml` 的 check run 变红，Dependabot **不再开任何版本更新 PR**。
+  排查命令：`gh api repos/<owner>/<repo>/commits/<sha>/check-runs --jq '.check_runs[]|select(.name==".github/dependabot.yml")|.output.summary'`。
+  已知限制：`cooldown.semver-*-days` 仅部分生态支持（`gradle` ✅、`github-actions` ❌ 只认 `default-days`）。
