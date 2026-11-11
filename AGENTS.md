@@ -257,6 +257,10 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
 7 条告警已于 2026-10-22 按「残留 manifest / 测试套件传递依赖」两类处置（0 open）；
 新增告警先看 `dependency.manifest_path` 是否还在默认分支，处置结论与复核条件见
 [`docs/dev/dependency-security-alerts.md`](docs/dev/dependency-security-alerts.md)。
+**依赖 PR 的收敛策略（2026-11-09）**：同生态 minor/patch 合成一个分组 PR（`*-minor-patch`），
+`cooldown` 7 天、major 14 天；major 逐个单列、security 单独分组——这两类**留人工**。
+低风险分组 PR 由 `dependabot-merge.yml` 在 CI 全绿后自动 squash 合并（详见 `docs/dev/repo-automation.md` §5.1）。
+改分组命名必须同步改该 workflow 的标题匹配，否则自动合并会静默停止。
 
 **铁律**
 

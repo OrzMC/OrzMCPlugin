@@ -1,13 +1,39 @@
+# Dependabot 配置：PR 分组 + 降噪 + 低风险自动合并
+#
+# 设计目标：**每周每生态至多 2–3 个依赖 PR**，其中低风险的那一个不需要人工点击。
+#
+#   - 同生态 minor/patch → 合并成一个分组 PR（`gradle-minor-patch` / `actions-minor-patch`），
+#     由 `.github/workflows/dependabot-merge.yml` 在 CI 全绿（build + folia-smoke + approval-gate）后
+#     自动 squash 合并。
+#   - major **仍逐个单列**：一次 major 可能破坏 API，若也塞进分组，一个坏更新会把整组其它更新的
+#     合并一起拖住；单列时坏的那个被关掉，其余照常合。
+#   - security 更新单独分组（`applies-to: security-updates`）：不受 cooldown 限制、优先处理；
+#     但**不自动合并**——安全更新可能含 major，需要人看一眼 release notes。
+#   - cooldown：版本更新等 7 天（major 14 天）再升级，避开上游刚发布就 yank/回滚的窗口；
+#     安全更新天然不受 cooldown 影响（GitHub 侧行为）。
+#
+# 注意：分组名是 `dependabot-merge.yml` 的自动合并开关——**标题里不含 `minor-patch` 就不会被自动合并**，
+# 改分组名前先改那个 workflow 的匹配条件。
 version: 2
 updates:
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
-    # 同生态的 minor/patch 合并为一个 PR（major 仍单列，便于单独评审）。
-    # 目的：减少 PR 数与人工审批次数；并避免同一文件 hunk 内的多个坐标
-    # （如 mockito-core + mockito-junit-jupiter）各开一个 PR，产生重复/冲突对。
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    # 分组后正常是 1（minor/patch 组）+ 少量 major 单列 + 0–1（security 组），不需要 10。
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "java"
     groups:
       gradle-minor-patch:
         patterns:
@@ -15,12 +41,28 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      gradle-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github_actions"
     groups:
       actions-minor-patch:
         patterns:
@@ -28,3 +70,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      actions-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
