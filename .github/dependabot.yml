@@ -9,8 +9,10 @@
 #     合并一起拖住；单列时坏的那个被关掉，其余照常合。
 #   - security 更新单独分组（`applies-to: security-updates`）：不受 cooldown 限制、优先处理；
 #     但**不自动合并**——安全更新可能含 major，需要人看一眼 release notes。
-#   - cooldown：版本更新等 7 天（major 14 天）再升级，避开上游刚发布就 yank/回滚的窗口；
+#   - cooldown：版本更新等 7 天再升级（Gradle 额外 major 14 天），避开上游刚发布就 yank/回滚的窗口；
 #     安全更新天然不受 cooldown 影响（GitHub 侧行为）。
+#     ⚠️ `semver-*-days` 并非所有生态都支持（`github-actions` 只认 `default-days`，写了就整份配置非法）；
+#     生态支持表见 https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
 #
 # 注意：分组名是 `dependabot-merge.yml` 的自动合并开关——**标题里不含 `minor-patch` 就不会被自动合并**，
 # 改分组名前先改那个 workflow 的匹配条件。
@@ -54,9 +56,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Shanghai"
     open-pull-requests-limit: 5
+    # ⚠️ `github-actions` 只支持 `default-days`，**不支持** `semver-*-days`
+    # （Gradle 支持；写上去会被 Dependabot 解析器拒收，`dependabot.yml` 检查直接红）。
     cooldown:
       default-days: 7
-      semver-major-days: 14
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
