@@ -7,6 +7,12 @@
 >   **无法加载**本版插件（Paper 会拒载 `api-version` 高于自身的插件）——请先升服务端，或继续用 1.0.30。
 > - **无配置变更、无数据迁移**：`config-version` 不变，备份/地图/白名单等数据格式不变。
 
+### 🐛 修复
+- **同世界二次 `$o`/`$b` 不再"没有回执"**（issue #588）：进度回调在 `Done` 事件的 `current/total` 为 0 时
+  （世界已优化过、无待处理区块）提前返回，导致用户只看到"正在优化地图，请稍等......"、没有完成行。
+  现在 `Done` 阶段无条件下发完成回执（空计数器按 100% 渲染）。同时取消 E2E 里"`$o` 需要全新世界"的跳过
+  ——世界复用也必须出完成回执，成为该缺陷的回归护栏。
+
 ### 🔧 工程 / CI / 配置
 - **服务端基线 26.2 → 26.3**：`paper_api_version=26.3.build.251-stable`、`plugin_debug_server_version=26.3`、
   `plugin_support_paper_versions=26.3`、`paper-plugin.yml api-version: 26.3`。

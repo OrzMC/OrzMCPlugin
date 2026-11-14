@@ -173,7 +173,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 1.0.16 | $e 输出捕获不全 | 异步输出丢失 | Log4J Appender 兜底（已修） |
 | 1.0.17 | $b ? 误触备份 | 全角空格绕过 | Claude Code 审查发现（M1-M4） |
 | 1.0.18-dev | Folia 线程越权（tpbow force-load）| 平台线程模型 | foliaSmoke 上线兜底 |
-| 1.0.31-dev（未发布） | 同世界二次 `$o` 卡住（save-on 未恢复） | 长任务在"无待处理区块"时不返回 | **L1.5 自举门禁发现**（issue #588；已标记需要全新世界，待修） |
+| 1.0.31-dev（未发布） | 同世界二次 `$o` 无完成回执（原报"卡住、save-on 未恢复"） | `progressHandler` 在 Done 事件的 `current/total` 为 0 时提前 return，完成回执被吞 | **L1.5 自举门禁发现 → 已修（#588）**：Done 无条件下发；断言改为世界复用也校验 |
 
 **教训沉淀**：单测通过 ≠ 可用（必须真实环境验证）；配置语义反转（entity_teleport_enabled）需要 E2E 行为断言。
 
