@@ -71,10 +71,10 @@ bash e2e/run-all.sh -h
 「下载服务端 → 隔离 run 目录 → 放入插件 → 起服 → 控制台断言 → stop → 断言 exit 0」：
 
 ```bash
-./gradlew e2eLocalPaper      # Paper：完整 5 条控制台断言（PR 门禁 job，并行）
+./gradlew e2eLocalPaper      # Paper：完整 10 条控制台断言（PR 门禁 job，并行）
 ./gradlew e2eLocalFolia      # Folia：同上（本地/按需；CI 的 folia-smoke 已覆盖）
 ./gradlew e2eLocal -Pcore=paper   # 二选一入口（默认 folia）
-./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 5 条控制台断言 + D3 变体
+./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 10 条控制台断言 + D3 变体
 ```
 
 断言内容（`build.gradle.kts` 的 `botConsoleChecks`，经 `/orzdebug` 模拟群用户命令）：
@@ -85,10 +85,17 @@ bash e2e/run-all.sh -h
 | `orzdebug $l` → 当前在线 | 在线列表渲染 |
 | `orzdebug $w` → 当前白名单玩家 | **Folia 分页调度**（BUG-E2E-001 回归护栏） |
 | `orzdebug $d` → 访问规则/黑名单 | 安全模块查询链路 |
+| `orzdebug $a E2EProbe` → 白名单添加 **且** 名字在列表 | 写路径：白名单落盘 + reload + 读回 |
+| `orzdebug $r E2EProbe` → 白名单移除 **且** 名字消失 | 写路径还原（跑完不留脏数据） |
 | `orzdebug $e say <唯一标记>` → 标记出现在日志 | 插件代执行控制台命令 |
+| `config reload` → 已重新加载 | 配置子系统热加载 |
+| `maintenance on` / `maintenance off` → 状态切换 | 维护模式状态机（进得去也退得出） |
 
 实现要点：每次命令前后取「日志稳定偏移」，**只匹配本次命令之后新增的日志**（避免命中历史日志造成假绿）；
 日志/世界都在独立 run 目录（`run-e2e-<core>/`、`run-folia-smoke/`），互不污染。
+
+夜间还会自动跑全量一遍（`.github/workflows/nightly.yml`：`check` + 双核心 E2E + builtin 变体），
+失败自动开 issue、恢复自动关闭——作为回归发现入口。
 
 与完整 L2 套件的分工：L1.5 覆盖「平台语义 + 命令链路」这类 MockBukkit 测不到的部分，每次 PR 跑；
 真实 IM 平台（EasyBot/QQ 频控）、真实 LP 授权、多人交互仍由本目录的全量套件做迭代验收。
