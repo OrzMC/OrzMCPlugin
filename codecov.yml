@@ -7,8 +7,11 @@ coverage:
   status:
     project:
       default:
-        # 实测基线 81.9%（INSTRUCTION）；门槛贴实际值，防止「整体缓慢下滑」
-        target: 78%
+        # 注意口径差异：Codecov 的 coverage = hits / (hits+misses+partials)，**部分覆盖行(details)算未覆盖**；
+        # JaCoCo 把部分覆盖行算已覆盖。同一份报告：JaCoCo LINE 81.2%，Codecov 72.0%
+        # （实测 2026-11-14：hits 10376 / misses 2717 / partials 1311 → 72.03%）。
+        # 因此 Codecov 目标按它自己的口径定，硬门禁仍以仓库内 JaCoCo 为准（78/65/78）。
+        target: 70%
         threshold: 2%
         flags:
           - unittests
