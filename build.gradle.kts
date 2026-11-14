@@ -1109,7 +1109,7 @@ tasks.withType<JacocoReport>().configureEach {
 tasks.withType<JacocoCoverageVerification>().configureEach {
     dependsOn("test", "integrationTest")
     executionData(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
-    // 门槛贴着实测值留约 3–4 个百分点余量（2026-11 实测 INSTRUCTION 83.7% / BRANCH 71.4% / LINE 83.1%）。
+    // 门槛贴着实测值留约 3–4 个百分点余量（2026-11 实测 INSTRUCTION 85.2% / BRANCH 73.2% / LINE 84.7%）。
     // 旧门槛 60/50/55 比现状低 20+ 点，只能拦灾难性回退，等于没有门禁——收紧到「小步回退也会红」。
     violationRules {
         rule {
@@ -1121,7 +1121,7 @@ tasks.withType<JacocoCoverageVerification>().configureEach {
         rule {
             limit {
                 counter = "BRANCH"
-                minimum = BigDecimal.valueOf(0.69)
+                minimum = BigDecimal.valueOf(0.71)
             }
         }
         rule {
