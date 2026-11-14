@@ -190,6 +190,9 @@ private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
     ConsoleCheck("配置热加载（/config reload）", "config reload", Regex("已重新加载")),
     ConsoleCheck("维护模式进入（/maintenance on）", "maintenance on", Regex("已进入手动维护模式")),
     ConsoleCheck("维护模式退出（/maintenance off）", "maintenance off", Regex("已退出维护模式")),
+    // 长任务（真实备份/优化链路）：小世界上各几秒；超时给足，避免慢机器误判
+    ConsoleCheck("地图备份（\$b）", "orzdebug \$b", Regex("地图备份 完成"), 180_000L),
+    ConsoleCheck("地图优化（\$o）", "orzdebug \$o", Regex("地图优化 完成"), 180_000L),
 )
 
 /**
@@ -421,7 +424,9 @@ private fun Project.runHeadlessServerSmoke(
     val dataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
     // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
     // 故在隔离 run 目录放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
-    File(dataDir, "config.yml").writeText("guard:\n  blocked_commands: []\n")
+    // 空 deny-list：让 stop 不被安全加固拦截；打开 optimize_enabled：让 $o 覆盖真实优化链路而非"未启用"分支
+    File(dataDir, "config.yml")
+        .writeText("guard:\n  blocked_commands: []\nmaintenance:\n  optimize_enabled: true\n")
     prepare(dataDir)
 
     val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
@@ -469,6 +474,14 @@ private fun Project.runHeadlessServerSmoke(
             abort("控制台断言失败: ${check.label}（命令: ${check.command}，期望: ${check.expect.pattern}）")
         }
     }
+
+    // $b 已在断言表内执行：再校验备份 zip 真的落盘（防"日志说完成但没文件"）
+    val backupDir = File(runDir, "backup")
+    val zips = backupDir.listFiles { f -> f.isFile && f.name.endsWith(".zip") }?.toList().orEmpty()
+    if (zips.isEmpty()) abort("备份未落盘：$backupDir 下没有 zip")
+    val newestZip = zips.maxByOrNull { it.lastModified() }!!
+    if (newestZip.length() < 10_000) abort("备份 zip 过小（${newestZip.length()} 字节）: ${newestZip.name}")
+    logger.lifecycle("备份落盘校验通过: ${newestZip.name}（${newestZip.length() / 1024} KB）")
 
     logger.lifecycle("发送 stop...")
     proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
