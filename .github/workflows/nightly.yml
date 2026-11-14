@@ -52,6 +52,17 @@ jobs:
       - name: 真实服务端 E2E（Folia + builtin IM 停群分支）
         run: ./gradlew foliaSmoke -PfoliaImBackend=builtin --stacktrace
 
+      - name: 质量指标快照（趋势看板数据源）
+        run: |
+          python3 scripts/quality/trend.py snapshot
+
+      - name: 更新质量趋势看板 issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 scripts/quality/trend.py upsert-issue
+
       - name: 上传报告与服务器日志
         if: always()
         uses: actions/upload-artifact@v7

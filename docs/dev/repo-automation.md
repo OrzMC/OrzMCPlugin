@@ -124,3 +124,38 @@ gh api -X PUT repos/OrzMC/OrzMCPlugin/branches/develop/protection/required_pull_
   上一个叫 `.github/dependabot.yml` 的 check run 变红，Dependabot **不再开任何版本更新 PR**。
   排查命令：`gh api repos/<owner>/<repo>/commits/<sha>/check-runs --jq '.check_runs[]|select(.name==".github/dependabot.yml")|.output.summary'`。
   已知限制：`cooldown.semver-*-days` 仅部分生态支持（`gradle` ✅、`github-actions` ❌ 只认 `default-days`）。
+
+## 8. 必选检查清单与维护（2026-11 更新）
+
+main/develop 两个 ruleset 的必选检查：
+
+| 检查 | 来源 | 覆盖 | 单次耗时 |
+|:--|:--|:--|:--|
+| `build` | `build.yml` / job `build` | spotless + 密钥扫描 + 单测 + 集成 + 覆盖率门禁 + shadowJar | ~3 min |
+| `folia-smoke` | `build.yml` / job `folia-smoke` | 真 Folia 起服 ×2 变体，各 10 条控制台断言 | ~2.5 min |
+| `e2e-paper` | `build.yml` / job `e2e-paper` | 真 Paper 起服，10 条控制台断言（白名单读写/热加载/维护模式） | ~2 min |
+| `approval-gate` | `approval-gate.yml` | 外部作者必须有 APPROVED 评审 | 秒级 |
+
+- 四个 job 并行，PR 墙钟约 3 分钟；`e2e-paper` 与 `folia-smoke` 都是**自举**（下载服务端 + 隔离 run 目录），
+  不依赖常驻测试服/面板 API。
+- **稳定性记录**：`e2e-paper` 上线后连续 6 次运行全绿（2026-11-14），未加 job 级重试；
+  若出现红，先看是断言失败（真回归）还是启动/网络（环境），再决定是否加重试。
+
+**临时摘掉某个必选检查**（例：上游 Fill API 长时间不可用导致 e2e-paper 无法下载服务端）：
+
+```bash
+# 查看当前必选检查
+for id in $(gh api repos/OrzMC/OrzMCPlugin/rulesets --jq '.[] | select(.target=="branch") | .id'); do
+  gh api repos/OrzMC/OrzMCPlugin/rulesets/$id --jq '"\(.name): " + ([.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context] | join(","))'
+done
+
+# 摘掉（把 e2e-paper 从上下文列表里去掉；PUT 整个 ruleset）
+gh api repos/OrzMC/OrzMCPlugin/rulesets/<id> > /tmp/rs.json
+jq '{name, target, enforcement, conditions, bypass_actors,
+     rules: [.rules[] | if .type=="required_status_checks"
+             then (.parameters.required_status_checks |= map(select(.context!="e2e-paper")))
+             else . end]}' /tmp/rs.json > /tmp/rs-put.json
+gh api -X PUT repos/OrzMC/OrzMCPlugin/rulesets/<id> --input /tmp/rs-put.json
+```
+
+> 摘掉是应急手段，必须在对应 issue/PR 里写明原因与恢复时间；恢复就是把 `e2e-paper` 加回上下文列表。
