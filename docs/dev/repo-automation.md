@@ -159,3 +159,25 @@ gh api -X PUT repos/OrzMC/OrzMCPlugin/rulesets/<id> --input /tmp/rs-put.json
 ```
 
 > 摘掉是应急手段，必须在对应 issue/PR 里写明原因与恢复时间；恢复就是把 `e2e-paper` 加回上下文列表。
+
+## 9. 夜间失败的处理闭环（自动发现 → 分诊 → 指派）
+
+```
+nightly 失败
+  ├─ 收集分诊（scripts/quality/triage.py，if: always()）
+  │    失败用例 + 三个 run 目录的 smoke.log 尾部 + 最近 8 个提交 + 工作区改动
+  ├─ 报告 job：下载产物 → 开/更新 issue（nightly-failure 标签，REST 去重）
+  │    · 正文含分诊 + 失败 job 列表 + run 链接
+  │    · 指派 admin 协作者（组织 owner 不能指派，故取 collaborator）
+  ├─ 可选推送：仓库 secret `NOTIFY_WEBHOOK_URL`（不配则只靠 GitHub 指派通知）
+  └─ 下次夜间通过 → 自动关闭该 issue
+```
+
+排查顺序（照这个走，不要先改断言）：
+
+1. 看 issue 里的「失败用例」：单测/集成红了 → 真回归，直接定位。
+2. 用例没红但 job 红 → 看「服务端日志尾部」：起服失败（下载/端口/Java）还是控制台断言失败。
+3. 只在夜间红而 PR 绿 → 优先怀疑环境/上游（Fill API 版本变化、runner 负载），再怀疑 flaky。
+
+> 已知限制：分诊只覆盖「测试结果 + 起服日志」。`e2eLocal*` 的断言失败信息在 Gradle 输出里，
+> 若需要更细的断言上下文，后续可把 `build/reports/tests` 一并纳入分诊（目前作 artifact 保留）。

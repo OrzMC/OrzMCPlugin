@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   issues: write
+  actions: read # 失败分诊：报告 job 要下载 nightly job 上传的产物
 
 concurrency:
   group: nightly-quality
@@ -63,6 +64,11 @@ jobs:
         run: |
           python3 scripts/quality/trend.py upsert-issue
 
+      - name: 失败分诊（失败用例 + 服务端日志尾部 + 最近提交；always 收集）
+        if: always()
+        run: |
+          python3 scripts/quality/triage.py --out build/triage/triage.md
+
       - name: 上传报告与服务器日志
         if: always()
         uses: actions/upload-artifact@v7
@@ -74,14 +80,33 @@ jobs:
             run-e2e-paper/smoke.log
             run-e2e-folia/smoke.log
             run-folia-smoke/smoke.log
+            build/triage/
           if-no-files-found: warn
 
   open-issue-on-failure:
     needs: nightly
     if: failure()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
     steps:
-      - name: 开/更新 nightly 失败 issue（去重，同一标签只保留一个）
+      - name: 拉取本次运行产物（分诊）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          gh run download "${{ github.run_id }}" --repo "$GH_REPO" \
+            -n "nightly-${{ github.run_id }}" -D artifacts \
+            || echo "无产物可下载（job 可能在产物上传前就被取消）"
+          # 产物根目录取决于上传时的公共前缀（单路径上传会去掉 build/triage/）→ 按文件名查找
+          triage_file=$(find artifacts -type f -name triage.md 2>/dev/null | head -n 1 || true)
+          echo "分诊文件: ${triage_file:-（无）}"
+
+      - name: 开/更新 nightly 失败 issue（含分诊，指派负责人）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -93,14 +118,56 @@ jobs:
           # 用 REST 列表而不是 `gh issue list`（后者走搜索索引，刚创建的 issue 会有一段时间查不到 →
           # 去重失效、每次失败都新开一个）。REST 是权威数据源。
           existing=$(gh api "repos/$GH_REPO/issues?labels=nightly-failure&state=open&per_page=1" --jq '.[0].number // empty' || true)
-          body=$(printf '夜间质量闭环失败。\n\n- 运行：%s\n- 触发：%s\n- 提交：%s\n\n产物（报告/服务器日志）在该次 run 的 Artifacts 中。\n\n> 修复后夜间通过会自动关闭本 issue。' \
-            "$RUN_URL" "${GITHUB_EVENT_NAME:-schedule}" "${GITHUB_SHA}")
+          # 注意：仓库属于组织（.owner.login = OrzMC 是组织，不能指派）→ 取 admin 协作者作为负责人
+          maintainer=$(gh api "repos/$GH_REPO/collaborators?permission=admin&per_page=1" --jq '.[0].login // empty' || true)
+          failed=$(gh api "repos/$GH_REPO/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.conclusion=="failure" or .conclusion=="cancelled") | "\(.name)（\(.conclusion)）"] | join("、")' || true)
+          trfile=$(find artifacts -type f -name triage.md 2>/dev/null | head -n 1 || true)
+          body=$(mktemp)
+          {
+            printf '夜间闭环失败。\n\n- 运行：%s\n- 触发：%s\n- 提交：%s\n- 失败 job：%s\n' \
+              "$RUN_URL" "${GITHUB_EVENT_NAME:-schedule}" "${GITHUB_SHA}" "${failed:-未知}"
+            if [ -n "${trfile}" ] && [ -f "${trfile}" ]; then
+              printf '\n'
+              cat "${trfile}"
+            else
+              printf '\n> 本次未产出分诊（产物上传前就失败了），请直接看 run 日志。\n'
+            fi
+            if [ -n "${maintainer}" ]; then
+              printf '\n> 修好后夜间通过会自动关闭本 issue。@%s\n' "$maintainer"
+            else
+              printf '\n> 修好后夜间通过会自动关闭本 issue。\n'
+            fi
+          } > "$body"
           if [ -n "${existing}" ]; then
-            gh issue comment "$existing" --body "$body"
+            gh issue comment "$existing" --body-file "$body"
+            number="$existing"
+            echo "已追加评论到 #$number"
           else
-            gh issue create --label nightly-failure \
-              --title "nightly: 质量门禁失败（$(date -u +%F)）" --body "$body"
+            created=$(gh issue create --label nightly-failure \
+              --title "nightly: 质量门禁失败（$(date -u +%F)）" --body-file "$body")
+            number="${created##*/}"
+            echo "已创建 issue #$number"
           fi
+          # 指派失败不影响主流程（例如协作者列表不含 admin、或 token 无 assign 权限）
+          if [ -n "${maintainer}" ]; then
+            gh issue edit "$number" --add-assignee "$maintainer" || echo "指派负责人失败（不影响 issue）"
+          fi
+
+      - name: 可选推送（配置 NOTIFY_WEBHOOK_URL 后生效）
+        env:
+          WEBHOOK: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "未配置 NOTIFY_WEBHOOK_URL：跳过推送（issue 已指派负责人，GitHub 会发通知）"
+            exit 0
+          fi
+          # 同时带 text / content.text，兼容飞书、企业微信与自定义 webhook
+          curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{\"msg_type\":\"text\",\"text\":\"OrzMC plugin nightly 失败: $RUN_URL\",\"content\":{\"text\":\"OrzMC plugin nightly 失败: $RUN_URL\"}}" \
+            "$WEBHOOK" || echo "webhook 推送失败（不影响主流程）"
 
   close-issue-on-recovery:
     needs: nightly
