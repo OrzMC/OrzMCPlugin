@@ -153,7 +153,14 @@ private fun logTail(logFile: File, lines: Int = 40): String {
 // =====================================================================
 
 /** 一条控制台断言：向服务端 stdin 发 command，要求此后「新增」日志出现 expect。 */
-private data class ConsoleCheck(val label: String, val command: String, val expect: Regex, val timeoutMs: Long = 30_000L)
+private data class ConsoleCheck(
+    val label: String,
+    val command: String,
+    val expect: Regex,
+    val timeoutMs: Long = 30_000L,
+    /** 需要"全新世界"才可断言：重复优化同一世界会命中已知缺陷（issue #588），本地复用 run 目录时跳过并说明。 */
+    val requiresFreshWorld: Boolean = false,
+)
 
 /** 白名单读写探针用的合法玩家名（固定值：写后立刻删，跑完不留脏数据，中断也不会累积）。 */
 private val PROBE_PLAYER = "E2EProbe"
@@ -190,6 +197,9 @@ private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
     ConsoleCheck("配置热加载（/config reload）", "config reload", Regex("已重新加载")),
     ConsoleCheck("维护模式进入（/maintenance on）", "maintenance on", Regex("已进入手动维护模式")),
     ConsoleCheck("维护模式退出（/maintenance off）", "maintenance off", Regex("已退出维护模式")),
+    // 长任务（真实备份/优化链路）：小世界上各几秒；超时给足，避免慢机器误判
+    ConsoleCheck("地图备份（\$b）", "orzdebug \$b", Regex("地图备份 完成"), 180_000L),
+    ConsoleCheck("地图优化（\$o）", "orzdebug \$o", Regex("地图优化\\s*完成"), 180_000L, requiresFreshWorld = true),
 )
 
 /**
@@ -411,6 +421,8 @@ private fun Project.runHeadlessServerSmoke(
     afterReady: (File) -> Unit = {},
 ) {
     runDir.mkdirs()
+    // 世界是否全新：部分断言（重复优化）只在全新世界上成立（已知缺陷见 issue #588）
+    val worldFresh = !File(runDir, "world").exists()
     File(runDir, "eula.txt").writeText("eula=true\n")
     val pluginsDir = File(runDir, "plugins").apply { mkdirs() }
     shadowJarFile.copyTo(File(pluginsDir, "OrzMC.jar"), overwrite = true)
@@ -421,7 +433,9 @@ private fun Project.runHeadlessServerSmoke(
     val dataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
     // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
     // 故在隔离 run 目录放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
-    File(dataDir, "config.yml").writeText("guard:\n  blocked_commands: []\n")
+    // 空 deny-list：让 stop 不被安全加固拦截；打开 optimize_enabled：让 $o 覆盖真实优化链路而非"未启用"分支
+    File(dataDir, "config.yml")
+        .writeText("guard:\n  blocked_commands: []\nmaintenance:\n  optimize_enabled: true\n")
     prepare(dataDir)
 
     val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
@@ -456,7 +470,15 @@ private fun Project.runHeadlessServerSmoke(
     // 起服就绪后的自定义校验（例如假 IM 平台：等通道连上 → 注入入站消息 → 断言出站）
     afterReady(logFile)
 
+    var executed = 0
+    var skipped = 0
     for (check in checks + extraChecks) {
+        if (check.requiresFreshWorld && !worldFresh) {
+            skipped++
+            logger.lifecycle("跳过断言（run 目录复用、非全新世界）: ${check.label}")
+            continue
+        }
+        executed++
         logger.lifecycle("控制台断言: ${check.label} → ${check.command}")
         val from = stableLogOffset(logFile)
         try {
@@ -470,6 +492,14 @@ private fun Project.runHeadlessServerSmoke(
         }
     }
 
+    // $b 已在断言表内执行：再校验备份 zip 真的落盘（防"日志说完成但没文件"）
+    val backupDir = File(runDir, "backup")
+    val zips = backupDir.listFiles { f -> f.isFile && f.name.endsWith(".zip") }?.toList().orEmpty()
+    if (zips.isEmpty()) abort("备份未落盘：$backupDir 下没有 zip")
+    val newestZip = zips.maxByOrNull { it.lastModified() }!!
+    if (newestZip.length() < 10_000) abort("备份 zip 过小（${newestZip.length()} 字节）: ${newestZip.name}")
+    logger.lifecycle("备份落盘校验通过: ${newestZip.name}（${newestZip.length() / 1024} KB）")
+
     logger.lifecycle("发送 stop...")
     proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
     proc.outputStream.flush()
@@ -480,7 +510,11 @@ private fun Project.runHeadlessServerSmoke(
     if (proc.exitValue() != 0) {
         throw GradleException("$core 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
     }
-    logger.lifecycle("$core 冒烟通过：插件加载 + ${checks.size + extraChecks.size} 条控制台断言 + 干净退出（exit 0）")
+    logger.lifecycle(
+        "$core 冒烟通过：插件加载 + $executed 条控制台断言" +
+            (if (skipped > 0) "（跳过 $skipped 条：run 目录复用）" else "") +
+            " + 干净退出（exit 0）"
+    )
     } finally {
         if (proc.isAlive) {
             proc.destroyForcibly()

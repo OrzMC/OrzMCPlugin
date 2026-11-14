@@ -72,7 +72,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 |:--|:--|:--|:--|:--|
 | L0 | JUnit 5 + Mockito | 业务逻辑、命令解析、配置解析、模板渲染、限流算法 | 每次提交/PR | `./gradlew test` 全绿 |
 | L1 | MockBukkit | 事件监听绑定、Brigadier 命令注册、模块装配 | 每次 PR | `./gradlew integrationTest` 全绿 |
-| **L1.5** | **自举真实服务端**（`e2eLocal*`/`foliaSmoke`，含 **真实 LuckPerms**） | **真实 Brigadier 命令注册、Bot 命令链路（解析→业务→回执）、白名单读写落盘、配置热加载、维护模式状态机、Folia 分页调度、插件代执行控制台命令、**LP 权限链与离线解析降级、拦截器链、builtin IM 入站→命令→出站全链路（假平台）**；启动即崩/线程越权兜底** | **每次 PR（Paper + Folia 并行 job）+ 每夜全量** | `./gradlew e2eLocalPaper` / `./gradlew foliaSmoke` 全绿 |
+| **L1.5** | **自举真实服务端**（`e2eLocal*`/`foliaSmoke`，含 **真实 LuckPerms**） | **真实 Brigadier 命令注册、Bot 命令链路（解析→业务→回执）、白名单读写落盘、配置热加载、维护模式状态机、Folia 分页调度、插件代执行控制台命令、**LP 权限链与离线解析降级、拦截器链、builtin IM 入站→命令→出站全链路（假平台）、\$b/\$o 真实备份与优化链路（含 zip 落盘断言）**；启动即崩/线程越权兜底** | **每次 PR（Paper + Folia 并行 job）+ 每夜全量** | `./gradlew e2eLocalPaper` / `./gradlew foliaSmoke` 全绿 |
 | L2 | mineflayer bot + RCON + screen | EasyBot 链路、LP 真实授权、通知送达、登录拦截、GUI 交互 | 迭代验收（每次功能变更） | `e2e/run-all.sh` 全绿 |
 | L3 | 真实玩家 + 双服 + stress 脚本 | transfer 闭环、性能压测、基岩连通 | 大版本/跨服变更 | 专项验收报告 |
 
@@ -151,7 +151,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
 | flaky 隔离舱 | `@Tag("flaky")` + `./gradlew test -PexcludeFlaky` | 已确认不稳定、修复中但暂不阻断 PR 时可用；**默认不跳过**（隔离必须是显式动作） |
 | folia-smoke | 必须门禁（默认 + builtin 两变体） | MockBukkit 单线程测不出 region 隔离竞态，这是「启动即崩」类回归的唯一兜底 |
-| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（10 断言）+ `foliaSmoke`（10 断言 ×2 变体）+ **`e2eLocalFoliaLp`（真实 LP，13 断言）** + `e2eLocalIm`（builtin IM 全链路，假平台） | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
+| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（10 断言）+ `foliaSmoke`（10 断言 ×2 变体）+ **`e2eLocalFoliaLp`（真实 LP，16 断言）** + `e2eLocalIm`（builtin IM 全链路，假平台） | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
 | 夜间质量闭环 | **`nightly.yml`**（每日 01:30）：`check` + 双核心 E2E + builtin 变体；失败自动开 issue（同标签去重）、恢复自动关闭 | 覆盖「跨天回归/依赖漂移」，是自动化自迭代的入口 |
 | E2E 全量（L2） | 无 CI 集成 | 仍需常驻测试服 + 面板 console API；**IM 协议链路已自举**（`e2eLocalIm`），只剩真实平台策略（频控/被动窗口时长）与多人交互需人工 |
 
@@ -170,6 +170,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 1.0.16 | $e 输出捕获不全 | 异步输出丢失 | Log4J Appender 兜底（已修） |
 | 1.0.17 | $b ? 误触备份 | 全角空格绕过 | Claude Code 审查发现（M1-M4） |
 | 1.0.18-dev | Folia 线程越权（tpbow force-load）| 平台线程模型 | foliaSmoke 上线兜底 |
+| 1.0.31-dev（未发布） | 同世界二次 `$o` 卡住（save-on 未恢复） | 长任务在"无待处理区块"时不返回 | **L1.5 自举门禁发现**（issue #588；已标记需要全新世界，待修） |
 
 **教训沉淀**：单测通过 ≠ 可用（必须真实环境验证）；配置语义反转（entity_teleport_enabled）需要 E2E 行为断言。
 

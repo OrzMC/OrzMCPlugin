@@ -39,12 +39,11 @@ class E2eCommandCoverageTest {
     /**
      * 明确暂不覆盖的 Bot 命令 + 原因（新增条目必须说明为什么不覆盖、何时覆盖）。
      *
-     * <p>当前仅剩两条「长任务」命令：它们在真实世界/大存档上耗时数分钟到数十分钟，
-     * 不适合放进每次 PR 的门禁（计划用合成小世界放到 nightly，完成后从本表移除）。</p>
+     * <p><b>当前为空</b>：11 个 Bot 命令全部进了 L1.5 自举门禁——`$b`/`$o` 两条长任务在
+     * 隔离 run 目录的小世界上跑（各几秒），并额外断言备份 zip 真的落盘。保留本机制供将来
+     * 出现确实无法自举的命令时使用。</p>
      */
-    private static final Map<String, String> NOT_COVERED = Map.of(
-            "b", "长任务（$b 地图备份）：需要合成小世界 + 落盘断言，计划进 nightly",
-            "o", "长任务（$o 优化）：同上");
+    private static final Map<String, String> NOT_COVERED = Map.of();
 
     @Test
     void everyBotCommandHasSelfHostedAssertion() {
