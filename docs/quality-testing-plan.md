@@ -209,7 +209,9 @@ bash e2e/run-all.sh -h              # 帮助
 
 | 任务 | 时机 | 内容 |
 |:--|:--|:--|
-| **夜间质量闭环**（`.github/workflows/nightly.yml`） | 每日 01:30（可 `workflow_dispatch`） | `check` + `e2eLocalPaper` + `e2eLocalFolia` + `foliaSmoke(builtin)`；失败自动开 issue（`nightly-failure` 标签去重）、恢复自动关闭 |
+| **夜间质量闭环**（`.github/workflows/nightly.yml`） | 每日 01:30（可 `workflow_dispatch`） | `check` + `e2eLocalPaper` + `e2eLocalFolia` + `foliaSmoke(builtin)`；失败自动开 issue（`nightly-failure` 标签去重、指派 admin 协作者）、恢复自动关闭 |
+| **失败分诊**（`scripts/quality/triage.py`） | 失败时（`if: always()` 收集） | 失败用例（类.方法 + 首行断言信息）+ 各 run 目录 `smoke.log` 尾部 + 最近 8 个提交 + 工作区改动 → 直接写进 issue，接手即可定位 |
+| **可选推送** | 失败时（配置 `NOTIFY_WEBHOOK_URL` 才生效） | 飞书/企业微信/自定义 webhook；未配置时依赖 GitHub 指派通知 |
 | **质量趋势看板**（`scripts/quality/trend.py`） | 每次夜间成功 | 解析 `build/test-results/*.xml` + JaCoCo XML → 更新 trade issue（`quality-trend` 标签，保留最近 30 次）；覆盖率跌 >1pt 或用例数减少标 ⚠️ |
 | **E2E 全量**（L2） | 迭代合并后手动 | `bash e2e/run-all.sh` 全量 → 报告落 `e2e/reports/`（不入库） |
 
