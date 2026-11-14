@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+> **升级须知（1.0.31）**
+> - **需要服务端 Paper/Folia 26.3+**：`api-version` 与支持版本一起抬到 26.3。仍在 26.2 上的服务器
+>   **无法加载**本版插件（Paper 会拒载 `api-version` 高于自身的插件）——请先升服务端，或继续用 1.0.30。
+> - **无配置变更、无数据迁移**：`config-version` 不变，备份/地图/白名单等数据格式不变。
+
+### 🔧 工程 / CI / 配置
+- **服务端基线 26.2 → 26.3**：`paper_api_version=26.3.build.251-stable`、`plugin_debug_server_version=26.3`、
+  `plugin_support_paper_versions=26.3`、`paper-plugin.yml api-version: 26.3`。
+- 集成测试 MockBukkit `mockbukkit-v26.2:4.117.0` → **`mockbukkit-v26.3:4.120.0`**。
+- 适配 26.3 API：测试桩 `TestRegistryAccess.StubBlockType` 补 `getInstrument()`（26.3 给 `BlockType` 新增了该抽象方法）。
+- 26.3 真机自举实测：`foliaSmoke` 12 条断言、`e2eLocalPaper` 13 条断言（含 `$b` 备份 + `$o` 优化）全绿；
+  升级前一轮为 26.2，对比口径一致。
+
 ## [1.0.30] - 2026-11-04
 
 > **升级须知（1.0.30）**

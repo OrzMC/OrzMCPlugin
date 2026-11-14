@@ -83,7 +83,7 @@ configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
 )
 
 dependencies {
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.2:4.117.0")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.3:4.120.0")
 }
 
 // 项目编译时插件添加
@@ -447,7 +447,7 @@ private fun Project.runHeadlessServerSmoke(
     prepare(dataDir)
 
     val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
-    // 用 toolchain JDK 启动（Folia 26.2 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
+    // 用 toolchain JDK 启动（Folia 26.3 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
     val cmd = listOf(
         javaBin, "-Xmx2G", "-Ddisable.watchdog=true",
         "-jar", serverJar.absolutePath,
@@ -726,7 +726,7 @@ tasks {
     //  * 控制台断言走 stdin，且只匹配「本次命令之后新增的日志」（避免命中早先日志造成假绿）。
     val foliaServerJar = registerServerJarDownload(debugServerVersion, "folia", "folia-smoke", "Folia")
     val paperServerJar = registerServerJarDownload(debugServerVersion, "paper", "paper-smoke", "Paper")
-    // 协议兼容（2026-11 实测）：mineflayer 最高 1.21.11，服务端 26.2 → 需要 **ViaVersion + ViaBackwards**
+    // 协议兼容（2026-11 实测）：mineflayer 最高 1.21.11，服务端 26.3 → 需要 **ViaVersion + ViaBackwards**
     // （新客户端连旧服务端是 backwards 方向；只装 ViaVersion 或只用协议补丁都会被拒 "Outdated client"）
     val viaVersionJar = registerModrinthPluginDownload(
         "downloadViaVersionJar", "viaversion", debugServerVersion, "paper", "e2e-plugins", "ViaVersion"
