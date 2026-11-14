@@ -173,6 +173,7 @@ private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
     ConsoleCheck("在线列表（\$l）", "orzdebug \$l", Regex("当前在线")),
     ConsoleCheck("白名单分页（\$w，Folia 分页回归护栏）", "orzdebug \$w", Regex("当前白名单玩家")),
     ConsoleCheck("访问规则查询（\$d）", "orzdebug \$d", Regex("访问规则为空|黑名单")),
+    ConsoleCheck("审核列表（\$v l）", "orzdebug \$v l", Regex("待审核")),
     // 写路径（白名单落盘 + 读回；第二条负责还原，跑完不留脏数据）
     ConsoleCheck(
         "白名单写入（\$a）",
@@ -894,6 +895,9 @@ tasks {
             }
         }
         jvmArgs("-Xshare:off")
+        // E2eCommandCoverageTest 直接解析本脚本的断言表 → 声明为测试输入：脚本改动时测试必须重跑，
+        // 否则「删掉一条断言」这种变更会被 Gradle 判为 up-to-date 而漏检
+        inputs.file("build.gradle.kts").withPropertyName("e2eAssertionSource")
         // 偶发失败自动重跑（每用例最多 2 次）；重跑通过不判失败，但必须在 CI 日志里可见
         retry {
             maxRetries.set(2)

@@ -88,6 +88,7 @@ bash e2e/run-all.sh -h
 | `orzdebug $l` → 当前在线 | 在线列表渲染 |
 | `orzdebug $w` → 当前白名单玩家 | **Folia 分页调度**（BUG-E2E-001 回归护栏） |
 | `orzdebug $d` → 访问规则/黑名单 | 安全模块查询链路 |
+| `orzdebug $v l` → 待审核申请 | 审核模块查询链路 |
 | `orzdebug $a E2EProbe` → 白名单添加 **且** 名字在列表 | 写路径：白名单落盘 + reload + 读回 |
 | `orzdebug $r E2EProbe` → 白名单移除 **且** 名字消失 | 写路径还原（跑完不留脏数据） |
 | `orzdebug $e say <唯一标记>` → 标记出现在日志 | 插件代执行控制台命令 |
@@ -109,6 +110,10 @@ hello→identify→READY→心跳，以及控制面 `/control/message` 注入入
 
 夜间还会自动跑全量一遍（`.github/workflows/nightly.yml`：`check` + 双核心 E2E + builtin 变体），
 失败自动开 issue、恢复自动关闭——作为回归发现入口。
+
+**命令面完整性由单测强制**：`E2eCommandCoverageTest` 解析 `build.gradle.kts` 的断言表并与
+`OrzUserCmd` 枚举比对——新增 Bot 命令若没补断言（也没在 `NOT_COVERED` 登记原因）会让 `./gradlew test` 直接红。
+当前仅 `$b`（备份）/`$o`（优化）两条长任务命令登记为未覆盖（计划用合成小世界进 nightly）。
 
 与完整 L2 套件的分工：L1.5 覆盖「平台语义 + 命令链路」这类 MockBukkit 测不到的部分，每次 PR 跑；
 真实 IM 平台（EasyBot/QQ 频控）、真实 LP 授权、多人交互仍由本目录的全量套件做迭代验收。

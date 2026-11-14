@@ -196,6 +196,9 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 2. **测前记录原值 → 测 → 立即还原**（写操作类用例）
 3. **退出码约定**：0=全部通过，1=有失败（run-all.sh 聚合）
 4. **输出约定**：`[PASS]/[FAIL] 用例名 — 断言内容`，失败附实际输出
+4.1 **命令面覆盖率门禁（强制）**：新增/修改 Bot 命令必须同步 L1.5 自举断言，否则
+   `E2eCommandCoverageTest` 直接红（它解析 `build.gradle.kts` 的断言表，与 `OrzUserCmd` 枚举逐项比对；
+   暂不覆盖的命令必须在测试内 `NOT_COVERED` 登记原因，覆盖后不删登记也会红）。
 5. **测试账号**：TestNewbie/TestMember/TestAdmin（密码见 orzmc-e2e-robot-testing.md）
 
 ### 5.3 执行方式
