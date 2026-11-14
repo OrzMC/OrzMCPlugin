@@ -81,6 +81,12 @@ bash e2e/run-all.sh -h
 ./gradlew e2eLocalPaperLp    # Paper + LuckPerms（本地用；CI 跑 Folia 版）
 ```
 
+**服务端版本策略（2026-11 决策）**：Paper 与 Folia **永远跟随同一个 `plugin_debug_server_version`**，
+不拆独立版本属性。上游节奏不同时（如 26.3：Paper 为 STABLE、Folia 仅 ALPHA），Folia 冒烟就跟着跑 alpha——
+这是有意的：alpha 阶段跑冒烟才能在插件兼容问题上**最早**发现，而钉旧版只会把问题推迟到用户升级时。
+若某天 alpha 挂了且上游迟迟不发 stable，临时手段是把 `plugin_debug_server_version` 整体回退一格
+（Paper 也一起退，保持两平台一致），而不是引入第二个版本变量。
+
 断言内容（`build.gradle.kts` 的 `botConsoleChecks`，经 `/orzdebug` 模拟群用户命令）：
 
 | 断言 | 覆盖的真实运行时问题 |
