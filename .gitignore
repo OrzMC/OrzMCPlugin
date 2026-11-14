@@ -120,10 +120,10 @@ buildNumber.properties
 .mvn/wrapper/maven-wrapper.jar
 .flattened-pom.xml
 
-# Common working directory
+# Common working directory + 自举 E2E run 目录（每个 e2e* 任务一个，见 build.gradle.kts）
 run/
-run-folia/
-run-folia-smoke/
+run-*/
+e2e/node_modules/
 .gradle/
 build/
 .idea/
