@@ -113,6 +113,9 @@ hello→identify→READY→心跳，以及控制面 `/control/message` 注入入
 协议兼容（2026-11 实测）：mineflayer 最高协议 1.21.11 ↔ 服务端 26.2，**只装 ViaVersion 或只用协议补丁都会被拒
 「Outdated client」；ViaVersion + ViaBackwards 组合可正常登录**，两个插件由 gradle 任务自动下载。
 
+每次自举 E2E 还会落一份性能快照（`build/quality/perf-<label>.json`：启服耗时 + `$b` 备份耗时），
+由夜间趋势看板汇总成可 diff 的两列（启动/备份），劣化超阈值标 ⚠️。
+
 实现要点：每次命令前后取「日志稳定偏移」，**只匹配本次命令之后新增的日志**（避免命中历史日志造成假绿）；
 日志/世界都在独立 run 目录（`run-e2e-<core>/`、`run-folia-smoke/`），互不污染。
 

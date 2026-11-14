@@ -188,3 +188,13 @@ nightly 失败
 
 > 已知限制：分诊只覆盖「测试结果 + 起服日志」。`e2eLocal*` 的断言失败信息在 Gradle 输出里，
 > 若需要更细的断言上下文，后续可把 `build/reports/tests` 一并纳入分诊（目前作 artifact 保留）。
+
+## 10. 夜间自动维护的两类 issue
+
+| 标签 | 触发 | 行为 |
+|:--|:--|:--|
+| `nightly-failure` | nightly 任一 step 失败 | 开/更新 issue（附分诊：失败用例 + 5 个 run 的 smoke.log 尾部 + 最近提交 + 工作区），指派 admin；恢复后自动关闭 |
+| `upstream-drift` | Paper/Folia 出现更新稳定版，或 LuckPerms 有新 release | 开/更新 issue（附对比表与建议动作）；无漂移时夜间自动关闭。**只提示，不自动升级**（兼容性/发布窗口要人判断） |
+
+两个 issue 都用 REST 列表 + 重试做去重（`gh issue list` 走搜索索引，新建 issue 1–3 秒内查不到，
+曾导致每夜新开一条）。手工改这两类 issue 的正文没有意义——夜间会按模板重写。

@@ -136,6 +136,9 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | E2E 用例通过率（Folia） | **32/32**（2026-08-19） | 100% | e2e/run-all.sh 报告 | 迭代时 |
 | E2E 用例通过率（Paper） | 01 用例 8/8（2026-08-19） | 100% | 同上（ORZMC_* 环境变量） | 迭代时 |
 | 测试执行时长 | ~2min（完整） | 回归 <3min | gradle 计时 | 每周 |
+| 启动耗时（真 Paper，自举 E2E 实测） | **~19s**（本机复用世界）/ CI 全新 ~50s | 劣化 >2.5 倍标 ⚠️ | `build/quality/perf-paper.json` | 每次自举 E2E |
+| `$b` 备份耗时（小世界） | **~0.5s** | 劣化 >3 倍标 ⚠️ | 同上 `backup_ms` | 每次自举 E2E |
+| 覆盖率热点（未覆盖分支 top10） | 见看板 | 逐项下降 | `scripts/quality/coverage_hotspots.py` | 每次夜间 |
 | Bug 逃逸率 | 见 4.3 | 趋零 | 线上问题登记 | 每月 |
 
 **薄弱模块补测进展（2026-08-19）**：maintenance 34.2%→**66.9%**、paging 47.0%→**80.8%**、ws 47.4%→**59.0%**；剩余 review 65.9%、teleport 73.6% 列入下一轮。
@@ -217,7 +220,8 @@ bash e2e/run-all.sh -h              # 帮助
 | **夜间质量闭环**（`.github/workflows/nightly.yml`） | 每日 01:30（可 `workflow_dispatch`） | `check` + `e2eLocalPaper` + `e2eLocalFolia` + `foliaSmoke(builtin)`；失败自动开 issue（`nightly-failure` 标签去重、指派 admin 协作者）、恢复自动关闭 |
 | **失败分诊**（`scripts/quality/triage.py`） | 失败时（`if: always()` 收集） | 失败用例（类.方法 + 首行断言信息）+ 各 run 目录 `smoke.log` 尾部 + 最近 8 个提交 + 工作区改动 → 直接写进 issue，接手即可定位 |
 | **可选推送** | 失败时（配置 `NOTIFY_WEBHOOK_URL` 才生效） | 飞书/企业微信/自定义 webhook；未配置时依赖 GitHub 指派通知 |
-| **质量趋势看板**（`scripts/quality/trend.py`） | 每次夜间成功 | 解析 `build/test-results/*.xml` + JaCoCo XML → 更新 trade issue（`quality-trend` 标签，保留最近 30 次）；覆盖率跌 >1pt 或用例数减少标 ⚠️ |
+| **质量趋势看板**（`scripts/quality/trend.py`） | 每次夜间成功 | 解析 `build/test-results/*.xml` + JaCoCo XML + 自举 E2E 性能快照 → 更新看板 issue（保留最近 30 次，含**启动/备份耗时列**）；覆盖率跌 >1pt / 用例数减少 / 启动 >2.5× / 备份 >3× 标 ⚠️；正文附**覆盖率热点 top10** |
+| **上游版本漂移**（`scripts/quality/upstream_drift.py`） | 每次夜间 | Fill API（Paper/Folia 是否已有更新稳定版）+ Modrinth（LuckPerms 最新 release vs 本地缓存）→ 有漂移开/更新 `upstream-drift` issue，无漂移自动关闭；**只提示不自动升级** |
 | **E2E 全量**（L2） | 迭代合并后手动 | `bash e2e/run-all.sh` 全量 → 报告落 `e2e/reports/`（不入库） |
 
 趋势看板本地复跑（无需等夜间）：
@@ -241,7 +245,7 @@ GH_REPO=OrzMC/OrzMCPlugin python3 scripts/quality/trend.py upsert-issue
 | P1 单测补强 | 薄弱模块补测；单测 1600+ 用例、覆盖率 ≥75%（当前 78%） | ✅（CI jacoco 门禁 + codecov 合并覆盖率已落地） |
 | P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2） |
 | P2.5 自举进 PR 门禁 | `e2eLocalPaper`/`e2eLocalFolia` + `foliaSmoke` 控制台断言（去测试服依赖） | ✅ 2026-11 |
-| P3 指标自动化 | 覆盖率门禁 + **nightly 质量闭环**（`nightly.yml`：失败自动开 issue / 恢复自动关闭） | ✅ 2026-11 |
+| P3 指标自动化 | 覆盖率门禁 + **nightly 质量闭环**（`nightly.yml`：失败自动开 issue / 恢复自动关闭）+ 趋势看板（含性能列与覆盖率热点）+ 上游版本漂移探测 | ✅ 2026-11 |
 | P4 CI 深度集成 | folia-smoke/e2e-paper/e2e-lp 为 PR 必选检查；nightly 覆盖双核心真实起服 + 真实 LP | ✅ 2026-11（真实 IM 平台仍需人工） |
 
 ---
