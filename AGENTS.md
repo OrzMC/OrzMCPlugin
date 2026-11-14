@@ -24,6 +24,8 @@
 ./gradlew e2eLocalFolia            # 同上，Folia 版本；./gradlew e2eLocal -Pcore=paper|folia 为二选一入口
 ./gradlew e2eLocalFoliaLp          # 真实 Folia + 真实 LuckPerms（16 条断言，PR 必选检查 e2e-lp）
 ./gradlew e2eLocalIm               # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR 检查 e2e-im）
+./gradlew e2eLocalPlayer           # 玩家侧：mineflayer 客户端（ViaVersion+ViaBackwards）加入/GUI/新手书/权限隔离
+./gradlew npmCi                    # e2e 依赖（mineflayer），e2eLocalPlayer 会自动依赖它
 ./gradlew :orzmc-api:build         # 仅构建 orzmc-api 子模块（纯 Java，无 Bukkit 依赖）
 ./gradlew :orzmc-api:publishToMavenLocal  # 本地发布 orzmc-api SDK
 ```

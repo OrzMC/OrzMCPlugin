@@ -59,6 +59,9 @@ jobs:
       - name: builtin IM 全链路（假 QQ 平台：入站 → 命令层 → 出站）
         run: ./gradlew e2eLocalIm --stacktrace
 
+      - name: 玩家侧（mineflayer：加入 / GUI / 新手书 / 权限隔离）
+        run: ./gradlew e2eLocalPlayer --stacktrace
+
       - name: 质量指标快照（趋势看板数据源）
         run: |
           python3 scripts/quality/trend.py snapshot
@@ -89,6 +92,7 @@ jobs:
             run-e2e-folia-lp/smoke.log
             run-e2e-im/smoke.log
             build/fake-qq.jsonl
+            run-e2e-player/smoke.log
             build/triage/
           if-no-files-found: warn
 
