@@ -231,6 +231,9 @@ bash e2e/run-all.sh -h              # 帮助
 GH_REPO=OrzMC/OrzMCPlugin python3 scripts/quality/trend.py upsert-issue
 ```
 
+> 看板与漂移 issue 都带公共标签 `automation`，统一过滤：
+> <https://github.com/OrzMC/OrzMCPlugin/issues?q=is%3Aissue+label%3Aautomation>
+>
 > 规范化约束：看板 issue 正文由脚本整块重写（`<!-- quality-trend:start -->` 标记块），**不要手工改表**，
 > 否则下一次夜间更新会覆盖；同日重跑只替换当天行，不会重复。
 
