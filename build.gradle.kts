@@ -155,6 +155,9 @@ private fun logTail(logFile: File, lines: Int = 40): String {
 /** 一条控制台断言：向服务端 stdin 发 command，要求此后「新增」日志出现 expect。 */
 private data class ConsoleCheck(val label: String, val command: String, val expect: Regex, val timeoutMs: Long = 30_000L)
 
+/** 白名单读写探针用的合法玩家名（固定值：写后立刻删，跑完不留脏数据，中断也不会累积）。 */
+private val PROBE_PLAYER = "E2EProbe"
+
 /** 每次运行唯一的 say 标记（避免命中历史日志）。 */
 private fun uniqueE2eTag(): String = "e2e-" + UUID.randomUUID().toString().take(6)
 
@@ -165,11 +168,27 @@ private fun uniqueE2eTag(): String = "e2e-" + UUID.randomUUID().toString().take(
  * 插件代执行控制台命令（$e）。</p>
  */
 private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
+    // 读路径
     ConsoleCheck("Bot 帮助（\$h）", "orzdebug \$h", Regex("群指令帮助")),
     ConsoleCheck("在线列表（\$l）", "orzdebug \$l", Regex("当前在线")),
     ConsoleCheck("白名单分页（\$w，Folia 分页回归护栏）", "orzdebug \$w", Regex("当前白名单玩家")),
     ConsoleCheck("访问规则查询（\$d）", "orzdebug \$d", Regex("访问规则为空|黑名单")),
+    // 写路径（白名单落盘 + 读回；第二条负责还原，跑完不留脏数据）
+    ConsoleCheck(
+        "白名单写入（\$a）",
+        "orzdebug \$a $PROBE_PLAYER",
+        Regex("白名单添加[\\s\\S]{0,200}$PROBE_PLAYER"),
+    ),
+    ConsoleCheck(
+        "白名单删除（\$r，含还原）",
+        "orzdebug \$r $PROBE_PLAYER",
+        Regex("白名单移除[\\s\\S]{0,200}$PROBE_PLAYER"),
+    ),
+    // 跨层：插件代执行控制台命令 / 配置热加载 / 维护模式状态机
     ConsoleCheck("控制台命令执行（\$e）", "orzdebug \$e say $tag", Regex(Regex.escape(tag))),
+    ConsoleCheck("配置热加载（/config reload）", "config reload", Regex("已重新加载")),
+    ConsoleCheck("维护模式进入（/maintenance on）", "maintenance on", Regex("已进入手动维护模式")),
+    ConsoleCheck("维护模式退出（/maintenance off）", "maintenance off", Regex("已退出维护模式")),
 )
 
 /** 日志「稳定」偏移：回退到最后一个换行之后，避免切在多字节字符中间产生乱码前缀。 */

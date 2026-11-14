@@ -1,0 +1,109 @@
+name: Nightly Quality Loop
+
+# 夜间质量闭环：全量单测/集成/覆盖率 + 真实服务端 E2E（Paper、Folia、builtin 变体）。
+# 失败自动开 issue（同标签去重），恢复后自动关闭 —— 这是「自动化自迭代」的回归发现入口。
+# 说明：真实 IM 平台（QQ 频控/被动回复窗口）、真实 LP 授权、多人交互不可自举，仍由 e2e/ 全量套件人工验收。
+on:
+  schedule:
+    - cron: '30 17 * * *' # 每天 01:30 Asia/Shanghai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: nightly-quality
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: 全量门禁（单测 + 集成 + 覆盖率 + 格式 + 密钥扫描）
+        run: ./gradlew check jacocoTestReport --stacktrace
+
+      - name: 真实服务端 E2E（Paper）
+        run: ./gradlew e2eLocalPaper --stacktrace
+
+      - name: 真实服务端 E2E（Folia）
+        run: ./gradlew e2eLocalFolia --stacktrace
+
+      - name: 真实服务端 E2E（Folia + builtin IM 停群分支）
+        run: ./gradlew foliaSmoke -PfoliaImBackend=builtin --stacktrace
+
+      - name: 上传报告与服务器日志
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-${{ github.run_id }}
+          path: |
+            build/reports/tests/
+            build/reports/jacoco/
+            run-e2e-paper/smoke.log
+            run-e2e-folia/smoke.log
+            run-folia-smoke/smoke.log
+          if-no-files-found: warn
+
+  open-issue-on-failure:
+    needs: nightly
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 开/更新 nightly 失败 issue（去重，同一标签只保留一个）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create nightly-failure \
+            --description "nightly 质量闭环失败（自动创建/关闭）" --color B60205 2>/dev/null || true
+          existing=$(gh issue list --label nightly-failure --state open --json number -q '.[0].number' || true)
+          body=$(printf '夜间质量闭环失败。\n\n- 运行：%s\n- 触发：%s\n- 提交：%s\n\n产物（报告/服务器日志）在该次 run 的 Artifacts 中。\n\n> 修复后夜间通过会自动关闭本 issue。' \
+            "$RUN_URL" "${GITHUB_EVENT_NAME:-schedule}" "${GITHUB_SHA}")
+          if [ -n "${existing}" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --label nightly-failure \
+              --title "nightly: 质量门禁失败（$(date -u +%F)）" --body "$body"
+          fi
+
+  close-issue-on-recovery:
+    needs: nightly
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 恢复后关闭 nightly 失败 issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --label nightly-failure --state open --json number -q '.[0].number' || true)
+          if [ -n "${existing}" ]; then
+            gh issue close "$existing" --comment "nightly 已恢复：$RUN_URL"
+          else
+            echo "无待关闭的 nightly issue"
+          fi
