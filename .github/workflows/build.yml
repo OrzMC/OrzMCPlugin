@@ -205,3 +205,31 @@ jobs:
 
       - name: e2e (paper, self-hosted server + console assertions)
         run: ./gradlew e2eLocalPaper --stacktrace
+
+  # 真实 Folia + 真实 LuckPerms（L1.5+）：下载 LP 5.5.x → 起服 → 13 条断言（含 $p 权限链、/rank 拦截器链）。
+  # 为什么单列：LP 的异步 future + Folia region 线程是历史死锁事故区（132s 卡服），
+  # MockBukkit 里没有 LP，这条链路此前完全不在 PR 覆盖内。
+  e2e-lp:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: e2e (folia + luckperms, 13 console assertions)
+        run: ./gradlew e2eLocalFoliaLp --stacktrace

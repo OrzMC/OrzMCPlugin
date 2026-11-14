@@ -127,6 +127,8 @@ run-folia-smoke/
 # 自举 E2E 隔离运行目录（e2eLocalPaper / e2eLocalFolia）
 run-e2e-paper/
 run-e2e-folia/
+run-e2e-paper-lp/
+run-e2e-folia-lp/
 .gradle/
 build/
 .idea/

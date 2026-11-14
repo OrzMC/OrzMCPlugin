@@ -191,6 +191,18 @@ private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
     ConsoleCheck("维护模式退出（/maintenance off）", "maintenance off", Regex("已退出维护模式")),
 )
 
+/**
+ * LuckPerms 就绪后的附加断言（真实 LP + 真实服务端）：
+ * ① `$p` 无参数 → 输出用法（LP 未就绪时这里会是「未检测到 LuckPerms」，所以这条能锁定 LP 集成成功）；
+ * ② `$p u 未知玩家` → 「找不到玩家」（离线解析降级路径，不得抛异常/超时）；
+ * ③ `/rank` 控制台执行 → 「需要玩家执行」（PlayerOnly 拦截器链）。
+ */
+private fun luckPermsChecks(): List<ConsoleCheck> = listOf(
+    ConsoleCheck("权限命令可用（LP 已就绪，\$p 输出用法）", "orzdebug \$p", Regex("\\\$p 权限管理")),
+    ConsoleCheck("离线玩家解析降级（\$p u 未知玩家）", "orzdebug \$p u E2EProbe", Regex("找不到玩家")),
+    ConsoleCheck("玩家专属命令的控制台拒绝（/rank）", "rank", Regex("需要玩家执行")),
+)
+
 /** 日志「稳定」偏移：回退到最后一个换行之后，避免切在多字节字符中间产生乱码前缀。 */
 private fun stableLogOffset(logFile: File): Long {
     val length = logFile.length()
@@ -281,6 +293,70 @@ private fun Project.registerServerJarDownload(
 }
 
 /**
+ * 从 Modrinth 下载插件 jar（sha512 校验，缓存 + 标记文件）；返回 jar 路径，任务名由调用方指定。
+ *
+ * <p>用于 L1.5 引入真实依赖插件（如 LuckPerms）——历史上 LP 异步 + Folia region 线程出过死锁，
+ * 而 MockBukkit 里没有 LP，这条链路此前完全不在 PR 覆盖内。</p>
+ */
+private fun Project.registerModrinthPluginDownload(
+    taskName: String,
+    projectSlug: String,
+    mcVersion: String,
+    loader: String,
+    dirName: String,
+    displayName: String,
+): File {
+    val jarFile = layout.buildDirectory.file("$dirName/$projectSlug-$mcVersion.jar")
+    val markerFile = layout.buildDirectory.file("$dirName/.$projectSlug-$mcVersion.ok")
+    tasks.register(taskName) {
+        group = "verification"
+        description = "下载 $displayName 插件 jar（Modrinth API，sha512 校验）"
+        inputs.property("mcVersion", mcVersion)
+        outputs.file(jarFile)
+        outputs.file(markerFile)
+        doLast {
+            val file = jarFile.get().asFile
+            val apiUrl = "https://api.modrinth.com/v2/project/$projectSlug/version" +
+                "?loaders=%5B%22$loader%22%5D&game_versions=%5B%22$mcVersion%22%5D"
+            val conn = URI(apiUrl).toURL().openConnection()
+            conn.setRequestProperty("User-Agent", "OrzMC/plugin-ci")
+            val response = conn.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val versions = Yaml().load(response) as List<Map<*, *>>
+            val newest = versions.firstOrNull()
+                ?: throw GradleException("Modrinth 没有 $projectSlug 在 $mcVersion/$loader 下的版本")
+            val files = newest["files"] as List<Map<*, *>>
+            val chosen = files.firstOrNull { it["primary"] == true } ?: files.first()
+            val downloadUrl = chosen["url"] as String
+            val expectedSha = (chosen["hashes"] as Map<*, *>)["sha512"].toString().lowercase()
+            file.parentFile.mkdirs()
+            val download = URI(downloadUrl).toURL().openConnection()
+            download.setRequestProperty("User-Agent", "OrzMC/plugin-ci")
+            download.connect()
+            val digest = MessageDigest.getInstance("SHA-512")
+            download.getInputStream().use { input ->
+                file.outputStream().use { out ->
+                    val buf = ByteArray(128 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        digest.update(buf, 0, n)
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
+            val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!actualSha.equals(expectedSha, ignoreCase = true)) {
+                file.delete()
+                throw GradleException("$displayName jar sha512 校验失败: expected=$expectedSha actual=$actualSha")
+            }
+            markerFile.get().asFile.writeText("sha512=$actualSha\n")
+            logger.lifecycle("已下载 $displayName ${newest["version_number"]} → ${file.absolutePath}")
+        }
+    }
+    return jarFile.get().asFile
+}
+
+/**
  * 起真实服务端并跑断言：隔离 run 目录 → 放入插件 → 启动 → 等 Done → 等插件加载 →
  * 逐条控制台断言（只匹配本次命令之后的日志）→ stop → 断言 exit 0。
  */
@@ -294,11 +370,17 @@ private fun Project.runHeadlessServerSmoke(
     prepare: (File) -> Unit,
     preChecks: List<Pair<String, Regex>>,
     checks: List<ConsoleCheck>,
+    extraPlugins: List<File> = emptyList(),
+    extraChecks: List<ConsoleCheck> = emptyList(),
 ) {
     runDir.mkdirs()
     File(runDir, "eula.txt").writeText("eula=true\n")
     val pluginsDir = File(runDir, "plugins").apply { mkdirs() }
     shadowJarFile.copyTo(File(pluginsDir, "OrzMC.jar"), overwrite = true)
+    // 真实依赖插件（如 LuckPerms）：原样放进 plugins/，文件名保持不变（插件靠它识别自己）
+    for (plugin in extraPlugins) {
+        plugin.copyTo(File(pluginsDir, plugin.name), overwrite = true)
+    }
     val dataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
     // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
     // 故在隔离 run 目录放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
@@ -335,7 +417,7 @@ private fun Project.runHeadlessServerSmoke(
         if (!awaitLogAfter(logFile, 0L, pattern, 30_000)) abort("未通过: $label（期望 ${pattern.pattern}）")
     }
 
-    for (check in checks) {
+    for (check in checks + extraChecks) {
         logger.lifecycle("控制台断言: ${check.label} → ${check.command}")
         val from = stableLogOffset(logFile)
         try {
@@ -359,7 +441,7 @@ private fun Project.runHeadlessServerSmoke(
     if (proc.exitValue() != 0) {
         throw GradleException("$core 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
     }
-    logger.lifecycle("$core 冒烟通过：插件加载 + ${checks.size} 条控制台断言 + 干净退出（exit 0）")
+    logger.lifecycle("$core 冒烟通过：插件加载 + ${checks.size + extraChecks.size} 条控制台断言 + 干净退出（exit 0）")
 }
 
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
@@ -532,6 +614,10 @@ tasks {
     //  * 控制台断言走 stdin，且只匹配「本次命令之后新增的日志」（避免命中早先日志造成假绿）。
     val foliaServerJar = registerServerJarDownload(debugServerVersion, "folia", "folia-smoke", "Folia")
     val paperServerJar = registerServerJarDownload(debugServerVersion, "paper", "paper-smoke", "Paper")
+    // 真实依赖插件：LuckPerms（rank/review/权限链的唯一权威实现，MockBukkit 里没有）
+    val luckPermsJar = registerModrinthPluginDownload(
+        "downloadLuckPermsJar", "luckperms", debugServerVersion, "paper", "e2e-plugins", "LuckPerms"
+    )
 
     register("foliaSmoke") {
         group = "verification"
@@ -572,13 +658,23 @@ tasks {
 
     // e2eLocalPaper / e2eLocalFolia：自举真实服务端 E2E（独立 run 目录与端口，可并行跑）。
     // 不依赖任何常驻测试服 / 面板 API —— 这是「让真实运行时层进 PR 门禁」的那一层。
-    fun registerE2eLocal(taskName: String, core: String, downloadTask: String, serverJar: File, port: Int) {
+    fun registerE2eLocal(
+        taskName: String,
+        core: String,
+        downloadTask: String,
+        serverJar: File,
+        port: Int,
+        extraPlugins: List<File> = emptyList(),
+        extraChecks: List<ConsoleCheck> = emptyList(),
+        extraTasks: List<String> = emptyList(),
+        runDirSuffix: String = "",
+    ) {
         register(taskName) {
             group = "verification"
             description = "自举真实 $core E2E：起服 → Bot 命令链路控制台断言 → 干净退出"
-            dependsOn(downloadTask, project.tasks.shadowJar)
+            dependsOn(downloadTask, *extraTasks.toTypedArray(), project.tasks.shadowJar)
             outputs.upToDateWhen { false }
-            val runDir = project.layout.projectDirectory.dir("run-e2e-${core.lowercase()}").asFile
+            val runDir = project.layout.projectDirectory.dir("run-e2e-${core.lowercase()}$runDirSuffix").asFile
             val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
             val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
             doLast {
@@ -590,14 +686,30 @@ tasks {
                     javaBin = javaBin,
                     port = port,
                     prepare = {},
-                    preChecks = emptyList(),
+                    preChecks = if (extraPlugins.isEmpty()) {
+                        emptyList()
+                    } else {
+                        listOf("LuckPerms 已加载" to Regex("LuckPerms v\\d"))
+                    },
                     checks = botConsoleChecks(uniqueE2eTag()),
+                    extraPlugins = extraPlugins,
+                    extraChecks = extraChecks,
                 )
             }
         }
     }
     registerE2eLocal("e2eLocalPaper", "Paper", "downloadPaperJar", paperServerJar, 25581)
     registerE2eLocal("e2eLocalFolia", "Folia", "downloadFoliaJar", foliaServerJar, 25582)
+    registerE2eLocal(
+        "e2eLocalPaperLp", "Paper", "downloadPaperJar", paperServerJar, 25583,
+        extraPlugins = listOf(luckPermsJar), extraChecks = luckPermsChecks(),
+        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp",
+    )
+    registerE2eLocal(
+        "e2eLocalFoliaLp", "Folia", "downloadFoliaJar", foliaServerJar, 25584,
+        extraPlugins = listOf(luckPermsJar), extraChecks = luckPermsChecks(),
+        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp",
+    )
 
     register("e2eLocal") {
         group = "verification"

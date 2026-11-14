@@ -72,9 +72,11 @@ bash e2e/run-all.sh -h
 
 ```bash
 ./gradlew e2eLocalPaper      # Paper：完整 10 条控制台断言（PR 门禁 job，并行）
+./gradlew e2eLocalFoliaLp    # Folia + 真实 LuckPerms：13 条断言（PR 门禁 job e2e-lp）
 ./gradlew e2eLocalFolia      # Folia：同上（本地/按需；CI 的 folia-smoke 已覆盖）
 ./gradlew e2eLocal -Pcore=paper   # 二选一入口（默认 folia）
 ./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 10 条控制台断言 + D3 变体
+./gradlew e2eLocalPaperLp    # Paper + LuckPerms（本地用；CI 跑 Folia 版）
 ```
 
 断言内容（`build.gradle.kts` 的 `botConsoleChecks`，经 `/orzdebug` 模拟群用户命令）：
@@ -90,6 +92,9 @@ bash e2e/run-all.sh -h
 | `orzdebug $e say <唯一标记>` → 标记出现在日志 | 插件代执行控制台命令 |
 | `config reload` → 已重新加载 | 配置子系统热加载 |
 | `maintenance on` / `maintenance off` → 状态切换 | 维护模式状态机（进得去也退得出） |
+| `$p` → `$p 权限管理` 用法 | **真实 LuckPerms 已就绪**（LP 缺失时这里会是「未检测到 LuckPerms」） |
+| `$p u E2EProbe` → 找不到玩家 | LP 离线 UUID 解析的降级路径（不得抛异常/超时） |
+| `/rank`（控制台）→ 需要玩家执行 | PlayerOnly 拦截器链 |
 
 实现要点：每次命令前后取「日志稳定偏移」，**只匹配本次命令之后新增的日志**（避免命中历史日志造成假绿）；
 日志/世界都在独立 run 目录（`run-e2e-<core>/`、`run-folia-smoke/`），互不污染。
