@@ -31,6 +31,8 @@ from xml.etree import ElementTree
 MARK_START = "<!-- quality-trend:start -->"
 MARK_END = "<!-- quality-trend:end -->"
 LABEL = "quality-trend"
+# 所有自动化维护的 issue 共用这个标签：方便一次性过滤（不跟人工 issue 混在一起）
+COMMON_LABEL = "automation"
 ISSUE_TITLE = "quality: 质量趋势看板（夜间自动更新）"
 MAX_ROWS = 30
 
@@ -288,17 +290,26 @@ def upsert_issue(snapshot: Snapshot, hotspots_path: Path | None = None) -> None:
         rows = [r for i, r in enumerate(rows) if not (r.startswith(f"| {snapshot.date} ") and i != len(rows) - 1)]
         new_body = render_body(rows[-MAX_ROWS:], hotspots)
         gh("api", "-X", "PATCH", f"repos/{repo}/issues/{number}", "-f", f"body={new_body}")
+        # 保证共用标签在（历史 issue 可能只有专属标签）
+        subprocess.run(
+            ["gh", "issue", "edit", str(number), "--repo", repo, "--add-label", COMMON_LABEL],
+            capture_output=True, text=True, check=False,
+        )
         print(f"已更新看板 issue #{number}")
     else:
         # 标签已存在时 API 返回 422，忽略即可（幂等）
-        subprocess.run(
-            ["gh", "api", f"repos/{repo}/labels", "-f", f"name={LABEL}", "-f", "color=0E8A16",
-             "-f", "description=夜间质量趋势看板（自动维护）"],
-            capture_output=True, text=True, check=False,
-        )
+        for name, color, desc in (
+            (LABEL, "0E8A16", "夜间质量趋势看板（自动维护）"),
+            (COMMON_LABEL, "FBCA04", "自动化维护的看板/追踪 issue（机器写入，勿手工改表）"),
+        ):
+            subprocess.run(
+                ["gh", "api", f"repos/{repo}/labels", "-f", f"name={name}", "-f", f"color={color}",
+                 "-f", f"description={desc}"],
+                capture_output=True, text=True, check=False,
+            )
         create = subprocess.run(
-            ["gh", "issue", "create", "--repo", repo, "--label", LABEL, "--title", ISSUE_TITLE,
-             "--body-file", "-"],
+            ["gh", "issue", "create", "--repo", repo, "--label", LABEL, "--label", COMMON_LABEL,
+             "--title", ISSUE_TITLE, "--body-file", "-"],
             input=new_body, capture_output=True, text=True, check=True,
         ).stdout.strip()
         print(f"已创建看板 issue: {create}")

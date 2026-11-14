@@ -189,7 +189,13 @@ nightly 失败
 > 已知限制：分诊只覆盖「测试结果 + 起服日志」。`e2eLocal*` 的断言失败信息在 Gradle 输出里，
 > 若需要更细的断言上下文，后续可把 `build/reports/tests` 一并纳入分诊（目前作 artifact 保留）。
 
-## 10. 夜间自动维护的两类 issue
+## 10. 夜间自动维护的 issue（统一 `automation` 标签）
+
+**统一过滤视图**：<https://github.com/OrzMC/OrzMCPlugin/issues?q=is%3Aissue+label%3Aautomation>
+
+三个自动维护的 issue 都以 `automation` 作为公共标签（另各自带专属标签），因此在 issues 列表里
+可以一键把它们和人工 issue 分开：`label:automation`；要看某一个就再叠 `label:nightly-failure` /
+`label:upstream-drift` / `label:quality-trend`。
 
 | 标签 | 触发 | 行为 |
 |:--|:--|:--|
@@ -198,3 +204,6 @@ nightly 失败
 
 两个 issue 都用 REST 列表 + 重试做去重（`gh issue list` 走搜索索引，新建 issue 1–3 秒内查不到，
 曾导致每夜新开一条）。手工改这两类 issue 的正文没有意义——夜间会按模板重写。
+
+**维护约定**：这三个 issue 的正文/表格由脚本整块重写（趋势看板用 `<!-- quality-trend:start/end -->` 标记），
+手工改表会在下一次夜间更新时被覆盖；要改口径/阈值请改脚本与 `docs/quality-testing-plan.md`。

@@ -95,13 +95,16 @@ jobs:
           if [ "$drift" = "True" ]; then
             gh api "repos/$GH_REPO/labels" -f name=upstream-drift -f color=5319E7 \
               -f "description=上游版本漂移（自动维护）" >/dev/null 2>&1 || true
+            gh api "repos/$GH_REPO/labels" -f name=automation -f color=FBCA04 \
+              -f "description=自动化维护的看板/追踪 issue（机器写入，勿手工改表）" >/dev/null 2>&1 || true
             body=$(mktemp)
             { cat build/quality/upstream-drift.md
               printf '\n> 自动维护：无漂移时夜间会关闭本 issue。\n'; } > "$body"
             if [ -n "$number" ]; then
               gh issue comment "$number" --body-file "$body"
+              gh issue edit "$number" --add-label automation >/dev/null 2>&1 || true
             else
-              gh issue create --label upstream-drift \
+              gh issue create --label upstream-drift --label automation \
                 --title "upstream: 上游版本漂移（$(date -u +%F)）" --body-file "$body"
             fi
           elif [ -n "$number" ]; then
@@ -166,6 +169,8 @@ jobs:
           set -euo pipefail
           gh label create nightly-failure \
             --description "nightly 质量闭环失败（自动创建/关闭）" --color B60205 2>/dev/null || true
+          gh label create automation \
+            --description "自动化维护的看板/追踪 issue（机器写入，勿手工改表）" --color FBCA04 2>/dev/null || true
           # 用 REST 列表而不是 `gh issue list`（后者走搜索索引，刚创建的 issue 会有一段时间查不到 →
           # 去重失效、每次失败都新开一个）。REST 是权威数据源。
           existing=$(gh api "repos/$GH_REPO/issues?labels=nightly-failure&state=open&per_page=1" --jq '.[0].number // empty' || true)
@@ -193,9 +198,10 @@ jobs:
           if [ -n "${existing}" ]; then
             gh issue comment "$existing" --body-file "$body"
             number="$existing"
+            gh issue edit "$number" --add-label automation >/dev/null 2>&1 || true
             echo "已追加评论到 #$number"
           else
-            created=$(gh issue create --label nightly-failure \
+            created=$(gh issue create --label nightly-failure --label automation \
               --title "nightly: 质量门禁失败（$(date -u +%F)）" --body-file "$body")
             number="${created##*/}"
             echo "已创建 issue #$number"
