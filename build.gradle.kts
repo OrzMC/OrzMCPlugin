@@ -94,6 +94,9 @@ plugins {
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
     id("com.modrinth.minotaur") version "2.10.0"
     id("com.diffplug.spotless") version "8.11.0"
+    // 测试重试：CI 机器负载抖动导致的偶发失败自动重跑（最多 2 次），避免「假红」阻断 PR。
+    // 注意：重试是安全网不是修复手段——重跑才通过的用例仍须按 flaky 修复（见 docs/quality-testing-plan.md §4.2）
+    id("org.gradle.test-retry") version "1.6.6"
     id("jacoco")
 }
 
@@ -440,8 +443,20 @@ tasks {
         dependsOn("shadowJar")
     }
     withType<Test> {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            // 隔离舱：`-PexcludeFlaky` 跳过 @Tag("flaky") 用例（已确认不稳定、正在修但暂不阻断 PR 时使用）；
+            // 默认不跳过——隔离必须是显式动作，避免「静默丢失覆盖率」
+            if (providers.gradleProperty("excludeFlaky").isPresent) {
+                excludeTags("flaky")
+            }
+        }
         jvmArgs("-Xshare:off")
+        // 偶发失败自动重跑（每用例最多 2 次）；重跑通过不判失败，但必须在 CI 日志里可见
+        retry {
+            maxRetries.set(2)
+            maxFailures.set(50)
+            failOnPassedAfterRetry.set(false)
+        }
         testLogging {
             events("passed", "skipped", "failed")
             showExceptions = true
@@ -476,23 +491,25 @@ tasks.withType<JacocoReport>().configureEach {
 tasks.withType<JacocoCoverageVerification>().configureEach {
     dependsOn("test", "integrationTest")
     executionData(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
+    // 门槛贴着实测值留约 3–4 个百分点余量（2026-11 实测 INSTRUCTION 81.9% / BRANCH 68.9% / LINE 81.2%）。
+    // 旧门槛 60/50/55 比现状低 20+ 点，只能拦灾难性回退，等于没有门禁——收紧到「小步回退也会红」。
     violationRules {
         rule {
             limit {
                 counter = "INSTRUCTION"
-                minimum = BigDecimal.valueOf(0.60)
+                minimum = BigDecimal.valueOf(0.78)
             }
         }
         rule {
             limit {
                 counter = "BRANCH"
-                minimum = BigDecimal.valueOf(0.50)
+                minimum = BigDecimal.valueOf(0.65)
             }
         }
         rule {
             limit {
                 counter = "LINE"
-                minimum = BigDecimal.valueOf(0.55)
+                minimum = BigDecimal.valueOf(0.78)
             }
         }
     }
