@@ -3,10 +3,13 @@ import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
 import org.gradle.testing.jacoco.tasks.JacocoReport
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.RandomAccessFile
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.Properties
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 buildscript {
@@ -143,6 +146,201 @@ private fun logTail(logFile: File, lines: Int = 40): String {
         return "(smoke.log 不存在)"
     }
     return logFile.readText(Charsets.UTF_8).split("\n").takeLast(lines).joinToString("\n")
+}
+
+// =====================================================================
+// 真实服务端冒烟 / 自举 E2E（foliaSmoke、e2eLocal* 共用实现）
+// =====================================================================
+
+/** 一条控制台断言：向服务端 stdin 发 command，要求此后「新增」日志出现 expect。 */
+private data class ConsoleCheck(val label: String, val command: String, val expect: Regex, val timeoutMs: Long = 30_000L)
+
+/** 每次运行唯一的 say 标记（避免命中历史日志）。 */
+private fun uniqueE2eTag(): String = "e2e-" + UUID.randomUUID().toString().take(6)
+
+/**
+ * Bot 命令链路的控制台断言：经 `/orzdebug` 模拟群用户命令，覆盖「解析 → 业务 → 回执」全链路。
+ *
+ * <p>这些是 MockBukkit 测不到的部分：真实 Brigadier 命令注册、Folia 分页调度（BUG-E2E-001）、
+ * 插件代执行控制台命令（$e）。</p>
+ */
+private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
+    ConsoleCheck("Bot 帮助（\$h）", "orzdebug \$h", Regex("群指令帮助")),
+    ConsoleCheck("在线列表（\$l）", "orzdebug \$l", Regex("当前在线")),
+    ConsoleCheck("白名单分页（\$w，Folia 分页回归护栏）", "orzdebug \$w", Regex("当前白名单玩家")),
+    ConsoleCheck("访问规则查询（\$d）", "orzdebug \$d", Regex("访问规则为空|黑名单")),
+    ConsoleCheck("控制台命令执行（\$e）", "orzdebug \$e say $tag", Regex(Regex.escape(tag))),
+)
+
+/** 日志「稳定」偏移：回退到最后一个换行之后，避免切在多字节字符中间产生乱码前缀。 */
+private fun stableLogOffset(logFile: File): Long {
+    val length = logFile.length()
+    if (length == 0L) return 0L
+    val tailSize = minOf(length, 8192L).toInt()
+    val buf = ByteArray(tailSize)
+    RandomAccessFile(logFile, "r").use { raf ->
+        raf.seek(length - tailSize)
+        raf.readFully(buf)
+    }
+    for (i in buf.indices.reversed()) {
+        if (buf[i] == '\n'.code.toByte()) return length - tailSize + i + 1
+    }
+    return 0L
+}
+
+/** 只匹配 fromOffset 之后追加的日志：避免「早先日志已出现该文本」造成假绿。 */
+private fun awaitLogAfter(logFile: File, fromOffset: Long, pattern: Regex, timeoutMs: Long): Boolean {
+    val start = System.nanoTime()
+    while ((System.nanoTime() - start) < timeoutMs * 1_000_000L) {
+        val length = logFile.length()
+        if (length > fromOffset) {
+            val buf = ByteArray((length - fromOffset).toInt())
+            RandomAccessFile(logFile, "r").use { raf ->
+                raf.seek(fromOffset)
+                raf.readFully(buf)
+            }
+            if (pattern.containsMatchIn(String(buf, Charsets.UTF_8))) return true
+        }
+        Thread.sleep(150)
+    }
+    return false
+}
+
+/**
+ * 下载服务端 jar（Paper Fill API v3）。成功且 SHA256 通过才写标记文件；中途被杀留下的残缺 jar
+ * 因标记缺失会被判 out-of-date 重下。返回 jar 路径；任务名 = `download<displayName>Jar`。
+ */
+private fun Project.registerServerJarDownload(
+    version: String,
+    fillProject: String,
+    dirName: String,
+    displayName: String,
+): File {
+    val jarFile = layout.buildDirectory.file("$dirName/$fillProject-$version.jar")
+    val markerFile = layout.buildDirectory.file("$dirName/.$fillProject-$version.ok")
+    tasks.register("download${displayName}Jar") {
+        group = "verification"
+        description = "下载 $displayName 服务端 jar（Paper Fill API v3，SnakeYAML 解析 JSON 响应）"
+        inputs.property("serverVersion", version)
+        outputs.file(jarFile)
+        outputs.file(markerFile)
+        doLast {
+            val file = jarFile.get().asFile
+            val apiUrl = "https://fill.papermc.io/v3/projects/$fillProject/versions/$version/builds/latest"
+            // Fill API 返回 JSON，而 JSON ⊂ YAML，直接复用 buildscript 已有的 SnakeYAML 解析
+            val response = URI(apiUrl).toURL().openStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val data = Yaml().load(response) as Map<*, *>
+            val serverDefault = (data["downloads"] as Map<*, *>)["server:default"] as Map<*, *>
+            val downloadUrl = serverDefault["url"] as String
+            val expectedSha = (serverDefault["checksums"] as Map<*, *>)["sha256"] as String
+            file.parentFile.mkdirs()
+            val conn = URI(downloadUrl).toURL().openConnection()
+            conn.setRequestProperty("User-Agent", "OrzMC/$displayName-smoke")
+            conn.connect()
+            val digest = MessageDigest.getInstance("SHA-256")
+            conn.getInputStream().use { input ->
+                file.outputStream().use { out ->
+                    val buf = ByteArray(128 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        digest.update(buf, 0, n)
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
+            val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!actualSha.equals(expectedSha, ignoreCase = true)) {
+                file.delete()
+                throw GradleException("$displayName jar SHA256 校验失败: expected=$expectedSha actual=$actualSha")
+            }
+            markerFile.get().asFile.writeText("sha256=$actualSha\n")
+            logger.lifecycle("已下载 $displayName $version → ${file.absolutePath}")
+        }
+    }
+    return jarFile.get().asFile
+}
+
+/**
+ * 起真实服务端并跑断言：隔离 run 目录 → 放入插件 → 启动 → 等 Done → 等插件加载 →
+ * 逐条控制台断言（只匹配本次命令之后的日志）→ stop → 断言 exit 0。
+ */
+private fun Project.runHeadlessServerSmoke(
+    core: String,
+    serverJar: File,
+    runDir: File,
+    shadowJarFile: File,
+    javaBin: String,
+    port: Int,
+    prepare: (File) -> Unit,
+    preChecks: List<Pair<String, Regex>>,
+    checks: List<ConsoleCheck>,
+) {
+    runDir.mkdirs()
+    File(runDir, "eula.txt").writeText("eula=true\n")
+    val pluginsDir = File(runDir, "plugins").apply { mkdirs() }
+    shadowJarFile.copyTo(File(pluginsDir, "OrzMC.jar"), overwrite = true)
+    val dataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
+    // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
+    // 故在隔离 run 目录放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
+    File(dataDir, "config.yml").writeText("guard:\n  blocked_commands: []\n")
+    prepare(dataDir)
+
+    val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
+    // 用 toolchain JDK 启动（Folia 26.2 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
+    val cmd = listOf(
+        javaBin, "-Xmx2G", "-Ddisable.watchdog=true",
+        "-jar", serverJar.absolutePath,
+        "--nogui", "--nojline", "--online-mode=false", "--port", port.toString()
+    )
+    logger.lifecycle("启动 $core 冒烟服务器: ${cmd.joinToString(" ")}")
+    val proc = ProcessBuilder(cmd)
+        .directory(runDir)
+        .redirectErrorStream(true)
+        .redirectOutput(logFile)
+        .start()
+
+    fun abort(message: String): Nothing {
+        proc.destroyForcibly()
+        proc.waitFor(30, TimeUnit.SECONDS)
+        throw GradleException("$message\n日志尾部:\n${logTail(logFile)}")
+    }
+
+    val startedMs = waitForLog(logFile, Regex("Done \\(.*\\)"), 240_000)
+    if (startedMs < 0) abort("$core 服务器 240s 内未完成启动。")
+    logger.lifecycle("$core 已启动（${startedMs}ms）。校验 OrzMC 加载...")
+    if (waitForLog(logFile, Regex("OrzMC"), 15_000) < 0) abort("OrzMC 插件未加载。")
+
+    for ((label, pattern) in preChecks) {
+        logger.lifecycle("校验: $label")
+        if (!awaitLogAfter(logFile, 0L, pattern, 30_000)) abort("未通过: $label（期望 ${pattern.pattern}）")
+    }
+
+    for (check in checks) {
+        logger.lifecycle("控制台断言: ${check.label} → ${check.command}")
+        val from = stableLogOffset(logFile)
+        try {
+            proc.outputStream.write((check.command + "\n").toByteArray(Charsets.UTF_8))
+            proc.outputStream.flush()
+        } catch (e: IOException) {
+            abort("无法向服务器写入命令（进程可能已退出）: ${check.label}（${e.message}）")
+        }
+        if (!awaitLogAfter(logFile, from, check.expect, check.timeoutMs)) {
+            abort("控制台断言失败: ${check.label}（命令: ${check.command}，期望: ${check.expect.pattern}）")
+        }
+    }
+
+    logger.lifecycle("发送 stop...")
+    proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
+    proc.outputStream.flush()
+    if (!proc.waitFor(90, TimeUnit.SECONDS)) {
+        proc.destroyForcibly()
+        throw GradleException("$core 在 stop 后 90s 内未退出。日志尾部:\n${logTail(logFile)}")
+    }
+    if (proc.exitValue() != 0) {
+        throw GradleException("$core 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
+    }
+    logger.lifecycle("$core 冒烟通过：插件加载 + ${checks.size} 条控制台断言 + 干净退出（exit 0）")
 }
 
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
@@ -308,55 +506,17 @@ tasks {
         dependsOn(agreeFoliaEula)
     }
 
-    // foliaSmoke：真实 Folia 无头冒烟（评估文档 D8）。下载与启动拆成两个任务：
-    // downloadFoliaJar 有缓存（build/folia-smoke/），foliaSmoke 每次执行都真实启动不跳过。
-    // 注意：不能嵌套调用 gradlew 下载/启动（会死锁在项目锁上），故自行解析 Fill API v3 + 直接 java -jar。
-    val foliaSmokeJar = layout.buildDirectory.file("folia-smoke/folia-$debugServerVersion.jar")
-    val foliaSmokeMarker = layout.buildDirectory.file("folia-smoke/.folia-$debugServerVersion.ok")
-    register("downloadFoliaJar") {
-        group = "verification"
-        description = "下载 Folia 服务端 jar（Paper Fill API v3，SnakeYAML 解析 JSON 响应）"
-        inputs.property("foliaVersion", debugServerVersion)
-        outputs.file(foliaSmokeJar)
-        // 下载成功且 SHA256 通过才写标记文件；中途被杀留下的残缺 jar 因标记缺失会被判 out-of-date 重下
-        outputs.file(foliaSmokeMarker)
-        doLast {
-            val jarFile = foliaSmokeJar.get().asFile
-            val apiUrl = "https://fill.papermc.io/v3/projects/folia/versions/$debugServerVersion/builds/latest"
-            // Fill API 返回 JSON，而 JSON ⊂ YAML，直接复用 buildscript 已有的 SnakeYAML 解析
-            val response = URI(apiUrl).toURL().openStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
-            val data = Yaml().load(response) as Map<*, *>
-            val serverDefault = (data["downloads"] as Map<*, *>)["server:default"] as Map<*, *>
-            val downloadUrl = serverDefault["url"] as String
-            val expectedSha = (serverDefault["checksums"] as Map<*, *>)["sha256"] as String
-            jarFile.parentFile.mkdirs()
-            val conn = URI(downloadUrl).toURL().openConnection()
-            conn.setRequestProperty("User-Agent", "OrzMC/folia-smoke")
-            conn.connect()
-            val digest = MessageDigest.getInstance("SHA-256")
-            conn.getInputStream().use { input ->
-                jarFile.outputStream().use { out ->
-                    val buf = ByteArray(128 * 1024)
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        digest.update(buf, 0, n)
-                        out.write(buf, 0, n)
-                    }
-                }
-            }
-            val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
-            if (!actualSha.equals(expectedSha, ignoreCase = true)) {
-                jarFile.delete()
-                throw GradleException("Folia jar SHA256 校验失败: expected=$expectedSha actual=$actualSha")
-            }
-            foliaSmokeMarker.get().asFile.writeText("sha256=$actualSha\n")
-            logger.lifecycle("已下载 Folia $debugServerVersion → ${jarFile.absolutePath}")
-        }
-    }
+    // ---- 真实服务端冒烟 / 自举 E2E ----
+    // 设计要点：
+    //  * 下载与启动拆成两个任务：download*Jar 有缓存（build/<dir>/，SHA256 通过才写标记），起服任务每次真实执行不跳过；
+    //  * 不能嵌套调用 gradlew（会死锁在项目锁上）→ 自行解析 Fill API v3 + 直接 java -jar；
+    //  * 控制台断言走 stdin，且只匹配「本次命令之后新增的日志」（避免命中早先日志造成假绿）。
+    val foliaServerJar = registerServerJarDownload(debugServerVersion, "folia", "folia-smoke", "Folia")
+    val paperServerJar = registerServerJarDownload(debugServerVersion, "paper", "paper-smoke", "Paper")
+
     register("foliaSmoke") {
         group = "verification"
-        description = "真实 Folia 无头冒烟：启动服务端 → 校验 OrzMC 加载 → stop → 断言干净退出"
+        description = "真实 Folia 冒烟：启动 → 插件加载 → Bot 命令链路控制台断言 → stop → 断言干净退出"
         dependsOn("downloadFoliaJar", project.tasks.shadowJar)
         outputs.upToDateWhen { false } // 每次执行都真实启动，不因缓存跳过
         // -PfoliaImBackend=builtin：跑「builtin 模式干净起服」变体（backend=builtin + QQ 无凭据 → D3 停群路径）
@@ -366,68 +526,68 @@ tasks {
         val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
         val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
         doLast {
-            val serverJar = foliaSmokeJar.get().asFile
-            runDir.mkdirs()
-            File(runDir, "eula.txt").writeText("eula=true\n")
-            val pluginsDir = File(runDir, "plugins").apply { mkdirs() }
-            shadowJarFile.copyTo(File(pluginsDir, "OrzMC.jar"), overwrite = true)
-            // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
-            // 故在隔离的 run-folia-smoke/ 内放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
-            val orzmcDataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
-            File(orzmcDataDir, "config.yml").writeText("guard:\n  blocked_commands: []\n")
-            if (builtinMode) {
-                // builtin 变体：backend=builtin 且 QQ 无凭据 → 应选 Unavailable 停群（D3）而非 EasyBot，验证该分支干净起服
-                File(orzmcDataDir, "im.yml").writeText(
-                    "backend: builtin\nplatforms:\n  qq:\n    enabled: false\n    app_id: ''\n    client_secret: ''\n"
-                )
-            }
-
-            val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
-            // 用 Java 25 toolchain 启动（Folia 26.2 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
-            val cmd = listOf(
-                javaBin, "-Xmx2G", "-Ddisable.watchdog=true",
-                "-jar", serverJar.absolutePath,
-                "--nogui", "--nojline", "--online-mode=false", "--port", "25580"
+            runHeadlessServerSmoke(
+                core = "Folia",
+                serverJar = foliaServerJar,
+                runDir = runDir,
+                shadowJarFile = shadowJarFile,
+                javaBin = javaBin,
+                port = 25580,
+                prepare = { dataDir ->
+                    if (builtinMode) {
+                        // builtin 变体：backend=builtin 且 QQ 无凭据 → 应选 Unavailable 停群（D3）而非 EasyBot
+                        File(dataDir, "im.yml").writeText(
+                            "backend: builtin\nplatforms:\n  qq:\n    enabled: false\n    app_id: ''\n    client_secret: ''\n"
+                        )
+                    }
+                },
+                preChecks = if (builtinMode) {
+                    listOf("builtin 停群分支（D3）" to Regex("停用群功能|无可用平台|backend=builtin"))
+                } else {
+                    emptyList()
+                },
+                checks = botConsoleChecks(uniqueE2eTag()),
             )
-            logger.lifecycle("启动 Folia 冒烟服务器: ${cmd.joinToString(" ")}")
-            val proc = ProcessBuilder(cmd)
-                .directory(runDir)
-                .redirectErrorStream(true)
-                .redirectOutput(logFile)
-                .start()
-
-            val startedMs = waitForLog(logFile, Regex("Done \\(.*\\)"), 240_000)
-            if (startedMs < 0) {
-                proc.destroyForcibly()
-                proc.waitFor(30, TimeUnit.SECONDS)
-                throw GradleException("Folia 服务器 240s 内未完成启动。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("Folia 已启动（${startedMs}ms）。校验 OrzMC 加载...")
-            // 插件加载后日志会出现 [OrzMC] 前缀行；plugins 命令响应列表也含 OrzMC
-            if (waitForLog(logFile, Regex("OrzMC"), 15_000) < 0) {
-                proc.destroyForcibly()
-                proc.waitFor(30, TimeUnit.SECONDS)
-                throw GradleException("OrzMC 插件未加载。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("OrzMC 已加载。校验 builtin 停群分支日志...")
-            if (builtinMode && waitForLog(logFile, Regex("停用群功能|无可用平台|backend=builtin"), 15_000) < 0) {
-                proc.destroyForcibly()
-                proc.waitFor(30, TimeUnit.SECONDS)
-                throw GradleException("builtin 模式未见 D3 停群告警日志。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("发送 stop...")
-            proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
-            proc.outputStream.flush()
-            if (!proc.waitFor(90, TimeUnit.SECONDS)) {
-                proc.destroyForcibly()
-                throw GradleException("Folia 在 stop 后 90s 内未退出。日志尾部:\n${logTail(logFile)}")
-            }
-            if (proc.exitValue() != 0) {
-                throw GradleException("Folia 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("Folia 冒烟通过：干净退出（exit 0）")
         }
     }
+
+    // e2eLocalPaper / e2eLocalFolia：自举真实服务端 E2E（独立 run 目录与端口，可并行跑）。
+    // 不依赖任何常驻测试服 / 面板 API —— 这是「让真实运行时层进 PR 门禁」的那一层。
+    fun registerE2eLocal(taskName: String, core: String, downloadTask: String, serverJar: File, port: Int) {
+        register(taskName) {
+            group = "verification"
+            description = "自举真实 $core E2E：起服 → Bot 命令链路控制台断言 → 干净退出"
+            dependsOn(downloadTask, project.tasks.shadowJar)
+            outputs.upToDateWhen { false }
+            val runDir = project.layout.projectDirectory.dir("run-e2e-${core.lowercase()}").asFile
+            val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+            val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+            doLast {
+                runHeadlessServerSmoke(
+                    core = core,
+                    serverJar = serverJar,
+                    runDir = runDir,
+                    shadowJarFile = shadowJarFile,
+                    javaBin = javaBin,
+                    port = port,
+                    prepare = {},
+                    preChecks = emptyList(),
+                    checks = botConsoleChecks(uniqueE2eTag()),
+                )
+            }
+        }
+    }
+    registerE2eLocal("e2eLocalPaper", "Paper", "downloadPaperJar", paperServerJar, 25581)
+    registerE2eLocal("e2eLocalFolia", "Folia", "downloadFoliaJar", foliaServerJar, 25582)
+
+    register("e2eLocal") {
+        group = "verification"
+        description = "自举真实服务端 E2E 入口（-Pcore=paper|folia，默认 folia）"
+        val core = (providers.gradleProperty("core").orNull ?: "folia").lowercase()
+        require(core == "paper" || core == "folia") { "非法 -Pcore=$core（仅支持 paper|folia）" }
+        dependsOn(if (core == "paper") "e2eLocalPaper" else "e2eLocalFolia")
+    }
+
     jar {
         enabled = false
     }

@@ -19,7 +19,9 @@
 ./gradlew clean build              # 全量构建 + shadowJar
 ./gradlew runServer                # 启动本地 Paper 调试服务器（Java 25）
 ./gradlew runFolia                 # 启动本地 Folia 调试服务器
-./gradlew foliaSmoke               # 真实 Folia 无头冒烟：启动 → 校验插件加载 → 干净退出
+./gradlew foliaSmoke               # 真实 Folia 冒烟：启动 → 插件加载 → 5 条控制台断言 → 干净退出（PR 必须门禁）
+./gradlew e2eLocalPaper            # 自举真实 Paper E2E：下载服务端 → 隔离起服 → 控制台断言 → 干净退出（PR 门禁 job）
+./gradlew e2eLocalFolia            # 同上，Folia 版本；./gradlew e2eLocal -Pcore=paper|folia 为二选一入口
 ./gradlew :orzmc-api:build         # 仅构建 orzmc-api 子模块（纯 Java，无 Bukkit 依赖）
 ./gradlew :orzmc-api:publishToMavenLocal  # 本地发布 orzmc-api SDK
 ```
