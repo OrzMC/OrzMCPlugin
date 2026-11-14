@@ -43,7 +43,7 @@ BODY_HEADER = """\
 > 每日 01:30 夜间闭环自动更新（保留最近 30 次）。数据源：`build/test-results/*.xml` + JaCoCo XML，
 > 与 `./gradlew check` 同一批产物。门禁：单测/集成必须全绿；覆盖率 INSTRUCTION ≥78% / BRANCH ≥65% / LINE ≥78%。
 >
-> 图例：✅ 全部达标；⚠️ 覆盖率较上次下降超过 1 个百分点或用例数减少（需确认是删除还是漏测）。
+> 图例：✅ 全部达标；⚠️ 覆盖率跌 >1 个百分点 / 用例数减少 / 启动耗时 >2.5 倍 / 备份耗时 >3 倍（后两者为宽松提示，CI 机器差异大）。
 
 """
 
@@ -58,12 +58,17 @@ class Snapshot:
     instruction: float
     branch: float
     line: float
+    boot_ms: int | None = None
+    backup_ms: int | None = None
     verdict: str = "✅"
 
     def row(self) -> str:
+        boot = "-" if self.boot_ms is None else str(self.boot_ms)
+        backup = "-" if self.backup_ms is None else str(self.backup_ms)
         return (
             f"| {self.date} | {self.unit_tests} | {self.integration_tests} "
-            f"| {self.instruction:.1f}% | {self.branch:.1f}% | {self.line:.1f}% | {self.verdict} |"
+            f"| {self.instruction:.1f}% | {self.branch:.1f}% | {self.line:.1f}% "
+            f"| {boot} | {backup} | {self.verdict} |"
         )
 
 
@@ -101,7 +106,21 @@ def read_coverage(jacoco_xml: Path) -> dict[str, float]:
     return coverage
 
 
-def build_snapshot(test_results: Path, jacoco_xml: Path) -> Snapshot:
+def read_perf(perf_dir: Path, label: str) -> tuple[int | None, int | None]:
+    """读取自举 E2E 落下的性能快照（boot_ms / backup_ms）；没有就返回 (None, None)。"""
+    path = perf_dir / f"perf-{label}.json"
+    if not path.is_file():
+        return None, None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None, None
+    boot = data.get("boot_ms")
+    backup = data.get("backup_ms")
+    return (int(boot) if isinstance(boot, int) else None, int(backup) if isinstance(backup, int) else None)
+
+
+def build_snapshot(test_results: Path, jacoco_xml: Path, perf_dir: Path | None = None) -> Snapshot:
     unit_total, unit_failed = count_tests(test_results / "test")
     it_total, it_failed = count_tests(test_results / "integrationTest")
     if unit_total == 0:
@@ -114,8 +133,11 @@ def build_snapshot(test_results: Path, jacoco_xml: Path) -> Snapshot:
         verdict = "❌"
     elif any(coverage[k] < v for k, v in THRESHOLDS.items()):
         verdict = "❌"
+    boot_ms, backup_ms = read_perf(perf_dir, "paper") if perf_dir else (None, None)
     return Snapshot(
         date=date.today().isoformat(),
+        boot_ms=boot_ms,
+        backup_ms=backup_ms,
         unit_tests=unit_total,
         integration_tests=it_total,
         unit_failures=unit_failed,
@@ -150,7 +172,14 @@ def row_metrics(row: str) -> Snapshot | None:
     cells = [c.strip() for c in row.strip().strip("|").split("|")]
     if len(cells) < 7:
         return None
+
+    def as_int(value: str) -> int | None:
+        return int(value) if value.isdigit() else None
+
     try:
+        # 9 列（新）：date|unit|integration|instr|branch|line|boot|backup|verdict
+        # 7 列（旧）：date|unit|integration|instr|branch|line|verdict
+        perf = len(cells) >= 9
         return Snapshot(
             date=cells[0],
             unit_tests=int(cells[1]),
@@ -160,6 +189,8 @@ def row_metrics(row: str) -> Snapshot | None:
             instruction=float(cells[3].rstrip("%")),
             branch=float(cells[4].rstrip("%")),
             line=float(cells[5].rstrip("%")),
+            boot_ms=as_int(cells[6]) if perf else None,
+            backup_ms=as_int(cells[7]) if perf else None,
         )
     except ValueError:
         return None
@@ -179,15 +210,20 @@ def check_drift(snapshot: Snapshot, previous_row: str | None) -> None:
         reasons.append(f"单测 {previous.unit_tests}→{snapshot.unit_tests}")
     if snapshot.integration_tests < previous.integration_tests:
         reasons.append(f"集成 {previous.integration_tests}→{snapshot.integration_tests}")
+    # 性能只做"明显劣化"提示（CI 机器差异大，阈值放很宽）
+    if previous.boot_ms and snapshot.boot_ms and snapshot.boot_ms > previous.boot_ms * 2.5:
+        reasons.append(f"启动 {previous.boot_ms}→{snapshot.boot_ms}ms")
+    if previous.backup_ms and snapshot.backup_ms and snapshot.backup_ms > previous.backup_ms * 3:
+        reasons.append(f"备份 {previous.backup_ms}→{snapshot.backup_ms}ms")
     if reasons and snapshot.verdict == "✅":
         snapshot.verdict = "⚠️"
         print("质量指标较上次下降: " + ", ".join(reasons), file=sys.stderr)
 
 
-def render_body(rows: list[str]) -> str:
+def render_body(rows: list[str], hotspots: str = "") -> str:
     table = [
-        "| 日期 | 单测 | 集成 | INSTRUCTION | BRANCH | LINE | 结论 |",
-        "|:--|--:|--:|--:|--:|--:|:--|",
+        "| 日期 | 单测 | 集成 | INSTRUCTION | BRANCH | LINE | 启动(ms) | 备份(ms) | 结论 |",
+        "|:--|--:|--:|--:|--:|--:|--:|--:|:--|",
         *rows,
     ]
     return (
@@ -198,6 +234,7 @@ def render_body(rows: list[str]) -> str:
         + "\n"
         + MARK_END
         + "\n\n"
+        + (hotspots.strip() + "\n\n" if hotspots.strip() else "")
         + "> 更新方式：`.github/workflows/nightly.yml` → `scripts/quality/trend.py upsert-issue`。"
         + "手工补数不要改本表，直接重跑夜间流程或本地 `python3 scripts/quality/trend.py upsert-issue`。\n"
     )
@@ -234,19 +271,22 @@ def find_issue() -> int | None:
     return None
 
 
-def upsert_issue(snapshot: Snapshot) -> None:
+def upsert_issue(snapshot: Snapshot, hotspots_path: Path | None = None) -> None:
     repo = os.environ["GH_REPO"] if "GH_REPO" in os.environ else os.environ["GITHUB_REPOSITORY"]
     number = find_issue()
     body = gh("api", f"repos/{repo}/issues/{number}", "--jq", ".body") if number else ""
     rows = parse_rows(body)
     check_drift(snapshot, rows[-1] if rows else None)
+    hotspots = ""
+    if hotspots_path and hotspots_path.is_file():
+        hotspots = hotspots_path.read_text(encoding="utf-8")
     rows.append(snapshot.row())
     rows = rows[-MAX_ROWS:]
-    new_body = render_body(rows)
+    new_body = render_body(rows, hotspots)
     if number:
         # 同一天重跑时替换当天行，避免重复
         rows = [r for i, r in enumerate(rows) if not (r.startswith(f"| {snapshot.date} ") and i != len(rows) - 1)]
-        new_body = render_body(rows[-MAX_ROWS:])
+        new_body = render_body(rows[-MAX_ROWS:], hotspots)
         gh("api", "-X", "PATCH", f"repos/{repo}/issues/{number}", "-f", f"body={new_body}")
         print(f"已更新看板 issue #{number}")
     else:
@@ -270,9 +310,11 @@ def main() -> None:
     parser.add_argument("--test-results", default="build/test-results")
     parser.add_argument("--jacoco", default="build/reports/jacoco/test/jacocoTestReport.xml")
     parser.add_argument("--json", default="build/quality/snapshot.json")
+    parser.add_argument("--perf-dir", default="build/quality", help="自举 E2E 性能快照目录")
+    parser.add_argument("--hotspots", default="build/quality/coverage-hotspots.md", help="覆盖率热点 Markdown")
     args = parser.parse_args()
 
-    snapshot = build_snapshot(Path(args.test_results), Path(args.jacoco))
+    snapshot = build_snapshot(Path(args.test_results), Path(args.jacoco), Path(args.perf_dir))
     out = Path(args.json)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(asdict(snapshot), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -291,7 +333,7 @@ def main() -> None:
                     f"| {snapshot.line:.1f}% | {snapshot.verdict} |\n"
                 )
     else:
-        upsert_issue(snapshot)
+        upsert_issue(snapshot, Path(args.hotspots))
 
 
 if __name__ == "__main__":

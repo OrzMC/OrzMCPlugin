@@ -362,7 +362,10 @@ private fun Project.registerModrinthPluginDownload(
                 file.delete()
                 throw GradleException("$displayName jar sha512 校验失败: expected=$expectedSha actual=$actualSha")
             }
-            markerFile.get().asFile.writeText("sha512=$actualSha\n")
+            // 记录版本号：上游漂移探测用它判断「缓存 jar 是否落后于上游最新 release」
+            markerFile.get().asFile.writeText(
+                "sha512=$actualSha\nversion=${newest["version_number"]}\n"
+            )
             logger.lifecycle("已下载 $displayName ${newest["version_number"]} → ${file.absolutePath}")
         }
     }
@@ -422,6 +425,8 @@ private fun Project.runHeadlessServerSmoke(
     extraChecks: List<ConsoleCheck> = emptyList(),
     extraCommands: List<String> = emptyList(),
     afterReady: (File) -> Unit = {},
+    /** 性能快照标签（如 paper / folia-lp / im）；null 表示不采集。 */
+    perfLabel: String? = null,
 ) {
     runDir.mkdirs()
     // 世界是否全新：部分断言（重复优化）只在全新世界上成立（已知缺陷见 issue #588）
@@ -483,6 +488,7 @@ private fun Project.runHeadlessServerSmoke(
 
     var executed = 0
     var skipped = 0
+    var backupMs: Long? = null
     for (check in checks + extraChecks) {
         if (check.requiresFreshWorld && !worldFresh) {
             skipped++
@@ -491,6 +497,7 @@ private fun Project.runHeadlessServerSmoke(
         }
         executed++
         logger.lifecycle("控制台断言: ${check.label} → ${check.command}")
+        val checkStart = System.currentTimeMillis()
         val from = stableLogOffset(logFile)
         try {
             proc.outputStream.write((check.command + "\n").toByteArray(Charsets.UTF_8))
@@ -501,6 +508,19 @@ private fun Project.runHeadlessServerSmoke(
         if (!awaitLogAfter(logFile, from, check.expect, check.timeoutMs)) {
             abort("控制台断言失败: ${check.label}（命令: ${check.command}，期望: ${check.expect.pattern}）")
         }
+        if (check.command.contains("orzdebug \$b")) {
+            backupMs = System.currentTimeMillis() - checkStart
+        }
+    }
+
+    if (perfLabel != null && startedMs > 0) {
+        val perfFile = File("build/quality/perf-$perfLabel.json")
+        perfFile.parentFile.mkdirs()
+        perfFile.writeText(
+            "{\"core\": \"$core\", \"label\": \"$perfLabel\", \"boot_ms\": $startedMs, " +
+                "\"backup_ms\": ${backupMs ?: "null"}}\n"
+        )
+        logger.lifecycle("性能快照: boot=${startedMs}ms backup=${backupMs ?: "-"}ms → ${perfFile.path}")
     }
 
     // $b 已在断言表内执行：再校验备份 zip 真的落盘（防"日志说完成但没文件"）
@@ -768,6 +788,7 @@ tasks {
         extraChecks: List<ConsoleCheck> = emptyList(),
         extraTasks: List<String> = emptyList(),
         runDirSuffix: String = "",
+        perfLabel: String? = if (extraPlugins.isEmpty()) core.lowercase() + runDirSuffix else null,
     ) {
         register(taskName) {
             group = "verification"
@@ -794,6 +815,7 @@ tasks {
                     checks = botConsoleChecks(uniqueE2eTag()),
                     extraPlugins = extraPlugins,
                     extraChecks = extraChecks,
+                    perfLabel = perfLabel,
                 )
             }
         }
@@ -803,12 +825,12 @@ tasks {
     registerE2eLocal(
         "e2eLocalPaperLp", "Paper", "downloadPaperJar", paperServerJar, 25583,
         extraPlugins = listOf(luckPermsJar), extraChecks = luckPermsChecks(),
-        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp",
+        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp", perfLabel = "paper-lp",
     )
     registerE2eLocal(
         "e2eLocalFoliaLp", "Folia", "downloadFoliaJar", foliaServerJar, 25584,
         extraPlugins = listOf(luckPermsJar), extraChecks = luckPermsChecks(),
-        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp",
+        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp", perfLabel = "folia-lp",
     )
 
     // e2eLocalPlayer：真实玩家侧自举（mineflayer 客户端 + ViaVersion 向下兼容）
@@ -845,6 +867,7 @@ tasks {
                 ),
                 checks = emptyList(), // 玩家任务只跑客户端探测（控制台断言由其它任务覆盖）
                 extraCommands = listOf("op E2EAdmin"), // 管理员玩家：GUI/新手书需要权限；非管理员玩家用于验证隔离
+                perfLabel = "player",
                 extraPlugins = listOf(viaVersionJar, viaBackwardsJar),
                 afterReady = {
                     logger.lifecycle("启动玩家探测器: $probeScript（client $probeVersion → 服务端 $probePort）")
@@ -972,6 +995,7 @@ tasks {
                     },
                     preChecks = emptyList(),
                     checks = botConsoleChecks(uniqueE2eTag()),
+                    perfLabel = "im",
                     afterReady = { logFile ->
                         // 等 builtin QQ 通道真正 READY（日志为准；WS 握手早于 identify，不能只看连接数）
                         // 从文件头开始找：READY 可能在本步之前就已经打印（smoke.log 每次运行都会重建，无残留风险）
