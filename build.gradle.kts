@@ -356,6 +356,41 @@ private fun Project.registerModrinthPluginDownload(
     return jarFile.get().asFile
 }
 
+/** 简单 HTTP GET（自举 E2E 的假 IM 平台控制面用；失败返回 null 便于轮询）。 */
+private fun httpGetOrNull(url: String, timeoutMs: Int = 3000): String? =
+    runCatching {
+            val conn = URI(url).toURL().openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }
+        .getOrNull()
+
+/** 简单 HTTP POST JSON（同上；返回响应体或 null）。 */
+private fun httpPostJsonOrNull(url: String, json: String, timeoutMs: Int = 3000): String? =
+    runCatching {
+            val conn = URI(url).toURL().openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }
+        .getOrNull()
+
+/** 轮询条件直到满足或超时；返回是否满足。 */
+private fun awaitCondition(label: String, timeoutMs: Long, condition: () -> Boolean): Boolean {
+    val start = System.nanoTime()
+    while ((System.nanoTime() - start) < timeoutMs * 1_000_000L) {
+        if (runCatching(condition).getOrDefault(false)) return true
+        Thread.sleep(200)
+    }
+    println("等待超时: $label")
+    return false
+}
+
 /**
  * 起真实服务端并跑断言：隔离 run 目录 → 放入插件 → 启动 → 等 Done → 等插件加载 →
  * 逐条控制台断言（只匹配本次命令之后的日志）→ stop → 断言 exit 0。
@@ -372,6 +407,7 @@ private fun Project.runHeadlessServerSmoke(
     checks: List<ConsoleCheck>,
     extraPlugins: List<File> = emptyList(),
     extraChecks: List<ConsoleCheck> = emptyList(),
+    afterReady: (File) -> Unit = {},
 ) {
     runDir.mkdirs()
     File(runDir, "eula.txt").writeText("eula=true\n")
@@ -401,11 +437,10 @@ private fun Project.runHeadlessServerSmoke(
         .redirectOutput(logFile)
         .start()
 
-    fun abort(message: String): Nothing {
-        proc.destroyForcibly()
-        proc.waitFor(30, TimeUnit.SECONDS)
-        throw GradleException("$message\n日志尾部:\n${logTail(logFile)}")
-    }
+    fun abort(message: String): Nothing = throw GradleException("$message\n日志尾部:\n${logTail(logFile)}")
+
+    // 任何异常（含 afterReady 里的断言失败）都必须回收服务端进程，否则端口被占、后续运行必然假失败
+    try {
 
     val startedMs = waitForLog(logFile, Regex("Done \\(.*\\)"), 240_000)
     if (startedMs < 0) abort("$core 服务器 240s 内未完成启动。")
@@ -416,6 +451,9 @@ private fun Project.runHeadlessServerSmoke(
         logger.lifecycle("校验: $label")
         if (!awaitLogAfter(logFile, 0L, pattern, 30_000)) abort("未通过: $label（期望 ${pattern.pattern}）")
     }
+
+    // 起服就绪后的自定义校验（例如假 IM 平台：等通道连上 → 注入入站消息 → 断言出站）
+    afterReady(logFile)
 
     for (check in checks + extraChecks) {
         logger.lifecycle("控制台断言: ${check.label} → ${check.command}")
@@ -442,6 +480,12 @@ private fun Project.runHeadlessServerSmoke(
         throw GradleException("$core 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
     }
     logger.lifecycle("$core 冒烟通过：插件加载 + ${checks.size + extraChecks.size} 条控制台断言 + 干净退出（exit 0）")
+    } finally {
+        if (proc.isAlive) {
+            proc.destroyForcibly()
+            proc.waitFor(30, TimeUnit.SECONDS)
+        }
+    }
 }
 
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
@@ -710,6 +754,114 @@ tasks {
         extraPlugins = listOf(luckPermsJar), extraChecks = luckPermsChecks(),
         extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp",
     )
+
+    // e2eLocalIm：builtin QQ 通道 + 仓库内假平台的全链路自举（token→gateway→WS→入站→命令→出站）。
+    // 这是此前唯一完全无法自动化的一层（真实 QQ 频控/窗口不可仿造，但协议与业务链路可以）。
+    register("e2eLocalIm") {
+        group = "verification"
+        description = "自举 builtin IM 全链路：假 QQ 平台（本机）→ 起服 → 注入群消息 → 断言出站回复"
+        dependsOn("downloadPaperJar", project.tasks.shadowJar)
+        outputs.upToDateWhen { false }
+        val runDir = project.layout.projectDirectory.dir("run-e2e-im").asFile
+        val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+        val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+        val fakePort = 18080
+        // 注入的群指令（`$h`）：用拼接避免 Kotlin 模板转义把内容变成空串
+        val imProbeCommand = "$" + "h"
+        val fakeBase = "http://127.0.0.1:$fakePort"
+        val projectDirPath = project.layout.projectDirectory.asFile
+        doLast {
+            val fakeLog = File(project.layout.buildDirectory.get().asFile, "fake-qq.jsonl")
+            val fakeOut = File(project.layout.buildDirectory.get().asFile, "fake-qq.out")
+            fakeOut.parentFile.mkdirs()
+            val fake =
+                ProcessBuilder(
+                        "python3",
+                        "scripts/e2e/fake_qq_platform.py",
+                        "--port",
+                        fakePort.toString(),
+                        "--log",
+                        fakeLog.absolutePath,
+                    )
+                    .directory(projectDirPath)
+                    .redirectErrorStream(true)
+                    .redirectOutput(fakeOut)
+                    .start()
+            try {
+                if (!awaitCondition("假 QQ 平台启动", 20_000) { httpGetOrNull("$fakeBase/control/health") != null }) {
+                    throw GradleException("假 QQ 平台未启动。输出:\n${fakeOut.readText()}")
+                }
+                logger.lifecycle("假 QQ 平台已启动: $fakeBase")
+                runHeadlessServerSmoke(
+                    core = "Paper",
+                    serverJar = paperServerJar,
+                    runDir = runDir,
+                    shadowJarFile = shadowJarFile,
+                    javaBin = javaBin,
+                    port = 25585,
+                    prepare = { dataDir ->
+                        File(dataDir, "im.yml")
+                            .writeText(
+                                """
+                                backend: builtin
+                                platforms:
+                                  qq:
+                                    enabled: true
+                                    app_id: 'e2e-app'
+                                    client_secret: 'e2e-secret'
+                                    api_base: '$fakeBase'
+                                """
+                                    .trimIndent() + "\n"
+                            )
+                        File(dataDir, "im_bindings.yml")
+                            .writeText(
+                                """
+                                sessions:
+                                  qq:
+                                    admin_group: 'group:G1'
+                                """
+                                    .trimIndent() + "\n"
+                            )
+                    },
+                    preChecks = emptyList(),
+                    checks = botConsoleChecks(uniqueE2eTag()),
+                    afterReady = { logFile ->
+                        // 等 builtin QQ 通道真正 READY（日志为准；WS 握手早于 identify，不能只看连接数）
+                        // 从文件头开始找：READY 可能在本步之前就已经打印（smoke.log 每次运行都会重建，无残留风险）
+                        if (!awaitLogAfter(logFile, 0L, Regex("网关 READY|会话已建立"), 90_000)) {
+                            throw GradleException("90s 内 QQ 通道未 READY（检查 im.yml / api_base / 启动日志）")
+                        }
+                        // 注入管理群消息（$h）：最多重试 3 次（首次可能早于插件命令层就绪）
+                        var ok = false
+                        for (attempt in 1..3) {
+                            val injected =
+                                httpPostJsonOrNull(
+                                    "$fakeBase/control/message",
+                                    """{"content":"$imProbeCommand","group_openid":"G1","member_openid":"U1","role":"owner"}""",
+                                )
+                            if (injected == null) throw GradleException("注入入站消息失败（控制面不可用）")
+                            logger.lifecycle("已注入入站消息（第 $attempt 次）: $injected")
+                            ok =
+                                awaitCondition("出站回复到达假平台", 20_000) {
+                                    val sent = httpGetOrNull("$fakeBase/control/sent") ?: ""
+                                    sent.contains("/v2/groups/G1/messages") && sent.contains("群指令帮助")
+                                }
+                            if (ok) break
+                        }
+                        if (!ok) {
+                            throw GradleException(
+                                "出站回复未出现。假平台记录:\n${httpGetOrNull("$fakeBase/control/sent")}" +
+                                    "\n服务器日志尾部:\n${logTail(File(runDir, "smoke.log"))}"
+                            )
+                        }
+                        logger.lifecycle("IM 链路校验通过：入站 $imProbeCommand → 命令层 → 出站到 group:G1")
+                    },
+                )
+            } finally {
+                fake.destroyForcibly()
+            }
+        }
+    }
 
     register("e2eLocal") {
         group = "verification"

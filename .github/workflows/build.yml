@@ -233,3 +233,31 @@ jobs:
 
       - name: e2e (folia + luckperms, 13 console assertions)
         run: ./gradlew e2eLocalFoliaLp --stacktrace
+
+  # 自举 builtin IM 全链路（L1.5+）：仓库内假 QQ 平台（HTTP+WS，纯标准库）→ 起服 →
+  # 注入群消息 → 断言出站回复。覆盖「token→gateway→WS→入站→会话门槛→命令层→出站」——
+  # 这一层此前只能靠真实 QQ 群人工验收（真实频控/被动窗口不可仿造，但协议与业务链路可以）。
+  e2e-im:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: e2e (builtin QQ + fake platform, full inbound→outbound round trip)
+        run: ./gradlew e2eLocalIm --stacktrace
