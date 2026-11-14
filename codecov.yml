@@ -13,6 +13,8 @@ coverage:
         # 因此 Codecov 目标按它自己的口径定，硬门禁仍以仓库内 JaCoCo 为准（78/65/78）。
         target: 70%
         threshold: 2%
+        # 无基线/无数据（如首个提交、纯文档改动）时按通过处理，避免必选检查永远卡住
+        if_not_found: success
         flags:
           - unittests
           - integrationtests
@@ -22,6 +24,8 @@ coverage:
         # （Codecov 状态检查为必需项时才会阻断合并；JaCoCo 是仓库内的硬门禁）
         target: 70%
         threshold: 5%
+        # 同上：PR 没有可覆盖的新增行时（纯文档/CI 改动）不阻塞
+        if_not_found: success
 
 flags:
   unittests:

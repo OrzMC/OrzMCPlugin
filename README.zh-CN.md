@@ -1,9 +1,9 @@
 # OrzMC
 
 [![Pull Request Build Check](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/build.yml)
-[![codecov](https://codecov.io/gh/OrzMC/OrzMCPlugin/branch/main/graph/badge.svg?token=QV5RJRNKW0)](https://codecov.io/gh/OrzMC/OrzMCPlugin)
-[![Test Count](https://img.shields.io/badge/tests-1800+-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
-[![Coverage](https://img.shields.io/badge/coverage-78%25-green.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![codecov](https://img.shields.io/codecov/c/github/OrzMC/OrzMCPlugin/develop)](https://app.codecov.io/gh/OrzMC/OrzMCPlugin)
+[![Test Count](https://img.shields.io/badge/tests-2000%2B-blue.svg)](https://github.com/OrzMC/OrzMCPlugin/actions)
+[![JaCoCo gate](https://img.shields.io/badge/jacoco%20gate-78%2F65%2F78-green.svg)](https://github.com/OrzMC/OrzMCPlugin/blob/develop/docs/quality-testing-plan.md)
 [![Dependabot Updates](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/dependabot/dependabot-updates)
 [![Publish](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/OrzMC/OrzMCPlugin/actions/workflows/publish.yml)
 

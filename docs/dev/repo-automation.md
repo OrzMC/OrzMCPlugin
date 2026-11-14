@@ -136,6 +136,7 @@ main/develop 两个 ruleset 的必选检查：
 | `e2e-paper` | `build.yml` / job `e2e-paper` | 真 Paper 起服，10 条控制台断言（白名单读写/热加载/维护模式） | ~2 min |
 | `e2e-lp` | `build.yml` / job `e2e-lp` | 真 Folia + 真 LuckPerms，13 条断言（`$p` 权限链 / 离线解析降级 / 拦截器链） | ~2 min |
 | `e2e-im` | `build.yml` / job `e2e-im` | builtin QQ + 仓库内假平台：入站群消息 → 命令层 → 出站回复 | ~2 min |
+| `codecov/patch` | Codecov App（OIDC 上传，`build` job 内） | 新增/改动行覆盖率 ≥70%（JaCoCo 上报，Codecov 口径）；`if_not_found: success` 保证纯文档 PR 不阻塞 | 秒级 |
 | `approval-gate` | `approval-gate.yml` | 外部作者必须有 APPROVED 评审 | 秒级 |
 
 - 四个 job 并行，PR 墙钟约 3 分钟；`e2e-paper` 与 `folia-smoke` 都是**自举**（下载服务端 + 隔离 run 目录），
