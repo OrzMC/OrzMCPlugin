@@ -56,6 +56,15 @@ public final class DiscordGatewayClient extends ReconnectingGateway {
     private volatile String sessionId;
 
     /**
+     * 测试可见：当前已捕获的会话 id（未收到 READY 时为 null）。
+     *
+     * <p>用途：测试需要「READY 已被 WS 读线程消费」这一时序前提时用它轮询，而不是固定 sleep。无行为影响。</p>
+     */
+    String sessionIdForTest() {
+        return sessionId;
+    }
+
+    /**
      * @param server 服务端日志门面
      * @param policy 重连退避策略（null → 骨架默认 5s 起/60s 上限）
      * @param api REST 客户端（网关地址引导/自检共用）

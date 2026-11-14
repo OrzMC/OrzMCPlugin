@@ -69,8 +69,8 @@ bash e2e/run-all.sh -h
 
 | 层 | 工具 | 时机 | 门禁 |
 |:--|:--|:--|:--|
-| L0 单测 | JUnit5+Mockito（1283 用例，覆盖率 82.2%） | 每次提交 | `./gradlew test` |
-| L1 集成 | MockBukkit（14 类） | 每次 PR | `./gradlew integrationTest` |
+| L0 单测 | JUnit5+Mockito（2011 用例，INSTRUCTION 81.9%） | 每次提交 | `./gradlew test` |
+| L1 集成 | MockBukkit（16 类 / 104 用例） | 每次 PR | `./gradlew integrationTest` |
 | L2 E2E | 本套件（bot+RCON） | 迭代验收 / 功能变更 | `bash e2e/run-all.sh` |
 
 > ⚠️ 平台行为（EasyBot 网关、LP 授权、登录拦截、命令事件）MockBukkit 模拟不了，

@@ -7,15 +7,18 @@ coverage:
   status:
     project:
       default:
-        target: 50%
-        threshold: 5%
+        # 实测基线 81.9%（INSTRUCTION）；门槛贴实际值，防止「整体缓慢下滑」
+        target: 78%
+        threshold: 2%
         flags:
           - unittests
           - integrationtests
     patch:
       default:
-        target: 50%
-        threshold: 10%
+        # 新增/改动行的覆盖率门槛：防「新代码零测试」稀释整体覆盖
+        # （Codecov 状态检查为必需项时才会阻断合并；JaCoCo 是仓库内的硬门禁）
+        target: 70%
+        threshold: 5%
 
 flags:
   unittests:

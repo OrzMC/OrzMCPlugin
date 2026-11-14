@@ -119,15 +119,17 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 
 ## 四、质量指标体系（可持续跟踪）
 
-### 4.1 核心指标与基线（2026-08-19 实测，补测后更新）
+### 4.1 核心指标与基线（2026-11 实测；用例数/覆盖率每次构建可从 `build/test-results` + JaCoCo XML 复核）
 
 | 指标 | 基线 | 目标 | 采集方式 | 频率 |
 |:--|:--|:--|:--|:--|
-| 单测用例数 | **1296**（+13） | 单调递增 | `build/test-results/*.xml` 解析 | 每次构建 |
-| 代码覆盖率 INSTRUCTION | **83.6%**（+1.4%） | ≥80% 维持 | JaCoCo XML | 每次构建 |
-| 分支覆盖率 BRANCH | **72.7%**（+1.0%） | ≥75% | JaCoCo XML | 每次构建 |
-| 方法覆盖率 METHOD | 85.0%+ | ≥85% | JaCoCo XML | 每次构建 |
-| 类覆盖率 CLASS | 96.6%+ | ≥95% | JaCoCo XML | 每次构建 |
+| 单测用例数 | **2011** | 单调递增 | `build/test-results/*.xml` 解析 | 每次构建 |
+| 集成用例数（MockBukkit） | **104**（16 类） | 单调递增 | `build/test-results/integrationTest/*.xml` | 每次构建 |
+| 代码覆盖率 INSTRUCTION | **81.9%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
+| 分支覆盖率 BRANCH | **68.9%** | ≥65%（门禁） | JaCoCo XML | 每次构建 |
+| 行覆盖率 LINE | **81.2%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
+| 方法覆盖率 METHOD | 83.8% | ≥85% | JaCoCo XML | 每次构建 |
+| 类覆盖率 CLASS | 93.9% | ≥95% | JaCoCo XML | 每次构建 |
 | CI 通过率 | — | 100% | GitHub Actions API | 每周 |
 | E2E 用例通过率（Folia） | **32/32**（2026-08-19） | 100% | e2e/run-all.sh 报告 | 迭代时 |
 | E2E 用例通过率（Paper） | 01 用例 8/8（2026-08-19） | 100% | 同上（ORZMC_* 环境变量） | 迭代时 |
@@ -136,14 +138,24 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 
 **薄弱模块补测进展（2026-08-19）**：maintenance 34.2%→**66.9%**、paging 47.0%→**80.8%**、ws 47.4%→**59.0%**；剩余 review 65.9%、teleport 73.6% 列入下一轮。
 
-### 4.2 门禁建议（CI 强化方向）
+### 4.2 门禁现状（2026-11 加固）
 
-| 门禁 | 现状 | 建议 |
+| 门禁 | 现状 | 说明 |
 |:--|:--|:--|
-| JaCoCo 覆盖率门禁 | ≥60% | **提升至 ≥75%**（当前 82.2%，留余量；patch 覆盖 ≥70% 已配） |
-| BRANCH 门禁 | 未配置 | 新增 violationRules：BRANCH ≥70% |
-| folia-smoke | continue-on-error | **稳定后转必须**（当前 #197 已 3 连绿） |
-| E2E | 无 CI 集成 | 本地 run-all.sh 强制；CI 可加 nightly job（需常驻测试服，暂缓） |
+| JaCoCo INSTRUCTION | **≥78%**（实测 81.9%） | 旧门槛 60% 比实测低 20+ 点，等于只能拦灾难性回退；现贴实际值留 ~4 点余量 |
+| JaCoCo BRANCH | **≥65%**（实测 68.9%） | 同上（旧为 50%） |
+| JaCoCo LINE | **≥78%**（实测 81.2%） | 同上（旧为 55%） |
+| Codecov patch | target **70%**（阈值 5%） | 防新代码零测试稀释整体覆盖；project target 78% |
+| 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
+| flaky 隔离舱 | `@Tag("flaky")` + `./gradlew test -PexcludeFlaky` | 已确认不稳定、修复中但暂不阻断 PR 时可用；**默认不跳过**（隔离必须是显式动作） |
+| folia-smoke | 必须门禁（默认 + builtin 两变体） | MockBukkit 单线程测不出 region 隔离竞态，这是「启动即崩」类回归的唯一兜底 |
+| E2E（L2） | 无 CI 集成 | 需自举 harness（下载服务端 + 隔离 run 目录 + stdin/RCON 驱动）才能进 PR 门禁；现状仍为迭代验收手动跑 |
+
+**防 flaky 约定（新增/修改测试必须遵守）**：
+
+1. 不写「固定 `Thread.sleep` 后断言某事件已发生」——用轮询断言（`awaitTrue(...)` 或 Awaitility），超时即失败；
+2. 「sleep 后断言没有发生 X」只允许用于 `stop`/`fatal` 这类**永久停止**语义（延长 sleep 只会更安全）；
+3. 时序断言需要内部状态时，在该类上加包级 `xxxForTest()` 只读访问器（无行为影响），不要用 sleep 猜时序。
 
 ### 4.3 缺陷逃逸统计（历史）
 
@@ -204,6 +216,7 @@ bash e2e/run-all.sh -h              # 帮助
 | 阶段 | 内容 | 状态 |
 |:--|:--|:--|
 | P0 基线建立 | 功能全图 + 覆盖率基线 + 薄弱模块定位 | ✅ 2026-08-19 |
+| P0 门禁加固 | 覆盖率门槛贴实际值 + 测试重试 + flaky 约定 + 修复时序型 flaky 用例 | ✅ 2026-11 |
 | P1 单测补强 | 薄弱模块补测；单测 1600+ 用例、覆盖率 ≥75%（当前 78%） | ✅（CI jacoco 门禁 + codecov 合并覆盖率已落地） |
 | P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2） |
 | P3 指标自动化 | 质量周报 cron（CI 覆盖率门禁已落地；周报 cron 未排期） | 🔄 |
