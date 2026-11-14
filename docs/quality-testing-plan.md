@@ -147,7 +147,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | JaCoCo INSTRUCTION | **≥78%**（实测 81.9%） | 旧门槛 60% 比实测低 20+ 点，等于只能拦灾难性回退；现贴实际值留 ~4 点余量 |
 | JaCoCo BRANCH | **≥65%**（实测 68.9%） | 同上（旧为 50%） |
 | JaCoCo LINE | **≥78%**（实测 81.2%） | 同上（旧为 55%） |
-| Codecov patch / project | patch target **70%**（阈值 5%）/ project target **70%**（阈值 2%） | **口径不同**：Codecov 把「部分覆盖行」算未覆盖（JaCoCo 算已覆盖），同一报告 JaCoCo LINE 81.2% ↔ Codecov 72.0%；两者目标各自标定，硬门禁只认 JaCoCo |
+| Codecov patch / project | patch target **70%**（阈值 5%，**已设为必选检查 `codecov/patch`**）/ project target **70%**（阈值 2%，仅状态展示） | **口径不同**：Codecov 把「部分覆盖行」算未覆盖（JaCoCo 算已覆盖），同一报告 JaCoCo LINE 81.2% ↔ Codecov 72.0%；两者目标各自标定，硬门禁只认 JaCoCo |
 | 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
 | flaky 隔离舱 | `@Tag("flaky")` + `./gradlew test -PexcludeFlaky` | 已确认不稳定、修复中但暂不阻断 PR 时可用；**默认不跳过**（隔离必须是显式动作） |
 | folia-smoke | 必须门禁（默认 + builtin 两变体） | MockBukkit 单线程测不出 region 隔离竞态，这是「启动即崩」类回归的唯一兜底 |
