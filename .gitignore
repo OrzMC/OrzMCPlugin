@@ -129,6 +129,7 @@ run-e2e-paper/
 run-e2e-folia/
 run-e2e-paper-lp/
 run-e2e-folia-lp/
+run-e2e-im/
 .gradle/
 build/
 .idea/

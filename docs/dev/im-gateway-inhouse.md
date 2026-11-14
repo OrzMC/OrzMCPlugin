@@ -131,6 +131,9 @@ sessions:
 - **`platforms.qq.api_base`（2026-11）**：QQ API 基址覆盖（token 换取 / `/gateway/bot` / 发消息共用；
   WS 地址仍由 `/gateway/bot` 响应决定）。空白 = 官方 `https://api.bot.qq.com`。用途：自建网关、受限网络
   反向代理、以及 L1.5 自举 E2E（`e2eLocalIm` 用它把 builtin QQ 通道指向本机假平台）。仅改地址，不涉及凭据；
+- **自举 E2E（2026-11）**：`scripts/e2e/fake_qq_platform.py`（纯标准库假平台）+ `./gradlew e2eLocalIm`
+  已在 CI 覆盖「token→gateway→WS identify/READY/心跳→入站群消息→会话门槛→命令层→出站发消息」；
+  真实平台侧仍不可仿造的是**频控配额与被动回复窗口时长**（`docs/dev/qq-passive-reply-expiry.md`）。
 - QQ 会话值 = 平台原生 OpenID（与 EasyBot target 语义一致）——**两模式共用同一会话值，切 backend 无需改绑定**。
 
 ### 4.2 连接生命周期与 Token 刷新（统一骨架层）

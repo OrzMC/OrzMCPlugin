@@ -73,6 +73,7 @@ bash e2e/run-all.sh -h
 ```bash
 ./gradlew e2eLocalPaper      # Paper：完整 10 条控制台断言（PR 门禁 job，并行）
 ./gradlew e2eLocalFoliaLp    # Folia + 真实 LuckPerms：13 条断言（PR 门禁 job e2e-lp）
+./gradlew e2eLocalIm         # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR job e2e-im）
 ./gradlew e2eLocalFolia      # Folia：同上（本地/按需；CI 的 folia-smoke 已覆盖）
 ./gradlew e2eLocal -Pcore=paper   # 二选一入口（默认 folia）
 ./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 10 条控制台断言 + D3 变体
@@ -96,6 +97,13 @@ bash e2e/run-all.sh -h
 | `$p u E2EProbe` → 找不到玩家 | LP 离线 UUID 解析的降级路径（不得抛异常/超时） |
 | `/rank`（控制台）→ 需要玩家执行 | PlayerOnly 拦截器链 |
 
+**IM 全链路（`e2eLocalIm`）**：仓库内 `scripts/e2e/fake_qq_platform.py` 起一个假 QQ 开放平台
+（纯标准库：HTTP `/app/getAppAccessToken`、`/gateway/bot`、`/v2/groups/{id}/messages` + 同端口 WS
+hello→identify→READY→心跳，以及控制面 `/control/message` 注入入站事件）。断言链：
+`im.yml` backend=builtin + `api_base` 指向假平台 → 等「网关 READY」→ 注入 `$h` → 假平台 `/control/sent`
+必须出现 `/v2/groups/G1/messages` 且内容含「群指令帮助」。**这是此前只能靠真实 QQ 群人工验收的那一层。**
+限制：真实平台的频控/被动回复窗口时长不可仿造，仍属人工验收范围。
+
 实现要点：每次命令前后取「日志稳定偏移」，**只匹配本次命令之后新增的日志**（避免命中历史日志造成假绿）；
 日志/世界都在独立 run 目录（`run-e2e-<core>/`、`run-folia-smoke/`），互不污染。
 
@@ -111,7 +119,7 @@ bash e2e/run-all.sh -h
 |:--|:--|:--|:--|
 | L0 单测 | JUnit5+Mockito（2011 用例，INSTRUCTION 81.9%） | 每次提交 | `./gradlew test` |
 | L1 集成 | MockBukkit（16 类 / 104 用例） | 每次 PR | `./gradlew integrationTest` |
-| L1.5 自举 | `e2eLocalPaper` / `foliaSmoke`（下载服务端 + stdin 断言） | 每次 PR | `./gradlew e2eLocalPaper` |
+| L1.5 自举 | `e2eLocalPaper` / `e2eLocalFoliaLp` / `e2eLocalIm`（服务端 + stdin/假平台断言） | 每次 PR | `./gradlew e2eLocalPaper` |
 | L2 E2E | 本套件（bot+RCON） | 迭代验收 / 功能变更 | `bash e2e/run-all.sh` |
 
 > ⚠️ 平台行为（EasyBot 网关、LP 授权、登录拦截、命令事件）MockBukkit 模拟不了，

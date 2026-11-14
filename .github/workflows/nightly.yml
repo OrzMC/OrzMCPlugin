@@ -56,6 +56,9 @@ jobs:
       - name: 真实服务端 E2E（Folia + 真实 LuckPerms，$p 权限链）
         run: ./gradlew e2eLocalFoliaLp --stacktrace
 
+      - name: builtin IM 全链路（假 QQ 平台：入站 → 命令层 → 出站）
+        run: ./gradlew e2eLocalIm --stacktrace
+
       - name: 质量指标快照（趋势看板数据源）
         run: |
           python3 scripts/quality/trend.py snapshot
@@ -84,6 +87,8 @@ jobs:
             run-e2e-folia/smoke.log
             run-folia-smoke/smoke.log
             run-e2e-folia-lp/smoke.log
+            run-e2e-im/smoke.log
+            build/fake-qq.jsonl
             build/triage/
           if-no-files-found: warn
 
