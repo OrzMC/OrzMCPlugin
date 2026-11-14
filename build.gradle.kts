@@ -333,7 +333,9 @@ private fun Project.registerModrinthPluginDownload(
             conn.setRequestProperty("User-Agent", "OrzMC/plugin-ci")
             val response = conn.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
             val versions = Yaml().load(response) as List<Map<*, *>>
-            val newest = versions.firstOrNull()
+            // 优先 version_type=release（SNAPSHOT/beta 天天变，会让门禁无故漂移）；没有正式版才退而求其次
+            val newest = versions.firstOrNull { it["version_type"] == "release" }
+                ?: versions.firstOrNull()
                 ?: throw GradleException("Modrinth 没有 $projectSlug 在 $mcVersion/$loader 下的版本")
             val files = newest["files"] as List<Map<*, *>>
             val chosen = files.firstOrNull { it["primary"] == true } ?: files.first()
@@ -418,6 +420,7 @@ private fun Project.runHeadlessServerSmoke(
     checks: List<ConsoleCheck>,
     extraPlugins: List<File> = emptyList(),
     extraChecks: List<ConsoleCheck> = emptyList(),
+    extraCommands: List<String> = emptyList(),
     afterReady: (File) -> Unit = {},
 ) {
     runDir.mkdirs()
@@ -467,6 +470,14 @@ private fun Project.runHeadlessServerSmoke(
         if (!awaitLogAfter(logFile, 0L, pattern, 30_000)) abort("未通过: $label（期望 ${pattern.pattern}）")
     }
 
+    // 起服就绪后先发无断言的控制台命令（例如 op 测试玩家）
+    for (command in extraCommands) {
+        logger.lifecycle("控制台命令（准备）: $command")
+        proc.outputStream.write((command + "\n").toByteArray(Charsets.UTF_8))
+        proc.outputStream.flush()
+        Thread.sleep(150)
+    }
+
     // 起服就绪后的自定义校验（例如假 IM 平台：等通道连上 → 注入入站消息 → 断言出站）
     afterReady(logFile)
 
@@ -493,12 +504,14 @@ private fun Project.runHeadlessServerSmoke(
     }
 
     // $b 已在断言表内执行：再校验备份 zip 真的落盘（防"日志说完成但没文件"）
-    val backupDir = File(runDir, "backup")
-    val zips = backupDir.listFiles { f -> f.isFile && f.name.endsWith(".zip") }?.toList().orEmpty()
-    if (zips.isEmpty()) abort("备份未落盘：$backupDir 下没有 zip")
-    val newestZip = zips.maxByOrNull { it.lastModified() }!!
-    if (newestZip.length() < 10_000) abort("备份 zip 过小（${newestZip.length()} 字节）: ${newestZip.name}")
-    logger.lifecycle("备份落盘校验通过: ${newestZip.name}（${newestZip.length() / 1024} KB）")
+    if ((checks + extraChecks).any { it.command.contains("orzdebug \$b") }) {
+        val backupDir = File(runDir, "backup")
+        val zips = backupDir.listFiles { f -> f.isFile && f.name.endsWith(".zip") }?.toList().orEmpty()
+        if (zips.isEmpty()) abort("备份未落盘：$backupDir 下没有 zip")
+        val newestZip = zips.maxByOrNull { it.lastModified() }!!
+        if (newestZip.length() < 10_000) abort("备份 zip 过小（${newestZip.length()} 字节）: ${newestZip.name}")
+        logger.lifecycle("备份落盘校验通过: ${newestZip.name}（${newestZip.length() / 1024} KB）")
+    }
 
     logger.lifecycle("发送 stop...")
     proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
@@ -693,6 +706,14 @@ tasks {
     //  * 控制台断言走 stdin，且只匹配「本次命令之后新增的日志」（避免命中早先日志造成假绿）。
     val foliaServerJar = registerServerJarDownload(debugServerVersion, "folia", "folia-smoke", "Folia")
     val paperServerJar = registerServerJarDownload(debugServerVersion, "paper", "paper-smoke", "Paper")
+    // 协议兼容（2026-11 实测）：mineflayer 最高 1.21.11，服务端 26.2 → 需要 **ViaVersion + ViaBackwards**
+    // （新客户端连旧服务端是 backwards 方向；只装 ViaVersion 或只用协议补丁都会被拒 "Outdated client"）
+    val viaVersionJar = registerModrinthPluginDownload(
+        "downloadViaVersionJar", "viaversion", debugServerVersion, "paper", "e2e-plugins", "ViaVersion"
+    )
+    val viaBackwardsJar = registerModrinthPluginDownload(
+        "downloadViaBackwardsJar", "viabackwards", debugServerVersion, "paper", "e2e-plugins", "ViaBackwards"
+    )
     // 真实依赖插件：LuckPerms（rank/review/权限链的唯一权威实现，MockBukkit 里没有）
     val luckPermsJar = registerModrinthPluginDownload(
         "downloadLuckPermsJar", "luckperms", debugServerVersion, "paper", "e2e-plugins", "LuckPerms"
@@ -790,8 +811,99 @@ tasks {
         extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp",
     )
 
+    // e2eLocalPlayer：真实玩家侧自举（mineflayer 客户端 + ViaVersion 向下兼容）
+    // 覆盖此前只能真人点的路径：加入服务器、/menu 箱子 GUI、非管理员命令被拒、/guide 发书。
+    register("e2eLocalPlayer") {
+        group = "verification"
+        description = "自举玩家侧 E2E：真实客户端连接 → 加入/GUI/权限隔离/新手书（ViaVersion 兼容协议）"
+        dependsOn("downloadPaperJar", "downloadViaVersionJar", "downloadViaBackwardsJar", "npmCi", project.tasks.shadowJar)
+        outputs.upToDateWhen { false }
+        val runDir = project.layout.projectDirectory.dir("run-e2e-player").asFile
+        val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+        val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+        val probePort = 25586
+        val probeScript = "e2e/ci/player-probe.js"
+        val probeVersion = "1.21.11"
+        val projectDirPath = project.layout.projectDirectory.asFile
+        doLast {
+            runHeadlessServerSmoke(
+                core = "Paper",
+                serverJar = paperServerJar,
+                runDir = runDir,
+                shadowJarFile = shadowJarFile,
+                javaBin = javaBin,
+                port = probePort,
+                prepare = { dataDir ->
+                    // 玩家要能进来：关掉强制白名单；其余（含维护/优化开关）沿用 runner 写入的基础配置
+                    File(dataDir, "config.yml")
+                        .appendText("whitelist:\n  force_whitelist: false\n")
+                },
+                preChecks = listOf(
+                    "ViaBackwards 已加载" to Regex("ViaBackwards"),
+                    // 映射加载完之前登录会被按原版协议拒绝（"Outdated client"），必须等这一行
+                    "协议映射就绪" to Regex("Finished mapping loading"),
+                ),
+                checks = emptyList(), // 玩家任务只跑客户端探测（控制台断言由其它任务覆盖）
+                extraCommands = listOf("op E2EAdmin"), // 管理员玩家：GUI/新手书需要权限；非管理员玩家用于验证隔离
+                extraPlugins = listOf(viaVersionJar, viaBackwardsJar),
+                afterReady = {
+                    logger.lifecycle("启动玩家探测器: $probeScript（client $probeVersion → 服务端 $probePort）")
+                    val probe =
+                        ProcessBuilder("node", probeScript)
+                            .directory(projectDirPath)
+                            .apply {
+                                environment()["MC_PORT"] = probePort.toString()
+                                environment()["MC_VERSION"] = probeVersion
+                            }
+                            .redirectErrorStream(true)
+                            .start()
+                    probe.outputStream.close()
+                    val reader = probe.inputStream.bufferedReader()
+                    val output = StringBuilder()
+                    var finished = false
+                    val deadline = System.currentTimeMillis() + 180_000
+                    val readerThread = Thread {
+                        reader.forEachLine { line ->
+                            output.appendLine(line)
+                            logger.lifecycle("  [probe] $line")
+                        }
+                    }
+                    readerThread.start()
+                    while (System.currentTimeMillis() < deadline) {
+                        if (!probe.isAlive) {
+                            finished = true
+                            break
+                        }
+                        Thread.sleep(200)
+                    }
+                    if (!finished) {
+                        probe.destroyForcibly()
+                        throw GradleException("玩家探测器 180s 未结束。输出:\n$output")
+                    }
+                    readerThread.join(5_000)
+                    val exit = probe.exitValue()
+                    if (exit != 0) {
+                        throw GradleException(
+                            "玩家探测器失败（exit=$exit）。输出:\n$output\n服务器日志尾部:\n${logTail(File(runDir, "smoke.log"))}"
+                        )
+                    }
+                    logger.lifecycle("玩家侧校验通过（加入 / GUI / 权限隔离 / 新手书）")
+                },
+            )
+        }
+    }
+
     // e2eLocalIm：builtin QQ 通道 + 仓库内假平台的全链路自举（token→gateway→WS→入站→命令→出站）。
     // 这是此前唯一完全无法自动化的一层（真实 QQ 频控/窗口不可仿造，但协议与业务链路可以）。
+    // 玩家探测器依赖（mineflayer）：按 package-lock 安装到 e2e/node_modules，lock 变更才重装
+    register<Exec>("npmCi") {
+        group = "verification"
+        workingDir = project.layout.projectDirectory.dir("e2e").asFile
+        commandLine("npm", "ci", "--no-audit", "--no-fund")
+        inputs.file(project.layout.projectDirectory.file("e2e/package-lock.json"))
+        outputs.dir(project.layout.projectDirectory.dir("e2e/node_modules"))
+    }
+
     register("e2eLocalIm") {
         group = "verification"
         description = "自举 builtin IM 全链路：假 QQ 平台（本机）→ 起服 → 注入群消息 → 断言出站回复"

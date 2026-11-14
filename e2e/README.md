@@ -74,6 +74,7 @@ bash e2e/run-all.sh -h
 ./gradlew e2eLocalPaper      # Paper：完整 13 条控制台断言（PR 门禁 job，并行）
 ./gradlew e2eLocalFoliaLp    # Folia + 真实 LuckPerms：16 条断言（PR 门禁 job e2e-lp）
 ./gradlew e2eLocalIm         # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR job e2e-im）
+./gradlew e2eLocalPlayer     # 玩家侧：mineflayer 客户端加入 → /menu GUI → /guide 开书 → 非管理员 /config 被拒
 ./gradlew e2eLocalFolia      # Folia：同上（本地/按需；CI 的 folia-smoke 已覆盖）
 ./gradlew e2eLocal -Pcore=paper   # 二选一入口（默认 folia）
 ./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 13 条控制台断言 + D3 变体
@@ -106,6 +107,11 @@ hello→identify→READY→心跳，以及控制面 `/control/message` 注入入
 `im.yml` backend=builtin + `api_base` 指向假平台 → 等「网关 READY」→ 注入 `$h` → 假平台 `/control/sent`
 必须出现 `/v2/groups/G1/messages` 且内容含「群指令帮助」。**这是此前只能靠真实 QQ 群人工验收的那一层。**
 限制：真实平台的频控/被动回复窗口时长不可仿造，仍属人工验收范围。
+
+**玩家侧（`e2eLocalPlayer`）**：`e2e/ci/player-probe.js` 用真实 mineflayer 客户端连本机 Paper，双玩家断言
+（管理员：加入 / `/menu` 箱子 GUI / `/guide` 打开新手书；非管理员：`/config` 被拒 = 权限隔离）。
+协议兼容（2026-11 实测）：mineflayer 最高协议 1.21.11 ↔ 服务端 26.2，**只装 ViaVersion 或只用协议补丁都会被拒
+「Outdated client」；ViaVersion + ViaBackwards 组合可正常登录**，两个插件由 gradle 任务自动下载。
 
 实现要点：每次命令前后取「日志稳定偏移」，**只匹配本次命令之后新增的日志**（避免命中历史日志造成假绿）；
 日志/世界都在独立 run 目录（`run-e2e-<core>/`、`run-folia-smoke/`），互不污染。

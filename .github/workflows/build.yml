@@ -270,3 +270,36 @@ jobs:
 
       - name: e2e (builtin QQ + fake platform, full inbound→outbound round trip)
         run: ./gradlew e2eLocalIm --stacktrace
+
+  # 玩家侧自举（L1.5+）：真实 mineflayer 客户端连本机 Paper（ViaVersion + ViaBackwards 兼容 1.21.11 ↔ 26.2）
+  # → 双玩家断言：管理员加入/`/menu` GUI/`/guide` 开书；非管理员 `/config` 被拒（权限隔离）。
+  # 覆盖此前"必须真人点"的那一层；协议/插件实测见 e2e/ci/player-probe.js 头部注释。
+  e2e-player:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: "e2e (player: join / menu GUI / guide book / permission isolation)"
+        run: ./gradlew e2eLocalPlayer --stacktrace
