@@ -110,7 +110,7 @@ hello→identify→READY→心跳，以及控制面 `/control/message` 注入入
 
 **玩家侧（`e2eLocalPlayer`）**：`e2e/ci/player-probe.js` 用真实 mineflayer 客户端连本机 Paper，双玩家断言
 （管理员：加入 / `/menu` 箱子 GUI / `/guide` 打开新手书；非管理员：`/config` 被拒 = 权限隔离）。
-协议兼容（2026-11 实测）：mineflayer 最高协议 1.21.11 ↔ 服务端 26.2，**只装 ViaVersion 或只用协议补丁都会被拒
+协议兼容（2026-11 实测）：mineflayer 最高协议 1.21.11 ↔ 服务端 26.3，**只装 ViaVersion 或只用协议补丁都会被拒
 「Outdated client」；ViaVersion + ViaBackwards 组合可正常登录**，两个插件由 gradle 任务自动下载。
 
 每次自举 E2E 还会落一份性能快照（`build/quality/perf-<label>.json`：启服耗时 + `$b` 备份耗时），

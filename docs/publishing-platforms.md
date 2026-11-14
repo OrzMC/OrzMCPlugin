@@ -32,7 +32,7 @@
 | **图标** | `assets/avatar.png`（89 KB） | 上传此文件 | 上传此文件 |
 | **网站** | `https://orzmc.jokerhub.cn` | 同左 | 同左 |
 | **支持平台** | Paper | `PAPER` | loader: `paper` |
-| **Minecraft 版本** | `26.2` | 同左 | 同左 |
+| **Minecraft 版本** | `26.3` | 同左 | 同左 |
 | **JDK 版本** | 25 | — | — |
 | **源码仓库** | `https://github.com/OrzMC/OrzMCPlugin` | 同左 | 同左 |
 | **Issues** | `https://github.com/OrzMC/OrzMCPlugin/issues` | 同左 | 同左 |
@@ -375,9 +375,9 @@ modrinth {
 
 | 配置项 | 文件 | 当前值 | 说明 |
 |--------|------|--------|------|
-| `plugin_support_paper_versions` | `gradle.properties` | `26.2` | 两个平台共用，逗号分隔 |
+| `plugin_support_paper_versions` | `gradle.properties` | `26.3` | 两个平台共用，逗号分隔 |
 | `modrinth_project_id` | `gradle.properties` | `r8ZufLjY` | 本地默认值，CI 可通过变量覆盖 |
-| `plugin_debug_server_version` | `gradle.properties` | `26.2` | 仅本地调试用 |
+| `plugin_debug_server_version` | `gradle.properties` | `26.3` | 本地调试 + 全部 e2e/冒烟下载的服务端 |
 | `version` | `paper-plugin.yml` | `1.0.19` | 版本号源，tag 发布后自动递增 |
 
 ### 7.3 Token 轮换
