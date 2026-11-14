@@ -53,6 +53,9 @@ jobs:
       - name: 真实服务端 E2E（Folia + builtin IM 停群分支）
         run: ./gradlew foliaSmoke -PfoliaImBackend=builtin --stacktrace
 
+      - name: 真实服务端 E2E（Folia + 真实 LuckPerms，$p 权限链）
+        run: ./gradlew e2eLocalFoliaLp --stacktrace
+
       - name: 质量指标快照（趋势看板数据源）
         run: |
           python3 scripts/quality/trend.py snapshot
@@ -80,6 +83,7 @@ jobs:
             run-e2e-paper/smoke.log
             run-e2e-folia/smoke.log
             run-folia-smoke/smoke.log
+            run-e2e-folia-lp/smoke.log
             build/triage/
           if-no-files-found: warn
 

@@ -72,7 +72,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 |:--|:--|:--|:--|:--|
 | L0 | JUnit 5 + Mockito | 业务逻辑、命令解析、配置解析、模板渲染、限流算法 | 每次提交/PR | `./gradlew test` 全绿 |
 | L1 | MockBukkit | 事件监听绑定、Brigadier 命令注册、模块装配 | 每次 PR | `./gradlew integrationTest` 全绿 |
-| **L1.5** | **自举真实服务端**（`e2eLocal*`/`foliaSmoke`） | **真实 Brigadier 命令注册、Bot 命令链路（解析→业务→回执）、白名单读写落盘、配置热加载、维护模式状态机、Folia 分页调度、插件代执行控制台命令；启动即崩/线程越权兜底** | **每次 PR（Paper + Folia 并行 job）+ 每夜全量** | `./gradlew e2eLocalPaper` / `./gradlew foliaSmoke` 全绿 |
+| **L1.5** | **自举真实服务端**（`e2eLocal*`/`foliaSmoke`，含 **真实 LuckPerms**） | **真实 Brigadier 命令注册、Bot 命令链路（解析→业务→回执）、白名单读写落盘、配置热加载、维护模式状态机、Folia 分页调度、插件代执行控制台命令、**LP 权限链与离线解析降级、拦截器链**；启动即崩/线程越权兜底** | **每次 PR（Paper + Folia 并行 job）+ 每夜全量** | `./gradlew e2eLocalPaper` / `./gradlew foliaSmoke` 全绿 |
 | L2 | mineflayer bot + RCON + screen | EasyBot 链路、LP 真实授权、通知送达、登录拦截、GUI 交互 | 迭代验收（每次功能变更） | `e2e/run-all.sh` 全绿 |
 | L3 | 真实玩家 + 双服 + stress 脚本 | transfer 闭环、性能压测、基岩连通 | 大版本/跨服变更 | 专项验收报告 |
 
@@ -150,7 +150,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
 | flaky 隔离舱 | `@Tag("flaky")` + `./gradlew test -PexcludeFlaky` | 已确认不稳定、修复中但暂不阻断 PR 时可用；**默认不跳过**（隔离必须是显式动作） |
 | folia-smoke | 必须门禁（默认 + builtin 两变体） | MockBukkit 单线程测不出 region 隔离竞态，这是「启动即崩」类回归的唯一兜底 |
-| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（独立 job）+ `foliaSmoke`（含 10 条控制台断言，两变体） | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
+| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（10 断言）+ `foliaSmoke`（10 断言 ×2 变体）+ **`e2eLocalFoliaLp`（真实 LP，13 断言）** | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
 | 夜间质量闭环 | **`nightly.yml`**（每日 01:30）：`check` + 双核心 E2E + builtin 变体；失败自动开 issue（同标签去重）、恢复自动关闭 | 覆盖「跨天回归/依赖漂移」，是自动化自迭代的入口 |
 | E2E 全量（L2） | 无 CI 集成 | 仍为迭代验收手动跑（需常驻测试服 + 面板 console API + 真实 IM 平台）；这部分**不可自举** |
 
@@ -237,7 +237,7 @@ GH_REPO=OrzMC/OrzMCPlugin python3 scripts/quality/trend.py upsert-issue
 | P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2） |
 | P2.5 自举进 PR 门禁 | `e2eLocalPaper`/`e2eLocalFolia` + `foliaSmoke` 控制台断言（去测试服依赖） | ✅ 2026-11 |
 | P3 指标自动化 | 覆盖率门禁 + **nightly 质量闭环**（`nightly.yml`：失败自动开 issue / 恢复自动关闭） | ✅ 2026-11 |
-| P4 CI 深度集成 | folia-smoke/e2e-paper 为 PR 必选检查；nightly 覆盖双核心真实起服 | ✅ 2026-11（真实 IM 平台仍需人工） |
+| P4 CI 深度集成 | folia-smoke/e2e-paper/e2e-lp 为 PR 必选检查；nightly 覆盖双核心真实起服 + 真实 LP | ✅ 2026-11（真实 IM 平台仍需人工） |
 
 ---
 
