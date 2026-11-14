@@ -142,10 +142,21 @@ public class WorldMaintenanceService {
         return progressEvent -> {
             Long current = progressEvent.getCurrent();
             Long total = progressEvent.getTotal();
-            if (current == null || total == null || current <= 0 || total <= 0) {
+            boolean doneStage = progressEvent.getStage() == ProgressStage.Done;
+            if (!doneStage && (current == null || total == null || current <= 0 || total <= 0)) {
                 return Unit.INSTANCE;
             }
-            int percent = (int) Math.ceil(current * 100.0 / total);
+            // Done 必须无条件下发（BUG #588）：已优化过的世界第二次 `$o`/`$b` 没有任何待处理区块，
+            // backup-core 的 Done 事件 current/total 均为 0，被上面的"无百分比可算就跳过"吞掉 →
+            // 用户只看到"正在优化地图，请稍等......"然后就没了回执（且 save-on/running 复位虽已执行，
+            // 用户无从得知已完成）。空计数器时按 1/1 渲染（percent=100）。
+            long cur = current == null ? 0L : current;
+            long tot = total == null ? 0L : total;
+            if (doneStage && (cur <= 0 || tot <= 0)) {
+                cur = 1L;
+                tot = 1L;
+            }
+            int percent = (int) Math.ceil(cur * 100.0 / tot);
             MaintenanceStage stage = mapProgressStage(progressEvent.getStage());
             java.util.Map<String, String> vars = new java.util.HashMap<>();
             vars.put("label", label);
@@ -153,8 +164,8 @@ public class WorldMaintenanceService {
             vars.put("percent", String.valueOf(percent));
             vars.put("stage_name", progressEvent.getStage().name());
             long elapsedMs = Math.max(1, System.currentTimeMillis() - startMs);
-            double ratePerSec = (current * 1000.0) / elapsedMs;
-            long etaMs = (long) Math.max(0, (total - current) / Math.max(1e-6, ratePerSec) * 1000.0);
+            double ratePerSec = (cur * 1000.0) / elapsedMs;
+            long etaMs = (long) Math.max(0, (tot - cur) / Math.max(1e-6, ratePerSec) * 1000.0);
             TemplateOptions opt = configs.templateOptions();
             double ratePer = ratePerSec;
             String rateUnit = "/s";
@@ -180,8 +191,8 @@ public class WorldMaintenanceService {
             vars.put("rate_unit", rateUnit);
             vars.put("eta_value", String.valueOf(etaValue));
             vars.put("eta_unit", etaUnit);
-            vars.put("current", String.valueOf(current));
-            vars.put("total", String.valueOf(total));
+            vars.put("current", String.valueOf(cur));
+            vars.put("total", String.valueOf(tot));
             // 同步推进度到维护模式状态机：MOTD/登录拦截按此渲染「阶段+百分比+预计剩余」
             long etaSeconds = Math.max(0, Math.round(etaMs / 1000.0));
             maintenanceModeService.updateProgress(stageI18n, percent, etaSeconds);

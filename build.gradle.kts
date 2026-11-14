@@ -199,7 +199,8 @@ private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
     ConsoleCheck("维护模式退出（/maintenance off）", "maintenance off", Regex("已退出维护模式")),
     // 长任务（真实备份/优化链路）：小世界上各几秒；超时给足，避免慢机器误判
     ConsoleCheck("地图备份（\$b）", "orzdebug \$b", Regex("地图备份 完成"), 180_000L),
-    ConsoleCheck("地图优化（\$o）", "orzdebug \$o", Regex("地图优化\\s*完成"), 180_000L, requiresFreshWorld = true),
+    // 世界复用（同目录第二次跑）也必须出完成回执：BUG #588 曾因 Done 事件计数器为 0 被跳过而无回执
+    ConsoleCheck("地图优化（\$o）", "orzdebug \$o", Regex("地图优化\\s*完成"), 180_000L),
 )
 
 /**
