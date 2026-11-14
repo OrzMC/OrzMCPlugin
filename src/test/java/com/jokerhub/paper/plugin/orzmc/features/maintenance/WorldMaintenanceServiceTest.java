@@ -405,7 +405,8 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         progressHandlerOf(out::add).invoke(evt);
 
         verify(configs).renderEvent(eq("maintenance_backup_done"), anyMap());
-        Assertions.assertEquals(List.of("backup progress", "backup progress"), out, "Done 阶段必须下发进度行 + 完成回执");
+        // 阶段行只进服务器日志，只有完成回执走 callback（回命令来源会话）
+        Assertions.assertEquals(List.of("backup progress"), out, "Done 阶段必须下发完成回执");
     }
 
     @Test
