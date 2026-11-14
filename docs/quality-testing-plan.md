@@ -205,12 +205,23 @@ bash e2e/run-all.sh -c 01 -c 03     # 只跑 Bot 命令+安全类
 bash e2e/run-all.sh -h              # 帮助
 ```
 
-### 5.4 质量指标自动化（cron）
+### 5.4 质量指标自动化（nightly 闭环）
 
-| 任务 | 计划 | 内容 |
+| 任务 | 时机 | 内容 |
 |:--|:--|:--|
-| **插件质量周报** | 每周一 9:30 | `gradlew test integrationTest jacocoTestReport` → 解析用例数/覆盖率 → GitHub API 拉最近 CI 通过率 → 飞书表格报告（对比上周基线） |
-| **E2E 回归** | 迭代合并后手动/PR 触发 | run-all.sh 全量 → 报告落 `e2e/reports/`（不入库） |
+| **夜间质量闭环**（`.github/workflows/nightly.yml`） | 每日 01:30（可 `workflow_dispatch`） | `check` + `e2eLocalPaper` + `e2eLocalFolia` + `foliaSmoke(builtin)`；失败自动开 issue（`nightly-failure` 标签去重）、恢复自动关闭 |
+| **质量趋势看板**（`scripts/quality/trend.py`） | 每次夜间成功 | 解析 `build/test-results/*.xml` + JaCoCo XML → 更新 trade issue（`quality-trend` 标签，保留最近 30 次）；覆盖率跌 >1pt 或用例数减少标 ⚠️ |
+| **E2E 全量**（L2） | 迭代合并后手动 | `bash e2e/run-all.sh` 全量 → 报告落 `e2e/reports/`（不入库） |
+
+趋势看板本地复跑（无需等夜间）：
+
+```bash
+./gradlew :test :integrationTest jacocoTestReport      # 生成数据源
+GH_REPO=OrzMC/OrzMCPlugin python3 scripts/quality/trend.py upsert-issue
+```
+
+> 规范化约束：看板 issue 正文由脚本整块重写（`<!-- quality-trend:start -->` 标记块），**不要手工改表**，
+> 否则下一次夜间更新会覆盖；同日重跑只替换当天行，不会重复。
 
 ---
 
