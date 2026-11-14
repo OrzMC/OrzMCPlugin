@@ -153,6 +153,13 @@ OrzMC/
   是「所有已绑定公开会话」——飞书群发 `$b` 会把完成通知同时发到 QQ 群。要保送达请用平台层手段
   （QQ 的窗口预判/主动兜底），不要用广播换可用性。
 
+### 测试强度（变异测试，2026-11）
+
+- `./gradlew pitest` 是**夜间专用、不进 PR 门禁**：覆盖率只说"跑过"，变异测试才说"断言够不够硬"。
+- 默认跑 `features.tnt` + `features.rank`，`isIgnoreExitValue = true`（不阻塞流水线），报告在
+  `build/reports/pitest/`；存活变异清单看 `mutations.csv`。首次基线 `features.tnt` **78.4%**。
+- `--mutableCodePaths` / `--classPath` 是**列表参数**，必须逐条传（拼成 `a:b` 会静默 0 变异）。
+
 ### 审核/命令/测试
 
 - `/apply` 资格预检（isEligible）：builder 申请要求当前组 member，default 组返回「当前没有可申请的审核类型」。
