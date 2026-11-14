@@ -82,9 +82,11 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         this.health = health;
         this.maxTextBytes = cfg.maxTextBytes();
         java.net.Proxy proxy = resolveProxy(cfg);
-        QqApiClient api = new QqApiClient(cfg.appId(), cfg.clientSecret(), proxy, log);
+        // api_base 覆盖（空白 → 官方端点）：自建网关/联调与 L1.5 自举测试用，token/api 共用同一基址
+        String apiBase = cfg.apiBase().isBlank() ? QqApiClient.DEFAULT_API_BASE : cfg.apiBase();
+        QqApiClient api = new QqApiClient(cfg.appId(), cfg.clientSecret(), apiBase, apiBase, proxy, log);
         this.tokens = new RefreshableTokenProvider(api::fetchAccessToken, TOKEN_TTL, TOKEN_REFRESH_AHEAD);
-        this.sender = new QqSender(log, tokens, proxy);
+        this.sender = new QqSender(log, tokens, apiBase, proxy);
         QqInboundProcessor processor =
                 new QqInboundProcessor(log, scheduler, conversation, inbound, formatter, this::sendReply, discovery);
         this.gateway = new QqGatewayClient(
