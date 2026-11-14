@@ -22,7 +22,7 @@ from xml.etree import ElementTree
 
 MAX_FAILURES = 25
 MAX_LOG_LINES = 40
-MAX_LOG_FILES = 4
+MAX_LOG_FILES = 5
 
 
 @dataclass
@@ -123,7 +123,19 @@ def main() -> None:
     parser.add_argument("--json", default="build/triage/triage.json")
     args = parser.parse_args()
 
-    run_dirs = [Path(p) for p in (args.run_dir or ["run-e2e-paper", "run-e2e-folia", "run-folia-smoke"])]
+    run_dirs = [
+        Path(p)
+        for p in (
+            args.run_dir
+            or [
+                "run-e2e-paper",
+                "run-e2e-folia",
+                "run-e2e-folia-lp",
+                "run-folia-smoke",
+                "run-e2e-im",
+            ]
+        )
+    ]
     triage = Triage(
         failed_tests=collect_failed_tests(Path(args.results)),
         log_tails=collect_log_tails(run_dirs),
