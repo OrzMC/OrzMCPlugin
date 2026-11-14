@@ -72,6 +72,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 |:--|:--|:--|:--|:--|
 | L0 | JUnit 5 + Mockito | 业务逻辑、命令解析、配置解析、模板渲染、限流算法 | 每次提交/PR | `./gradlew test` 全绿 |
 | L1 | MockBukkit | 事件监听绑定、Brigadier 命令注册、模块装配 | 每次 PR | `./gradlew integrationTest` 全绿 |
+| **L1.5** | **自举真实服务端**（`e2eLocal*`/`foliaSmoke`） | **真实 Brigadier 命令注册、Bot 命令链路（解析→业务→回执）、Folia 分页调度、插件代执行控制台命令；启动即崩/线程越权兜底** | **每次 PR（Paper + Folia 并行 job）** | `./gradlew e2eLocalPaper` / `./gradlew foliaSmoke` 全绿 |
 | L2 | mineflayer bot + RCON + screen | EasyBot 链路、LP 真实授权、通知送达、登录拦截、GUI 交互 | 迭代验收（每次功能变更） | `e2e/run-all.sh` 全绿 |
 | L3 | 真实玩家 + 双服 + stress 脚本 | transfer 闭环、性能压测、基岩连通 | 大版本/跨服变更 | 专项验收报告 |
 
@@ -149,7 +150,8 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
 | flaky 隔离舱 | `@Tag("flaky")` + `./gradlew test -PexcludeFlaky` | 已确认不稳定、修复中但暂不阻断 PR 时可用；**默认不跳过**（隔离必须是显式动作） |
 | folia-smoke | 必须门禁（默认 + builtin 两变体） | MockBukkit 单线程测不出 region 隔离竞态，这是「启动即崩」类回归的唯一兜底 |
-| E2E（L2） | 无 CI 集成 | 需自举 harness（下载服务端 + 隔离 run 目录 + stdin/RCON 驱动）才能进 PR 门禁；现状仍为迭代验收手动跑 |
+| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（独立 job）+ `foliaSmoke`（含 5 条控制台断言，两变体） | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
+| E2E 全量（L2） | 无 CI 集成 | 仍为迭代验收手动跑（需常驻测试服 + 面板 console API + 真实平台）；下一步 nightly 自举化 |
 
 **防 flaky 约定（新增/修改测试必须遵守）**：
 
@@ -219,6 +221,7 @@ bash e2e/run-all.sh -h              # 帮助
 | P0 门禁加固 | 覆盖率门槛贴实际值 + 测试重试 + flaky 约定 + 修复时序型 flaky 用例 | ✅ 2026-11 |
 | P1 单测补强 | 薄弱模块补测；单测 1600+ 用例、覆盖率 ≥75%（当前 78%） | ✅（CI jacoco 门禁 + codecov 合并覆盖率已落地） |
 | P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2） |
+| P2.5 自举进 PR 门禁 | `e2eLocalPaper`/`e2eLocalFolia` + `foliaSmoke` 控制台断言（去测试服依赖） | ✅ 2026-11 |
 | P3 指标自动化 | 质量周报 cron（CI 覆盖率门禁已落地；周报 cron 未排期） | 🔄 |
 | P4 CI 深度集成 | folia-smoke 已转必须门禁（✅）；nightly E2E job 仍需测试服常驻方案 | 🔄 远期 |
 

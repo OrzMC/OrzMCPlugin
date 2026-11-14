@@ -177,3 +177,31 @@ jobs:
 
       - name: folia smoke (builtin backend, QQ no creds → D3 stop-group boot path)
         run: ./gradlew foliaSmoke -PfoliaImBackend=builtin --stacktrace
+
+  # 真实 Paper 自举 E2E（L1.5）：下载 Paper → 隔离 run 目录起服 → 5 条 Bot 命令链路控制台断言 → 干净退出。
+  # 与 folia-smoke 并行（不拖慢主构建），覆盖 Paper 侧命令注册/分页/代执行控制台命令——MockBukkit 测不到的部分。
+  # 不依赖常驻测试服或面板 API：全部在 runner 内自举。
+  e2e-paper:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: e2e (paper, self-hosted server + console assertions)
+        run: ./gradlew e2eLocalPaper --stacktrace

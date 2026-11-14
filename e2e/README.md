@@ -65,12 +65,41 @@ bash e2e/run-all.sh -h
 4. 退出码：0=全过，1=有失败（run-all.sh 聚合判定）
 5. 复用 `lib/rcon.js`（Promise RCON + waitLog）与 `lib/bot.js`（spawnBot 自适应登录 + waitMessage）
 
+## CI 自举层（L1.5，无需常驻测试服）
+
+真实服务端本身也能在仓库内自举——不依赖 MCSM 面板/console API，`gradle` 一条命令完成
+「下载服务端 → 隔离 run 目录 → 放入插件 → 起服 → 控制台断言 → stop → 断言 exit 0」：
+
+```bash
+./gradlew e2eLocalPaper      # Paper：完整 5 条控制台断言（PR 门禁 job，并行）
+./gradlew e2eLocalFolia      # Folia：同上（本地/按需；CI 的 folia-smoke 已覆盖）
+./gradlew e2eLocal -Pcore=paper   # 二选一入口（默认 folia）
+./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 5 条控制台断言 + D3 变体
+```
+
+断言内容（`build.gradle.kts` 的 `botConsoleChecks`，经 `/orzdebug` 模拟群用户命令）：
+
+| 断言 | 覆盖的真实运行时问题 |
+|:--|:--|
+| `orzdebug $h` → 群指令帮助 | Brigadier 命令注册、Bot 命令解析与回执链路 |
+| `orzdebug $l` → 当前在线 | 在线列表渲染 |
+| `orzdebug $w` → 当前白名单玩家 | **Folia 分页调度**（BUG-E2E-001 回归护栏） |
+| `orzdebug $d` → 访问规则/黑名单 | 安全模块查询链路 |
+| `orzdebug $e say <唯一标记>` → 标记出现在日志 | 插件代执行控制台命令 |
+
+实现要点：每次命令前后取「日志稳定偏移」，**只匹配本次命令之后新增的日志**（避免命中历史日志造成假绿）；
+日志/世界都在独立 run 目录（`run-e2e-<core>/`、`run-folia-smoke/`），互不污染。
+
+与完整 L2 套件的分工：L1.5 覆盖「平台语义 + 命令链路」这类 MockBukkit 测不到的部分，每次 PR 跑；
+真实 IM 平台（EasyBot/QQ 频控）、真实 LP 授权、多人交互仍由本目录的全量套件做迭代验收。
+
 ## 与单测/CI 的关系
 
 | 层 | 工具 | 时机 | 门禁 |
 |:--|:--|:--|:--|
 | L0 单测 | JUnit5+Mockito（2011 用例，INSTRUCTION 81.9%） | 每次提交 | `./gradlew test` |
 | L1 集成 | MockBukkit（16 类 / 104 用例） | 每次 PR | `./gradlew integrationTest` |
+| L1.5 自举 | `e2eLocalPaper` / `foliaSmoke`（下载服务端 + stdin 断言） | 每次 PR | `./gradlew e2eLocalPaper` |
 | L2 E2E | 本套件（bot+RCON） | 迭代验收 / 功能变更 | `bash e2e/run-all.sh` |
 
 > ⚠️ 平台行为（EasyBot 网关、LP 授权、登录拦截、命令事件）MockBukkit 模拟不了，
