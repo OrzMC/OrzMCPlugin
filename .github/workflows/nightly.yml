@@ -79,7 +79,9 @@ jobs:
           set -euo pipefail
           gh label create nightly-failure \
             --description "nightly 质量闭环失败（自动创建/关闭）" --color B60205 2>/dev/null || true
-          existing=$(gh issue list --label nightly-failure --state open --json number -q '.[0].number' || true)
+          # 用 REST 列表而不是 `gh issue list`（后者走搜索索引，刚创建的 issue 会有一段时间查不到 →
+          # 去重失效、每次失败都新开一个）。REST 是权威数据源。
+          existing=$(gh api "repos/$GH_REPO/issues?labels=nightly-failure&state=open&per_page=1" --jq '.[0].number // empty' || true)
           body=$(printf '夜间质量闭环失败。\n\n- 运行：%s\n- 触发：%s\n- 提交：%s\n\n产物（报告/服务器日志）在该次 run 的 Artifacts 中。\n\n> 修复后夜间通过会自动关闭本 issue。' \
             "$RUN_URL" "${GITHUB_EVENT_NAME:-schedule}" "${GITHUB_SHA}")
           if [ -n "${existing}" ]; then
@@ -101,7 +103,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          existing=$(gh issue list --label nightly-failure --state open --json number -q '.[0].number' || true)
+          existing=$(gh api "repos/$GH_REPO/issues?labels=nightly-failure&state=open&per_page=1" --jq '.[0].number // empty' || true)
           if [ -n "${existing}" ]; then
             gh issue close "$existing" --comment "nightly 已恢复：$RUN_URL"
           else
