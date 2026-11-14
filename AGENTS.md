@@ -24,7 +24,7 @@
 ./gradlew e2eLocalFolia            # 同上，Folia 版本；./gradlew e2eLocal -Pcore=paper|folia 为二选一入口
 ./gradlew e2eLocalFoliaLp          # 真实 Folia + 真实 LuckPerms（16 条断言，PR 必选检查 e2e-lp）
 ./gradlew e2eLocalIm               # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR 检查 e2e-im）
-./gradlew e2eLocalPlayer           # 玩家侧：mineflayer 客户端（ViaVersion+ViaBackwards）加入/GUI/新手书/权限隔离
+./gradlew e2eLocalPlayer           # 玩家侧：mineflayer 客户端（ViaVersion+ViaBackwards）加入/GUI/新手书/权限隔离（PR 必选 e2e-player）
 ./gradlew npmCi                    # e2e 依赖（mineflayer），e2eLocalPlayer 会自动依赖它
 ./gradlew :orzmc-api:build         # 仅构建 orzmc-api 子模块（纯 Java，无 Bukkit 依赖）
 ./gradlew :orzmc-api:publishToMavenLocal  # 本地发布 orzmc-api SDK
@@ -248,7 +248,7 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
      + `git push origin main`（父仓库 main 会打印 `Changes must be made through a pull request`，owner 有 bypass 可推入）。
   5. **切回 develop**：`git -C plugin checkout develop && git fetch origin --prune && git reset --hard origin/develop`。
 
-**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke/e2e-paper/e2e-lp/e2e-im/codecov-patch +
+**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke/e2e-paper/e2e-lp/e2e-im/e2e-player/codecov-patch +
 禁强推/删除；默认分支 = develop；仓库 Allow auto-merge 已开。
 **夜间质量闭环**（`.github/workflows/nightly.yml`，每日 01:30）：`check` + 双核心自举 E2E + builtin 变体；
 失败自动开 issue（`nightly-failure` 标签去重）、恢复后自动关闭——回归发现入口，不要绕过它直接改代码。

@@ -137,13 +137,14 @@ main/develop 两个 ruleset 的必选检查：
 | `e2e-lp` | `build.yml` / job `e2e-lp` | 真 Folia + 真 LuckPerms，13 条断言（`$p` 权限链 / 离线解析降级 / 拦截器链） | ~2 min |
 | `e2e-im` | `build.yml` / job `e2e-im` | builtin QQ + 仓库内假平台：入站群消息 → 命令层 → 出站回复 | ~2 min |
 | `codecov/patch` | Codecov App（OIDC 上传，`build` job 内） | 新增/改动行覆盖率 ≥70%（JaCoCo 上报，Codecov 口径）；`if_not_found: success` 保证纯文档 PR 不阻塞。**上报有 1–3 分钟延迟**（上传后异步处理），PR 会短暂 waiting | 秒级（含等待） |
+| `e2e-player` | `build.yml` / job `e2e-player` | 真实 mineflayer 客户端（ViaVersion+ViaBackwards）：加入 / `/menu` GUI / `/guide` 开书 / 非管理员 `/config` 被拒 | ~2 min |
 | `approval-gate` | `approval-gate.yml` | 外部作者必须有 APPROVED 评审 | 秒级 |
 
 - 四个 job 并行，PR 墙钟约 3 分钟；`e2e-paper` 与 `folia-smoke` 都是**自举**（下载服务端 + 隔离 run 目录），
   不依赖常驻测试服/面板 API。
-- **稳定性记录（2026-11-14）**：`e2e-paper` 8/8、`e2e-lp` 3/3、`e2e-im` 2/2 全绿，均未加 job 级重试；
+- **稳定性记录（2026-11-14）**：`e2e-paper` 8/8、`e2e-lp` 3/3、`e2e-im` 2/2、`e2e-player` 2/2 全绿，均未加 job 级重试；
   若出现红，先看是断言失败（真回归）还是启动/网络（环境），再决定是否加重试。
-- 六个 job 全并行，PR 墙钟仍约 3 分钟（最慢的 `build` 主导）；`codecov/patch` 由 App 在上传后 1–3 分钟内补报。
+- 七个 job 全并行，PR 墙钟仍约 3 分钟（最慢的 `build` 主导）；`codecov/patch` 由 App 在上传后 1–3 分钟内补报。
 - **交付时序**：若 PR 只改文档/CI（无可覆盖行），Codecov 仍会给出 `pass`（`if_not_found: success`），不会卡合并；
   实测 2026-11-14（#584 纯文档 PR，check 在 build 完成后约 1 分钟到达）。
 

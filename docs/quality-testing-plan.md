@@ -151,7 +151,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
 | flaky 隔离舱 | `@Tag("flaky")` + `./gradlew test -PexcludeFlaky` | 已确认不稳定、修复中但暂不阻断 PR 时可用；**默认不跳过**（隔离必须是显式动作） |
 | folia-smoke | 必须门禁（默认 + builtin 两变体） | MockBukkit 单线程测不出 region 隔离竞态，这是「启动即崩」类回归的唯一兜底 |
-| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（10 断言）+ `foliaSmoke`（10 断言 ×2 变体）+ **`e2eLocalFoliaLp`（真实 LP，16 断言）** + `e2eLocalIm`（builtin IM 全链路，假平台）+ `e2eLocalPlayer`（mineflayer 双玩家 + ViaVersion/ViaBackwards） | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
+| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（10 断言）+ `foliaSmoke`（10 断言 ×2 变体）+ **`e2eLocalFoliaLp`（真实 LP，16 断言）** + `e2eLocalIm`（builtin IM 全链路，假平台）+ `e2eLocalPlayer`（**必选**：mineflayer 双玩家 + ViaVersion/ViaBackwards） | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
 | 夜间质量闭环 | **`nightly.yml`**（每日 01:30）：`check` + 双核心 E2E + builtin 变体；失败自动开 issue（同标签去重）、恢复自动关闭 | 覆盖「跨天回归/依赖漂移」，是自动化自迭代的入口 |
 | E2E 全量（L2） | 无 CI 集成 | 仍需常驻测试服 + 面板 console API；**IM 协议链路已自举**（`e2eLocalIm`），只剩真实平台策略（频控/被动窗口时长）与多人交互需人工 |
 
