@@ -246,7 +246,7 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
      + `git push origin main`（父仓库 main 会打印 `Changes must be made through a pull request`，owner 有 bypass 可推入）。
   5. **切回 develop**：`git -C plugin checkout develop && git fetch origin --prune && git reset --hard origin/develop`。
 
-**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke/e2e-paper/e2e-lp（e2e-im 观察后加入） +
+**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke/e2e-paper/e2e-lp/e2e-im +
 禁强推/删除；默认分支 = develop；仓库 Allow auto-merge 已开。
 **夜间质量闭环**（`.github/workflows/nightly.yml`，每日 01:30）：`check` + 双核心自举 E2E + builtin 变体；
 失败自动开 issue（`nightly-failure` 标签去重）、恢复后自动关闭——回归发现入口，不要绕过它直接改代码。
