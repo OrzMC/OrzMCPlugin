@@ -62,6 +62,14 @@ jobs:
       - name: 玩家侧（mineflayer：加入 / GUI / 新手书 / 权限隔离）
         run: ./gradlew e2eLocalPlayer --stacktrace
 
+      # 变异测试：覆盖率只说"这行跑过"，变异测试才说"断言有没有把它钉住"。
+      # 慢（每个变异体重跑测试），所以只在夜间对两个核心包跑，且**不阻塞**——
+      # 目的是发现"测试多但断言弱"的地方，不是卡发布。
+      - name: 变异测试（Pitest，非门禁）
+        continue-on-error: true
+        timeout-minutes: 30
+        run: ./gradlew pitest -PpitestThreads=2 --stacktrace
+
       - name: 质量指标快照 + 覆盖率热点（趋势看板数据源）
         run: |
           python3 scripts/quality/coverage_hotspots.py --top 10
@@ -126,6 +134,7 @@ jobs:
           path: |
             build/reports/tests/
             build/reports/jacoco/
+            build/reports/pitest/
             run-e2e-paper/smoke.log
             run-e2e-folia/smoke.log
             run-folia-smoke/smoke.log

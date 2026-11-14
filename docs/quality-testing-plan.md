@@ -239,6 +239,25 @@ GH_REPO=OrzMC/OrzMCPlugin python3 scripts/quality/trend.py upsert-issue
 
 ---
 
+### 5.5 变异测试（Pitest，夜间专用，不进 PR 门禁）
+
+覆盖率回答"这行有没有被跑到"，变异测试回答"**断言有没有把这行钉住**"——故意改坏代码，测试应该红；
+没红就是"存活变异"（survived），说明该处断言太弱或缺失。
+
+| 项 | 现状 |
+|:--|:--|
+| 入口 | `./gradlew pitest`（不进 `check`，不影响 PR） |
+| 目标 | 默认 `features.tnt.*` + `features.rank.*`；可 `-PpitestTargets=` 指定 |
+| 失败策略 | **不阻塞**：`isIgnoreExitValue = true`，只产出报告；nightly 里 `continue-on-error` |
+| 首次基线（2026-11 实测） | `features.tnt`：**78.4%**（killed 76 / survived 21，86 秒） |
+| 报告 | `build/reports/pitest/`（HTML + XML + `mutations.csv`），nightly 上传 artifact |
+
+为什么只在夜间跑：每个存活变异都要重跑一遍相关测试，全仓跑代价是分钟到小时级；
+夜间对核心包跑一小片即可持续发现"测试写得不够狠"的地方。
+
+实现注意（踩过的坑）：`--mutableCodePaths` 与 `--classPath` 都是**列表参数**，必须逐条传；
+拼成 `a:b` 的单个字符串会被当成一个不存在的路径，表现为 `Created 0 mutation test units`（静默空跑）。
+
 ## 六、路线图（2026-09-03 复核）
 
 | 阶段 | 内容 | 状态 |

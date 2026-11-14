@@ -1148,3 +1148,84 @@ tasks.named("check") {
     dependsOn("integrationTest", "jacocoTestCoverageVerification", "checkSecrets")
 }
 
+
+// =====================================================================
+// 变异测试（Pitest）：nightly-only，**不进 PR 门禁**
+// ---------------------------------------------------------------------
+// 覆盖率只说"这行跑过"，变异测试才说"这个分支有没有断言把它钉住"。
+// 代价是慢（每个变异体重跑相关测试），所以只在夜间对一小片目标跑；
+// 结果用于发现"测试很多但断言很弱"的地方，不阻塞任何流水线。
+//
+//   ./gradlew pitest                                   # 默认目标（tnt + rank）
+//   ./gradlew pitest -PpitestTargets=com.x.Pkg.*       # 指定类/包（逗号分隔）
+//   ./gradlew pitest -PpitestMutators=STRONGER         # 换变异算子
+// =====================================================================
+val pitestTargetsSpec = (findProperty("pitestTargets") as String?)
+    ?: "com.jokerhub.paper.plugin.orzmc.features.tnt.*,com.jokerhub.paper.plugin.orzmc.features.rank.*"
+val pitestMutatorsSpec = (findProperty("pitestMutators") as String?) ?: "DEFAULTS"
+val pitestThreadsSpec = ((findProperty("pitestThreads") as String?) ?: "4").toInt()
+
+// 用命令行 main 直接跑（不引入 Gradle 插件，避免插件与 Gradle 9.x 的兼容绑定）。
+val pitestRuntime: Configuration = configurations.maybeCreate("pitestRuntime").apply {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+val pitestEngineVersion = "1.30.2"
+dependencies {
+    add("pitestRuntime", "org.pitest:pitest:$pitestEngineVersion")
+    add("pitestRuntime", "org.pitest:pitest-entry:$pitestEngineVersion")
+    add("pitestRuntime", "org.pitest:pitest-command-line:$pitestEngineVersion")
+    add("pitestRuntime", "org.pitest:pitest-junit5-plugin:1.2.3")
+}
+
+tasks.register<JavaExec>("pitest") {
+    group = "verification"
+    description = "变异测试（Pitest，夜间专用，不进 check）：默认 targets=features.tnt + features.rank"
+    dependsOn(tasks.named("testClasses"))
+    classpath = pitestRuntime
+    mainClass.set("org.pitest.mutationtest.commandline.MutationCoverageReport")
+    val codeUnderTest = sourceSets.main.get().output
+    val testClasses = sourceSets.test.get().output
+    val testDeps = configurations.testRuntimeClasspath.get()
+    val reportDir = layout.buildDirectory.dir("reports/pitest").get().asFile
+    doFirst { reportDir.mkdirs() }
+    // 被测代码与测试代码分开给：pitest 从 mutableCodePaths 取"要变异的类"（列表参数，须逐个传，
+    // 拼成 `a:b` 的单个字符串会被当成一个不存在的路径 → pre-scan 报 0 mutation units）。
+    val mutableArgs = codeUnderTest.files.flatMap { listOf("--mutableCodePaths", it.absolutePath) }
+    // 同理：--classPath 也是列表参数，必须逐条传（拼成 `a:b` 会被当成一个不存在的路径，
+    // 结果是 pre-scan 找不到任何类 → "0 mutation units"）
+    val classPathArgs = (codeUnderTest + testClasses + testDeps).files.flatMap { listOf("--classPath", it.absolutePath) }
+    args = mutableArgs + classPathArgs + listOf(
+        "--reportDir", reportDir.absolutePath,
+        "--projectBase", projectDir.absolutePath,
+        "--targetClasses", pitestTargetsSpec,
+        "--targetTests", "com.jokerhub.paper.plugin.orzmc.*",
+        "--sourceDirs", file("src/main/java").absolutePath,
+        "--outputFormats", "HTML,XML,CSV",
+        "--timestampedReports", "false",
+        "--mutators", pitestMutatorsSpec,
+        "--threads", pitestThreadsSpec.toString(),
+        "--timeoutConst", "10000",
+        "--testPlugin", "junit5",
+        "--failWhenNoMutations", "false",
+        "--verbose", (findProperty("pitestVerbose") as String?) ?: "false",
+    )
+    isIgnoreExitValue = true // 变异存活不是构建失败：只产出报告供人工/夜间判读
+    doLast {
+        val csv = File(reportDir, "mutations.csv")
+        if (!csv.exists()) {
+            logger.lifecycle("Pitest 未产出报告（见上方 PIT 输出）")
+            return@doLast
+        }
+        val rows = csv.readLines().drop(1)
+        val killed = rows.count { it.contains(",KILLED,") }
+        val survived = rows.count { it.contains(",SURVIVED,") }
+        val total = killed + survived
+        if (total > 0) {
+            logger.lifecycle(
+                "Pitest 变异得分 ${"%.1f".format(killed * 100.0 / total)}% " +
+                    "（killed=$killed, survived=$survived；存活清单 ${csv.absolutePath}）"
+            )
+        }
+    }
+}
