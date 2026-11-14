@@ -22,6 +22,12 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # id-token 仅本 job 需要：Codecov 走 GitHub OIDC 联邦鉴权（无需 CODECOV_TOKEN 密钥）
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      id-token: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -70,11 +76,14 @@ jobs:
       - name: upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          # OIDC：Codecov GitHub App 已安装到本仓库，无需长期 token（也不会因密钥过期/泄漏失效）
+          use_oidc: true
           files: build/reports/jacoco/test/jacocoTestReport.xml
           # jacocoTestReport 合并了 test + integrationTest 两个 exec，覆盖两种 flag 的 paths
           flags: unittests,integrationtests
-          fail_ci_if_error: false
+          # 上传失败即红：覆盖率数据缺失时不能"看起来绿"（上游故障时重跑或临时回退本行）
+          fail_ci_if_error: true
+          verbose: true
 
       - name: generate build summary
         if: github.event_name == 'pull_request'
