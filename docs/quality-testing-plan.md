@@ -126,9 +126,9 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 |:--|:--|:--|:--|:--|
 | 单测用例数 | **2011** | 单调递增 | `build/test-results/*.xml` 解析 | 每次构建 |
 | 集成用例数（MockBukkit） | **104**（16 类） | 单调递增 | `build/test-results/integrationTest/*.xml` | 每次构建 |
-| 代码覆盖率 INSTRUCTION | **82.7%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
-| 分支覆盖率 BRANCH | **69.7%** | ≥69%（门禁） | JaCoCo XML | 每次构建 |
-| 行覆盖率 LINE | **81.9%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
+| 代码覆盖率 INSTRUCTION | **82.9%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
+| 分支覆盖率 BRANCH | **69.9%** | ≥69%（门禁） | JaCoCo XML | 每次构建 |
+| 行覆盖率 LINE | **82.1%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
 | Codecov 覆盖率（另一口径） | **72.0%**（2026-11-14 首报） | ≥70%（仅 Codecov 状态） | Codecov API `totals.coverage` | 每次构建 |
 | 方法覆盖率 METHOD | 83.8% | ≥85% | JaCoCo XML | 每次构建 |
 | 类覆盖率 CLASS | 93.9% | ≥95% | JaCoCo XML | 每次构建 |
@@ -148,7 +148,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 门禁 | 现状 | 说明 |
 |:--|:--|:--|
 | JaCoCo INSTRUCTION | **≥78%**（实测 81.9%） | 旧门槛 60% 比实测低 20+ 点，等于只能拦灾难性回退；现贴实际值留 ~4 点余量 |
-| JaCoCo BRANCH | **≥69%**（实测 69.7%） | 同上（旧为 50%；2026-11 补 PrisonService 测试后从 65 提到 69） |
+| JaCoCo BRANCH | **≥69%**（实测 69.9%） | 同上（旧为 50%；2026-11 补 PrisonService 测试后从 65 提到 69） |
 | JaCoCo LINE | **≥78%**（实测 81.2%） | 同上（旧为 55%） |
 | Codecov patch / project | patch target **70%**（阈值 5%，**已设为必选检查 `codecov/patch`**）/ project target **70%**（阈值 2%，仅状态展示） | **口径不同**：Codecov 把「部分覆盖行」算未覆盖（JaCoCo 算已覆盖），同一报告 JaCoCo LINE 81.2% ↔ Codecov 72.0%；两者目标各自标定，硬门禁只认 JaCoCo |
 | 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
