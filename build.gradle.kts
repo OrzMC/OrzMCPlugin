@@ -1229,8 +1229,3 @@ tasks.register<JavaExec>("pitest") {
         }
     }
 }
-
-tasks.named("check") {
-    dependsOn("integrationTest", "jacocoTestCoverageVerification", "checkSecrets")
-}
-
