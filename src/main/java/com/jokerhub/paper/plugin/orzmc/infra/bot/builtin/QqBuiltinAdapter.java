@@ -82,9 +82,11 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         this.health = health;
         this.maxTextBytes = cfg.maxTextBytes();
         java.net.Proxy proxy = resolveProxy(cfg);
-        QqApiClient api = new QqApiClient(cfg.appId(), cfg.clientSecret(), proxy, log);
+        // api_base 覆盖（空白 → 官方端点）：自建网关/联调与 L1.5 自举测试用，token/api 共用同一基址
+        String apiBase = cfg.apiBase().isBlank() ? QqApiClient.DEFAULT_API_BASE : cfg.apiBase();
+        QqApiClient api = new QqApiClient(cfg.appId(), cfg.clientSecret(), apiBase, apiBase, proxy, log);
         this.tokens = new RefreshableTokenProvider(api::fetchAccessToken, TOKEN_TTL, TOKEN_REFRESH_AHEAD);
-        this.sender = new QqSender(log, tokens, proxy);
+        this.sender = new QqSender(log, tokens, apiBase, proxy);
         QqInboundProcessor processor =
                 new QqInboundProcessor(log, scheduler, conversation, inbound, formatter, this::sendReply, discovery);
         this.gateway = new QqGatewayClient(
@@ -96,6 +98,24 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
                 processor,
                 new HealthListener(),
                 proxy);
+    }
+
+    /**
+     * 测试/装配用：注入已构建的 {@link QqSender}（生产路径自己 new，token/端点来自 im.yml）。
+     *
+     * <p>分段发送、被动回复窗口、投递结果分类（SENT/UNKNOWN/FAILED）这些分支
+     * 只能靠替换 sender 才能驱动；gateway 置 null（本构造器不用于连接生命周期）。</p>
+     */
+    QqBuiltinAdapter(Logger log, HealthRegistry health, QqSender sender, int maxTextBytes) {
+        if (log == null || health == null || sender == null) {
+            throw new IllegalArgumentException("必需依赖不能为 null");
+        }
+        this.log = log;
+        this.health = health;
+        this.tokens = null;
+        this.sender = sender;
+        this.gateway = null;
+        this.maxTextBytes = maxTextBytes;
     }
 
     /** 生效代理解析（cfg.proxy 已合并全局段；null/DIRECT → 直连）。 */

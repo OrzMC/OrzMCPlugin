@@ -19,7 +19,13 @@
 ./gradlew clean build              # 全量构建 + shadowJar
 ./gradlew runServer                # 启动本地 Paper 调试服务器（Java 25）
 ./gradlew runFolia                 # 启动本地 Folia 调试服务器
-./gradlew foliaSmoke               # 真实 Folia 无头冒烟：启动 → 校验插件加载 → 干净退出
+./gradlew foliaSmoke               # 真实 Folia 冒烟：启动 → 插件加载 → 13 条控制台断言 → 干净退出（PR 必须门禁）
+./gradlew e2eLocalPaper            # 自举真实 Paper E2E：下载服务端 → 隔离起服 → 13 条控制台断言 → 干净退出（PR 必选检查）
+./gradlew e2eLocalFolia            # 同上，Folia 版本；./gradlew e2eLocal -Pcore=paper|folia 为二选一入口
+./gradlew e2eLocalFoliaLp          # 真实 Folia + 真实 LuckPerms（16 条断言，PR 必选检查 e2e-lp）
+./gradlew e2eLocalIm               # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR 检查 e2e-im）
+./gradlew e2eLocalPlayer           # 玩家侧：mineflayer 客户端（ViaVersion+ViaBackwards）加入/GUI/新手书/权限隔离（PR 必选 e2e-player）
+./gradlew npmCi                    # e2e 依赖（mineflayer），e2eLocalPlayer 会自动依赖它
 ./gradlew :orzmc-api:build         # 仅构建 orzmc-api 子模块（纯 Java，无 Bukkit 依赖）
 ./gradlew :orzmc-api:publishToMavenLocal  # 本地发布 orzmc-api SDK
 ```
@@ -147,6 +153,13 @@ OrzMC/
   是「所有已绑定公开会话」——飞书群发 `$b` 会把完成通知同时发到 QQ 群。要保送达请用平台层手段
   （QQ 的窗口预判/主动兜底），不要用广播换可用性。
 
+### 测试强度（变异测试，2026-11）
+
+- `./gradlew pitest` 是**夜间专用、不进 PR 门禁**：覆盖率只说"跑过"，变异测试才说"断言够不够硬"。
+- 默认跑 `features.tnt` + `features.rank`，`isIgnoreExitValue = true`（不阻塞流水线），报告在
+  `build/reports/pitest/`；存活变异清单看 `mutations.csv`。首次基线 `features.tnt` **78.4%**。
+- `--mutableCodePaths` / `--classPath` 是**列表参数**，必须逐条传（拼成 `a:b` 会静默 0 变异）。
+
 ### 审核/命令/测试
 
 - `/apply` 资格预检（isEligible）：builder 申请要求当前组 member，default 组返回「当前没有可申请的审核类型」。
@@ -242,8 +255,10 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
      + `git push origin main`（父仓库 main 会打印 `Changes must be made through a pull request`，owner 有 bypass 可推入）。
   5. **切回 develop**：`git -C plugin checkout develop && git fetch origin --prune && git reset --hard origin/develop`。
 
-**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke +
+**门禁（GitHub 强制）**：main 与 develop 各有 ruleset = PR 必合 + 必选检查 build/folia-smoke/e2e-paper/e2e-lp/e2e-im/e2e-player/codecov-patch +
 禁强推/删除；默认分支 = develop；仓库 Allow auto-merge 已开。
+**夜间质量闭环**（`.github/workflows/nightly.yml`，每日 01:30）：`check` + 双核心自举 E2E + builtin 变体；
+失败自动开 issue（`nightly-failure` 标签去重）、恢复后自动关闭——回归发现入口，不要绕过它直接改代码。
 
 **自建 PR 审批自动化（`approval-gate`）**：owner 自建 PR 无法自审（GitHub 硬限制），且仓库仅 1 个协作者，
 故“外部 PR 需评审”改由必需检查 `approval-gate` 承载：**可信作者（owner / dependabot / github-actions）
@@ -257,6 +272,11 @@ feature|fix|hotfix/<主题> ── 临时分支，从对应基线拉出，PR 合
 7 条告警已于 2026-10-22 按「残留 manifest / 测试套件传递依赖」两类处置（0 open）；
 新增告警先看 `dependency.manifest_path` 是否还在默认分支，处置结论与复核条件见
 [`docs/dev/dependency-security-alerts.md`](docs/dev/dependency-security-alerts.md)。
+**依赖 PR 的收敛策略（2026-11-09）**：同生态 minor/patch 合成一个分组 PR（`*-minor-patch`），
+`cooldown` 7 天（Gradle 额外 major 14 天——`github-actions` 只认 `default-days`，`semver-*-days` 写上去会让整份配置非法、Dependabot 静默停更）；
+major 逐个单列、security 单独分组——这两类**留人工**。
+低风险分组 PR 由 `dependabot-merge.yml` 在 CI 全绿后自动 squash 合并（详见 `docs/dev/repo-automation.md` §5.1）。
+改分组命名必须同步改该 workflow 的标题匹配，否则自动合并会静默停止。
 
 **铁律**
 

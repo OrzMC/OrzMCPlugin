@@ -238,7 +238,7 @@ class QqGatewayClientTest {
         client = startClient(new FakeTokens("tok-0"), null, listener);
         TestWsServer.Conn conn0 = helloThenIdentify(listener);
         conn0.sendText("{\"op\":0,\"s\":5,\"t\":\"READY\",\"d\":{\"session_id\":\"sess-1\"}}");
-        Thread.sleep(80); // 让 READY 被会话层消费（session_id 捕获）
+        awaitTrue("READY 已捕获 session_id", () -> client.sessionIdForTest() != null);
 
         conn0.sendClose(4006);
 
@@ -256,7 +256,7 @@ class QqGatewayClientTest {
         client = startClient(new FakeTokens("tok-0"), null, listener);
         TestWsServer.Conn conn0 = helloThenIdentify(listener);
         conn0.sendText("{\"op\":0,\"s\":7,\"t\":\"READY\",\"d\":{\"session_id\":\"sess-2\"}}");
-        Thread.sleep(80); // 让 READY 被会话层消费（session_id/seq 捕获）
+        awaitTrue("READY 已捕获 session_id", () -> client.sessionIdForTest() != null);
 
         conn0.sendClose(4009);
 

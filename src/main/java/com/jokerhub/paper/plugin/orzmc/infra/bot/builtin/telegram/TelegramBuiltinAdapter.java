@@ -99,6 +99,23 @@ public final class TelegramBuiltinAdapter implements BuiltinPlatform {
                 discovery);
     }
 
+    /**
+     * 测试/装配用：注入已构建的 {@link TelegramApiClient} 与 {@link TelegramInboundProcessor}。
+     *
+     * <p>生产路径总是自己 new 这两个对象（token/代理来自 im.yml），但这个类的大部分分支
+     * ——轮询的 401 停用、退避、offset 推进、分段发送、发送失败健康告警——只能靠替换 api 才能测到。</p>
+     */
+    TelegramBuiltinAdapter(
+            Logger log, HealthRegistry health, TelegramApiClient api, TelegramInboundProcessor processor) {
+        if (log == null || health == null || api == null || processor == null) {
+            throw new IllegalArgumentException("必需依赖不能为 null");
+        }
+        this.log = log;
+        this.health = health;
+        this.api = api;
+        this.processor = processor;
+    }
+
     /** 生效代理解析（cfg.proxy 已合并全局段；null/DIRECT → 直连）。 */
     private static java.net.Proxy resolveProxy(TelegramPlatformConfig cfg) {
         ImProxyConfig proxy = cfg.proxy();

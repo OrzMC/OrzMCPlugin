@@ -110,7 +110,7 @@ MessageEnvelope 目标解析（PUBLIC→player_group 降级 admin_group；PRIVAT
 config-version: 1
 backend: easybot            # easybot | builtin（D1）；builtin 不可用时按 D3 停群+告警
 platforms:
-  qq:      { enabled: false, app_id: '', client_secret: '' }
+  qq:      { enabled: false, app_id: '', client_secret: '', api_base: '' }  # api_base 空=官方端点
   feishu:  { enabled: false, app_id: '', app_secret: '' }
   discord: { enabled: false, token: '' }
   telegram:{ enabled: false, token: '' }
@@ -128,6 +128,12 @@ sessions:
 
 - `easybot.yml` **不改动、继续被 EasyBotDriver 使用**；其 13 个连接微调参数（超时/重试/心跳/日志节流）在 **builtin 模式不再暴露**——全部由骨架层代码内置默认（复用 RobustWebSocketClient 现有 5s 起 / 60s 上限 / ±jitter / 稳定 20s 重置）；
 - `im.yml` / `im_bindings.yml` 都注册进 ConfigService，`/orzmc config reload im` 可重载；
+- **`platforms.qq.api_base`（2026-11）**：QQ API 基址覆盖（token 换取 / `/gateway/bot` / 发消息共用；
+  WS 地址仍由 `/gateway/bot` 响应决定）。空白 = 官方 `https://api.bot.qq.com`。用途：自建网关、受限网络
+  反向代理、以及 L1.5 自举 E2E（`e2eLocalIm` 用它把 builtin QQ 通道指向本机假平台）。仅改地址，不涉及凭据；
+- **自举 E2E（2026-11）**：`scripts/e2e/fake_qq_platform.py`（纯标准库假平台）+ `./gradlew e2eLocalIm`
+  已在 CI 覆盖「token→gateway→WS identify/READY/心跳→入站群消息→会话门槛→命令层→出站发消息」；
+  真实平台侧仍不可仿造的是**频控配额与被动回复窗口时长**（`docs/dev/qq-passive-reply-expiry.md`）。
 - QQ 会话值 = 平台原生 OpenID（与 EasyBot target 语义一致）——**两模式共用同一会话值，切 backend 无需改绑定**。
 
 ### 4.2 连接生命周期与 Token 刷新（统一骨架层）

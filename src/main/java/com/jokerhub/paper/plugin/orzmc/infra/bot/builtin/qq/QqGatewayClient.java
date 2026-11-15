@@ -76,6 +76,16 @@ public final class QqGatewayClient extends ReconnectingGateway {
     private final AtomicLong seq = new AtomicLong();
     /** READY 下发的会话 id：具备 + seq>0 时重连走 resume。 */
     private volatile String sessionId;
+
+    /**
+     * 测试可见：当前已捕获的会话 id（未收到 READY 时为 null）。
+     *
+     * <p>用途：测试需要「READY 已被 WS 读线程消费」这一时序前提时用它轮询，而不是 {@code Thread.sleep(80)}
+     * 赌时序（固定 sleep 在高负载 CI 上会偶发失败）。无行为影响。</p>
+     */
+    String sessionIdForTest() {
+        return sessionId;
+    }
     /** 最近成功网关 URL（缓存，限频保护；解析失败时的兜底地址）。 */
     private volatile String cachedGatewayUrl;
 

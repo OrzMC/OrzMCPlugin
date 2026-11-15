@@ -29,6 +29,8 @@ platforms:
     # 默认 32768 仅作防御性上限（异常模板兜底，最多分 5 段、超出截断并告警）。需要复测用
     # docs/dev/qq-text-limit-probe.sh。
     max_text_bytes: 32768
+    # api_base: ''        # QQ API 基址覆盖（空白 = 官方 https://api.bot.qq.com）；仅自建网关/联调用，
+                         # token/gateway/发消息共用；WS 地址仍由 /gateway/bot 响应决定
     # proxy:              # 平台级代理覆盖（可省略 = 用全局 proxy 段）
     #   enabled: false
     #   host: ''

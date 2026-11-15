@@ -1,0 +1,255 @@
+name: Nightly Quality Loop
+
+# 夜间质量闭环：全量单测/集成/覆盖率 + 真实服务端 E2E（Paper、Folia、builtin 变体）。
+# 失败自动开 issue（同标签去重），恢复后自动关闭 —— 这是「自动化自迭代」的回归发现入口。
+# 说明：真实 IM 平台（QQ 频控/被动回复窗口）、真实 LP 授权、多人交互不可自举，仍由 e2e/ 全量套件人工验收。
+on:
+  schedule:
+    - cron: '30 17 * * *' # 每天 01:30 Asia/Shanghai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read # 失败分诊：报告 job 要下载 nightly job 上传的产物
+
+concurrency:
+  group: nightly-quality
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: 全量门禁（单测 + 集成 + 覆盖率 + 格式 + 密钥扫描）
+        run: ./gradlew check jacocoTestReport --stacktrace
+
+      - name: 真实服务端 E2E（Paper）
+        run: ./gradlew e2eLocalPaper --stacktrace
+
+      - name: 真实服务端 E2E（Folia）
+        run: ./gradlew e2eLocalFolia --stacktrace
+
+      - name: 真实服务端 E2E（Folia + builtin IM 停群分支）
+        run: ./gradlew foliaSmoke -PfoliaImBackend=builtin --stacktrace
+
+      - name: 真实服务端 E2E（Folia + 真实 LuckPerms，$p 权限链）
+        run: ./gradlew e2eLocalFoliaLp --stacktrace
+
+      - name: builtin IM 全链路（假 QQ 平台：入站 → 命令层 → 出站）
+        run: ./gradlew e2eLocalIm --stacktrace
+
+      - name: 玩家侧（mineflayer：加入 / GUI / 新手书 / 权限隔离）
+        run: ./gradlew e2eLocalPlayer --stacktrace
+
+      # 变异测试：覆盖率只说"这行跑过"，变异测试才说"断言有没有把它钉住"。
+      # 慢（每个变异体重跑测试），所以只在夜间对两个核心包跑，且**不阻塞**——
+      # 目的是发现"测试多但断言弱"的地方，不是卡发布。
+      - name: 变异测试（Pitest，非门禁）
+        continue-on-error: true
+        timeout-minutes: 30
+        run: ./gradlew pitest -PpitestThreads=2 --stacktrace
+
+      - name: 质量指标快照 + 覆盖率热点（趋势看板数据源）
+        run: |
+          python3 scripts/quality/coverage_hotspots.py --top 10
+          python3 scripts/quality/trend.py snapshot
+
+      - name: 更新质量趋势看板 issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 scripts/quality/trend.py upsert-issue
+
+      - name: 上游版本漂移探测（Paper/Folia/LuckPerms）
+        run: python3 scripts/quality/upstream_drift.py --out build/quality/upstream-drift.md
+
+      - name: 漂移有变化 → 开/更新 issue；无漂移 → 自动关闭
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          drift=$(python3 -c "import json;print(json.load(open('build/quality/upstream-drift.json'))['drifted'])")
+          # REST + 重试：新建 issue 在 list 接口上可能短暂不可见（实测 1–3 秒）
+          number=""
+          for _ in 1 2 3; do
+            number=$(gh api "repos/$GH_REPO/issues?labels=upstream-drift&state=open&per_page=1" \
+              --jq '.[0].number // empty' || true)
+            [ -n "$number" ] && break
+            sleep 2
+          done
+          if [ "$drift" = "True" ]; then
+            gh api "repos/$GH_REPO/labels" -f name=upstream-drift -f color=5319E7 \
+              -f "description=上游版本漂移（自动维护）" >/dev/null 2>&1 || true
+            gh api "repos/$GH_REPO/labels" -f name=automation -f color=FBCA04 \
+              -f "description=自动化维护的看板/追踪 issue（机器写入，勿手工改表）" >/dev/null 2>&1 || true
+            body=$(mktemp)
+            { cat build/quality/upstream-drift.md
+              printf '\n> 自动维护：无漂移时夜间会关闭本 issue。\n'; } > "$body"
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body-file "$body"
+              gh issue edit "$number" --add-label automation >/dev/null 2>&1 || true
+            else
+              gh issue create --label upstream-drift --label automation \
+                --title "upstream: 上游版本漂移（$(date -u +%F)）" --body-file "$body"
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "上游已无漂移（或已升级对齐）"
+          else
+            echo "上游无漂移，且没有历史 issue"
+          fi
+
+      - name: 失败分诊（失败用例 + 服务端日志尾部 + 最近提交；always 收集）
+        if: always()
+        run: |
+          python3 scripts/quality/triage.py --out build/triage/triage.md
+
+      - name: 上传报告与服务器日志
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-${{ github.run_id }}
+          path: |
+            build/reports/tests/
+            build/reports/jacoco/
+            build/reports/pitest/
+            run-e2e-paper/smoke.log
+            run-e2e-folia/smoke.log
+            run-folia-smoke/smoke.log
+            run-e2e-folia-lp/smoke.log
+            run-e2e-im/smoke.log
+            build/fake-qq.jsonl
+            run-e2e-player/smoke.log
+            build/triage/
+            build/quality/
+          if-no-files-found: warn
+
+  open-issue-on-failure:
+    needs: nightly
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - name: 拉取本次运行产物（分诊）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          gh run download "${{ github.run_id }}" --repo "$GH_REPO" \
+            -n "nightly-${{ github.run_id }}" -D artifacts \
+            || echo "无产物可下载（job 可能在产物上传前就被取消）"
+          # 产物根目录取决于上传时的公共前缀（单路径上传会去掉 build/triage/）→ 按文件名查找
+          triage_file=$(find artifacts -type f -name triage.md 2>/dev/null | head -n 1 || true)
+          echo "分诊文件: ${triage_file:-（无）}"
+
+      - name: 开/更新 nightly 失败 issue（含分诊，指派负责人）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create nightly-failure \
+            --description "nightly 质量闭环失败（自动创建/关闭）" --color B60205 2>/dev/null || true
+          gh label create automation \
+            --description "自动化维护的看板/追踪 issue（机器写入，勿手工改表）" --color FBCA04 2>/dev/null || true
+          # 用 REST 列表而不是 `gh issue list`（后者走搜索索引，刚创建的 issue 会有一段时间查不到 →
+          # 去重失效、每次失败都新开一个）。REST 是权威数据源。
+          existing=$(gh api "repos/$GH_REPO/issues?labels=nightly-failure&state=open&per_page=1" --jq '.[0].number // empty' || true)
+          # 注意：仓库属于组织（.owner.login = OrzMC 是组织，不能指派）→ 取 admin 协作者作为负责人
+          maintainer=$(gh api "repos/$GH_REPO/collaborators?permission=admin&per_page=1" --jq '.[0].login // empty' || true)
+          failed=$(gh api "repos/$GH_REPO/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.conclusion=="failure" or .conclusion=="cancelled") | "\(.name)（\(.conclusion)）"] | join("、")' || true)
+          trfile=$(find artifacts -type f -name triage.md 2>/dev/null | head -n 1 || true)
+          body=$(mktemp)
+          {
+            printf '夜间闭环失败。\n\n- 运行：%s\n- 触发：%s\n- 提交：%s\n- 失败 job：%s\n' \
+              "$RUN_URL" "${GITHUB_EVENT_NAME:-schedule}" "${GITHUB_SHA}" "${failed:-未知}"
+            if [ -n "${trfile}" ] && [ -f "${trfile}" ]; then
+              printf '\n'
+              cat "${trfile}"
+            else
+              printf '\n> 本次未产出分诊（产物上传前就失败了），请直接看 run 日志。\n'
+            fi
+            if [ -n "${maintainer}" ]; then
+              printf '\n> 修好后夜间通过会自动关闭本 issue。@%s\n' "$maintainer"
+            else
+              printf '\n> 修好后夜间通过会自动关闭本 issue。\n'
+            fi
+          } > "$body"
+          if [ -n "${existing}" ]; then
+            gh issue comment "$existing" --body-file "$body"
+            number="$existing"
+            gh issue edit "$number" --add-label automation >/dev/null 2>&1 || true
+            echo "已追加评论到 #$number"
+          else
+            created=$(gh issue create --label nightly-failure --label automation \
+              --title "nightly: 质量门禁失败（$(date -u +%F)）" --body-file "$body")
+            number="${created##*/}"
+            echo "已创建 issue #$number"
+          fi
+          # 指派失败不影响主流程（例如协作者列表不含 admin、或 token 无 assign 权限）
+          if [ -n "${maintainer}" ]; then
+            gh issue edit "$number" --add-assignee "$maintainer" || echo "指派负责人失败（不影响 issue）"
+          fi
+
+      - name: 可选推送（配置 NOTIFY_WEBHOOK_URL 后生效）
+        env:
+          WEBHOOK: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "未配置 NOTIFY_WEBHOOK_URL：跳过推送（issue 已指派负责人，GitHub 会发通知）"
+            exit 0
+          fi
+          # 同时带 text / content.text，兼容飞书、企业微信与自定义 webhook
+          curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{\"msg_type\":\"text\",\"text\":\"OrzMC plugin nightly 失败: $RUN_URL\",\"content\":{\"text\":\"OrzMC plugin nightly 失败: $RUN_URL\"}}" \
+            "$WEBHOOK" || echo "webhook 推送失败（不影响主流程）"
+
+  close-issue-on-recovery:
+    needs: nightly
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 恢复后关闭 nightly 失败 issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          existing=$(gh api "repos/$GH_REPO/issues?labels=nightly-failure&state=open&per_page=1" --jq '.[0].number // empty' || true)
+          if [ -n "${existing}" ]; then
+            gh issue close "$existing" --comment "nightly 已恢复：$RUN_URL"
+          else
+            echo "无待关闭的 nightly issue"
+          fi

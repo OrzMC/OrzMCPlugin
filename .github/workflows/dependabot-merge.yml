@@ -1,0 +1,108 @@
+name: Dependabot Auto Merge
+
+# 自动合并 dependabot 的**低风险分组 PR**（只认标题含 `minor-patch` 的分组）。
+#
+# 为什么不是 `gh pr merge --auto`：Actions 内的 `GITHUB_TOKEN` 无法 enable auto-merge
+# （见 docs/dev/repo-automation.md §5），所以改为「等 build 这一整跑成功」后再显式 squash 合并。
+# 用 `workflow_run` 而不是 `pull_request`：需要 build + folia-smoke **两个 job 都绿**才能判断，
+# 在 PR 触发的那一刻它们还没跑完。
+#
+# 安全约束（缺一不合并）：
+#   1. 作者必须是 `dependabot[bot]`；目标分支必须是 `develop`（不碰 main）；草稿不合并；
+#   2. 标题必须含 `minor-patch` 分组名 —— **major / security 组一律留人工**；
+#   3. 只合并当前 head（run 的 head_sha 与 PR 的 headRefOid 一致，防止旧 run 合并新提交）；
+#   4. 必需检查全绿（`mergeStateStatus=CLEAN`；非 strict 规则下 `BEHIND` 也可合并 ——
+#      main/develop 的 ruleset 均 `strict_required_status_checks_policy=false`）。
+# 不满足 1/2 时**静默退出**（不评论，避免给每人 PR 留噪音）；属于 1/2 但被门禁卡住时留言说明。
+# 关闭方式：删掉本文件，PR 回归全人工。
+on:
+  workflow_run:
+    workflows: ["Pull Request Build Check"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 合并低风险 dependabot 分组 PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          pr="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}" --jq '.pull_requests[0].number // empty')"
+          if [[ -z "${pr}" ]]; then
+            echo "本次 run 无关联 PR（如 develop 直推），跳过"
+            exit 0
+          fi
+
+          info="$(gh pr view "${pr}" --repo "${REPO}" \
+            --json author,title,baseRefName,headRefOid,isDraft)"
+          author="$(jq -r '.author.login' <<<"${info}")"
+          title="$(jq -r '.title' <<<"${info}")"
+          base="$(jq -r '.baseRefName' <<<"${info}")"
+          head="$(jq -r '.headRefOid' <<<"${info}")"
+          draft="$(jq -r '.isDraft' <<<"${info}")"
+
+          # 过滤：不是「低风险 dependabot 分组 PR」就静默退出（不评论、不打扰）。
+          if [[ "${author}" != "dependabot[bot]" ]]; then
+            echo "PR #${pr} 作者是 ${author}，非 dependabot，跳过"; exit 0
+          fi
+          if [[ "${base}" != "develop" ]]; then
+            echo "PR #${pr} 目标是 ${base}，不是 develop，跳过"; exit 0
+          fi
+          if [[ "${title}" != *minor-patch* ]]; then
+            echo "PR #${pr} 不在 minor-patch 分组内（major / security 留人工）：${title}"; exit 0
+          fi
+          if [[ "${draft}" != "false" ]]; then
+            echo "PR #${pr} 是草稿，跳过"; exit 0
+          fi
+          if [[ "${head}" != "${RUN_HEAD_SHA}" ]]; then
+            echo "PR #${pr} head ${head:0:10} 已不是本次 CI 的 ${RUN_HEAD_SHA:0:10}，等下一轮 CI，跳过"
+            exit 0
+          fi
+
+          # 到这里已确定「该自动合并」，卡住时留一条评论说明，免得 PR 无声挂着。
+          stuck() {
+            echo "::warning::PR #${pr} 暂不能自动合并：$1"
+            gh pr comment "${pr}" --repo "${REPO}" \
+              --body "🤖 本 PR 属于 minor/patch 分组，但**暂未自动合并**：$1。
+          门禁人工复核后可手动 \`gh pr merge ${pr} --squash\`。" || true
+            exit 0
+          }
+
+          for i in $(seq 1 40); do
+            merge_state="$(gh pr view "${pr}" --repo "${REPO}" \
+              --json mergeStateStatus --jq '.mergeStateStatus')"
+            case "${merge_state}" in
+              CLEAN|BEHIND) break ;;
+            esac
+            [[ "${i}" -ne 40 ]] || stuck "等待必需检查超时（mergeStateStatus=${merge_state}）"
+            echo "第 ${i} 次：mergeStateStatus=${merge_state}，15s 后重试"
+            sleep 15
+          done
+
+          # 轮询期间可能又推了新提交，合并前再核一次 head。
+          head_now="$(gh pr view "${pr}" --repo "${REPO}" --json headRefOid --jq '.headRefOid')"
+          [[ "${head_now}" == "${head}" ]] || stuck "等待期间 PR 有新的提交（等下一轮 CI 再合）"
+
+          echo "合并 PR #${pr}：${title}"
+          gh pr merge "${pr}" --repo "${REPO}" --squash
+          echo "已合并 PR #${pr}"

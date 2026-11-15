@@ -72,6 +72,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 |:--|:--|:--|:--|:--|
 | L0 | JUnit 5 + Mockito | 业务逻辑、命令解析、配置解析、模板渲染、限流算法 | 每次提交/PR | `./gradlew test` 全绿 |
 | L1 | MockBukkit | 事件监听绑定、Brigadier 命令注册、模块装配 | 每次 PR | `./gradlew integrationTest` 全绿 |
+| **L1.5** | **自举真实服务端**（`e2eLocal*`/`foliaSmoke`，含 **真实 LuckPerms**） | **真实 Brigadier 命令注册、Bot 命令链路（解析→业务→回执）、白名单读写落盘、配置热加载、维护模式状态机、Folia 分页调度、插件代执行控制台命令、**LP 权限链与离线解析降级、拦截器链、builtin IM 入站→命令→出站全链路（假平台）、\$b/\$o 真实备份与优化链路（含 zip 落盘断言）、真实客户端玩家路径（加入 / `/menu` GUI / `/guide` 开书 / 权限隔离）**；启动即崩/线程越权兜底** | **每次 PR（Paper + Folia 并行 job）+ 每夜全量** | `./gradlew e2eLocalPaper` / `./gradlew foliaSmoke` 全绿 |
 | L2 | mineflayer bot + RCON + screen | EasyBot 链路、LP 真实授权、通知送达、登录拦截、GUI 交互 | 迭代验收（每次功能变更） | `e2e/run-all.sh` 全绿 |
 | L3 | 真实玩家 + 双服 + stress 脚本 | transfer 闭环、性能压测、基岩连通 | 大版本/跨服变更 | 专项验收报告 |
 
@@ -119,31 +120,49 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 
 ## 四、质量指标体系（可持续跟踪）
 
-### 4.1 核心指标与基线（2026-08-19 实测，补测后更新）
+### 4.1 核心指标与基线（2026-11 实测；用例数/覆盖率每次构建可从 `build/test-results` + JaCoCo XML 复核）
 
 | 指标 | 基线 | 目标 | 采集方式 | 频率 |
 |:--|:--|:--|:--|:--|
-| 单测用例数 | **1296**（+13） | 单调递增 | `build/test-results/*.xml` 解析 | 每次构建 |
-| 代码覆盖率 INSTRUCTION | **83.6%**（+1.4%） | ≥80% 维持 | JaCoCo XML | 每次构建 |
-| 分支覆盖率 BRANCH | **72.7%**（+1.0%） | ≥75% | JaCoCo XML | 每次构建 |
-| 方法覆盖率 METHOD | 85.0%+ | ≥85% | JaCoCo XML | 每次构建 |
-| 类覆盖率 CLASS | 96.6%+ | ≥95% | JaCoCo XML | 每次构建 |
+| 单测用例数 | **2011** | 单调递增 | `build/test-results/*.xml` 解析 | 每次构建 |
+| 集成用例数（MockBukkit） | **104**（16 类） | 单调递增 | `build/test-results/integrationTest/*.xml` | 每次构建 |
+| 代码覆盖率 INSTRUCTION | **85.4%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
+| 分支覆盖率 BRANCH | **73.6%** | ≥69%（门禁） | JaCoCo XML | 每次构建 |
+| 行覆盖率 LINE | **84.9%** | ≥78%（门禁） | JaCoCo XML | 每次构建 |
+| Codecov 覆盖率（另一口径） | **72.0%**（2026-11-14 首报） | ≥70%（仅 Codecov 状态） | Codecov API `totals.coverage` | 每次构建 |
+| 方法覆盖率 METHOD | 83.8% | ≥85% | JaCoCo XML | 每次构建 |
+| 类覆盖率 CLASS | 93.9% | ≥95% | JaCoCo XML | 每次构建 |
 | CI 通过率 | — | 100% | GitHub Actions API | 每周 |
 | E2E 用例通过率（Folia） | **32/32**（2026-08-19） | 100% | e2e/run-all.sh 报告 | 迭代时 |
 | E2E 用例通过率（Paper） | 01 用例 8/8（2026-08-19） | 100% | 同上（ORZMC_* 环境变量） | 迭代时 |
 | 测试执行时长 | ~2min（完整） | 回归 <3min | gradle 计时 | 每周 |
+| 启动耗时（真 Paper，自举 E2E 实测） | **~19s**（本机复用世界）/ CI 全新 ~50s | 劣化 >2.5 倍标 ⚠️ | `build/quality/perf-paper.json` | 每次自举 E2E |
+| `$b` 备份耗时（小世界） | **~0.5s** | 劣化 >3 倍标 ⚠️ | 同上 `backup_ms` | 每次自举 E2E |
+| 覆盖率热点（未覆盖分支 top10） | 见看板 | 逐项下降 | `scripts/quality/coverage_hotspots.py` | 每次夜间 |
 | Bug 逃逸率 | 见 4.3 | 趋零 | 线上问题登记 | 每月 |
 
 **薄弱模块补测进展（2026-08-19）**：maintenance 34.2%→**66.9%**、paging 47.0%→**80.8%**、ws 47.4%→**59.0%**；剩余 review 65.9%、teleport 73.6% 列入下一轮。
 
-### 4.2 门禁建议（CI 强化方向）
+### 4.2 门禁现状（2026-11 加固）
 
-| 门禁 | 现状 | 建议 |
+| 门禁 | 现状 | 说明 |
 |:--|:--|:--|
-| JaCoCo 覆盖率门禁 | ≥60% | **提升至 ≥75%**（当前 82.2%，留余量；patch 覆盖 ≥70% 已配） |
-| BRANCH 门禁 | 未配置 | 新增 violationRules：BRANCH ≥70% |
-| folia-smoke | continue-on-error | **稳定后转必须**（当前 #197 已 3 连绿） |
-| E2E | 无 CI 集成 | 本地 run-all.sh 强制；CI 可加 nightly job（需常驻测试服，暂缓） |
+| JaCoCo INSTRUCTION | **≥78%**（实测 81.9%） | 旧门槛 60% 比实测低 20+ 点，等于只能拦灾难性回退；现贴实际值留 ~4 点余量 |
+| JaCoCo BRANCH | **≥72%**（实测 73.6%） | 同上（旧为 50%；2026-11 随热点补测分两次 65→69→71） |
+| JaCoCo LINE | **≥78%**（实测 81.2%） | 同上（旧为 55%） |
+| Codecov patch / project | patch target **70%**（阈值 5%，**已设为必选检查 `codecov/patch`**）/ project target **70%**（阈值 2%，仅状态展示） | **口径不同**：Codecov 把「部分覆盖行」算未覆盖（JaCoCo 算已覆盖），同一报告 JaCoCo LINE 81.2% ↔ Codecov 72.0%；两者目标各自标定，硬门禁只认 JaCoCo |
+| 测试重试（`org.gradle.test-retry`） | 每用例最多重试 **2** 次 | **安全网而非修复手段**：靠重试才通过的用例按 flaky 处理，必须定位根因 |
+| flaky 隔离舱 | `@Tag("flaky")` + `./gradlew test -PexcludeFlaky` | 已确认不稳定、修复中但暂不阻断 PR 时可用；**默认不跳过**（隔离必须是显式动作） |
+| folia-smoke | 必须门禁（默认 + builtin 两变体） | MockBukkit 单线程测不出 region 隔离竞态，这是「启动即崩」类回归的唯一兜底 |
+| 自举真实服务端（L1.5） | **必须门禁**：`e2eLocalPaper`（10 断言）+ `foliaSmoke`（10 断言 ×2 变体）+ **`e2eLocalFoliaLp`（真实 LP，16 断言）** + `e2eLocalIm`（builtin IM 全链路，假平台）+ `e2eLocalPlayer`（**必选**：mineflayer 双玩家 + ViaVersion/ViaBackwards） | 不依赖常驻测试服/面板 API：下载服务端 → 隔离 run 目录 → stdin 断言（只匹配本次命令之后的日志，防假绿）→ 断言 exit 0 |
+| 夜间质量闭环 | **`nightly.yml`**（每日 01:30）：`check` + 双核心 E2E + builtin 变体；失败自动开 issue（同标签去重）、恢复自动关闭 | 覆盖「跨天回归/依赖漂移」，是自动化自迭代的入口 |
+| E2E 全量（L2） | 无 CI 集成 | 仍需常驻测试服 + 面板 console API；**IM 协议链路已自举**（`e2eLocalIm`），只剩真实平台策略（频控/被动窗口时长）与多人交互需人工 |
+
+**防 flaky 约定（新增/修改测试必须遵守）**：
+
+1. 不写「固定 `Thread.sleep` 后断言某事件已发生」——用轮询断言（`awaitTrue(...)` 或 Awaitility），超时即失败；
+2. 「sleep 后断言没有发生 X」只允许用于 `stop`/`fatal` 这类**永久停止**语义（延长 sleep 只会更安全）；
+3. 时序断言需要内部状态时，在该类上加包级 `xxxForTest()` 只读访问器（无行为影响），不要用 sleep 猜时序。
 
 ### 4.3 缺陷逃逸统计（历史）
 
@@ -154,6 +173,7 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 | 1.0.16 | $e 输出捕获不全 | 异步输出丢失 | Log4J Appender 兜底（已修） |
 | 1.0.17 | $b ? 误触备份 | 全角空格绕过 | Claude Code 审查发现（M1-M4） |
 | 1.0.18-dev | Folia 线程越权（tpbow force-load）| 平台线程模型 | foliaSmoke 上线兜底 |
+| 1.0.31-dev（未发布） | 同世界二次 `$o` 无完成回执（原报"卡住、save-on 未恢复"） | `progressHandler` 在 Done 事件的 `current/total` 为 0 时提前 return，完成回执被吞 | **L1.5 自举门禁发现 → 已修（#588）**：Done 无条件下发；断言改为世界复用也校验 |
 
 **教训沉淀**：单测通过 ≠ 可用（必须真实环境验证）；配置语义反转（entity_teleport_enabled）需要 E2E 行为断言。
 
@@ -180,6 +200,9 @@ Bot / 游戏命令清单与配置段明细以 [features.md](features.md) 为唯�
 2. **测前记录原值 → 测 → 立即还原**（写操作类用例）
 3. **退出码约定**：0=全部通过，1=有失败（run-all.sh 聚合）
 4. **输出约定**：`[PASS]/[FAIL] 用例名 — 断言内容`，失败附实际输出
+4.1 **命令面覆盖率门禁（强制）**：新增/修改 Bot 命令必须同步 L1.5 自举断言，否则
+   `E2eCommandCoverageTest` 直接红（它解析 `build.gradle.kts` 的断言表，与 `OrzUserCmd` 枚举逐项比对；
+   暂不覆盖的命令必须在测试内 `NOT_COVERED` 登记原因，覆盖后不删登记也会红）。
 5. **测试账号**：TestNewbie/TestMember/TestAdmin（密码见 orzmc-e2e-robot-testing.md）
 
 ### 5.3 执行方式
@@ -190,24 +213,62 @@ bash e2e/run-all.sh -c 01 -c 03     # 只跑 Bot 命令+安全类
 bash e2e/run-all.sh -h              # 帮助
 ```
 
-### 5.4 质量指标自动化（cron）
+### 5.4 质量指标自动化（nightly 闭环）
 
-| 任务 | 计划 | 内容 |
+| 任务 | 时机 | 内容 |
 |:--|:--|:--|
-| **插件质量周报** | 每周一 9:30 | `gradlew test integrationTest jacocoTestReport` → 解析用例数/覆盖率 → GitHub API 拉最近 CI 通过率 → 飞书表格报告（对比上周基线） |
-| **E2E 回归** | 迭代合并后手动/PR 触发 | run-all.sh 全量 → 报告落 `e2e/reports/`（不入库） |
+| **夜间质量闭环**（`.github/workflows/nightly.yml`） | 每日 01:30（可 `workflow_dispatch`） | `check` + `e2eLocalPaper` + `e2eLocalFolia` + `foliaSmoke(builtin)`；失败自动开 issue（`nightly-failure` 标签去重、指派 admin 协作者）、恢复自动关闭 |
+| **失败分诊**（`scripts/quality/triage.py`） | 失败时（`if: always()` 收集） | 失败用例（类.方法 + 首行断言信息）+ 各 run 目录 `smoke.log` 尾部 + 最近 8 个提交 + 工作区改动 → 直接写进 issue，接手即可定位 |
+| **可选推送** | 失败时（配置 `NOTIFY_WEBHOOK_URL` 才生效） | 飞书/企业微信/自定义 webhook；未配置时依赖 GitHub 指派通知 |
+| **质量趋势看板**（`scripts/quality/trend.py`） | 每次夜间成功 | 解析 `build/test-results/*.xml` + JaCoCo XML + 自举 E2E 性能快照 → 更新看板 issue（保留最近 30 次，含**启动/备份耗时列**）；覆盖率跌 >1pt / 用例数减少 / 启动 >2.5× / 备份 >3× 标 ⚠️；正文附**覆盖率热点 top10** |
+| **上游版本漂移**（`scripts/quality/upstream_drift.py`） | 每次夜间 | Fill API（Paper/Folia 是否已有更新稳定版）+ Modrinth（LuckPerms 最新 release vs 本地缓存）→ 有漂移开/更新 `upstream-drift` issue，无漂移自动关闭；**只提示不自动升级** |
+| **E2E 全量**（L2） | 迭代合并后手动 | `bash e2e/run-all.sh` 全量 → 报告落 `e2e/reports/`（不入库） |
+
+趋势看板本地复跑（无需等夜间）：
+
+```bash
+./gradlew :test :integrationTest jacocoTestReport      # 生成数据源
+GH_REPO=OrzMC/OrzMCPlugin python3 scripts/quality/trend.py upsert-issue
+```
+
+> 看板与漂移 issue 都带公共标签 `automation`，统一过滤：
+> <https://github.com/OrzMC/OrzMCPlugin/issues?q=is%3Aissue+label%3Aautomation>
+>
+> 规范化约束：看板 issue 正文由脚本整块重写（`<!-- quality-trend:start -->` 标记块），**不要手工改表**，
+> 否则下一次夜间更新会覆盖；同日重跑只替换当天行，不会重复。
 
 ---
+
+### 5.5 变异测试（Pitest，夜间专用，不进 PR 门禁）
+
+覆盖率回答"这行有没有被跑到"，变异测试回答"**断言有没有把这行钉住**"——故意改坏代码，测试应该红；
+没红就是"存活变异"（survived），说明该处断言太弱或缺失。
+
+| 项 | 现状 |
+|:--|:--|
+| 入口 | `./gradlew pitest`（不进 `check`，不影响 PR） |
+| 目标 | 默认 `features.tnt.*` + `features.rank.*`；可 `-PpitestTargets=` 指定 |
+| 失败策略 | **不阻塞**：`isIgnoreExitValue = true`，只产出报告；nightly 里 `continue-on-error` |
+| 首次基线（2026-11 实测） | `features.tnt`：**78.4%**（killed 76 / survived 21，86 秒） |
+| 报告 | `build/reports/pitest/`（HTML + XML + `mutations.csv`），nightly 上传 artifact |
+
+为什么只在夜间跑：每个存活变异都要重跑一遍相关测试，全仓跑代价是分钟到小时级；
+夜间对核心包跑一小片即可持续发现"测试写得不够狠"的地方。
+
+实现注意（踩过的坑）：`--mutableCodePaths` 与 `--classPath` 都是**列表参数**，必须逐条传；
+拼成 `a:b` 的单个字符串会被当成一个不存在的路径，表现为 `Created 0 mutation test units`（静默空跑）。
 
 ## 六、路线图（2026-09-03 复核）
 
 | 阶段 | 内容 | 状态 |
 |:--|:--|:--|
 | P0 基线建立 | 功能全图 + 覆盖率基线 + 薄弱模块定位 | ✅ 2026-08-19 |
+| P0 门禁加固 | 覆盖率门槛贴实际值 + 测试重试 + flaky 约定 + 修复时序型 flaky 用例 | ✅ 2026-11 |
 | P1 单测补强 | 薄弱模块补测；单测 1600+ 用例、覆盖率 ≥75%（当前 78%） | ✅（CI jacoco 门禁 + codecov 合并覆盖率已落地） |
 | P2 E2E 套件 | e2e/ 框架 + 六类用例脚本化 + run-all.sh | ✅ 2026-08-20（Paper + Folia 62/62×2） |
-| P3 指标自动化 | 质量周报 cron（CI 覆盖率门禁已落地；周报 cron 未排期） | 🔄 |
-| P4 CI 深度集成 | folia-smoke 已转必须门禁（✅）；nightly E2E job 仍需测试服常驻方案 | 🔄 远期 |
+| P2.5 自举进 PR 门禁 | `e2eLocalPaper`/`e2eLocalFolia` + `foliaSmoke` 控制台断言（去测试服依赖） | ✅ 2026-11 |
+| P3 指标自动化 | 覆盖率门禁 + **nightly 质量闭环**（`nightly.yml`：失败自动开 issue / 恢复自动关闭）+ 趋势看板（含性能列与覆盖率热点）+ 上游版本漂移探测 | ✅ 2026-11 |
+| P4 CI 深度集成 | folia-smoke/e2e-paper/e2e-lp 为 PR 必选检查；nightly 覆盖双核心真实起服 + 真实 LP | ✅ 2026-11（真实 IM 平台仍需人工） |
 
 ---
 

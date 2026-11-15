@@ -3,9 +3,11 @@ package com.jokerhub.paper.plugin.orzmc.features.maintenance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -386,6 +388,74 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
 
         Assertions.assertTrue(mode.isActive(), "手动维护期间备份结束后应恢复手动维护");
         Assertions.assertEquals(MaintenanceModeService.MaintenanceReason.MANUAL, mode.reason());
+    }
+
+    /**
+     * BUG #588 回归护栏：世界已优化过（无待处理区块）时 backup-core 的 Done 事件 current/total 都是 0，
+     * 完成回执曾被"没有百分比可算就跳过"的守卫吞掉 —— 用户只看到"正在优化地图，请稍等......"。
+     */
+    @Test
+    public void progressHandler_doneWithZeroCounters_stillEmitsCompletion() throws Exception {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        ProgressEvent evt = mock(ProgressEvent.class);
+        when(evt.getCurrent()).thenReturn(0L);
+        when(evt.getTotal()).thenReturn(0L);
+        when(evt.getStage()).thenReturn(ProgressStage.Done);
+
+        progressHandlerOf(out::add).invoke(evt);
+
+        verify(configs).renderEvent(eq("maintenance_backup_done"), anyMap());
+        // 阶段行只进服务器日志，只有完成回执走 callback（回命令来源会话）
+        Assertions.assertEquals(List.of("backup progress"), out, "Done 阶段必须下发完成回执");
+    }
+
+    @Test
+    public void progressHandler_doneWithNullCounters_stillEmitsCompletion() throws Exception {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        ProgressEvent evt = mock(ProgressEvent.class);
+        when(evt.getCurrent()).thenReturn(null);
+        when(evt.getTotal()).thenReturn(null);
+        when(evt.getStage()).thenReturn(ProgressStage.Done);
+
+        progressHandlerOf(out::add).invoke(evt);
+
+        verify(configs).renderEvent(eq("maintenance_backup_done"), anyMap());
+        Assertions.assertFalse(out.isEmpty(), "计数器缺失时 Done 也必须出完成回执");
+    }
+
+    @Test
+    public void progressHandler_nonDoneWithoutCounters_isSkipped() throws Exception {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        ProgressEvent evt = mock(ProgressEvent.class);
+        when(evt.getCurrent()).thenReturn(0L);
+        when(evt.getTotal()).thenReturn(0L);
+        when(evt.getStage()).thenReturn(ProgressStage.ChunkProgress);
+
+        progressHandlerOf(out::add).invoke(evt);
+
+        Assertions.assertTrue(out.isEmpty(), "非 Done 且无百分比可算的中间事件应静默跳过");
+        verify(configs, never()).renderEvent(anyString(), anyMap());
+    }
+
+    @Test
+    public void progressHandler_doneWithCounters_reportsFullPercent() throws Exception {
+        MaintenanceModeService mode = new MaintenanceModeService();
+        WorldMaintenanceService svc = new WorldMaintenanceService(
+                server, configs, mock(OrzTextStyles.class), mock(Notifier.class), mode, null);
+        java.lang.reflect.Method m =
+                WorldMaintenanceService.class.getDeclaredMethod("progressHandler", boolean.class, Consumer.class);
+        m.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit> handler =
+                (kotlin.jvm.functions.Function1<ProgressEvent, kotlin.Unit>)
+                        m.invoke(svc, false, (Consumer<String>) msg -> {});
+
+        handler.invoke(doneEvent());
+
+        verify(configs).renderEvent(eq("maintenance_optimize_done"), anyMap());
+        MaintenanceModeService.MaintenanceProgress progress = mode.progress();
+        Assertions.assertNotNull(progress);
+        Assertions.assertEquals(100, progress.percent());
     }
 
     @Test

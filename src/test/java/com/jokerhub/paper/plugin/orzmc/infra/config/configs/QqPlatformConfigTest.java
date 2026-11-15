@@ -57,6 +57,27 @@ class QqPlatformConfigTest {
     }
 
     @Test
+    void apiBase_defaultsBlank_andOverridesTrimmed() {
+        YamlConfiguration base = new YamlConfiguration();
+        base.set("enabled", true);
+        base.set("app_id", "app-1");
+        base.set("client_secret", "secret-1");
+        // 未配置 → 空串（由调用方回落官方端点），不影响 usable
+        assertEquals("", QqPlatformConfig.from(base).apiBase());
+        assertTrue(QqPlatformConfig.from(base).usable());
+
+        // 自建网关/联调：可覆盖，且去首尾空白
+        base.set("api_base", "  http://127.0.0.1:18080  ");
+        assertEquals("http://127.0.0.1:18080", QqPlatformConfig.from(base).apiBase());
+    }
+
+    @Test
+    void legacyConstructors_keepEmptyApiBase() {
+        assertEquals("", new QqPlatformConfig(true, "app-1", "secret-1").apiBase());
+        assertEquals("", new QqPlatformConfig(true, "app-1", "secret-1", ImProxyConfig.DIRECT, 1024).apiBase());
+    }
+
+    @Test
     void platformProxyOverridesGlobal() {
         YamlConfiguration global = new YamlConfiguration();
         global.set("enabled", true);

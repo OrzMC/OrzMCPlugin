@@ -3,10 +3,13 @@ import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
 import org.gradle.testing.jacoco.tasks.JacocoReport
 import org.yaml.snakeyaml.Yaml
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.RandomAccessFile
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.Properties
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 buildscript {
@@ -80,7 +83,7 @@ configurations.getByName("integrationTestRuntimeOnly").extendsFrom(
 )
 
 dependencies {
-    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.2:4.117.0")
+    add("integrationTestImplementation", "org.mockbukkit.mockbukkit:mockbukkit-v26.3:4.120.0")
 }
 
 // 项目编译时插件添加
@@ -93,7 +96,10 @@ plugins {
     id("io.papermc.hangar-publish-plugin") version "0.1.4"
     // Modrinth 自动发布：https://github.com/modrinth/minotaur
     id("com.modrinth.minotaur") version "2.10.0"
-    id("com.diffplug.spotless") version "8.10.4"
+    id("com.diffplug.spotless") version "8.11.0"
+    // 测试重试：CI 机器负载抖动导致的偶发失败自动重跑（最多 2 次），避免「假红」阻断 PR。
+    // 注意：重试是安全网不是修复手段——重跑才通过的用例仍须按 flaky 修复（见 docs/quality-testing-plan.md §4.2）
+    id("org.gradle.test-retry") version "1.6.6"
     id("jacoco")
 }
 
@@ -140,6 +146,415 @@ private fun logTail(logFile: File, lines: Int = 40): String {
         return "(smoke.log 不存在)"
     }
     return logFile.readText(Charsets.UTF_8).split("\n").takeLast(lines).joinToString("\n")
+}
+
+// =====================================================================
+// 真实服务端冒烟 / 自举 E2E（foliaSmoke、e2eLocal* 共用实现）
+// =====================================================================
+
+/** 一条控制台断言：向服务端 stdin 发 command，要求此后「新增」日志出现 expect。 */
+private data class ConsoleCheck(
+    val label: String,
+    val command: String,
+    val expect: Regex,
+    val timeoutMs: Long = 30_000L,
+    /** 需要"全新世界"才可断言：重复优化同一世界会命中已知缺陷（issue #588），本地复用 run 目录时跳过并说明。 */
+    val requiresFreshWorld: Boolean = false,
+)
+
+/** 白名单读写探针用的合法玩家名（固定值：写后立刻删，跑完不留脏数据，中断也不会累积）。 */
+private val PROBE_PLAYER = "E2EProbe"
+
+/** 每次运行唯一的 say 标记（避免命中历史日志）。 */
+private fun uniqueE2eTag(): String = "e2e-" + UUID.randomUUID().toString().take(6)
+
+/**
+ * Bot 命令链路的控制台断言：经 `/orzdebug` 模拟群用户命令，覆盖「解析 → 业务 → 回执」全链路。
+ *
+ * <p>这些是 MockBukkit 测不到的部分：真实 Brigadier 命令注册、Folia 分页调度（BUG-E2E-001）、
+ * 插件代执行控制台命令（$e）。</p>
+ */
+private fun botConsoleChecks(tag: String): List<ConsoleCheck> = listOf(
+    // 读路径
+    ConsoleCheck("Bot 帮助（\$h）", "orzdebug \$h", Regex("群指令帮助")),
+    ConsoleCheck("在线列表（\$l）", "orzdebug \$l", Regex("当前在线")),
+    ConsoleCheck("白名单分页（\$w，Folia 分页回归护栏）", "orzdebug \$w", Regex("当前白名单玩家")),
+    ConsoleCheck("访问规则查询（\$d）", "orzdebug \$d", Regex("访问规则为空|黑名单")),
+    ConsoleCheck("审核列表（\$v l）", "orzdebug \$v l", Regex("待审核")),
+    // 写路径（白名单落盘 + 读回；第二条负责还原，跑完不留脏数据）
+    ConsoleCheck(
+        "白名单写入（\$a）",
+        "orzdebug \$a $PROBE_PLAYER",
+        Regex("白名单添加[\\s\\S]{0,200}$PROBE_PLAYER"),
+    ),
+    ConsoleCheck(
+        "白名单删除（\$r，含还原）",
+        "orzdebug \$r $PROBE_PLAYER",
+        Regex("白名单移除[\\s\\S]{0,200}$PROBE_PLAYER"),
+    ),
+    // 跨层：插件代执行控制台命令 / 配置热加载 / 维护模式状态机
+    ConsoleCheck("控制台命令执行（\$e）", "orzdebug \$e say $tag", Regex(Regex.escape(tag))),
+    ConsoleCheck("配置热加载（/config reload）", "config reload", Regex("已重新加载")),
+    ConsoleCheck("维护模式进入（/maintenance on）", "maintenance on", Regex("已进入手动维护模式")),
+    ConsoleCheck("维护模式退出（/maintenance off）", "maintenance off", Regex("已退出维护模式")),
+    // 长任务（真实备份/优化链路）：小世界上各几秒；超时给足，避免慢机器误判
+    ConsoleCheck("地图备份（\$b）", "orzdebug \$b", Regex("地图备份 完成"), 180_000L),
+    // 世界复用（同目录第二次跑）也必须出完成回执：BUG #588 曾因 Done 事件计数器为 0 被跳过而无回执
+    ConsoleCheck("地图优化（\$o）", "orzdebug \$o", Regex("地图优化\\s*完成"), 180_000L),
+)
+
+/**
+ * LuckPerms 就绪后的附加断言（真实 LP + 真实服务端）：
+ * ① `$p` 无参数 → 输出用法（LP 未就绪时这里会是「未检测到 LuckPerms」，所以这条能锁定 LP 集成成功）；
+ * ② `$p u 未知玩家` → 「找不到玩家」（离线解析降级路径，不得抛异常/超时）；
+ * ③ `/rank` 控制台执行 → 「需要玩家执行」（PlayerOnly 拦截器链）。
+ */
+private fun luckPermsChecks(): List<ConsoleCheck> = listOf(
+    ConsoleCheck("权限命令可用（LP 已就绪，\$p 输出用法）", "orzdebug \$p", Regex("\\\$p 权限管理")),
+    ConsoleCheck("离线玩家解析降级（\$p u 未知玩家）", "orzdebug \$p u E2EProbe", Regex("找不到玩家")),
+    ConsoleCheck("玩家专属命令的控制台拒绝（/rank）", "rank", Regex("需要玩家执行")),
+)
+
+/** 日志「稳定」偏移：回退到最后一个换行之后，避免切在多字节字符中间产生乱码前缀。 */
+private fun stableLogOffset(logFile: File): Long {
+    val length = logFile.length()
+    if (length == 0L) return 0L
+    val tailSize = minOf(length, 8192L).toInt()
+    val buf = ByteArray(tailSize)
+    RandomAccessFile(logFile, "r").use { raf ->
+        raf.seek(length - tailSize)
+        raf.readFully(buf)
+    }
+    for (i in buf.indices.reversed()) {
+        if (buf[i] == '\n'.code.toByte()) return length - tailSize + i + 1
+    }
+    return 0L
+}
+
+/** 只匹配 fromOffset 之后追加的日志：避免「早先日志已出现该文本」造成假绿。 */
+private fun awaitLogAfter(logFile: File, fromOffset: Long, pattern: Regex, timeoutMs: Long): Boolean {
+    val start = System.nanoTime()
+    while ((System.nanoTime() - start) < timeoutMs * 1_000_000L) {
+        val length = logFile.length()
+        if (length > fromOffset) {
+            val buf = ByteArray((length - fromOffset).toInt())
+            RandomAccessFile(logFile, "r").use { raf ->
+                raf.seek(fromOffset)
+                raf.readFully(buf)
+            }
+            if (pattern.containsMatchIn(String(buf, Charsets.UTF_8))) return true
+        }
+        Thread.sleep(150)
+    }
+    return false
+}
+
+/**
+ * 下载服务端 jar（Paper Fill API v3）。成功且 SHA256 通过才写标记文件；中途被杀留下的残缺 jar
+ * 因标记缺失会被判 out-of-date 重下。返回 jar 路径；任务名 = `download<displayName>Jar`。
+ */
+private fun Project.registerServerJarDownload(
+    version: String,
+    fillProject: String,
+    dirName: String,
+    displayName: String,
+): File {
+    val jarFile = layout.buildDirectory.file("$dirName/$fillProject-$version.jar")
+    val markerFile = layout.buildDirectory.file("$dirName/.$fillProject-$version.ok")
+    tasks.register("download${displayName}Jar") {
+        group = "verification"
+        description = "下载 $displayName 服务端 jar（Paper Fill API v3，SnakeYAML 解析 JSON 响应）"
+        inputs.property("serverVersion", version)
+        outputs.file(jarFile)
+        outputs.file(markerFile)
+        doLast {
+            val file = jarFile.get().asFile
+            val apiUrl = "https://fill.papermc.io/v3/projects/$fillProject/versions/$version/builds/latest"
+            // Fill API 返回 JSON，而 JSON ⊂ YAML，直接复用 buildscript 已有的 SnakeYAML 解析
+            val response = URI(apiUrl).toURL().openStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val data = Yaml().load(response) as Map<*, *>
+            val serverDefault = (data["downloads"] as Map<*, *>)["server:default"] as Map<*, *>
+            val downloadUrl = serverDefault["url"] as String
+            val expectedSha = (serverDefault["checksums"] as Map<*, *>)["sha256"] as String
+            file.parentFile.mkdirs()
+            val conn = URI(downloadUrl).toURL().openConnection()
+            conn.setRequestProperty("User-Agent", "OrzMC/$displayName-smoke")
+            conn.connect()
+            val digest = MessageDigest.getInstance("SHA-256")
+            conn.getInputStream().use { input ->
+                file.outputStream().use { out ->
+                    val buf = ByteArray(128 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        digest.update(buf, 0, n)
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
+            val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!actualSha.equals(expectedSha, ignoreCase = true)) {
+                file.delete()
+                throw GradleException("$displayName jar SHA256 校验失败: expected=$expectedSha actual=$actualSha")
+            }
+            markerFile.get().asFile.writeText("sha256=$actualSha\n")
+            logger.lifecycle("已下载 $displayName $version → ${file.absolutePath}")
+        }
+    }
+    return jarFile.get().asFile
+}
+
+/**
+ * 从 Modrinth 下载插件 jar（sha512 校验，缓存 + 标记文件）；返回 jar 路径，任务名由调用方指定。
+ *
+ * <p>用于 L1.5 引入真实依赖插件（如 LuckPerms）——历史上 LP 异步 + Folia region 线程出过死锁，
+ * 而 MockBukkit 里没有 LP，这条链路此前完全不在 PR 覆盖内。</p>
+ */
+private fun Project.registerModrinthPluginDownload(
+    taskName: String,
+    projectSlug: String,
+    mcVersion: String,
+    loader: String,
+    dirName: String,
+    displayName: String,
+): File {
+    val jarFile = layout.buildDirectory.file("$dirName/$projectSlug-$mcVersion.jar")
+    val markerFile = layout.buildDirectory.file("$dirName/.$projectSlug-$mcVersion.ok")
+    tasks.register(taskName) {
+        group = "verification"
+        description = "下载 $displayName 插件 jar（Modrinth API，sha512 校验）"
+        inputs.property("mcVersion", mcVersion)
+        outputs.file(jarFile)
+        outputs.file(markerFile)
+        doLast {
+            val file = jarFile.get().asFile
+            val apiUrl = "https://api.modrinth.com/v2/project/$projectSlug/version" +
+                "?loaders=%5B%22$loader%22%5D&game_versions=%5B%22$mcVersion%22%5D"
+            val conn = URI(apiUrl).toURL().openConnection()
+            conn.setRequestProperty("User-Agent", "OrzMC/plugin-ci")
+            val response = conn.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val versions = Yaml().load(response) as List<Map<*, *>>
+            // 优先 version_type=release（SNAPSHOT/beta 天天变，会让门禁无故漂移）；没有正式版才退而求其次
+            val newest = versions.firstOrNull { it["version_type"] == "release" }
+                ?: versions.firstOrNull()
+                ?: throw GradleException("Modrinth 没有 $projectSlug 在 $mcVersion/$loader 下的版本")
+            val files = newest["files"] as List<Map<*, *>>
+            val chosen = files.firstOrNull { it["primary"] == true } ?: files.first()
+            val downloadUrl = chosen["url"] as String
+            val expectedSha = (chosen["hashes"] as Map<*, *>)["sha512"].toString().lowercase()
+            file.parentFile.mkdirs()
+            val download = URI(downloadUrl).toURL().openConnection()
+            download.setRequestProperty("User-Agent", "OrzMC/plugin-ci")
+            download.connect()
+            val digest = MessageDigest.getInstance("SHA-512")
+            download.getInputStream().use { input ->
+                file.outputStream().use { out ->
+                    val buf = ByteArray(128 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        digest.update(buf, 0, n)
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
+            val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!actualSha.equals(expectedSha, ignoreCase = true)) {
+                file.delete()
+                throw GradleException("$displayName jar sha512 校验失败: expected=$expectedSha actual=$actualSha")
+            }
+            // 记录版本号：上游漂移探测用它判断「缓存 jar 是否落后于上游最新 release」
+            markerFile.get().asFile.writeText(
+                "sha512=$actualSha\nversion=${newest["version_number"]}\n"
+            )
+            logger.lifecycle("已下载 $displayName ${newest["version_number"]} → ${file.absolutePath}")
+        }
+    }
+    return jarFile.get().asFile
+}
+
+/** 简单 HTTP GET（自举 E2E 的假 IM 平台控制面用；失败返回 null 便于轮询）。 */
+private fun httpGetOrNull(url: String, timeoutMs: Int = 3000): String? =
+    runCatching {
+            val conn = URI(url).toURL().openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }
+        .getOrNull()
+
+/** 简单 HTTP POST JSON（同上；返回响应体或 null）。 */
+private fun httpPostJsonOrNull(url: String, json: String, timeoutMs: Int = 3000): String? =
+    runCatching {
+            val conn = URI(url).toURL().openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }
+        .getOrNull()
+
+/** 轮询条件直到满足或超时；返回是否满足。 */
+private fun awaitCondition(label: String, timeoutMs: Long, condition: () -> Boolean): Boolean {
+    val start = System.nanoTime()
+    while ((System.nanoTime() - start) < timeoutMs * 1_000_000L) {
+        if (runCatching(condition).getOrDefault(false)) return true
+        Thread.sleep(200)
+    }
+    println("等待超时: $label")
+    return false
+}
+
+/**
+ * 起真实服务端并跑断言：隔离 run 目录 → 放入插件 → 启动 → 等 Done → 等插件加载 →
+ * 逐条控制台断言（只匹配本次命令之后的日志）→ stop → 断言 exit 0。
+ */
+private fun Project.runHeadlessServerSmoke(
+    core: String,
+    serverJar: File,
+    runDir: File,
+    shadowJarFile: File,
+    javaBin: String,
+    port: Int,
+    prepare: (File) -> Unit,
+    preChecks: List<Pair<String, Regex>>,
+    checks: List<ConsoleCheck>,
+    extraPlugins: List<File> = emptyList(),
+    extraChecks: List<ConsoleCheck> = emptyList(),
+    extraCommands: List<String> = emptyList(),
+    afterReady: (File) -> Unit = {},
+    /** 性能快照标签（如 paper / folia-lp / im）；null 表示不采集。 */
+    perfLabel: String? = null,
+) {
+    runDir.mkdirs()
+    // 世界是否全新：部分断言（重复优化）只在全新世界上成立（已知缺陷见 issue #588）
+    val worldFresh = !File(runDir, "world").exists()
+    File(runDir, "eula.txt").writeText("eula=true\n")
+    val pluginsDir = File(runDir, "plugins").apply { mkdirs() }
+    shadowJarFile.copyTo(File(pluginsDir, "OrzMC.jar"), overwrite = true)
+    // 真实依赖插件（如 LuckPerms）：原样放进 plugins/，文件名保持不变（插件靠它识别自己）
+    for (plugin in extraPlugins) {
+        plugin.copyTo(File(pluginsDir, plugin.name), overwrite = true)
+    }
+    val dataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
+    // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
+    // 故在隔离 run 目录放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
+    // 空 deny-list：让 stop 不被安全加固拦截；打开 optimize_enabled：让 $o 覆盖真实优化链路而非"未启用"分支
+    File(dataDir, "config.yml")
+        .writeText("guard:\n  blocked_commands: []\nmaintenance:\n  optimize_enabled: true\n")
+    prepare(dataDir)
+
+    val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
+    // 用 toolchain JDK 启动（Folia 26.3 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
+    val cmd = listOf(
+        javaBin, "-Xmx2G", "-Ddisable.watchdog=true",
+        "-jar", serverJar.absolutePath,
+        "--nogui", "--nojline", "--online-mode=false", "--port", port.toString()
+    )
+    logger.lifecycle("启动 $core 冒烟服务器: ${cmd.joinToString(" ")}")
+    val proc = ProcessBuilder(cmd)
+        .directory(runDir)
+        .redirectErrorStream(true)
+        .redirectOutput(logFile)
+        .start()
+
+    fun abort(message: String): Nothing = throw GradleException("$message\n日志尾部:\n${logTail(logFile)}")
+
+    // 任何异常（含 afterReady 里的断言失败）都必须回收服务端进程，否则端口被占、后续运行必然假失败
+    try {
+
+    val startedMs = waitForLog(logFile, Regex("Done \\(.*\\)"), 240_000)
+    if (startedMs < 0) abort("$core 服务器 240s 内未完成启动。")
+    logger.lifecycle("$core 已启动（${startedMs}ms）。校验 OrzMC 加载...")
+    if (waitForLog(logFile, Regex("OrzMC"), 15_000) < 0) abort("OrzMC 插件未加载。")
+
+    for ((label, pattern) in preChecks) {
+        logger.lifecycle("校验: $label")
+        if (!awaitLogAfter(logFile, 0L, pattern, 30_000)) abort("未通过: $label（期望 ${pattern.pattern}）")
+    }
+
+    // 起服就绪后先发无断言的控制台命令（例如 op 测试玩家）
+    for (command in extraCommands) {
+        logger.lifecycle("控制台命令（准备）: $command")
+        proc.outputStream.write((command + "\n").toByteArray(Charsets.UTF_8))
+        proc.outputStream.flush()
+        Thread.sleep(150)
+    }
+
+    // 起服就绪后的自定义校验（例如假 IM 平台：等通道连上 → 注入入站消息 → 断言出站）
+    afterReady(logFile)
+
+    var executed = 0
+    var skipped = 0
+    var backupMs: Long? = null
+    for (check in checks + extraChecks) {
+        if (check.requiresFreshWorld && !worldFresh) {
+            skipped++
+            logger.lifecycle("跳过断言（run 目录复用、非全新世界）: ${check.label}")
+            continue
+        }
+        executed++
+        logger.lifecycle("控制台断言: ${check.label} → ${check.command}")
+        val checkStart = System.currentTimeMillis()
+        val from = stableLogOffset(logFile)
+        try {
+            proc.outputStream.write((check.command + "\n").toByteArray(Charsets.UTF_8))
+            proc.outputStream.flush()
+        } catch (e: IOException) {
+            abort("无法向服务器写入命令（进程可能已退出）: ${check.label}（${e.message}）")
+        }
+        if (!awaitLogAfter(logFile, from, check.expect, check.timeoutMs)) {
+            abort("控制台断言失败: ${check.label}（命令: ${check.command}，期望: ${check.expect.pattern}）")
+        }
+        if (check.command.contains("orzdebug \$b")) {
+            backupMs = System.currentTimeMillis() - checkStart
+        }
+    }
+
+    if (perfLabel != null && startedMs > 0) {
+        val perfFile = File("build/quality/perf-$perfLabel.json")
+        perfFile.parentFile.mkdirs()
+        perfFile.writeText(
+            "{\"core\": \"$core\", \"label\": \"$perfLabel\", \"boot_ms\": $startedMs, " +
+                "\"backup_ms\": ${backupMs ?: "null"}}\n"
+        )
+        logger.lifecycle("性能快照: boot=${startedMs}ms backup=${backupMs ?: "-"}ms → ${perfFile.path}")
+    }
+
+    // $b 已在断言表内执行：再校验备份 zip 真的落盘（防"日志说完成但没文件"）
+    if ((checks + extraChecks).any { it.command.contains("orzdebug \$b") }) {
+        val backupDir = File(runDir, "backup")
+        val zips = backupDir.listFiles { f -> f.isFile && f.name.endsWith(".zip") }?.toList().orEmpty()
+        if (zips.isEmpty()) abort("备份未落盘：$backupDir 下没有 zip")
+        val newestZip = zips.maxByOrNull { it.lastModified() }!!
+        if (newestZip.length() < 10_000) abort("备份 zip 过小（${newestZip.length()} 字节）: ${newestZip.name}")
+        logger.lifecycle("备份落盘校验通过: ${newestZip.name}（${newestZip.length() / 1024} KB）")
+    }
+
+    logger.lifecycle("发送 stop...")
+    proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
+    proc.outputStream.flush()
+    if (!proc.waitFor(90, TimeUnit.SECONDS)) {
+        proc.destroyForcibly()
+        throw GradleException("$core 在 stop 后 90s 内未退出。日志尾部:\n${logTail(logFile)}")
+    }
+    if (proc.exitValue() != 0) {
+        throw GradleException("$core 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
+    }
+    logger.lifecycle(
+        "$core 冒烟通过：插件加载 + $executed 条控制台断言" +
+            (if (skipped > 0) "（跳过 $skipped 条：run 目录复用）" else "") +
+            " + 干净退出（exit 0）"
+    )
+    } finally {
+        if (proc.isAlive) {
+            proc.destroyForcibly()
+            proc.waitFor(30, TimeUnit.SECONDS)
+        }
+    }
 }
 
 val githubRunNumber: String? = System.getenv("GITHUB_RUN_NUMBER")
@@ -305,55 +720,29 @@ tasks {
         dependsOn(agreeFoliaEula)
     }
 
-    // foliaSmoke：真实 Folia 无头冒烟（评估文档 D8）。下载与启动拆成两个任务：
-    // downloadFoliaJar 有缓存（build/folia-smoke/），foliaSmoke 每次执行都真实启动不跳过。
-    // 注意：不能嵌套调用 gradlew 下载/启动（会死锁在项目锁上），故自行解析 Fill API v3 + 直接 java -jar。
-    val foliaSmokeJar = layout.buildDirectory.file("folia-smoke/folia-$debugServerVersion.jar")
-    val foliaSmokeMarker = layout.buildDirectory.file("folia-smoke/.folia-$debugServerVersion.ok")
-    register("downloadFoliaJar") {
-        group = "verification"
-        description = "下载 Folia 服务端 jar（Paper Fill API v3，SnakeYAML 解析 JSON 响应）"
-        inputs.property("foliaVersion", debugServerVersion)
-        outputs.file(foliaSmokeJar)
-        // 下载成功且 SHA256 通过才写标记文件；中途被杀留下的残缺 jar 因标记缺失会被判 out-of-date 重下
-        outputs.file(foliaSmokeMarker)
-        doLast {
-            val jarFile = foliaSmokeJar.get().asFile
-            val apiUrl = "https://fill.papermc.io/v3/projects/folia/versions/$debugServerVersion/builds/latest"
-            // Fill API 返回 JSON，而 JSON ⊂ YAML，直接复用 buildscript 已有的 SnakeYAML 解析
-            val response = URI(apiUrl).toURL().openStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
-            val data = Yaml().load(response) as Map<*, *>
-            val serverDefault = (data["downloads"] as Map<*, *>)["server:default"] as Map<*, *>
-            val downloadUrl = serverDefault["url"] as String
-            val expectedSha = (serverDefault["checksums"] as Map<*, *>)["sha256"] as String
-            jarFile.parentFile.mkdirs()
-            val conn = URI(downloadUrl).toURL().openConnection()
-            conn.setRequestProperty("User-Agent", "OrzMC/folia-smoke")
-            conn.connect()
-            val digest = MessageDigest.getInstance("SHA-256")
-            conn.getInputStream().use { input ->
-                jarFile.outputStream().use { out ->
-                    val buf = ByteArray(128 * 1024)
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        digest.update(buf, 0, n)
-                        out.write(buf, 0, n)
-                    }
-                }
-            }
-            val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
-            if (!actualSha.equals(expectedSha, ignoreCase = true)) {
-                jarFile.delete()
-                throw GradleException("Folia jar SHA256 校验失败: expected=$expectedSha actual=$actualSha")
-            }
-            foliaSmokeMarker.get().asFile.writeText("sha256=$actualSha\n")
-            logger.lifecycle("已下载 Folia $debugServerVersion → ${jarFile.absolutePath}")
-        }
-    }
+    // ---- 真实服务端冒烟 / 自举 E2E ----
+    // 设计要点：
+    //  * 下载与启动拆成两个任务：download*Jar 有缓存（build/<dir>/，SHA256 通过才写标记），起服任务每次真实执行不跳过；
+    //  * 不能嵌套调用 gradlew（会死锁在项目锁上）→ 自行解析 Fill API v3 + 直接 java -jar；
+    //  * 控制台断言走 stdin，且只匹配「本次命令之后新增的日志」（避免命中早先日志造成假绿）。
+    val foliaServerJar = registerServerJarDownload(debugServerVersion, "folia", "folia-smoke", "Folia")
+    val paperServerJar = registerServerJarDownload(debugServerVersion, "paper", "paper-smoke", "Paper")
+    // 协议兼容（2026-11 实测）：mineflayer 最高 1.21.11，服务端 26.3 → 需要 **ViaVersion + ViaBackwards**
+    // （新客户端连旧服务端是 backwards 方向；只装 ViaVersion 或只用协议补丁都会被拒 "Outdated client"）
+    val viaVersionJar = registerModrinthPluginDownload(
+        "downloadViaVersionJar", "viaversion", debugServerVersion, "paper", "e2e-plugins", "ViaVersion"
+    )
+    val viaBackwardsJar = registerModrinthPluginDownload(
+        "downloadViaBackwardsJar", "viabackwards", debugServerVersion, "paper", "e2e-plugins", "ViaBackwards"
+    )
+    // 真实依赖插件：LuckPerms（rank/review/权限链的唯一权威实现，MockBukkit 里没有）
+    val luckPermsJar = registerModrinthPluginDownload(
+        "downloadLuckPermsJar", "luckperms", debugServerVersion, "paper", "e2e-plugins", "LuckPerms"
+    )
+
     register("foliaSmoke") {
         group = "verification"
-        description = "真实 Folia 无头冒烟：启动服务端 → 校验 OrzMC 加载 → stop → 断言干净退出"
+        description = "真实 Folia 冒烟：启动 → 插件加载 → Bot 命令链路控制台断言 → stop → 断言干净退出"
         dependsOn("downloadFoliaJar", project.tasks.shadowJar)
         outputs.upToDateWhen { false } // 每次执行都真实启动，不因缓存跳过
         // -PfoliaImBackend=builtin：跑「builtin 模式干净起服」变体（backend=builtin + QQ 无凭据 → D3 停群路径）
@@ -363,68 +752,297 @@ tasks {
         val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
         val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
         doLast {
-            val serverJar = foliaSmokeJar.get().asFile
-            runDir.mkdirs()
-            File(runDir, "eula.txt").writeText("eula=true\n")
-            val pluginsDir = File(runDir, "plugins").apply { mkdirs() }
-            shadowJarFile.copyTo(File(pluginsDir, "OrzMC.jar"), overwrite = true)
-            // OrzMC 默认 deny-list 拦截 stop/reload 等危险命令（安全加固）；冒烟测试需要干净退出，
-            // 故在隔离的 run-folia-smoke/ 内放一份空 deny-list 配置（仅影响本次冒烟，不触碰真实配置）
-            val orzmcDataDir = File(pluginsDir, "OrzMC").apply { mkdirs() }
-            File(orzmcDataDir, "config.yml").writeText("guard:\n  blocked_commands: []\n")
-            if (builtinMode) {
-                // builtin 变体：backend=builtin 且 QQ 无凭据 → 应选 Unavailable 停群（D3）而非 EasyBot，验证该分支干净起服
-                File(orzmcDataDir, "im.yml").writeText(
-                    "backend: builtin\nplatforms:\n  qq:\n    enabled: false\n    app_id: ''\n    client_secret: ''\n"
-                )
-            }
-
-            val logFile = File(runDir, "smoke.log").apply { if (exists()) delete() }
-            // 用 Java 25 toolchain 启动（Folia 26.2 最低要求 Java 25），不依赖 Gradle 守护进程 JDK
-            val cmd = listOf(
-                javaBin, "-Xmx2G", "-Ddisable.watchdog=true",
-                "-jar", serverJar.absolutePath,
-                "--nogui", "--nojline", "--online-mode=false", "--port", "25580"
+            runHeadlessServerSmoke(
+                core = "Folia",
+                serverJar = foliaServerJar,
+                runDir = runDir,
+                shadowJarFile = shadowJarFile,
+                javaBin = javaBin,
+                port = 25580,
+                prepare = { dataDir ->
+                    if (builtinMode) {
+                        // builtin 变体：backend=builtin 且 QQ 无凭据 → 应选 Unavailable 停群（D3）而非 EasyBot
+                        File(dataDir, "im.yml").writeText(
+                            "backend: builtin\nplatforms:\n  qq:\n    enabled: false\n    app_id: ''\n    client_secret: ''\n"
+                        )
+                    }
+                },
+                preChecks = if (builtinMode) {
+                    listOf("builtin 停群分支（D3）" to Regex("停用群功能|无可用平台|backend=builtin"))
+                } else {
+                    emptyList()
+                },
+                checks = botConsoleChecks(uniqueE2eTag()),
             )
-            logger.lifecycle("启动 Folia 冒烟服务器: ${cmd.joinToString(" ")}")
-            val proc = ProcessBuilder(cmd)
-                .directory(runDir)
-                .redirectErrorStream(true)
-                .redirectOutput(logFile)
-                .start()
-
-            val startedMs = waitForLog(logFile, Regex("Done \\(.*\\)"), 240_000)
-            if (startedMs < 0) {
-                proc.destroyForcibly()
-                proc.waitFor(30, TimeUnit.SECONDS)
-                throw GradleException("Folia 服务器 240s 内未完成启动。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("Folia 已启动（${startedMs}ms）。校验 OrzMC 加载...")
-            // 插件加载后日志会出现 [OrzMC] 前缀行；plugins 命令响应列表也含 OrzMC
-            if (waitForLog(logFile, Regex("OrzMC"), 15_000) < 0) {
-                proc.destroyForcibly()
-                proc.waitFor(30, TimeUnit.SECONDS)
-                throw GradleException("OrzMC 插件未加载。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("OrzMC 已加载。校验 builtin 停群分支日志...")
-            if (builtinMode && waitForLog(logFile, Regex("停用群功能|无可用平台|backend=builtin"), 15_000) < 0) {
-                proc.destroyForcibly()
-                proc.waitFor(30, TimeUnit.SECONDS)
-                throw GradleException("builtin 模式未见 D3 停群告警日志。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("发送 stop...")
-            proc.outputStream.write("stop\n".toByteArray(Charsets.UTF_8))
-            proc.outputStream.flush()
-            if (!proc.waitFor(90, TimeUnit.SECONDS)) {
-                proc.destroyForcibly()
-                throw GradleException("Folia 在 stop 后 90s 内未退出。日志尾部:\n${logTail(logFile)}")
-            }
-            if (proc.exitValue() != 0) {
-                throw GradleException("Folia 退出码非零: ${proc.exitValue()}。日志尾部:\n${logTail(logFile)}")
-            }
-            logger.lifecycle("Folia 冒烟通过：干净退出（exit 0）")
         }
     }
+
+    // e2eLocalPaper / e2eLocalFolia：自举真实服务端 E2E（独立 run 目录与端口，可并行跑）。
+    // 不依赖任何常驻测试服 / 面板 API —— 这是「让真实运行时层进 PR 门禁」的那一层。
+    fun registerE2eLocal(
+        taskName: String,
+        core: String,
+        downloadTask: String,
+        serverJar: File,
+        port: Int,
+        extraPlugins: List<File> = emptyList(),
+        extraChecks: List<ConsoleCheck> = emptyList(),
+        extraTasks: List<String> = emptyList(),
+        runDirSuffix: String = "",
+        perfLabel: String? = if (extraPlugins.isEmpty()) core.lowercase() + runDirSuffix else null,
+    ) {
+        register(taskName) {
+            group = "verification"
+            description = "自举真实 $core E2E：起服 → Bot 命令链路控制台断言 → 干净退出"
+            dependsOn(downloadTask, *extraTasks.toTypedArray(), project.tasks.shadowJar)
+            outputs.upToDateWhen { false }
+            val runDir = project.layout.projectDirectory.dir("run-e2e-${core.lowercase()}$runDirSuffix").asFile
+            val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+            val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+            doLast {
+                runHeadlessServerSmoke(
+                    core = core,
+                    serverJar = serverJar,
+                    runDir = runDir,
+                    shadowJarFile = shadowJarFile,
+                    javaBin = javaBin,
+                    port = port,
+                    prepare = {},
+                    preChecks = if (extraPlugins.isEmpty()) {
+                        emptyList()
+                    } else {
+                        listOf("LuckPerms 已加载" to Regex("LuckPerms v\\d"))
+                    },
+                    checks = botConsoleChecks(uniqueE2eTag()),
+                    extraPlugins = extraPlugins,
+                    extraChecks = extraChecks,
+                    perfLabel = perfLabel,
+                )
+            }
+        }
+    }
+    registerE2eLocal("e2eLocalPaper", "Paper", "downloadPaperJar", paperServerJar, 25581)
+    registerE2eLocal("e2eLocalFolia", "Folia", "downloadFoliaJar", foliaServerJar, 25582)
+    registerE2eLocal(
+        "e2eLocalPaperLp", "Paper", "downloadPaperJar", paperServerJar, 25583,
+        extraPlugins = listOf(luckPermsJar), extraChecks = luckPermsChecks(),
+        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp", perfLabel = "paper-lp",
+    )
+    registerE2eLocal(
+        "e2eLocalFoliaLp", "Folia", "downloadFoliaJar", foliaServerJar, 25584,
+        extraPlugins = listOf(luckPermsJar), extraChecks = luckPermsChecks(),
+        extraTasks = listOf("downloadLuckPermsJar"), runDirSuffix = "-lp", perfLabel = "folia-lp",
+    )
+
+    // e2eLocalPlayer：真实玩家侧自举（mineflayer 客户端 + ViaVersion 向下兼容）
+    // 覆盖此前只能真人点的路径：加入服务器、/menu 箱子 GUI、非管理员命令被拒、/guide 发书。
+    register("e2eLocalPlayer") {
+        group = "verification"
+        description = "自举玩家侧 E2E：真实客户端连接 → 加入/GUI/权限隔离/新手书（ViaVersion 兼容协议）"
+        dependsOn("downloadPaperJar", "downloadViaVersionJar", "downloadViaBackwardsJar", "npmCi", project.tasks.shadowJar)
+        outputs.upToDateWhen { false }
+        val runDir = project.layout.projectDirectory.dir("run-e2e-player").asFile
+        val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+        val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+        val probePort = 25586
+        val probeScript = "e2e/ci/player-probe.js"
+        val probeVersion = "1.21.11"
+        val projectDirPath = project.layout.projectDirectory.asFile
+        doLast {
+            runHeadlessServerSmoke(
+                core = "Paper",
+                serverJar = paperServerJar,
+                runDir = runDir,
+                shadowJarFile = shadowJarFile,
+                javaBin = javaBin,
+                port = probePort,
+                prepare = { dataDir ->
+                    // 玩家要能进来：关掉强制白名单；其余（含维护/优化开关）沿用 runner 写入的基础配置
+                    File(dataDir, "config.yml")
+                        .appendText("whitelist:\n  force_whitelist: false\n")
+                },
+                preChecks = listOf(
+                    "ViaBackwards 已加载" to Regex("ViaBackwards"),
+                    // 映射加载完之前登录会被按原版协议拒绝（"Outdated client"），必须等这一行
+                    "协议映射就绪" to Regex("Finished mapping loading"),
+                ),
+                checks = emptyList(), // 玩家任务只跑客户端探测（控制台断言由其它任务覆盖）
+                extraCommands = listOf("op E2EAdmin"), // 管理员玩家：GUI/新手书需要权限；非管理员玩家用于验证隔离
+                perfLabel = "player",
+                extraPlugins = listOf(viaVersionJar, viaBackwardsJar),
+                afterReady = {
+                    logger.lifecycle("启动玩家探测器: $probeScript（client $probeVersion → 服务端 $probePort）")
+                    val probe =
+                        ProcessBuilder("node", probeScript)
+                            .directory(projectDirPath)
+                            .apply {
+                                environment()["MC_PORT"] = probePort.toString()
+                                environment()["MC_VERSION"] = probeVersion
+                            }
+                            .redirectErrorStream(true)
+                            .start()
+                    probe.outputStream.close()
+                    val reader = probe.inputStream.bufferedReader()
+                    val output = StringBuilder()
+                    var finished = false
+                    val deadline = System.currentTimeMillis() + 180_000
+                    val readerThread = Thread {
+                        reader.forEachLine { line ->
+                            output.appendLine(line)
+                            logger.lifecycle("  [probe] $line")
+                        }
+                    }
+                    readerThread.start()
+                    while (System.currentTimeMillis() < deadline) {
+                        if (!probe.isAlive) {
+                            finished = true
+                            break
+                        }
+                        Thread.sleep(200)
+                    }
+                    if (!finished) {
+                        probe.destroyForcibly()
+                        throw GradleException("玩家探测器 180s 未结束。输出:\n$output")
+                    }
+                    readerThread.join(5_000)
+                    val exit = probe.exitValue()
+                    if (exit != 0) {
+                        throw GradleException(
+                            "玩家探测器失败（exit=$exit）。输出:\n$output\n服务器日志尾部:\n${logTail(File(runDir, "smoke.log"))}"
+                        )
+                    }
+                    logger.lifecycle("玩家侧校验通过（加入 / GUI / 权限隔离 / 新手书）")
+                },
+            )
+        }
+    }
+
+    // e2eLocalIm：builtin QQ 通道 + 仓库内假平台的全链路自举（token→gateway→WS→入站→命令→出站）。
+    // 这是此前唯一完全无法自动化的一层（真实 QQ 频控/窗口不可仿造，但协议与业务链路可以）。
+    // 玩家探测器依赖（mineflayer）：按 package-lock 安装到 e2e/node_modules，lock 变更才重装
+    register<Exec>("npmCi") {
+        group = "verification"
+        workingDir = project.layout.projectDirectory.dir("e2e").asFile
+        commandLine("npm", "ci", "--no-audit", "--no-fund")
+        inputs.file(project.layout.projectDirectory.file("e2e/package-lock.json"))
+        outputs.dir(project.layout.projectDirectory.dir("e2e/node_modules"))
+    }
+
+    register("e2eLocalIm") {
+        group = "verification"
+        description = "自举 builtin IM 全链路：假 QQ 平台（本机）→ 起服 → 注入群消息 → 断言出站回复"
+        dependsOn("downloadPaperJar", project.tasks.shadowJar)
+        outputs.upToDateWhen { false }
+        val runDir = project.layout.projectDirectory.dir("run-e2e-im").asFile
+        val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+        val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+        val fakePort = 18080
+        // 注入的群指令（`$h`）：用拼接避免 Kotlin 模板转义把内容变成空串
+        val imProbeCommand = "$" + "h"
+        val fakeBase = "http://127.0.0.1:$fakePort"
+        val projectDirPath = project.layout.projectDirectory.asFile
+        doLast {
+            val fakeLog = File(project.layout.buildDirectory.get().asFile, "fake-qq.jsonl")
+            val fakeOut = File(project.layout.buildDirectory.get().asFile, "fake-qq.out")
+            fakeOut.parentFile.mkdirs()
+            val fake =
+                ProcessBuilder(
+                        "python3",
+                        "scripts/e2e/fake_qq_platform.py",
+                        "--port",
+                        fakePort.toString(),
+                        "--log",
+                        fakeLog.absolutePath,
+                    )
+                    .directory(projectDirPath)
+                    .redirectErrorStream(true)
+                    .redirectOutput(fakeOut)
+                    .start()
+            try {
+                if (!awaitCondition("假 QQ 平台启动", 20_000) { httpGetOrNull("$fakeBase/control/health") != null }) {
+                    throw GradleException("假 QQ 平台未启动。输出:\n${fakeOut.readText()}")
+                }
+                logger.lifecycle("假 QQ 平台已启动: $fakeBase")
+                runHeadlessServerSmoke(
+                    core = "Paper",
+                    serverJar = paperServerJar,
+                    runDir = runDir,
+                    shadowJarFile = shadowJarFile,
+                    javaBin = javaBin,
+                    port = 25585,
+                    prepare = { dataDir ->
+                        File(dataDir, "im.yml")
+                            .writeText(
+                                """
+                                backend: builtin
+                                platforms:
+                                  qq:
+                                    enabled: true
+                                    app_id: 'e2e-app'
+                                    client_secret: 'e2e-secret'
+                                    api_base: '$fakeBase'
+                                """
+                                    .trimIndent() + "\n"
+                            )
+                        File(dataDir, "im_bindings.yml")
+                            .writeText(
+                                """
+                                sessions:
+                                  qq:
+                                    admin_group: 'group:G1'
+                                """
+                                    .trimIndent() + "\n"
+                            )
+                    },
+                    preChecks = emptyList(),
+                    checks = botConsoleChecks(uniqueE2eTag()),
+                    perfLabel = "im",
+                    afterReady = { logFile ->
+                        // 等 builtin QQ 通道真正 READY（日志为准；WS 握手早于 identify，不能只看连接数）
+                        // 从文件头开始找：READY 可能在本步之前就已经打印（smoke.log 每次运行都会重建，无残留风险）
+                        if (!awaitLogAfter(logFile, 0L, Regex("网关 READY|会话已建立"), 90_000)) {
+                            throw GradleException("90s 内 QQ 通道未 READY（检查 im.yml / api_base / 启动日志）")
+                        }
+                        // 注入管理群消息（$h）：最多重试 3 次（首次可能早于插件命令层就绪）
+                        var ok = false
+                        for (attempt in 1..3) {
+                            val injected =
+                                httpPostJsonOrNull(
+                                    "$fakeBase/control/message",
+                                    """{"content":"$imProbeCommand","group_openid":"G1","member_openid":"U1","role":"owner"}""",
+                                )
+                            if (injected == null) throw GradleException("注入入站消息失败（控制面不可用）")
+                            logger.lifecycle("已注入入站消息（第 $attempt 次）: $injected")
+                            ok =
+                                awaitCondition("出站回复到达假平台", 20_000) {
+                                    val sent = httpGetOrNull("$fakeBase/control/sent") ?: ""
+                                    sent.contains("/v2/groups/G1/messages") && sent.contains("群指令帮助")
+                                }
+                            if (ok) break
+                        }
+                        if (!ok) {
+                            throw GradleException(
+                                "出站回复未出现。假平台记录:\n${httpGetOrNull("$fakeBase/control/sent")}" +
+                                    "\n服务器日志尾部:\n${logTail(File(runDir, "smoke.log"))}"
+                            )
+                        }
+                        logger.lifecycle("IM 链路校验通过：入站 $imProbeCommand → 命令层 → 出站到 group:G1")
+                    },
+                )
+            } finally {
+                fake.destroyForcibly()
+            }
+        }
+    }
+
+    register("e2eLocal") {
+        group = "verification"
+        description = "自举真实服务端 E2E 入口（-Pcore=paper|folia，默认 folia）"
+        val core = (providers.gradleProperty("core").orNull ?: "folia").lowercase()
+        require(core == "paper" || core == "folia") { "非法 -Pcore=$core（仅支持 paper|folia）" }
+        dependsOn(if (core == "paper") "e2eLocalPaper" else "e2eLocalFolia")
+    }
+
     jar {
         enabled = false
     }
@@ -440,8 +1058,23 @@ tasks {
         dependsOn("shadowJar")
     }
     withType<Test> {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            // 隔离舱：`-PexcludeFlaky` 跳过 @Tag("flaky") 用例（已确认不稳定、正在修但暂不阻断 PR 时使用）；
+            // 默认不跳过——隔离必须是显式动作，避免「静默丢失覆盖率」
+            if (providers.gradleProperty("excludeFlaky").isPresent) {
+                excludeTags("flaky")
+            }
+        }
         jvmArgs("-Xshare:off")
+        // E2eCommandCoverageTest 直接解析本脚本的断言表 → 声明为测试输入：脚本改动时测试必须重跑，
+        // 否则「删掉一条断言」这种变更会被 Gradle 判为 up-to-date 而漏检
+        inputs.file("build.gradle.kts").withPropertyName("e2eAssertionSource")
+        // 偶发失败自动重跑（每用例最多 2 次）；重跑通过不判失败，但必须在 CI 日志里可见
+        retry {
+            maxRetries.set(2)
+            maxFailures.set(50)
+            failOnPassedAfterRetry.set(false)
+        }
         testLogging {
             events("passed", "skipped", "failed")
             showExceptions = true
@@ -476,23 +1109,25 @@ tasks.withType<JacocoReport>().configureEach {
 tasks.withType<JacocoCoverageVerification>().configureEach {
     dependsOn("test", "integrationTest")
     executionData(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
+    // 门槛贴着实测值留约 3–4 个百分点余量（2026-11 实测 INSTRUCTION 85.4% / BRANCH 73.6% / LINE 84.9%）。
+    // 旧门槛 60/50/55 比现状低 20+ 点，只能拦灾难性回退，等于没有门禁——收紧到「小步回退也会红」。
     violationRules {
         rule {
             limit {
                 counter = "INSTRUCTION"
-                minimum = BigDecimal.valueOf(0.60)
+                minimum = BigDecimal.valueOf(0.78)
             }
         }
         rule {
             limit {
                 counter = "BRANCH"
-                minimum = BigDecimal.valueOf(0.50)
+                minimum = BigDecimal.valueOf(0.72)
             }
         }
         rule {
             limit {
                 counter = "LINE"
-                minimum = BigDecimal.valueOf(0.55)
+                minimum = BigDecimal.valueOf(0.78)
             }
         }
     }
@@ -513,3 +1148,84 @@ tasks.named("check") {
     dependsOn("integrationTest", "jacocoTestCoverageVerification", "checkSecrets")
 }
 
+
+// =====================================================================
+// 变异测试（Pitest）：nightly-only，**不进 PR 门禁**
+// ---------------------------------------------------------------------
+// 覆盖率只说"这行跑过"，变异测试才说"这个分支有没有断言把它钉住"。
+// 代价是慢（每个变异体重跑相关测试），所以只在夜间对一小片目标跑；
+// 结果用于发现"测试很多但断言很弱"的地方，不阻塞任何流水线。
+//
+//   ./gradlew pitest                                   # 默认目标（tnt + rank）
+//   ./gradlew pitest -PpitestTargets=com.x.Pkg.*       # 指定类/包（逗号分隔）
+//   ./gradlew pitest -PpitestMutators=STRONGER         # 换变异算子
+// =====================================================================
+val pitestTargetsSpec = (findProperty("pitestTargets") as String?)
+    ?: "com.jokerhub.paper.plugin.orzmc.features.tnt.*,com.jokerhub.paper.plugin.orzmc.features.rank.*"
+val pitestMutatorsSpec = (findProperty("pitestMutators") as String?) ?: "DEFAULTS"
+val pitestThreadsSpec = ((findProperty("pitestThreads") as String?) ?: "4").toInt()
+
+// 用命令行 main 直接跑（不引入 Gradle 插件，避免插件与 Gradle 9.x 的兼容绑定）。
+val pitestRuntime: Configuration = configurations.maybeCreate("pitestRuntime").apply {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+val pitestEngineVersion = "1.30.2"
+dependencies {
+    add("pitestRuntime", "org.pitest:pitest:$pitestEngineVersion")
+    add("pitestRuntime", "org.pitest:pitest-entry:$pitestEngineVersion")
+    add("pitestRuntime", "org.pitest:pitest-command-line:$pitestEngineVersion")
+    add("pitestRuntime", "org.pitest:pitest-junit5-plugin:1.2.3")
+}
+
+tasks.register<JavaExec>("pitest") {
+    group = "verification"
+    description = "变异测试（Pitest，夜间专用，不进 check）：默认 targets=features.tnt + features.rank"
+    dependsOn(tasks.named("testClasses"))
+    classpath = pitestRuntime
+    mainClass.set("org.pitest.mutationtest.commandline.MutationCoverageReport")
+    val codeUnderTest = sourceSets.main.get().output
+    val testClasses = sourceSets.test.get().output
+    val testDeps = configurations.testRuntimeClasspath.get()
+    val reportDir = layout.buildDirectory.dir("reports/pitest").get().asFile
+    doFirst { reportDir.mkdirs() }
+    // 被测代码与测试代码分开给：pitest 从 mutableCodePaths 取"要变异的类"（列表参数，须逐个传，
+    // 拼成 `a:b` 的单个字符串会被当成一个不存在的路径 → pre-scan 报 0 mutation units）。
+    val mutableArgs = codeUnderTest.files.flatMap { listOf("--mutableCodePaths", it.absolutePath) }
+    // 同理：--classPath 也是列表参数，必须逐条传（拼成 `a:b` 会被当成一个不存在的路径，
+    // 结果是 pre-scan 找不到任何类 → "0 mutation units"）
+    val classPathArgs = (codeUnderTest + testClasses + testDeps).files.flatMap { listOf("--classPath", it.absolutePath) }
+    args = mutableArgs + classPathArgs + listOf(
+        "--reportDir", reportDir.absolutePath,
+        "--projectBase", projectDir.absolutePath,
+        "--targetClasses", pitestTargetsSpec,
+        "--targetTests", "com.jokerhub.paper.plugin.orzmc.*",
+        "--sourceDirs", file("src/main/java").absolutePath,
+        "--outputFormats", "HTML,XML,CSV",
+        "--timestampedReports", "false",
+        "--mutators", pitestMutatorsSpec,
+        "--threads", pitestThreadsSpec.toString(),
+        "--timeoutConst", "10000",
+        "--testPlugin", "junit5",
+        "--failWhenNoMutations", "false",
+        "--verbose", (findProperty("pitestVerbose") as String?) ?: "false",
+    )
+    isIgnoreExitValue = true // 变异存活不是构建失败：只产出报告供人工/夜间判读
+    doLast {
+        val csv = File(reportDir, "mutations.csv")
+        if (!csv.exists()) {
+            logger.lifecycle("Pitest 未产出报告（见上方 PIT 输出）")
+            return@doLast
+        }
+        val rows = csv.readLines().drop(1)
+        val killed = rows.count { it.contains(",KILLED,") }
+        val survived = rows.count { it.contains(",SURVIVED,") }
+        val total = killed + survived
+        if (total > 0) {
+            logger.lifecycle(
+                "Pitest 变异得分 ${"%.1f".format(killed * 100.0 / total)}% " +
+                    "（killed=$killed, survived=$survived；存活清单 ${csv.absolutePath}）"
+            )
+        }
+    }
+}

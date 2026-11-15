@@ -65,12 +65,83 @@ bash e2e/run-all.sh -h
 4. 退出码：0=全过，1=有失败（run-all.sh 聚合判定）
 5. 复用 `lib/rcon.js`（Promise RCON + waitLog）与 `lib/bot.js`（spawnBot 自适应登录 + waitMessage）
 
+## CI 自举层（L1.5，无需常驻测试服）
+
+真实服务端本身也能在仓库内自举——不依赖 MCSM 面板/console API，`gradle` 一条命令完成
+「下载服务端 → 隔离 run 目录 → 放入插件 → 起服 → 控制台断言 → stop → 断言 exit 0」：
+
+```bash
+./gradlew e2eLocalPaper      # Paper：完整 13 条控制台断言（PR 门禁 job，并行）
+./gradlew e2eLocalFoliaLp    # Folia + 真实 LuckPerms：16 条断言（PR 门禁 job e2e-lp）
+./gradlew e2eLocalIm         # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR job e2e-im）
+./gradlew e2eLocalPlayer     # 玩家侧：mineflayer 客户端加入 → /menu GUI → /guide 开书 → 非管理员 /config 被拒
+./gradlew e2eLocalFolia      # Folia：同上（本地/按需；CI 的 folia-smoke 已覆盖）
+./gradlew e2eLocal -Pcore=paper   # 二选一入口（默认 folia）
+./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 13 条控制台断言 + D3 变体
+./gradlew e2eLocalPaperLp    # Paper + LuckPerms（本地用；CI 跑 Folia 版）
+```
+
+**服务端版本策略（2026-11 决策）**：Paper 与 Folia **永远跟随同一个 `plugin_debug_server_version`**，
+不拆独立版本属性。上游节奏不同时（如 26.3：Paper 为 STABLE、Folia 仅 ALPHA），Folia 冒烟就跟着跑 alpha——
+这是有意的：alpha 阶段跑冒烟才能在插件兼容问题上**最早**发现，而钉旧版只会把问题推迟到用户升级时。
+若某天 alpha 挂了且上游迟迟不发 stable，临时手段是把 `plugin_debug_server_version` 整体回退一格
+（Paper 也一起退，保持两平台一致），而不是引入第二个版本变量。
+
+断言内容（`build.gradle.kts` 的 `botConsoleChecks`，经 `/orzdebug` 模拟群用户命令）：
+
+| 断言 | 覆盖的真实运行时问题 |
+|:--|:--|
+| `orzdebug $h` → 群指令帮助 | Brigadier 命令注册、Bot 命令解析与回执链路 |
+| `orzdebug $l` → 当前在线 | 在线列表渲染 |
+| `orzdebug $w` → 当前白名单玩家 | **Folia 分页调度**（BUG-E2E-001 回归护栏） |
+| `orzdebug $d` → 访问规则/黑名单 | 安全模块查询链路 |
+| `orzdebug $v l` → 待审核申请 | 审核模块查询链路 |
+| `orzdebug $a E2EProbe` → 白名单添加 **且** 名字在列表 | 写路径：白名单落盘 + reload + 读回 |
+| `orzdebug $r E2EProbe` → 白名单移除 **且** 名字消失 | 写路径还原（跑完不留脏数据） |
+| `orzdebug $e say <唯一标记>` → 标记出现在日志 | 插件代执行控制台命令 |
+| `orzdebug $b` → 地图备份 完成 **且** 备份 zip 落盘（>10KB） | 真实备份链路（备份库打包 + 维护模式进出 + 保留策略） |
+| `orzdebug $o` → 地图优化 完成 | 真实优化链路（另有落盘断言，防"日志说完成但没文件"） |
+| `config reload` → 已重新加载 | 配置子系统热加载 |
+| `maintenance on` / `maintenance off` → 状态切换 | 维护模式状态机（进得去也退得出） |
+| `$p` → `$p 权限管理` 用法 | **真实 LuckPerms 已就绪**（LP 缺失时这里会是「未检测到 LuckPerms」） |
+| `$p u E2EProbe` → 找不到玩家 | LP 离线 UUID 解析的降级路径（不得抛异常/超时） |
+| `/rank`（控制台）→ 需要玩家执行 | PlayerOnly 拦截器链 |
+
+**IM 全链路（`e2eLocalIm`）**：仓库内 `scripts/e2e/fake_qq_platform.py` 起一个假 QQ 开放平台
+（纯标准库：HTTP `/app/getAppAccessToken`、`/gateway/bot`、`/v2/groups/{id}/messages` + 同端口 WS
+hello→identify→READY→心跳，以及控制面 `/control/message` 注入入站事件）。断言链：
+`im.yml` backend=builtin + `api_base` 指向假平台 → 等「网关 READY」→ 注入 `$h` → 假平台 `/control/sent`
+必须出现 `/v2/groups/G1/messages` 且内容含「群指令帮助」。**这是此前只能靠真实 QQ 群人工验收的那一层。**
+限制：真实平台的频控/被动回复窗口时长不可仿造，仍属人工验收范围。
+
+**玩家侧（`e2eLocalPlayer`）**：`e2e/ci/player-probe.js` 用真实 mineflayer 客户端连本机 Paper，双玩家断言
+（管理员：加入 / `/menu` 箱子 GUI / `/guide` 打开新手书；非管理员：`/config` 被拒 = 权限隔离）。
+协议兼容（2026-11 实测）：mineflayer 最高协议 1.21.11 ↔ 服务端 26.3，**只装 ViaVersion 或只用协议补丁都会被拒
+「Outdated client」；ViaVersion + ViaBackwards 组合可正常登录**，两个插件由 gradle 任务自动下载。
+
+每次自举 E2E 还会落一份性能快照（`build/quality/perf-<label>.json`：启服耗时 + `$b` 备份耗时），
+由夜间趋势看板汇总成可 diff 的两列（启动/备份），劣化超阈值标 ⚠️。
+
+实现要点：每次命令前后取「日志稳定偏移」，**只匹配本次命令之后新增的日志**（避免命中历史日志造成假绿）；
+日志/世界都在独立 run 目录（`run-e2e-<core>/`、`run-folia-smoke/`），互不污染。
+
+夜间还会自动跑全量一遍（`.github/workflows/nightly.yml`：`check` + 双核心 E2E + builtin 变体），
+失败自动开 issue、恢复自动关闭——作为回归发现入口。
+
+**命令面完整性由单测强制**：`E2eCommandCoverageTest` 解析 `build.gradle.kts` 的断言表并与
+`OrzUserCmd` 枚举比对——新增 Bot 命令若没补断言（也没在 `NOT_COVERED` 登记原因）会让 `./gradlew test` 直接红。
+**当前 11/11 全覆盖**（`NOT_COVERED` 为空）：`$b`/`$o` 已在隔离 run 目录的小世界上跑，并额外断言 zip 落盘。
+
+与完整 L2 套件的分工：L1.5 覆盖「平台语义 + 命令链路」这类 MockBukkit 测不到的部分，每次 PR 跑；
+真实 IM 平台（EasyBot/QQ 频控）、真实 LP 授权、多人交互仍由本目录的全量套件做迭代验收。
+
 ## 与单测/CI 的关系
 
 | 层 | 工具 | 时机 | 门禁 |
 |:--|:--|:--|:--|
-| L0 单测 | JUnit5+Mockito（1283 用例，覆盖率 82.2%） | 每次提交 | `./gradlew test` |
-| L1 集成 | MockBukkit（14 类） | 每次 PR | `./gradlew integrationTest` |
+| L0 单测 | JUnit5+Mockito（2011 用例，INSTRUCTION 81.9%） | 每次提交 | `./gradlew test` |
+| L1 集成 | MockBukkit（16 类 / 104 用例） | 每次 PR | `./gradlew integrationTest` |
+| L1.5 自举 | `e2eLocalPaper` / `e2eLocalFoliaLp` / `e2eLocalIm`（服务端 + stdin/假平台断言） | 每次 PR | `./gradlew e2eLocalPaper` |
 | L2 E2E | 本套件（bot+RCON） | 迭代验收 / 功能变更 | `bash e2e/run-all.sh` |
 
 > ⚠️ 平台行为（EasyBot 网关、LP 授权、登录拦截、命令事件）MockBukkit 模拟不了，
