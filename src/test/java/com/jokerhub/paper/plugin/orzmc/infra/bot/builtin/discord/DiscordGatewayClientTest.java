@@ -149,7 +149,7 @@ class DiscordGatewayClientTest {
         conn.sendText("{\"op\":10,\"d\":{\"heartbeat_interval\":400}}");
         awaitTrue("收到 identify", () -> anyContains(conn.receivedText(), "\"op\":2"));
         conn.sendText("{\"op\":0,\"s\":1,\"t\":\"READY\",\"d\":{\"session_id\":\"sess1\"}}");
-        Thread.sleep(100); // 等 session_id 捕获（READY 处理在 WS 读线程）
+        awaitTrue("READY 已捕获 session_id", () -> client.sessionIdForTest() != null);
 
         // op9 d=false → 清会话并立即重连（全量 re-identify）
         conn.sendText("{\"op\":9,\"d\":false}");
@@ -169,8 +169,7 @@ class DiscordGatewayClientTest {
         conn.sendText("{\"op\":10,\"d\":{\"heartbeat_interval\":400}}");
         awaitTrue("收到 identify", () -> anyContains(conn.receivedText(), "\"op\":2"));
         conn.sendText("{\"op\":0,\"s\":3,\"t\":\"READY\",\"d\":{\"session_id\":\"sess9\"}}");
-        // 等 session 已捕获（receivedText 到达即可；稍候保证处理）
-        Thread.sleep(100);
+        awaitTrue("READY 已捕获 session_id", () -> client.sessionIdForTest() != null);
 
         // op7 → 立即重连；READY 已捕获 session_id 且 seq=3 → 新连接 resume（op6）
         conn.sendText("{\"op\":7}");

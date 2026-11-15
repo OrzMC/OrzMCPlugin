@@ -124,6 +124,15 @@ buildNumber.properties
 run/
 run-folia/
 run-folia-smoke/
+# 自举 E2E 隔离运行目录（e2eLocalPaper / e2eLocalFolia）
+run-e2e-paper/
+run-e2e-folia/
+run-e2e-paper-lp/
+run-e2e-folia-lp/
+run-e2e-im/
+run-e2e-player/
+# e2e 依赖（npm ci 产物，按 package-lock 复现）
+e2e/node_modules/
 .gradle/
 build/
 .idea/

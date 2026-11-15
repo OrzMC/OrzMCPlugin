@@ -14,9 +14,12 @@ import org.bukkit.configuration.ConfigurationSection;
  * @param proxy 生效代理（平台级覆盖优先，否则全局段；DIRECT = 直连）。从 {@link #from} 解析时已合并。
  * @param maxTextBytes 单条文本上限（UTF-8 字节，0 = 不分段）：官方未公开数字（仅错误码 40054007 消息长度超限），
  *     默认 {@link #DEFAULT_MAX_TEXT_BYTES} 保守值，可按实测结果在 im.yml 调整（D2/R7）。
+ * @param apiBase QQ 开放平台 API 基址覆盖（空白 = 官方 {@code https://api.bot.qq.com}）：
+ *     token 换取、{@code /gateway/bot}、发消息共用该基址；**仅用于自建网关/联调与 L1.5 自举测试**
+ *     （WS 地址仍由 {@code /gateway/bot} 响应决定，不在本键控制范围）。
  */
 public record QqPlatformConfig(
-        boolean enabled, String appId, String clientSecret, ImProxyConfig proxy, int maxTextBytes) {
+        boolean enabled, String appId, String clientSecret, ImProxyConfig proxy, int maxTextBytes, String apiBase) {
 
     /**
      * 单条文本默认上限（UTF-8 字节）：**2026-09 实测**——群主动消息 96KB(ASCII)/150KB(中文) 仍返回 200 并成功投递，
@@ -27,7 +30,12 @@ public record QqPlatformConfig(
 
     /** 便捷：无代理（直连；老调用兼容）。 */
     public QqPlatformConfig(boolean enabled, String appId, String clientSecret) {
-        this(enabled, appId, clientSecret, ImProxyConfig.DIRECT, DEFAULT_MAX_TEXT_BYTES);
+        this(enabled, appId, clientSecret, ImProxyConfig.DIRECT, DEFAULT_MAX_TEXT_BYTES, "");
+    }
+
+    /** 老 5 参调用兼容：不带 API 基址覆盖（用官方端点）。 */
+    public QqPlatformConfig(boolean enabled, String appId, String clientSecret, ImProxyConfig proxy, int maxTextBytes) {
+        this(enabled, appId, clientSecret, proxy, maxTextBytes, "");
     }
 
     /** 默认（禁用，无凭据，直连）。 */
@@ -65,11 +73,13 @@ public record QqPlatformConfig(
             proxy = ImProxyConfig.DIRECT;
         }
         int maxTextBytes = section.getInt("max_text_bytes", DEFAULT_MAX_TEXT_BYTES);
+        String apiBase = section.getString("api_base", "");
         return new QqPlatformConfig(
                 section.getBoolean("enabled", false),
                 appId == null ? "" : appId,
                 secret == null ? "" : secret,
                 proxy,
-                maxTextBytes <= 0 ? 0 : maxTextBytes);
+                maxTextBytes <= 0 ? 0 : maxTextBytes,
+                apiBase == null ? "" : apiBase.trim());
     }
 }

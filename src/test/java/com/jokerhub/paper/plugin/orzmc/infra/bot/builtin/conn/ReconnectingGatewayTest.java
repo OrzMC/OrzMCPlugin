@@ -249,21 +249,32 @@ class ReconnectingGatewayTest {
         RecordingListener listener = new RecordingListener();
         AtomicInteger seq = new AtomicInteger();
         TestGateway gw = newGateway(fastPolicy(), null, listener);
-        gw.heartbeatIntervalMs = 50L;
+        // 静默看门狗窗口 = interval × SILENT_CYCLES(3)。原用 50ms（窗口仅 150ms）：CI/本机负载抖动
+        // 一次 >150ms 的调度停顿就会被误判「心跳静默」并强制重连（2026-11 实观测到 opens=2 假失败）。
+        // 200ms → 600ms 窗口，给调度抖动留 3 倍余量。
+        gw.heartbeatIntervalMs = 200L;
         gw.heartbeatPayload = () -> "hb:" + seq.incrementAndGet();
 
         gw.start();
         awaitTrue("首次建连", () -> gw.opens.get() == 1);
-        awaitTrue("按周期发送心跳", () -> {
-            long hb = server.connections().get(0).receivedText().stream()
-                    .filter(f -> f.startsWith("hb:"))
-                    .count();
-            return hb >= 3;
-        });
+        awaitTrue("按周期发送心跳", () -> heartbeatFrameCount() >= 3);
 
-        Thread.sleep(400); // 活跃连接不应被静默看门狗误杀
-        assertEquals(1, gw.opens.get(), "心跳有回执时不应强制重连");
+        // 跨过 3 个心跳周期持续观察：回执正常时不应出现任何重连（轮询优于单次 sleep 后断言）
+        long observeUntil = System.currentTimeMillis() + 3 * gw.heartbeatIntervalMs;
+        while (System.currentTimeMillis() < observeUntil) {
+            assertEquals(
+                    1,
+                    gw.opens.get(),
+                    () -> "心跳有回执时不应强制重连（closes=" + gw.closes.get() + ", payloads=" + gw.payloads + "）");
+            Thread.sleep(25);
+        }
         assertTrue(gw.payloads.contains("ack"), "应收到服务端心跳回执: " + gw.payloads);
+    }
+
+    private long heartbeatFrameCount() {
+        return server.connections().get(0).receivedText().stream()
+                .filter(f -> f.startsWith("hb:"))
+                .count();
     }
 
     @Test

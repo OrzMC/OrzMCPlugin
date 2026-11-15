@@ -586,6 +586,12 @@ public class TestRegistryAccess implements RegistryAccess {
         }
 
         @Override
+        public org.bukkit.Instrument getInstrument() {
+            // 26.3 新增：非音符盒类方块返回 null
+            return "note_block".equals(key.getKey()) ? org.bukkit.Instrument.PIANO : null;
+        }
+
+        @Override
         public boolean isSolid() {
             return false;
         }
