@@ -409,6 +409,173 @@ private fun awaitCondition(label: String, timeoutMs: Long, condition: () -> Bool
 }
 
 /**
+ * 读日志 fromOffset 之后的全部文本。
+ *
+ * <p>统一口径：只看「本次命令之后」新增的行，绝不吃到历史/上一轮 run 的日志
+ * （否则 run 目录复用时守卫会无端变红，或断言被旧行假绿）。</p>
+ */
+private fun logTextSince(logFile: File, fromOffset: Long): String {
+    if (!logFile.exists()) return ""
+    val length = logFile.length()
+    if (length <= fromOffset) return ""
+    val buf = ByteArray((length - fromOffset).toInt())
+    RandomAccessFile(logFile, "r").use { raf ->
+        raf.seek(fromOffset)
+        raf.readFully(buf)
+    }
+    return String(buf, Charsets.UTF_8)
+}
+
+/**
+ * 跑一个 node 探测脚本（e2e/ci 下的探针）：流式转发输出、硬超时、非 0 退出即抛错（让任务失败）。
+ *
+ * <p>为什么不用 Exec 任务：探测器必须在「服务端已起、还没 stop」的窗口里跑，只能由
+ * {@code runHeadlessServerSmoke} 的 doLast 内联拉起；且失败信息要把服务端日志尾部一起抛出来。</p>
+ *
+ * <p>健壮性约定：无论正常结束 / 超时 / 被中断 / 读逻辑抛异常，`finally` 都会 `destroyForcibly()`
+ * + 等退 + join 读线程，绝不留下 node 子进程（否则端口被占，下一次运行必然假失败）。</p>
+ *
+ * <p>参数约定：{@code label} 放在**最后**（带默认值的可选参数在前），调用点用具名调用 → 清晰且不怕再插入参数。</p>
+ */
+private fun runNodeProbe(
+    logger: org.gradle.api.logging.Logger,
+    projectDir: File,
+    script: String,
+    env: Map<String, String> = emptyMap(),
+    timeoutMs: Long = 180_000,
+    serverLog: File? = null,
+    label: String,
+) {
+    logger.lifecycle("启动探测器: $script（$label，上限 ${timeoutMs / 1000}s）")
+    val probe = try {
+        ProcessBuilder("node", script).directory(projectDir).apply {
+            environment().putAll(env)
+        }.redirectErrorStream(true).start()
+    } catch (e: IOException) {
+        // 最常见的是 runner 上没装 Node：原始信息只有 `Cannot run program "node"`，不可操作
+        throw GradleException(
+            "无法启动 node 探测器（$label）：${e.message}\n" +
+                "提示：本任务需要 Node.js 22+。本地先跑 `./gradlew npmCi` 安装 mineflayer，" +
+                "并确认 `node -v` 可用（CI 由 actions/setup-node 提供）。",
+        )
+    }
+    probe.outputStream.close()
+    // 线程安全缓冲：读线程写入与主管道（超时/异常路径）读取并发，StringBuilder 会读到截断内容
+    val output = StringBuffer()
+    val readerThread =
+        Thread {
+                probe.inputStream.bufferedReader().forEachLine { line ->
+                    output.append(line).append('\n')
+                    logger.lifecycle("  [probe] $line")
+                }
+            }
+            .apply {
+                isDaemon = true
+                start()
+            }
+    var timedOut = false
+    var interrupted = false
+    try {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (!probe.isAlive) break
+            try {
+                Thread.sleep(200)
+            } catch (e: InterruptedException) {
+                // 中断（Gradle 取消/守护进程退出）也必须先把子进程杀掉，否则 node 残留占端口
+                interrupted = true
+                break
+            }
+        }
+        timedOut = !interrupted && probe.isAlive
+    } finally {
+        // 任何路径（正常/超时/中断/断言异常）都回收子进程与读线程，绝不留给下一次运行
+        if (probe.isAlive) {
+            probe.destroyForcibly()
+            probe.waitFor(5, TimeUnit.SECONDS)
+        }
+        readerThread.join(2_000)
+    }
+    val exit = runCatching { probe.exitValue() }.getOrNull()
+    if (interrupted) {
+        Thread.currentThread().interrupt()
+        throw InterruptedException("探测器被中断（$label），已回收子进程。输出:\n$output")
+    }
+    if (timedOut || exit == null) {
+        throw GradleException(
+            "探测器 ${timeoutMs}ms 未结束（$label），已回收子进程。输出:\n$output" + logHint(serverLog),
+        )
+    }
+    if (exit != 0) {
+        throw GradleException("探测器失败（exit=$exit，$label）。输出:\n$output" + logHint(serverLog))
+    }
+    logger.lifecycle("探测器通过: $label")
+}
+
+/** 探测器失败时附上服务端日志尾部（否则只剩「exit=1」毫无排查线索）。 */
+private fun logHint(serverLog: File?): String =
+    if (serverLog == null) "" else "\n服务器日志尾部:\n${logTail(serverLog)}"
+
+/**
+ * 确保 run 目录 `server.properties` 里某个键为指定值（读-改-写，幂等）。
+ *
+ * <p>为什么需要它：测试账号要在离线模式 + **非原版白名单**下才能登录。run 目录复用、或某一版
+ * 服务端默认值变化（`white-list=true`）时，账号会在登录阶段被拒，探针只会看到「spawn 超时」——
+ * 这条前置不显式保证，失败现象和真实缺陷（插件拒绝登录）无法区分。</p>
+ */
+private fun ensureServerProperty(runDir: File, key: String, value: String) {
+    val file = File(runDir, "server.properties")
+    if (!file.exists()) {
+        file.writeText("$key=$value\n")
+        return
+    }
+    val lines = file.readLines().toMutableList()
+    val idx = lines.indexOfFirst { it.trimStart().startsWith("$key=") }
+    if (idx >= 0) {
+        if (lines[idx].trim() == "$key=$value") return
+        lines[idx] = "$key=$value"
+    } else {
+        lines.add("$key=$value")
+    }
+    file.writeText(lines.joinToString("\n") + "\n")
+}
+
+/**
+ * 把 OrzMC 的 `config.yml` 里 `whitelist.force_whitelist` 改成 false（读-改-写，幂等）。
+ *
+ * <p>为什么不用 `appendText("whitelist:\n  force_whitelist: false\n")`：① 基础配置几乎必然已有
+ * `whitelist:` 段，顶层重复键的 YAML 语义不保证后写的段覆盖先写的；② 追加不带前导换行会把末行
+ * 拼坏（`...truewhitelist:`）；③ run 目录复用时每次再追加一份。这里改成：已有 `force_whitelist:`
+ * 就改值，有 `whitelist:` 段就插到段内，两者都没有才追加新段——其余内容一行不动。</p>
+ */
+private fun disableForceWhitelist(configFile: File) {
+    val text = if (configFile.exists()) configFile.readText() else ""
+    val lines = text.lines().toMutableList()
+    val key = "force_whitelist"
+    val keyIdx = lines.indexOfFirst { it.matches(Regex("""^\s*$key\s*:.*$""")) }
+    if (keyIdx >= 0) {
+        val indent = lines[keyIdx].takeWhile { it == ' ' || it == '\t' }
+        lines[keyIdx] = "$indent$key: false"
+        configFile.writeText(lines.joinToString("\n"))
+        return
+    }
+    val sectionIdx = lines.indexOfFirst { it.matches(Regex("""^whitelist\s*:.*$""")) }
+    if (sectionIdx >= 0) {
+        // 段内缩进 2 空格，与仓库默认配置一致
+        lines.add(sectionIdx + 1, "  $key: false")
+        configFile.writeText(lines.joinToString("\n"))
+        return
+    }
+    val out =
+        buildString {
+            append(text.trimEnd('\n'))
+            if (isNotEmpty()) append('\n')
+            append("whitelist:\n  $key: false\n")
+        }
+    configFile.writeText(out)
+}
+
+/**
  * 起真实服务端并跑断言：隔离 run 目录 → 放入插件 → 启动 → 等 Done → 等插件加载 →
  * 逐条控制台断言（只匹配本次命令之后的日志）→ stop → 断言 exit 0。
  */
@@ -428,6 +595,15 @@ private fun Project.runHeadlessServerSmoke(
     afterReady: (File) -> Unit = {},
     /** 性能快照标签（如 paper / folia-lp / im）；null 表示不采集。 */
     perfLabel: String? = null,
+    /**
+     * 起服就绪 + {@code extraCommands} 之后、控制台断言之前执行的自定义校验；第二个参数是
+     * 「再向该服务端 stdin 写一条命令」的通道。
+     *
+     * <p>为什么需要它：权限/传送门两个任务必须先让玩家登录一次（LP 只能按名字解析登录过的玩家）
+     * 再下发 LuckPerms 命令、等 LP 异步结果落地，最后才跑探测器——单次 {@code extraCommands}
+     * 列表做不到「跑一段 node → 发命令 → 再跑一段 node」的编排。</p>
+     */
+    afterReadyConsole: ((File, (String) -> Unit) -> Unit)? = null,
 ) {
     runDir.mkdirs()
     // 世界是否全新：部分断言（重复优化）只在全新世界上成立（已知缺陷见 issue #588）
@@ -486,6 +662,20 @@ private fun Project.runHeadlessServerSmoke(
 
     // 起服就绪后的自定义校验（例如假 IM 平台：等通道连上 → 注入入站消息 → 断言出站）
     afterReady(logFile)
+
+    // 需要「服务端在跑、还能继续发控制台命令」编排的任务（权限三档 / 传送门）走这里
+    if (afterReadyConsole != null) {
+        val sendConsole: (String) -> Unit = { command ->
+            logger.lifecycle("控制台命令（探测编排）: $command")
+            try {
+                proc.outputStream.write((command + "\n").toByteArray(Charsets.UTF_8))
+                proc.outputStream.flush()
+            } catch (e: IOException) {
+                abort("无法向服务器写入命令（进程可能已退出）: $command（${e.message}）")
+            }
+        }
+        afterReadyConsole(logFile, sendConsole)
+    }
 
     var executed = 0
     var skipped = 0
@@ -912,6 +1102,251 @@ tasks {
                         )
                     }
                     logger.lifecycle("玩家侧校验通过（加入 / GUI / 权限隔离 / 新手书）")
+                },
+            )
+        }
+    }
+
+    // e2eLocalPerm：权限三档矩阵（default/member/builder + op 对照）
+    // 覆盖的是 MockBukkit 测不到的那一层：真实 LuckPerms 的组/继承/节点解析 + 真实 Brigadier
+    // requires() 过滤 + 拦截器运行时拒绝文案。客户端侧断言（谁被拒、谁放行）由 node 探针完成。
+    register("e2eLocalPerm") {
+        group = "verification"
+        description = "自举权限三档 E2E：真实 LP 建组挂节点 → 三档账号 + op 对照 → 逐档断言 OrzMC 命令放行/拒绝"
+        dependsOn(
+            "downloadPaperJar",
+            "downloadLuckPermsJar",
+            "downloadViaVersionJar",
+            "downloadViaBackwardsJar",
+            "npmCi",
+            project.tasks.shadowJar,
+        )
+        outputs.upToDateWhen { false }
+        val runDir = project.layout.projectDirectory.dir("run-e2e-perm").asFile
+        val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+        val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+        val probePort = 25587
+        val probeScript = "e2e/ci/perm-tiers-probe.js"
+        // 与传送门任务同样的原因：1.21.x 客户端在 ViaBackwards 下会被判非法移动而踢人
+        val probeVersion = "1.20.4"
+        val projectDirPath = project.layout.projectDirectory.asFile
+        val serverLog = File(runDir, "smoke.log")
+        // 探针自身上限（见探针文件头的「各步之和 × 1.5 + 30s」公式）：
+        //  · register：4 账号 × spawn 30s + 收尾 10s ≈ 130s → 130×1.5+30 ≈ 225s
+        //  · assert  ：4 账号 × spawn 30s + 13 条断言 × 8s + 4 个「未拒绝」窗口 × 3s ≈ 238s
+        //              → 238×1.5+30 ≈ 390s
+        // Gradle 侧一律比探针自身上限再宽 30~70s：让探针自己先超时退出，才能报出「卡在哪一步」
+        // （直接被子进程超时干掉只会得到「未结束」三个字，连哪条断言失败都看不到）。
+        val registerProbeTimeoutMs = 260_000L
+        val assertProbeTimeoutMs = 460_000L
+        doLast {
+            val probeEnv = mapOf("MC_PORT" to probePort.toString(), "MC_VERSION" to probeVersion)
+            runHeadlessServerSmoke(
+                core = "Paper",
+                serverJar = paperServerJar,
+                runDir = runDir,
+                shadowJarFile = shadowJarFile,
+                javaBin = javaBin,
+                port = probePort,
+                prepare = { dataDir ->
+                    // 测试账号要能进来：原版白名单（server.properties）+ 插件强制白名单都要关。
+                    // 两者都是读-改-写幂等写入（run 目录复用不会堆叠、也不会拼坏末行）。
+                    ensureServerProperty(runDir, "white-list", "false")
+                    disableForceWhitelist(File(dataDir, "config.yml"))
+                },
+                preChecks = listOf(
+                    "LuckPerms 已加载" to Regex("LuckPerms v\\d"),
+                    "ViaBackwards 已加载" to Regex("ViaBackwards"),
+                    // 映射加载完之前登录会被按原版协议拒绝（"Outdated client"），必须等这一行
+                    "协议映射就绪" to Regex("Finished mapping loading"),
+                ),
+                checks = emptyList(), // 本任务的断言全部在客户端侧（探针）完成
+                perfLabel = "perm",
+                extraPlugins = listOf(viaVersionJar, viaBackwardsJar, luckPermsJar),
+                afterReadyConsole = { logFile, console ->
+                    // ① 登记：LuckPerms 只能按名字解析「登录过」的玩家（实测：未登录过的名字
+                    //    执行 lp user X parent set ... 只会回 `[LP] A user for X could not be found.`），
+                    //    所以先让四个账号各登录一次。
+                    runNodeProbe(
+                        logger = logger,
+                        projectDir = projectDirPath,
+                        script = probeScript,
+                        env = probeEnv + ("MC_PERM_PHASE" to "register"),
+                        timeoutMs = registerProbeTimeoutMs,
+                        serverLog = serverLog,
+                        label = "权限矩阵-登记登录",
+                    )
+
+                    // ② 建组/挂继承/挂节点/挂账号：LP 命令是异步的，按「本次发出的 N 条命令都打印了
+                    //    一行 [LP] 结果」同步，绝不靠固定 sleep（慢机器上会偶发「组还没生效就断言」）。
+                    val lpFrom = stableLogOffset(logFile)
+                    console("op E2EOp") // op 对照组：requires() 阶段判 isOp 的硬编码 admin 命令靠它放行
+                    // 复用 run 目录时该账号已经是 op，原版会回「Nothing changed. … already an operator」
+                    if (!awaitLogAfter(logFile, lpFrom, Regex("Made E2EOp a server operator|is already an operator"), 30_000)) {
+                        throw GradleException("op E2EOp 未生效（30s 内日志没有操作员变更记录）")
+                    }
+                    val lpCommands = listOf(
+                        "lp creategroup member",
+                        "lp creategroup builder",
+                        "lp group member parent set default",
+                        "lp group builder parent set member",
+                        // 三档矩阵的「档位差异」就靠这个节点：builder 档拿到 orzmc.admin → /portal、/bot http 放行
+                        "lp group builder permission set orzmc.admin true",
+                        "lp user E2EDefault parent set default",
+                        "lp user E2EMember parent set member",
+                        "lp user E2EBuilder parent set builder",
+                    )
+                    lpCommands.forEach(console)
+                    // 只统计「真正执行完」的结果行：LP 在并发下发时会先打印
+                    // 「目前有另一個指令正在執行，正在等待該指令執行完成……」这类排队提示，
+                    // 它们同样带 [LP] 前缀——按裸 [LP] 计数会让屏障在命令还没执行时提前通过。
+                    val lpQueued = Regex("正在等待|目前有另一個指令|is already running|already executing|waiting for the other")
+                    fun lpOutcomeLines(): List<String> =
+                        logTextSince(logFile, lpFrom)
+                            .lines()
+                            .filter { "[LP]" in it && !lpQueued.containsMatchIn(it) }
+                    val lpDone = awaitCondition("LuckPerms 命令全部落地", 90_000) {
+                        lpOutcomeLines().size >= lpCommands.size
+                    }
+                    if (!lpDone) {
+                        throw GradleException(
+                            "90s 内 LuckPerms 只输出了 ${lpOutcomeLines().size}/${lpCommands.size} 条结果。" +
+                                "服务器日志尾部:\n${logTail(logFile)}"
+                        )
+                    }
+                    // 「行数到齐」≠「命令执行成功」：参数错/组名拼错/权限不足同样会打印一行 [LP]。
+                    // 所以再断言「没有命中错误形态的行」，并把命中行原文打出来。
+                    // 白名单只留两类（评审要求）：
+                    //  · already exists / 已存在（creategroup 重跑的幂等预期，LP 输出跟随服务端语言，中英都覆盖）
+                    //  · 登记阶段之前的 `A user for .* could not be found`——窗口 lpFrom 落在登记之后，
+                    //    这类行天然不在窗口内；**窗口内出现即账号没登记成功，是真失败**，不白名单。
+                    val lpWhitelist = Regex("already exists|已存在|already has|已設定|已經設定")
+                    val lpUnresolved = Regex("A user for .* could not be found|找不到名為|找不到名为")
+                    val lpError =
+                        Regex(
+                            "could not be found|找不到名為|找不到名为|does not exist|不存在|" +
+                                "occured whilst executing|發生錯誤|发生错误|Unknown command|未知的指令|" +
+                                "do not have permission|沒有權限|没有权限",
+                        )
+                    val lpLines = lpOutcomeLines()
+                    val unresolvedLines = lpLines.filter { lpUnresolved.containsMatchIn(it) }
+                    if (unresolvedLines.isNotEmpty()) {
+                        throw GradleException(
+                            "LuckPerms 解析不到测试账号（${unresolvedLines.size} 条）——登记阶段没有把名字写进 usercache。" +
+                                "命中行原文:\n${unresolvedLines.joinToString("\n") { "  | $it" }}" +
+                                "\n服务器日志尾部:\n${logTail(logFile)}"
+                        )
+                    }
+                    val lpOffenders = lpLines.filter { line ->
+                        lpError.containsMatchIn(line) && !lpWhitelist.containsMatchIn(line)
+                    }
+                    if (lpOffenders.isNotEmpty()) {
+                        throw GradleException(
+                            "LuckPerms 有 ${lpOffenders.size} 条命令报错（行数到齐不代表落地成功）。" +
+                                "命中行原文:\n${lpOffenders.joinToString("\n") { "  | $it" }}" +
+                                "\n服务器日志尾部:\n${logTail(logFile)}"
+                        )
+                    }
+                    logger.lifecycle("LuckPerms 已挂好三档组与 orzmc.admin 节点（${lpCommands.size} 条命令落地，0 条报错）")
+
+                    // ③ 矩阵断言：四个账号依次登录 → 逐档断言放行/拒绝（真实文案，见探针头部注释）
+                    runNodeProbe(
+                        logger = logger,
+                        projectDir = projectDirPath,
+                        script = probeScript,
+                        env = probeEnv + ("MC_PERM_PHASE" to "assert"),
+                        timeoutMs = assertProbeTimeoutMs,
+                        serverLog = serverLog,
+                        label = "权限三档矩阵断言",
+                    )
+                },
+            )
+        }
+    }
+
+    // e2eLocalPortal：村民穿过下界传送门（实体传送策略必须对 EntityPortalEvent 放行）
+    // 覆盖的是「策略开关与传送门边界」这条只有真实服务端才会走到的路径：MockBukkit 里没有
+    // 原版门判定，单测只能证明策略函数返回值，证明不了村民真的会过去。
+    register("e2eLocalPortal") {
+        group = "verification"
+        description = "自举传送门 E2E：控制台建 4×5 下界门 → 召唤村民 → 断言村民离开主世界并到达地狱维度"
+        dependsOn(
+            "downloadPaperJar",
+            "downloadViaVersionJar",
+            "downloadViaBackwardsJar",
+            "npmCi",
+            project.tasks.shadowJar,
+        )
+        outputs.upToDateWhen { false }
+        val runDir = project.layout.projectDirectory.dir("run-e2e-portal").asFile
+        val shadowJarFile = project.tasks.shadowJar.get().archiveFile.get().asFile
+        val javaBin = project.javaToolchains.launcherFor(project.java.toolchain).get().executablePath.asFile.absolutePath
+        val probePort = 25588
+        val probeScript = "e2e/ci/entity-portal-probe.js"
+        // 客户端版本必须是 1.20.4：1.21.x 客户端经 ViaBackwards 连 26.3 会被服务端判为
+        // 「Invalid move player packet received」踢人，且拿不到区块数据（详见探针文件头）
+        val probeVersion = "1.20.4"
+        val projectDirPath = project.layout.projectDirectory.asFile
+        val serverLog = File(runDir, "smoke.log")
+        // 探针自身上限（见探针文件头公式）：spawn 30 + 清场 20 + 建门 3 + 门框同步 15 + 在场 8
+        // + 点亮 15 + 过门 45 + 地狱 10 + 清理 10 = 156s → 156×1.5+30 ≈ 264s。
+        // Gradle 侧留到 300s（> 探针自身上限）：让探针自己先超时并报出「卡在哪一步」。
+        val probeTimeoutMs = 300_000L
+        doLast {
+            runHeadlessServerSmoke(
+                core = "Paper",
+                serverJar = paperServerJar,
+                runDir = runDir,
+                shadowJarFile = shadowJarFile,
+                javaBin = javaBin,
+                port = probePort,
+                prepare = { dataDir ->
+                    // 探针只用**原生命令**（不靠 /orzdebug $e）；探针账号要能进来，原版白名单与插件
+                    // 强制白名单都得关（读-改-写幂等，支持 run 目录复用）
+                    ensureServerProperty(runDir, "white-list", "false")
+                    disableForceWhitelist(File(dataDir, "config.yml"))
+                },
+                preChecks = listOf(
+                    "ViaBackwards 已加载" to Regex("ViaBackwards"),
+                    "协议映射就绪" to Regex("Finished mapping loading"),
+                ),
+                // 本任务**没有**服务端侧断言：结构/实体/清理都在客户端侧（探针）完成。
+                // 曾有一条「日志里不得出现『实体传送被禁用:<村民名>』」的守卫，已删——理由见下方注释。
+                checks = emptyList(),
+                perfLabel = "portal",
+                extraPlugins = listOf(viaVersionJar, viaBackwardsJar),
+                afterReadyConsole = { logFile, console ->
+                    // /orzdebug 只对 op 或 orzmc.admin 可见：这里不需要 LuckPerms，直接 op 探针账号
+                    val probeFrom = stableLogOffset(logFile)
+                    console("op E2EPortal")
+                    // 复用 run 目录时该账号已经是 op，原版会回「Nothing changed. … already an operator」，
+                    // 两种结果都算成功（否则第二次运行必挂）
+                    if (!awaitLogAfter(logFile, probeFrom, Regex("Made E2EPortal a server operator|is already an operator"), 30_000)) {
+                        throw GradleException("op E2EPortal 未生效（30s 内日志没有操作员变更记录）")
+                    }
+                    runNodeProbe(
+                        logger = logger,
+                        projectDir = projectDirPath,
+                        script = probeScript,
+                        env = mapOf(
+                            "MC_PORT" to probePort.toString(),
+                            "MC_VERSION" to probeVersion,
+                        ),
+                        timeoutMs = probeTimeoutMs,
+                        serverLog = serverLog,
+                        label = "村民过传送门",
+                    )
+                    // 为什么**没有**「日志里不得出现『实体传送被禁用』」的守卫（2026-11 评审决定删除，不是收窄）：
+                    //  ① 它天然不可靠：实体名来自 `entity.getName()`/`getType().name()`，实际可能是
+                    //     `Villager`/`VILLAGER`/`minecraft:villager`，按大小写敏感的裸串/收窄串匹配
+                    //     很可能恒绿（看似保护、实则从不生效）；
+                    //  ② 扫描从 offset 0 开始，run 目录复用时上一轮日志会污染判定（无端变红）；
+                    //  ③ 它无法自证存活：命中与不命中都可能是真实情况。
+                    // 行为断言已经覆盖了同一事实：村民在**原维度消失** + `execute in the_nether` 命中——
+                    // 若被 `EntityPortalEvent`/`OrzTPEvent` 拦下，村民根本不会过去（探针会直接报失败）。
+                    // 历史记录：2026-11-16 CI 曾因同一句里无关实体（`Crimson Roots`）误红，
+                    // 证明裸串与「只匹配村民」的收窄串都不可靠。
+                    logger.lifecycle("传送门校验通过（门结构合法 + 村民过门 + 到达地狱维度 + 产物已清理）")
                 },
             )
         }

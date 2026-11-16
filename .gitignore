@@ -131,6 +131,8 @@ run-e2e-paper-lp/
 run-e2e-folia-lp/
 run-e2e-im/
 run-e2e-player/
+run-e2e-perm/
+run-e2e-portal/
 # e2e 依赖（npm ci 产物，按 package-lock 复现）
 e2e/node_modules/
 .gradle/
