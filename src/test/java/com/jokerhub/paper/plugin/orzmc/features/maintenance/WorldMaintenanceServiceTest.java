@@ -610,7 +610,13 @@ public class WorldMaintenanceServiceTest extends ServiceTestBase {
         AtomicBoolean inputIsContainer = new AtomicBoolean(false);
         service.backup(300L, 5, msg -> {
             if (msg.contains("服务器地图目录")) {
-                inputIsContainer.set(!msg.trim().endsWith("/world"));
+                // 判据只看上报路径的最后一段是否为默认 world。
+                // 不要用写死的 "/world" 后缀：Windows 路径分隔符是 "\"，那样断言会恒为真，
+                // 测试在 Windows 上必挂（POSIX-only 断言）。
+                String reported = msg.trim();
+                String tail = reported.substring(reported.lastIndexOf('/') + 1);
+                tail = tail.substring(tail.lastIndexOf('\\') + 1);
+                inputIsContainer.set(!"world".equals(tail));
             }
             if (msg.contains("备份失败")) sawFail.set(true);
         });
