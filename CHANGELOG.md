@@ -14,6 +14,12 @@
   ——世界复用也必须出完成回执，成为该缺陷的回归护栏。
 
 ### 🔧 工程 / CI / 配置
+- **新增两个 PR 门禁 E2E 任务（行为变更：PR 检查项变多）**：
+  - `e2eLocalPerm`（PR job `e2e-perm`）：真实 Paper + 真实 LuckPerms，default/member/builder 三档账号 + op 对照，
+    逐档断言 OrzMC 命令的放行/拒绝（`/rank` 组名、`/apply` 可申请项、`/portal` 可见性、`/orzdebug` 受理）。
+  - `e2eLocalPortal`（PR job `e2e-portal`）：用真实客户端建 4×5 下界门 → 召唤村民 → 断言「门结构合法 / 过门前在场 /
+    过门后原维度消失 / 抵达地狱维度 / 产物已清理」，守住 `EntityPortalEvent` 必须放行的边界（此前只有人工脚本）。
+  - 两项默认**不阻断合并**：需 owner 把它们加入分支保护 required checks 才成为硬门禁。
 - **服务端基线 26.2 → 26.3**：`paper_api_version=26.3.build.251-stable`、`plugin_debug_server_version=26.3`、
   `plugin_support_paper_versions=26.3`、`paper-plugin.yml api-version: 26.3`。
 - 集成测试 MockBukkit `mockbukkit-v26.2:4.117.0` → **`mockbukkit-v26.3:4.120.0`**。

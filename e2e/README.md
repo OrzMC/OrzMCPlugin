@@ -75,6 +75,8 @@ bash e2e/run-all.sh -h
 ./gradlew e2eLocalFoliaLp    # Folia + 真实 LuckPerms：16 条断言（PR 门禁 job e2e-lp）
 ./gradlew e2eLocalIm         # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR job e2e-im）
 ./gradlew e2eLocalPlayer     # 玩家侧：mineflayer 客户端加入 → /menu GUI → /guide 开书 → 非管理员 /config 被拒
+./gradlew e2eLocalPerm       # 权限三档矩阵：default/member/builder + op 对照 → 逐档断言放行/拒绝（PR job e2e-perm）
+./gradlew e2eLocalPortal     # 村民穿越下界传送门：建门 → 召唤 → 断言过门到地狱维度（PR job e2e-portal）
 ./gradlew e2eLocalFolia      # Folia：同上（本地/按需；CI 的 folia-smoke 已覆盖）
 ./gradlew e2eLocal -Pcore=paper   # 二选一入口（默认 folia）
 ./gradlew foliaSmoke         # 必须门禁：Folia 起服 + 13 条控制台断言 + D3 变体
@@ -114,6 +116,43 @@ hello→identify→READY→心跳，以及控制面 `/control/message` 注入入
 必须出现 `/v2/groups/G1/messages` 且内容含「群指令帮助」。**这是此前只能靠真实 QQ 群人工验收的那一层。**
 限制：真实平台的频控/被动回复窗口时长不可仿造，仍属人工验收范围。
 
+**权限三档矩阵（`e2eLocalPerm`）**：真实 Paper + 真实 LuckPerms。`e2e/ci/perm-tiers-probe.js` 分两个阶段跑：
+① `MC_PERM_PHASE=register` 让四个账号各登录一次（LuckPerms 只能按名字解析**登录过**的玩家，
+对陌生名字执行 `lp user X parent set ...` 只会回 `[LP] A user for X could not be found.`）；
+② Gradle 下发 `lp creategroup / parent set / permission set`（等 N 条 `[LP]` **结果**落地——排队提示行
+「目前有另一個指令正在執行」不算；且行数到齐后还要断言「没有报错行」，只豁免 `already exists` 幂等提示）；
+③ `MC_PERM_PHASE=assert` 逐档断言：
+
+| 档位 | 断言 |
+|:--|:--|
+| default | `/rank` 显示 `default` 组；`/apply` 无可申请项；`/portal`、`/orzdebug` 不可见（原版「Unknown or incomplete command」） |
+| member | `/rank` 显示 `member`；`/apply` 列出 `/apply builder`；管理命令仍不可见（LP 继承不越权） |
+| builder | `/rank` 显示 `builder`；`/apply` 列出 `/apply admin`；挂 `orzmc.admin` 后 `/portal` 放行 |
+| op（对照） | `/orzdebug` 受理、`/portal` 放行（证明拒绝来自权限判定，而不是命令本身坏了） |
+
+> 拒绝文案是**实测抓的**：OrzMC 的 admin-only 命令在 Brigadier `requires()` 阶段就被过滤，
+> 非管理员看到的只能是原版「Unknown or incomplete command」；自定义「需要管理员权限」只在
+> 「命令可见但执行时被拦」时出现，目前没有玩家可达的那种命令。
+> `/bot http` 四档只做「**未被拒绝**」断言——错误回显同样含 `HTTP`，不当作放行证据
+> （放行证据是 `/rank` 组名、`/apply` 列表、`/portal` 用法回显、`/orzdebug` 受理）。
+> 客户端版本固定 **1.20.4**：1.21.x 客户端经 ViaBackwards 连 26.3 会被判
+> `Invalid move player packet received` 踢人（详见探针文件头）。
+> 超时：探针按「各步上限之和 × 1.5 + 30s」自算（register ≈225s、assert ≈390s），Gradle 侧再宽一截（260s / 460s），
+> 慢 runner 上先由探针自己超时并报出「卡在哪一步」；全部清理放在 `finally`。
+
+**村民过传送门（`e2eLocalPortal`）**：`e2e/ci/entity-portal-probe.js` 以 op 客户端用**原生命令**（不靠 `/orzdebug $e`）建
+标准 4×5 下界门（内 2×3）→ **先召唤村民、后点亮内层**（门没亮时村民不会走，让「summon 成功」可被确定断言）
+→ 等村民离开原维度 → 再断言它确实出现在地狱维度。断言项：
+门框结构合法（4 角 + 4 条边黑曜石）/ 内层 6 格 `nether_portal`（门真的亮了）/ 过门前村民在场 /
+过门后原维度消失 / 村民在地狱维度 / 测试产物已清理。
+实体判定一律**锚定到门坐标**（`execute positioned <X> <Y> <Z> ...`），不依赖世界出生点；
+超时预算同上方公式（≈264s，Gradle 侧 300s），清理走 `finally`（断言失败/超时也执行）。
+
+> 这里**没有**「日志里不得出现『实体传送被禁用』」的文本守卫：实体名来自 `getName()`/`getType().name()`，
+> 裸串/收窄串都可能恒绿（`Villager`/`VILLAGER`/`minecraft:villager`），扫 offset 0 又会被上一轮日志污染
+> （2026-11-16 CI 曾因同句里无关实体 `Crimson Roots` 误红）。「插件没拦」由**行为断言**覆盖：
+> 若被 `EntityPortalEvent`/`OrzTPEvent` 拦下，村民根本过不去，探针会直接失败。
+
 **玩家侧（`e2eLocalPlayer`）**：`e2e/ci/player-probe.js` 用真实 mineflayer 客户端连本机 Paper，双玩家断言
 （管理员：加入 / `/menu` 箱子 GUI / `/guide` 打开新手书；非管理员：`/config` 被拒 = 权限隔离）。
 协议兼容（2026-11 实测）：mineflayer 最高协议 1.21.11 ↔ 服务端 26.3，**只装 ViaVersion 或只用协议补丁都会被拒
@@ -141,7 +180,7 @@ hello→identify→READY→心跳，以及控制面 `/control/message` 注入入
 |:--|:--|:--|:--|
 | L0 单测 | JUnit5+Mockito（2011 用例，INSTRUCTION 81.9%） | 每次提交 | `./gradlew test` |
 | L1 集成 | MockBukkit（16 类 / 104 用例） | 每次 PR | `./gradlew integrationTest` |
-| L1.5 自举 | `e2eLocalPaper` / `e2eLocalFoliaLp` / `e2eLocalIm`（服务端 + stdin/假平台断言） | 每次 PR | `./gradlew e2eLocalPaper` |
+| L1.5 自举 | `e2eLocalPaper` / `e2eLocalFoliaLp` / `e2eLocalIm` / `e2eLocalPlayer` / `e2eLocalPerm` / `e2eLocalPortal`（服务端 + stdin/假平台/客户端断言） | 每次 PR | `./gradlew e2eLocalPaper` |
 | L2 E2E | 本套件（bot+RCON） | 迭代验收 / 功能变更 | `bash e2e/run-all.sh` |
 
 > ⚠️ 平台行为（EasyBot 网关、LP 授权、登录拦截、命令事件）MockBukkit 模拟不了，
