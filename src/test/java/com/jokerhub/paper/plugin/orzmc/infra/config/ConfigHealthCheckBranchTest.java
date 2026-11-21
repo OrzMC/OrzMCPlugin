@@ -261,6 +261,28 @@ class ConfigHealthCheckBranchTest {
     }
 
     @Test
+    void easybot_runtimeAdvisoriesSkippedWhenBackendIsBuiltin() {
+        // issue #610 顺带发现：backend=builtin 时 easybot.yml 不参与运行（不建连、不发 apiKey、绑定走
+        // im_bindings.yml），但旧实现仍报「明文传输 apiKey」「必须配 api_server/api_key」「会话绑定群未配」——
+        // 纯噪声，会把真问题挤出巡检视野。结构/格式校验必须保留（写错了切回 easybot 就会炸）。
+        completeQqGateway();
+        easybot.set("api_server", "http://easybot.example.com");
+        easybot.set("ws_server", "ws://easybot.example.com");
+        easybot.set("platforms.qq.admin_dm", "");
+        assertIssue(runValidate(), "使用明文 http 且非本机地址");
+
+        im.set("backend", "builtin");
+        List<String> issues = runValidate();
+        assertNoIssue(issues, "使用明文 http 且非本机地址");
+        assertNoIssue(issues, "使用明文 ws 且非本机地址");
+        assertNoIssue(issues, "admin_dm 未配置");
+
+        // 结构/格式校验不受影响
+        easybot.set("api_server", "not a url");
+        assertIssue(runValidate(), "easybot.api_server 需为有效的 http/https URL");
+    }
+
+    @Test
     void easybot_invalidUrlFormat() {
         completeQqGateway();
         easybot.set("api_server", "not a url");
