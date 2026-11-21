@@ -98,6 +98,10 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
                 processor,
                 new HealthListener(),
                 proxy);
+        // 静默看门狗窗口（issue #610）：0 = 自动（3 × hello 下发的心跳周期）
+        if (cfg.heartbeatTimeoutSeconds() > 0) {
+            this.gateway.setSilenceTimeoutMs(cfg.heartbeatTimeoutSeconds() * 1000L);
+        }
     }
 
     /**

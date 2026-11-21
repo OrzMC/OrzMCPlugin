@@ -92,6 +92,10 @@ public final class FeishuBuiltinAdapter implements BuiltinPlatform {
                 discovery);
         this.gateway = new FeishuGatewayClient(
                 serverLogger, ReconnectPolicy.defaults(), api, processor, new HealthListener(), proxy);
+        // 静默看门狗窗口（issue #610）：0 = 自动（3 × 对端下发的 ping_interval）
+        if (cfg.heartbeatTimeoutSeconds() > 0) {
+            this.gateway.setSilenceTimeoutMs(cfg.heartbeatTimeoutSeconds() * 1000L);
+        }
     }
 
     /** 生效代理解析（cfg.proxy 已合并全局段；null/DIRECT → 直连）。 */

@@ -29,6 +29,10 @@ platforms:
     # 默认 32768 仅作防御性上限（异常模板兜底，最多分 5 段、超出截断并告警）。需要复测用
     # docs/dev/qq-text-limit-probe.sh。
     max_text_bytes: 32768
+    # 静默看门狗窗口（秒；0/缺省 = 自动 = 3 × 服务端下发的心跳周期）。
+    # 含义：空闲期连续这么久收不到**任何**入站活性（业务帧、op11 心跳 ACK、WS ping/pong 都算）
+    # 才强制断开重连；普通空闲不会触发。只有「出网链路会回收长连接、但对端回帧慢」的环境才需要放大。
+    # heartbeat_timeout_seconds: 0
     # api_base: ''        # QQ API 基址覆盖（空白 = 官方 https://api.bot.qq.com）；仅自建网关/联调用，
                          # token/gateway/发消息共用；WS 地址仍由 /gateway/bot 响应决定
     # proxy:              # 平台级代理覆盖（可省略 = 用全局 proxy 段）
@@ -39,6 +43,9 @@ platforms:
     enabled: false
     app_id: ''            # 飞书开放平台 App ID（cli_ 前缀）
     app_secret: ''        # 飞书开放平台 App Secret
+    # 静默看门狗窗口（秒；0/缺省 = 自动 = 3 × 对端下发的 ping_interval，默认 120s → 360s）。
+    # 空闲期只有 WS ping/pong 与协议 ping 帧时才不会触发重连；连续窗口内零入站活性才判定断线（issue #610）。
+    # heartbeat_timeout_seconds: 0
     # proxy:              # 平台级代理覆盖（可省略 = 用全局 proxy 段）
     #   enabled: false
     #   host: ''
@@ -53,6 +60,8 @@ platforms:
   discord:
     enabled: false
     token: ''             # Discord 开发者门户 Bot Token（长期有效；鉴权失败=配置错误）
+    # 静默看门狗窗口（秒；0/缺省 = 自动 = 3 × 心跳周期）。
+    # heartbeat_timeout_seconds: 0
     # proxy:              # 平台级代理覆盖（可省略 = 用全局 proxy 段）
     #   enabled: false
     #   host: ''

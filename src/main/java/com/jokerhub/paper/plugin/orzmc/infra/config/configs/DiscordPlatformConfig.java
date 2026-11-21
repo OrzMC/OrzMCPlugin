@@ -11,8 +11,15 @@ import org.bukkit.configuration.ConfigurationSection;
  * @param enabled 是否启用 Discord 平台
  * @param token Discord bot token（开发者门户 Bot Token，长期有效，鉴权失败=配置错误）
  * @param proxy 生效代理（平台级覆盖优先，否则全局段；DIRECT = 直连）。从 {@link #from} 解析时已合并。
+ * @param heartbeatTimeoutSeconds 静默看门狗窗口（秒，0 = 自动 = 3 × 心跳周期）：空闲期多久收不到任何入站
+ *     活性（含 WS ping/pong 与 op11 心跳 ACK）就强制重连（issue #610）。
  */
-public record DiscordPlatformConfig(boolean enabled, String token, ImProxyConfig proxy) {
+public record DiscordPlatformConfig(boolean enabled, String token, ImProxyConfig proxy, int heartbeatTimeoutSeconds) {
+
+    /** 便捷：老 3 参调用兼容（静默窗口用默认值）。 */
+    public DiscordPlatformConfig(boolean enabled, String token, ImProxyConfig proxy) {
+        this(enabled, token, proxy, 0);
+    }
 
     /** 默认（禁用，无凭据，无代理覆盖）。 */
     public static final DiscordPlatformConfig DISABLED = new DiscordPlatformConfig(false, "", ImProxyConfig.DIRECT);
@@ -42,7 +49,12 @@ public record DiscordPlatformConfig(boolean enabled, String token, ImProxyConfig
         } else {
             proxy = ImProxyConfig.DIRECT;
         }
-        return new DiscordPlatformConfig(section.getBoolean("enabled", false), token == null ? "" : token, proxy);
+        return new DiscordPlatformConfig(
+                section.getBoolean("enabled", false),
+                token == null ? "" : token,
+                proxy,
+                // 静默窗口：非正值 = 自动（3 × 心跳周期），见 ReconnectingGateway.setSilenceTimeoutMs
+                Math.max(0, section.getInt("heartbeat_timeout_seconds", 0)));
     }
 
     /** 从 {@code platforms.discord} 段创建（无全局段，代理仅看平台级）；null/缺失 → 禁用。 */
