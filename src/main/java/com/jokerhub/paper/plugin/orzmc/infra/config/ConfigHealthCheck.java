@@ -3,6 +3,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.config;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ChatConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.CommandPolicies;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ExploitHardeningConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImGatewayConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.IpWhitelist;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.LoginRateLimitConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.MaintenanceConfig;
@@ -34,9 +35,13 @@ public final class ConfigHealthCheck {
     public static List<String> validateAll(Function<String, FileConfiguration> provider) {
         List<String> issues = new ArrayList<>();
         FileConfiguration config = provider.apply("config");
+        FileConfiguration imCfg = provider.apply("im");
         validateConfig(config, provider, issues);
-        validateEasyBot(provider.apply("easybot"), issues);
-        validateIm(provider.apply("im"), issues);
+        // backend=builtin 时 easybot.yml 根本不参与运行（连接/凭据/会话绑定全走 im.yml + im_bindings.yml）——
+        // 其“运行时才相关”的建议（apiKey 明文传输、必须配 api_server/api_key、会话绑定群）在 builtin 下是纯噪声，
+        // 会把真问题挤出巡检视野（issue #610 顺带发现）。结构与格式校验仍照旧执行。
+        validateEasyBot(provider.apply("easybot"), issues, isBuiltinBackend(imCfg));
+        validateIm(imCfg, issues);
         validateBotSection(config, issues);
         validateTemplates(provider.apply("templates"), issues);
         validatePortals(provider.apply("portals"), issues);
@@ -251,14 +256,30 @@ public final class ConfigHealthCheck {
         }
     }
 
-    private static void validateEasyBot(FileConfiguration cfg, List<String> issues) {
+    /** im.backend 是否为 builtin（与 {@code ImGatewayConfig.normalize} 同口径：去空白、大小写不敏感）。 */
+    private static boolean isBuiltinBackend(FileConfiguration imCfg) {
+        if (imCfg == null) {
+            return false;
+        }
+        String backend = imCfg.getString("backend", "");
+        return backend != null && ImGatewayConfig.BACKEND_BUILTIN.equalsIgnoreCase(backend.trim());
+    }
+
+    /**
+     * @param builtin backend=builtin：easybot.yml 不参与运行 → 跳过“运行时才相关”的建议项
+     *     （apiKey 明文传输 / 必须配 api_server·ws_server·api_key / 会话绑定群），保留结构与格式校验
+     */
+    private static void validateEasyBot(FileConfiguration cfg, List<String> issues, boolean builtin) {
         if (cfg == null) {
             issues.add("easybot.yml 未加载");
             return;
         }
         // apiKey 传输安全：远程网关（非本机）用明文 http/ws 时 apiKey 会明文传输
-        validateScheme(cfg.getString("api_server", ""), "easybot.api_server", issues);
-        validateScheme(cfg.getString("ws_server", ""), "easybot.ws_server", issues);
+        // （builtin 下本插件不与 EasyBot 建连，apiKey 不会发出 → 不提示，避免把真问题挤出巡检视野）
+        if (!builtin) {
+            validateScheme(cfg.getString("api_server", ""), "easybot.api_server", issues);
+            validateScheme(cfg.getString("ws_server", ""), "easybot.ws_server", issues);
+        }
 
         // 检测是否有至少一个平台启用了 enabled: true
         boolean anyPlatformEnabled = false;
@@ -280,11 +301,14 @@ public final class ConfigHealthCheck {
                     String adminGroup = sec.getString("admin_group", "").trim();
                     String playerGroup = sec.getString("player_group", "").trim();
                     String adminDm = sec.getString("admin_dm", "").trim();
-                    if (adminGroup.isEmpty() && playerGroup.isEmpty()) {
-                        issues.add("建议: easybot.platforms." + key + " 至少配置 admin_group 或 player_group");
-                    }
-                    if (adminDm.isEmpty()) {
-                        issues.add("建议: easybot.platforms." + key + ".admin_dm 未配置，PRIVATE 告警将无法发送");
+                    // 会话绑定建议只在 easybot 通道下成立（builtin 绑定走 im_bindings.yml）
+                    if (!builtin) {
+                        if (adminGroup.isEmpty() && playerGroup.isEmpty()) {
+                            issues.add("建议: easybot.platforms." + key + " 至少配置 admin_group 或 player_group");
+                        }
+                        if (adminDm.isEmpty()) {
+                            issues.add("建议: easybot.platforms." + key + ".admin_dm 未配置，PRIVATE 告警将无法发送");
+                        }
                     }
                     validateAdminGroup(adminGroup, platform, "easybot.platforms." + key, issues);
                 }
@@ -296,7 +320,7 @@ public final class ConfigHealthCheck {
 
         String apiServer = cfg.getString("api_server", "");
         String wsServer = cfg.getString("ws_server", "");
-        if (anyPlatformEnabled) {
+        if (anyPlatformEnabled && !builtin) {
             if (apiServer.isEmpty()) {
                 issues.add("缺失: easybot.api_server 有平台启用时必须配置");
             }

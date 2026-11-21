@@ -23,6 +23,10 @@
   ——世界复用也必须出完成回执，成为该缺陷的回归护栏。
 
 ### 🔧 工程 / CI / 配置
+- **配置体检不再为「不参与运行」的配置叫警**（issue #610 顺带发现）：`im.backend: builtin` 时 EasyBot 根本不
+  建连，`easybot.yml` 的 `api_server`/`ws_server` 明文也谈不上“apiKey 明文传输”（根本不发），但仍被建议改用
+  加密协议——空服巡检里这类噪声会把真问题挤出去。现 builtin 下跳过「运行时才相关」的建议（apiKey 明文、
+  必须配 `api_server`/`ws_server`/`api_key`、会话绑定群未配），**结构与格式校验照旧**（写错了切回 easybot 会炸）。
 - **新增两个 PR 门禁 E2E 任务（行为变更：PR 检查项变多）**：
   - `e2eLocalPerm`（PR job `e2e-perm`）：真实 Paper + 真实 LuckPerms，default/member/builder 三档账号 + op 对照，
     逐档断言 OrzMC 命令的放行/拒绝（`/rank` 组名、`/apply` 可申请项、`/portal` 可见性、`/orzdebug` 受理）。
