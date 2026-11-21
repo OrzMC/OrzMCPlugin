@@ -129,6 +129,14 @@ public final class ConfigHealthCheck {
         if (sec == null) {
             return;
         }
+        // 静默看门狗窗口（issue #610）：非整数/负数会让「空闲期重连」行为取决于运行时兜底，故显性报错。
+        // 合法范围：0 = 自动（3 × 心跳周期），>0 = 显式窗口（秒）。
+        Object heartbeatTimeout = sec.get("heartbeat_timeout_seconds");
+        if (heartbeatTimeout != null && !(heartbeatTimeout instanceof Number)) {
+            issues.add("类型错误: platforms." + id + ".heartbeat_timeout_seconds 需为整数秒（0 = 自动）");
+        } else if (heartbeatTimeout instanceof Number number && number.longValue() < 0) {
+            issues.add("非法: platforms." + id + ".heartbeat_timeout_seconds 不得为负数（0 = 自动按 3 × 心跳周期）");
+        }
         if (!sec.getBoolean("enabled", false)) {
             return; // 未启用不校验凭据
         }

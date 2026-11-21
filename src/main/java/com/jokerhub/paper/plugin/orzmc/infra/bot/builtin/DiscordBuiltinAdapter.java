@@ -89,6 +89,10 @@ public final class DiscordBuiltinAdapter implements BuiltinPlatform {
                 discovery);
         this.gateway = new DiscordGatewayClient(
                 serverLogger, ReconnectPolicy.defaults(), api, cfg.token(), processor, new HealthListener());
+        // 静默看门狗窗口（issue #610）：0 = 自动（3 × hello 下发的心跳周期）
+        if (cfg.heartbeatTimeoutSeconds() > 0) {
+            this.gateway.setSilenceTimeoutMs(cfg.heartbeatTimeoutSeconds() * 1000L);
+        }
     }
 
     /** 生效代理解析（cfg.proxy 已合并全局段；null/DIRECT → 直连）。 */
