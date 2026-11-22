@@ -292,7 +292,7 @@ jobs:
           java-version: 25
 
       - name: setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -303,3 +303,83 @@ jobs:
 
       - name: "e2e (player: join / menu GUI / guide book / permission isolation)"
         run: ./gradlew e2eLocalPlayer --stacktrace
+
+  # 权限三档矩阵自举（L1.5+）：真实 Paper + 真实 LuckPerms。
+  # 三档账号（default / member / builder）+ op 对照，逐档断言 OrzMC 命令的放行/拒绝：
+  #   · default：`/portal`、`/orzdebug` 不可见（requires 阶段被 orzmc.admin 过滤）；`/apply` 无可申请项；
+  #   · member ：管理命令仍拒（LP 继承不越权），但 `/apply` 列出「晋升建造者」（资格预检读 LP 组）；
+  #   · builder：挂 `orzmc.admin` 后 `/portal` 放行，`/apply` 列出「晋升管理员」；
+  #   · op     ：`/orzdebug` 等硬编码 admin 命令放行（证明拒绝来自权限判定而非命令坏了）。
+  # 账号先登录一轮再下发 `lp user ... parent set`（LuckPerms 只能按名字解析登录过的玩家），
+  # 迁移自技能脚本 perm-tier-test.js（原脚本只打印不断言，等于没有回归价值）。
+  e2e-perm:
+    runs-on: ubuntu-latest
+    # build 红就不必再下 Paper/LP/npm；25 分钟覆盖「起服 + 登记登录 + LP 下发 + 三档断言」最坏耗时
+    needs: [build]
+    timeout-minutes: 25
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: "e2e (perm: default/member/builder matrix + op control)"
+        run: ./gradlew e2eLocalPerm --stacktrace
+
+  # 村民穿越下界传送门自举（L1.5+）：起真实 Paper → op 一个 mineflayer 客户端 →
+  # 建标准 4×5 下界门（内 2×3）→ 召唤村民 → 断言「门结构合法 / 过门前村民在场 /
+  # 过门后原维度消失 / 村民确实在地狱维度 / 产物已清理」。
+  # 「插件没拦」由上述**行为**断言覆盖（若 EntityPortalEvent/OrzTPEvent 拦下，村民根本过不去）；
+  # 不再做「日志里不得出现『实体传送被禁用』」的文本守卫——按实体名裸串匹配不可靠且无法自证存活。
+  # 迁移自技能脚本 villager_portal_test.js（原脚本只打印结论，不做断言）。
+  e2e-portal:
+    runs-on: ubuntu-latest
+    # build 红就不必再下 Paper/npm；25 分钟覆盖「起服 + 建门 + 村民过门 + 清理」最坏耗时
+    needs: [build]
+    timeout-minutes: 25
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: gradle wrapper validation
+        uses: gradle/actions/wrapper-validation@v6.4.1
+
+      - name: jdk
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: 'temurin'
+          java-version: 25
+
+      - name: setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: "e2e (portal: villager travels through nether portal)"
+        run: ./gradlew e2eLocalPortal --stacktrace

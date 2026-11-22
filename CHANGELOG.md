@@ -8,12 +8,31 @@
 > - **无配置变更、无数据迁移**：`config-version` 不变，备份/地图/白名单等数据格式不变。
 
 ### 🐛 修复
+- **IM 空闲期不再「心跳静默超时」误重连**（issue #610）：
+  - **判活口径**：WS 控制帧 ping/pong 现在计入入站活性（此前只算文本/二进制帧），空闲期不再被误判死亡；
+  - **窗口可配**：新增 `im.yml → platforms.<qq|feishu|discord>.heartbeat_timeout_seconds`（秒，默认 0 = 自动
+    = 3 × 心跳周期），回帧慢/链路会回收长连接的环境可放大；
+  - **日志可读**：超时那行改为「实测静默时长 / 窗口 / 本轮已发心跳数 / 累计入站数」，同一段不稳定期
+    只第一条 WARN、后续降 INFO；连接稳定后打一行「结束静默重连期」；
+  - **可观测**：飞书建连现在打 `[feishu] 长连接已建立（心跳 Xs，静默窗口 Ys）`——此后
+    「[feishu] READY 0 次」不会再被误读成“从未连上”（飞书协议本身没有 READY 事件）。
+  - **排查提示**：issue 报告里的 `92811ms / 270000ms` 是**窗口阈值**（3 × 心跳周期），不是实测静默时长。
 - **同世界二次 `$o`/`$b` 不再"没有回执"**（issue #588）：进度回调在 `Done` 事件的 `current/total` 为 0 时
   （世界已优化过、无待处理区块）提前返回，导致用户只看到"正在优化地图，请稍等......"、没有完成行。
   现在 `Done` 阶段无条件下发完成回执（空计数器按 100% 渲染）。同时取消 E2E 里"`$o` 需要全新世界"的跳过
   ——世界复用也必须出完成回执，成为该缺陷的回归护栏。
 
 ### 🔧 工程 / CI / 配置
+- **配置体检不再为「不参与运行」的配置叫警**（issue #610 顺带发现）：`im.backend: builtin` 时 EasyBot 根本不
+  建连，`easybot.yml` 的 `api_server`/`ws_server` 明文也谈不上“apiKey 明文传输”（根本不发），但仍被建议改用
+  加密协议——空服巡检里这类噪声会把真问题挤出去。现 builtin 下跳过「运行时才相关」的建议（apiKey 明文、
+  必须配 `api_server`/`ws_server`/`api_key`、会话绑定群未配），**结构与格式校验照旧**（写错了切回 easybot 会炸）。
+- **新增两个 PR 门禁 E2E 任务（行为变更：PR 检查项变多）**：
+  - `e2eLocalPerm`（PR job `e2e-perm`）：真实 Paper + 真实 LuckPerms，default/member/builder 三档账号 + op 对照，
+    逐档断言 OrzMC 命令的放行/拒绝（`/rank` 组名、`/apply` 可申请项、`/portal` 可见性、`/orzdebug` 受理）。
+  - `e2eLocalPortal`（PR job `e2e-portal`）：用真实客户端建 4×5 下界门 → 召唤村民 → 断言「门结构合法 / 过门前在场 /
+    过门后原维度消失 / 抵达地狱维度 / 产物已清理」，守住 `EntityPortalEvent` 必须放行的边界（此前只有人工脚本）。
+  - 两项默认**不阻断合并**：需 owner 把它们加入分支保护 required checks 才成为硬门禁。
 - **服务端基线 26.2 → 26.3**：`paper_api_version=26.3.build.251-stable`、`plugin_debug_server_version=26.3`、
   `plugin_support_paper_versions=26.3`、`paper-plugin.yml api-version: 26.3`。
 - 集成测试 MockBukkit `mockbukkit-v26.2:4.117.0` → **`mockbukkit-v26.3:4.120.0`**。

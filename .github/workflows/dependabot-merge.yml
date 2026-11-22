@@ -8,7 +8,11 @@ name: Dependabot Auto Merge
 # 在 PR 触发的那一刻它们还没跑完。
 #
 # 安全约束（缺一不合并）：
-#   1. 作者必须是 `dependabot[bot]`；目标分支必须是 `develop`（不碰 main）；草稿不合并；
+#   1. 作者必须是 dependabot（REST 里是 `dependabot[bot]`，GraphQL 新版呈现为 `app/dependabot`——两种都认）；
+#      目标分支必须是 `develop`（不碰 main）；草稿不合并；
+#      ⚠️ 2026-11-22 事故：此前用 `gh pr view --json author`（走 GraphQL）取作者，login 变成 `app/dependabot`，
+#      与 `dependabot[bot]` 不等 → 所有 dependabot PR 被静默跳过、自动合并停摆（#606/#607 人工合并）。
+#      现改为走 REST 取 `.user.login`，并对两种 login 形态都放行——取作者这种判定不要用会变形的展示层字段。
 #   2. 标题必须含 `minor-patch` 分组名 —— **major / security 组一律留人工**；
 #   3. 只合并当前 head（run 的 head_sha 与 PR 的 headRefOid 一致，防止旧 run 合并新提交）；
 #   4. 必需检查全绿（`mergeStateStatus=CLEAN`；非 strict 规则下 `BEHIND` 也可合并 ——
@@ -54,17 +58,21 @@ jobs:
           fi
 
           info="$(gh pr view "${pr}" --repo "${REPO}" \
-            --json author,title,baseRefName,headRefOid,isDraft)"
-          author="$(jq -r '.author.login' <<<"${info}")"
+            --json title,baseRefName,headRefOid,isDraft)"
+          # 作者一律从 REST 取：`gh pr view --json author` 走 GraphQL，bot 账号的 login 会被呈现成
+          # `app/dependabot`（而非 `dependabot[bot]`），按字符串等值判断会静默失效（见文件头 2026-11-22 事故）。
+          author="$(gh api "repos/${REPO}/pulls/${pr}" --jq '.user.login')"
           title="$(jq -r '.title' <<<"${info}")"
           base="$(jq -r '.baseRefName' <<<"${info}")"
           head="$(jq -r '.headRefOid' <<<"${info}")"
           draft="$(jq -r '.isDraft' <<<"${info}")"
 
           # 过滤：不是「低风险 dependabot 分组 PR」就静默退出（不评论、不打扰）。
-          if [[ "${author}" != "dependabot[bot]" ]]; then
-            echo "PR #${pr} 作者是 ${author}，非 dependabot，跳过"; exit 0
-          fi
+          case "${author}" in
+            'dependabot[bot]'|'app/dependabot') ;;
+            *)
+              echo "PR #${pr} 作者是 ${author}，非 dependabot，跳过"; exit 0 ;;
+          esac
           if [[ "${base}" != "develop" ]]; then
             echo "PR #${pr} 目标是 ${base}，不是 develop，跳过"; exit 0
           fi

@@ -12,12 +12,20 @@ import org.bukkit.configuration.ConfigurationSection;
  * @param appId 飞书开放平台 app_id（cli_ 前缀）
  * @param appSecret 飞书开放平台 app_secret
  * @param proxy 生效代理（平台级覆盖优先，否则全局段；DIRECT = 直连）。从 {@link #from} 解析时已合并。
+ * @param heartbeatTimeoutSeconds 静默看门狗窗口（秒，0 = 自动 = 3 × 对端下发的 ping_interval）：空闲期
+ *     多久收不到任何入站活性（含 WS ping/pong）就强制重连（issue #610）。
  */
-public record FeishuPlatformConfig(boolean enabled, String appId, String appSecret, ImProxyConfig proxy) {
+public record FeishuPlatformConfig(
+        boolean enabled, String appId, String appSecret, ImProxyConfig proxy, int heartbeatTimeoutSeconds) {
 
     /** 便捷：无代理（直连；老调用兼容）。 */
     public FeishuPlatformConfig(boolean enabled, String appId, String appSecret) {
-        this(enabled, appId, appSecret, ImProxyConfig.DIRECT);
+        this(enabled, appId, appSecret, ImProxyConfig.DIRECT, 0);
+    }
+
+    /** 4 参调用兼容：静默窗口用默认值（自动 = 3 × ping_interval）。 */
+    public FeishuPlatformConfig(boolean enabled, String appId, String appSecret, ImProxyConfig proxy) {
+        this(enabled, appId, appSecret, proxy, 0);
     }
 
     /** 默认（禁用，无凭据，直连）。 */
@@ -55,6 +63,11 @@ public record FeishuPlatformConfig(boolean enabled, String appId, String appSecr
             proxy = ImProxyConfig.DIRECT;
         }
         return new FeishuPlatformConfig(
-                section.getBoolean("enabled", false), appId == null ? "" : appId, secret == null ? "" : secret, proxy);
+                section.getBoolean("enabled", false),
+                appId == null ? "" : appId,
+                secret == null ? "" : secret,
+                proxy,
+                // 静默窗口：非正值 = 自动（3 × ping_interval），见 ReconnectingGateway.setSilenceTimeoutMs
+                Math.max(0, section.getInt("heartbeat_timeout_seconds", 0)));
     }
 }
