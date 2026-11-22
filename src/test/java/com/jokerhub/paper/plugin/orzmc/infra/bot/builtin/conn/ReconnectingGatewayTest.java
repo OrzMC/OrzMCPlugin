@@ -243,6 +243,44 @@ class ReconnectingGatewayTest {
         assertEquals(1, gateway.opens.get(), "fatal 后不应再重连");
     }
 
+    // =====================================================================
+    // issue #616：握手黑洞不得把网关挂死（connect timeout）
+    // =====================================================================
+
+    @Test
+    void connectTimeout_stalledHandshake_retriesInsteadOfHangingForever() throws Exception {
+        // 黑洞服务端：TCP 能 accept，但永远不回握手响应（模拟 TLS/握手被中间设备丢包的环境）。
+        // Java-WebSocket 的 2 参构造 connect timeout = 0 = 无限等待 → 旧实现会永久卡在建连调度线程上
+        // （2026-11-22 本机实测：4 分钟无任何日志、state 停在 CONNECTING）。
+        try (ServerSocket blackhole = new ServerSocket(0)) {
+            Thread acceptor = new Thread(
+                    () -> {
+                        while (!blackhole.isClosed()) {
+                            try {
+                                blackhole.accept();
+                            } catch (java.io.IOException ignored) {
+                                return;
+                            }
+                        }
+                    },
+                    "test-blackhole-acceptor");
+            acceptor.setDaemon(true);
+            acceptor.start();
+
+            AtomicInteger attempts = new AtomicInteger();
+            RecordingListener listener = new RecordingListener();
+            gateway = new TestGateway("qq", new ReconnectPolicy(20, 60000, 0, 0, 3), null, listener, () -> {
+                attempts.incrementAndGet();
+                return "ws://127.0.0.1:" + blackhole.getLocalPort() + "/";
+            });
+            gateway.connectTimeoutOverrideMs = 250;
+
+            gateway.start();
+            awaitTrue("握手停滞后按超时重试（而不是悬挂）", () -> attempts.get() >= 2);
+            assertEquals(0, gateway.opens.get(), "从未真正建连成功");
+        }
+    }
+
     @Test
     void heartbeat_sentAtConfiguredInterval_noFalseReconnectWhenAcked() throws Exception {
         server = TestWsServer.start(true); // 回声：收到任何帧回 "ack"，保持活跃
@@ -418,6 +456,13 @@ class ReconnectingGatewayTest {
         volatile int authCloseCode = -999; // 该关闭码触发 onAuthFailure（模拟 QQ 鉴权关闭）；Java-WebSocket 异常关闭会用 -1，勿用 -1 作哨兵
         volatile Long heartbeatIntervalMs;
         volatile Supplier<String> heartbeatPayload;
+        /** 测试可覆盖建连超时（黑洞握手测试用，避免等真实的 15s）。 */
+        volatile int connectTimeoutOverrideMs = -1;
+
+        @Override
+        protected int connectTimeoutMs() {
+            return connectTimeoutOverrideMs > 0 ? connectTimeoutOverrideMs : super.connectTimeoutMs();
+        }
 
         TestGateway(
                 String name,
