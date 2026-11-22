@@ -132,6 +132,16 @@ public final class TestWsServer implements AutoCloseable {
             writeFrame(0x2, payload);
         }
 
+        /**
+         * 服务端→客户端发 WS 控制帧 ping（不掩码；自动等握手完成）。
+         *
+         * <p>用途：验证「空闲期只有控制帧也算连接活着」（issue #610）——客户端不得把它漏出看门狗的活性统计。</p>
+         */
+        public void sendPing() {
+            awaitHandshake();
+            writeFrame(0x9, new byte[0]);
+        }
+
         /** 服务端主动 close 帧（指定 code），随后关闭 TCP。 */
         public void sendClose(int code) {
             try {

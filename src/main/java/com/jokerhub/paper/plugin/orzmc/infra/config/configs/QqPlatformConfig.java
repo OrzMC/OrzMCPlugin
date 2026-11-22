@@ -17,9 +17,17 @@ import org.bukkit.configuration.ConfigurationSection;
  * @param apiBase QQ 开放平台 API 基址覆盖（空白 = 官方 {@code https://api.bot.qq.com}）：
  *     token 换取、{@code /gateway/bot}、发消息共用该基址；**仅用于自建网关/联调与 L1.5 自举测试**
  *     （WS 地址仍由 {@code /gateway/bot} 响应决定，不在本键控制范围）。
+ * @param heartbeatTimeoutSeconds 静默看门狗窗口（秒，0 = 自动 = 3 × 心跳周期）：空闲期多久收不到任何入站
+ *     活性就强制重连。空闲期误连环境（NAT/代理回收长连接）可放大（issue #610）。
  */
 public record QqPlatformConfig(
-        boolean enabled, String appId, String clientSecret, ImProxyConfig proxy, int maxTextBytes, String apiBase) {
+        boolean enabled,
+        String appId,
+        String clientSecret,
+        ImProxyConfig proxy,
+        int maxTextBytes,
+        String apiBase,
+        int heartbeatTimeoutSeconds) {
 
     /**
      * 单条文本默认上限（UTF-8 字节）：**2026-09 实测**——群主动消息 96KB(ASCII)/150KB(中文) 仍返回 200 并成功投递，
@@ -30,12 +38,18 @@ public record QqPlatformConfig(
 
     /** 便捷：无代理（直连；老调用兼容）。 */
     public QqPlatformConfig(boolean enabled, String appId, String clientSecret) {
-        this(enabled, appId, clientSecret, ImProxyConfig.DIRECT, DEFAULT_MAX_TEXT_BYTES, "");
+        this(enabled, appId, clientSecret, ImProxyConfig.DIRECT, DEFAULT_MAX_TEXT_BYTES, "", 0);
     }
 
-    /** 老 5 参调用兼容：不带 API 基址覆盖（用官方端点）。 */
+    /** 老 5 参调用兼容：不带 API 基址覆盖（用官方端点）、静默窗口用默认值。 */
     public QqPlatformConfig(boolean enabled, String appId, String clientSecret, ImProxyConfig proxy, int maxTextBytes) {
-        this(enabled, appId, clientSecret, proxy, maxTextBytes, "");
+        this(enabled, appId, clientSecret, proxy, maxTextBytes, "", 0);
+    }
+
+    /** 6 参调用兼容：静默窗口用默认值（自动 = 3 × 心跳周期）。 */
+    public QqPlatformConfig(
+            boolean enabled, String appId, String clientSecret, ImProxyConfig proxy, int maxTextBytes, String apiBase) {
+        this(enabled, appId, clientSecret, proxy, maxTextBytes, apiBase, 0);
     }
 
     /** 默认（禁用，无凭据，直连）。 */
@@ -80,6 +94,8 @@ public record QqPlatformConfig(
                 secret == null ? "" : secret,
                 proxy,
                 maxTextBytes <= 0 ? 0 : maxTextBytes,
-                apiBase == null ? "" : apiBase.trim());
+                apiBase == null ? "" : apiBase.trim(),
+                // 静默窗口：非正值 = 自动（3 × 心跳周期），见 ReconnectingGateway.setSilenceTimeoutMs
+                Math.max(0, section.getInt("heartbeat_timeout_seconds", 0)));
     }
 }

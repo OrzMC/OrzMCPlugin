@@ -84,6 +84,8 @@ gh pr merge <n> --squash --admin
 **不会自动合并的**（静默跳过，不留评论）：
 
 - 非 dependabot 作者（所有人的日常 PR —— 不会收到机器人评论）、目标分支非 `develop`、草稿；
+  （作者判定走 REST `.user.login`，REST `dependabot[bot]` 与 GraphQL 展示态的 `app/dependabot` 都认——
+  见 §7「bot 作者的 login 在 GraphQL 里会变形」）
 - **major 单列 PR**、**security 分组 PR**：需要人看 release notes / 破坏性变更；
 - head 已不是本次 CI 的提交（等待期间又推了新提交，等下一轮 CI）。
 
@@ -118,6 +120,11 @@ gh api -X PUT repos/OrzMC/OrzMCPlugin/branches/develop/protection/required_pull_
   （默认分支）后才会生效；合并进前的 push 不会触发它。改文件名/改名 workflow 会一并失效。
 - **`dependabot-merge.yml` 依赖 PR 标题里的分组名**（`minor-patch`）：改 `.github/dependabot.yml`
   的分组命名时，必须同步改 workflow 的匹配条件，否则自动合并会静默停止（不报错）。
+- **bot 作者的 login 在 GraphQL 里会变形**（2026-11-22 事故）：`gh pr view --json author` 走 GraphQL，
+  dependabot 的 login 返回 `app/dependabot`（REST 里才是 `dependabot[bot]`）→ 按字符串等值判断的
+  作者白名单**全部失效**且只是 `exit 0` 静默跳过（#606/#607 挂了一周无人合）。
+  判定 bot 作者一律用 REST（`gh api repos/<repo>/pulls/<n> --jq '.user.login'`），或同时认两种形态。
+  排查命令：`gh run view <dependabot-merge run id> --log | grep 作者`。
 - **合并前 head 核验**：`workflow_run.head_sha` 与 `gh pr view --json headRefOid` 不一致时跳过，
   避免「旧 run 绿了 → 合并了更新的提交」。
 - **`dependabot.yml` 写错会静默停更**（2026-11-11 实测）：非法字段不会报在 Actions 里，而是把默认分支

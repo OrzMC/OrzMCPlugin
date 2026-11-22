@@ -25,6 +25,8 @@
 ./gradlew e2eLocalFoliaLp          # 真实 Folia + 真实 LuckPerms（16 条断言，PR 必选检查 e2e-lp）
 ./gradlew e2eLocalIm               # builtin QQ + 仓库内假平台：入站群消息 → 命令 → 出站回复（PR 检查 e2e-im）
 ./gradlew e2eLocalPlayer           # 玩家侧：mineflayer 客户端（ViaVersion+ViaBackwards）加入/GUI/新手书/权限隔离（PR 必选 e2e-player）
+./gradlew e2eLocalPerm             # 权限三档矩阵：default/member/builder + op 对照，逐档断言放行/拒绝（PR 检查名 e2e-perm；需 owner 加入分支保护 required checks 才成为硬门禁）
+./gradlew e2eLocalPortal           # 村民穿越下界传送门：建 4×5 门 → 召唤 → 断言过门到地狱维度并清理（PR 检查名 e2e-portal；需 owner 加入分支保护 required checks 才成为硬门禁）
 ./gradlew npmCi                    # e2e 依赖（mineflayer），e2eLocalPlayer 会自动依赖它
 ./gradlew :orzmc-api:build         # 仅构建 orzmc-api 子模块（纯 Java，无 Bukkit 依赖）
 ./gradlew :orzmc-api:publishToMavenLocal  # 本地发布 orzmc-api SDK

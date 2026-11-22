@@ -110,6 +110,9 @@ public final class FeishuGatewayClient extends ReconnectingGateway {
         // 飞书无握手帧：建连即按引导间隔发心跳（二进制 ping）；服务端 ping 的回 pong 在 onGatewayPayload 处理
         configureHeartbeatBytes(
                 pingIntervalMs, () -> FeishuFrame.ping(serviceId).encode());
+        // 飞书协议没有 QQ/Discord 那样的 READY 事件，运维无从判断「会话是不是活着」——建连即打一行 INFO
+        // （含心跳周期与静默窗口）。issue #610 里「[feishu] 网关 READY 0 次」是观测错觉：本类此前从不打这种行。
+        log.info("[feishu] 长连接已建立（心跳 " + (pingIntervalMs / 1000) + "s，静默窗口 " + (silenceWindowMs() / 1000) + "s）");
     }
 
     @Override

@@ -292,6 +292,69 @@ class ReconnectingGatewayTest {
         assertTrue(listener.disconnected.get() >= 1, "强制断开应上报 disconnected");
     }
 
+    // =====================================================================
+    // issue #610：空闲期误判静默（判活口径 / 窗口可配）
+    // =====================================================================
+
+    @Test
+    void wsPing_countsAsInboundLiveness_idleConnectionSurvives() throws Exception {
+        // 回归（#610）：空闲期平台侧若只发 WS 控制帧 ping，旧实现只统计文本/二进制帧 → 误判「静默死亡」。
+        server = TestWsServer.start(); // 不回显文本：唯一入站活性就是控制帧
+        RecordingListener listener = new RecordingListener();
+        TestGateway gw = newGateway(fastPolicy(), null, listener);
+        gw.heartbeatIntervalMs = 100L; // 默认窗口 = 3 × 100 = 300ms
+        gw.heartbeatPayload = () -> "hb";
+
+        gw.start();
+        awaitTrue("首次建连", () -> gw.opens.get() == 1);
+        TestWsServer.Conn conn = server.connections().get(0);
+
+        // 观察 ~4 个默认窗口：每 50ms 发一个控制帧 ping，全程无文本/二进制入站
+        long observeUntil = System.currentTimeMillis() + 1200;
+        while (System.currentTimeMillis() < observeUntil) {
+            conn.sendPing();
+            assertEquals(1, gw.opens.get(), () -> "WS ping 应计为入站活性，不得触发静默重连（closes=" + gw.closes.get() + "）");
+            Thread.sleep(50);
+        }
+        assertTrue(gw.inboundFrameCount() > 0, "控制帧应计入入站活性计数");
+    }
+
+    @Test
+    void silenceTimeoutOverride_extendsIdleTolerance() throws Exception {
+        // 回归（#610）：静默窗口可被 im.yml 覆盖（heartbeat_timeout_seconds）——回帧慢/链路会回收长连接的环境
+        // 可放大窗口，不得再被默认 3 周期误杀。
+        server = TestWsServer.start(); // 不回执
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+        gw.heartbeatIntervalMs = 50L; // 默认窗口 = 150ms
+        gw.heartbeatPayload = () -> "hb";
+        gw.setSilenceTimeoutMs(3000); // 显式放大到 3000ms
+
+        gw.start();
+        awaitTrue("首次建连", () -> gw.opens.get() == 1);
+
+        // 观察 900ms（= 默认窗口的 6 倍）：覆盖生效时应零重连
+        long observeUntil = System.currentTimeMillis() + 900;
+        while (System.currentTimeMillis() < observeUntil) {
+            assertEquals(1, gw.opens.get(), "窗口覆盖为 3000ms 时 900ms 内不应重连（closes=" + gw.closes.get() + "）");
+            Thread.sleep(25);
+        }
+    }
+
+    @Test
+    void silenceWindow_defaultsToThreeCycles_andHonoursOverride() throws Exception {
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+        assertEquals(0L, gw.silenceWindowMs(), "未配置心跳时看门狗窗口为 0（不生效）");
+
+        gw.configureHeartbeatForTest(1000L);
+        assertEquals(3000L, gw.silenceWindowMs(), "默认窗口 = 3 × 心跳周期");
+
+        gw.setSilenceTimeoutMs(7000L);
+        assertEquals(7000L, gw.silenceWindowMs(), "显式覆盖优先于周期推导");
+
+        gw.setSilenceTimeoutMs(-1L);
+        assertEquals(3000L, gw.silenceWindowMs(), "非正值应回落默认窗口（防配置写错直接关掉看门狗逻辑）");
+    }
+
     @Test
     void stop_isIdempotent_andPreventsFurtherReconnect() throws Exception {
         server = TestWsServer.start();
@@ -378,6 +441,11 @@ class ReconnectingGatewayTest {
             if (heartbeatIntervalMs != null && heartbeatPayload != null) {
                 configureHeartbeat(heartbeatIntervalMs, heartbeatPayload);
             }
+        }
+
+        /** 不建连也能配置心跳（验证静默窗口推导/覆盖）。 */
+        void configureHeartbeatForTest(long intervalMs) {
+            configureHeartbeat(intervalMs, () -> "hb");
         }
 
         @Override

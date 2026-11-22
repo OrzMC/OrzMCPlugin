@@ -11,6 +11,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import org.java_websocket.client.WebSocketClient;
@@ -24,7 +25,9 @@ import org.java_websocket.handshake.ServerHandshake;
  *   <li><b>指数退避自动重连</b>：5s 起 / 60s 上限 / ±jitter / 稳定 20s 重置（参数经 {@link ReconnectPolicy} 注入，
  *       默认值对齐 EasyBot RobustWebSocketClient）；连续失败达上限（策略配置）或鉴权不可恢复 → fatal 终止；</li>
  *   <li><b>协议心跳钩子</b>：子类在收到 hello 等握手帧后调用 {@link #configureHeartbeat(long, Supplier)}，
- *       基类按周期发送帧，并做静默看门狗（连续 3 个心跳周期无任何入站帧 → 强制断开触发重连）；</li>
+ *       基类按周期发送帧，并做静默看门狗（默认：连续 3 个心跳周期无任何入站活性 → 强制断开触发重连）。
+ *       「入站活性」= 文本/二进制帧 + WS 控制帧 ping/pong（issue #610：空闲期平台只发控制帧时不得误判为死亡）；
+ *       窗口可经 {@link #setSilenceTimeoutMs(long)}（im.yml {@code heartbeat_timeout_seconds}）覆盖；</li>
  *   <li><b>状态回调</b>：{@link GatewayStateListener} 上报 connected / disconnected / fatal，供健康聚合；</li>
  *   <li><b>鉴权错误回调</b>：子类识别鉴权失败后调用 {@link #onAuthFailure()}，经注入的 {@link TokenRefresher}
  *       刷新令牌后立即重连（REFRESHED）/退避重试（RETRY_LATER）/ fatal（DEAD）；</li>
@@ -57,8 +60,11 @@ public abstract class ReconnectingGateway {
         IGNORED
     }
 
-    /** 静默看门狗阈值：连续多少个心跳周期无任何入站帧即判定连接死亡。 */
+    /** 静默看门狗默认窗口：连续多少个心跳周期无任何入站活性即判定连接死亡。 */
     private static final long SILENT_CYCLES = 3;
+
+    /** 同一段不稳定期内静默超时的 WARN 次数上限（超出降 INFO：空服长跑反复来回不应刷屏）。 */
+    private static final int SILENCE_WARN_TIMES = 1;
 
     private final String name;
     private final Logger log;
@@ -80,6 +86,15 @@ public abstract class ReconnectingGateway {
     private ScheduledFuture<?> heartbeatFuture;
     private volatile long heartbeatIntervalMs;
     private volatile HeartbeatPump heartbeatPump;
+    /** 静默窗口覆盖（毫秒；0 = 按心跳周期 × {@link #SILENT_CYCLES} 自动推导）。见 {@link #setSilenceTimeoutMs(long)}。 */
+    private volatile long silenceTimeoutMs;
+    /** 累计入站活性数（文本/二进制帧 + WS ping/pong）——每次建连清零，用于静默超时的诊断归因。 */
+    private final AtomicLong inboundFrames = new AtomicLong();
+    /** 本轮连接已发出的心跳帧数（每次建连清零，诊断「是不是心跳根本没发出去」）。 */
+    private final AtomicLong heartbeatSends = new AtomicLong();
+
+    /** 连续「静默超时」触发的重连次数（连接稳定 {@code stableResetMs} 后清零）：用于日志分级与恢复提示。 */
+    private int silenceLosses;
 
     /** 心跳发送器：文本（QQ op1 JSON）或二进制（飞书 protobuf ping）各一实现，帧类型保持平台正确。 */
     private interface HeartbeatPump {
@@ -297,7 +312,7 @@ public abstract class ReconnectingGateway {
         }
     }
 
-    /** 配置协议心跳（文本帧，QQ）：每 {@code intervalMs} 发送一帧；连续 3 个周期无任何入站帧则强制断开触发重连。intervalMs &lt;= 0 视为关闭心跳。 */
+    /** 配置协议心跳（文本帧，QQ）：每 {@code intervalMs} 发送一帧；静默窗口默认 3 个周期（见 {@link #setSilenceTimeoutMs(long)}）。intervalMs &lt;= 0 视为关闭心跳。 */
     protected final void configureHeartbeat(long intervalMs, Supplier<String> payloadFactory) {
         if (intervalMs <= 0 || payloadFactory == null) {
             disableHeartbeat();
@@ -312,7 +327,7 @@ public abstract class ReconnectingGateway {
         });
     }
 
-    /** 配置协议心跳（二进制帧，飞书 protobuf ping）：语义同上（静默看门狗对二进制入站同样生效）。 */
+    /** 配置协议心跳（二进制帧，飞书 protobuf ping）：语义同上（静默看门狗对文本/二进制/控制帧入站均生效）。 */
     protected final void configureHeartbeatBytes(long intervalMs, Supplier<byte[]> payloadFactory) {
         if (intervalMs <= 0 || payloadFactory == null) {
             disableHeartbeat();
@@ -349,6 +364,27 @@ public abstract class ReconnectingGateway {
             heartbeatPump = null;
             cancelHeartbeatLocked();
         }
+    }
+
+    /**
+     * 覆盖静默看门狗窗口（毫秒；&lt;= 0 = 恢复默认「心跳周期 × 3」）。
+     *
+     * <p>配置入口：im.yml {@code platforms.<id>.heartbeat_timeout_seconds}（由各 adapter 在构造网关时下发）。
+     * 默认值取自平台协议的握手参数（QQ hello / Discord hello / 飞书引导的 ping_interval），平台协议不变时
+     * 不需要改；只有跨中间设备（NAT/代理）会回收长连接、或对端回帧本身很慢的环境才需要放大。</p>
+     */
+    public final void setSilenceTimeoutMs(long timeoutMs) {
+        this.silenceTimeoutMs = Math.max(0, timeoutMs);
+    }
+
+    /** 当前静默窗口（毫秒；心跳未配置时返回 0）。 */
+    protected final long silenceWindowMs() {
+        long intervalMs = heartbeatIntervalMs;
+        if (intervalMs <= 0) {
+            return 0;
+        }
+        long override = silenceTimeoutMs;
+        return override > 0 ? override : intervalMs * SILENT_CYCLES;
     }
 
     // =====================================================================
@@ -413,16 +449,33 @@ public abstract class ReconnectingGateway {
 
             @Override
             public void onMessage(String message) {
-                lastReceivedMs = System.currentTimeMillis();
+                markInbound();
                 ReconnectingGateway.this.onGatewayPayload(message);
             }
 
             @Override
             public void onMessage(java.nio.ByteBuffer message) {
-                lastReceivedMs = System.currentTimeMillis();
+                markInbound();
                 byte[] bytes = new byte[message.remaining()];
                 message.get(bytes);
                 ReconnectingGateway.this.onGatewayPayload(bytes);
+            }
+
+            /**
+             * WS 控制帧 ping 也算「连接活着」（issue #610）：空闲期平台侧可能只发控制帧做保活，
+             * 不计数就会在空闲期被误判为静默死亡。默认实现会回 pong，必须 super 转发（否则对端会判定我们失联）。
+             */
+            @Override
+            public void onWebsocketPing(org.java_websocket.WebSocket conn, org.java_websocket.framing.Framedata frame) {
+                markInbound();
+                super.onWebsocketPing(conn, frame);
+            }
+
+            /** WS 控制帧 pong：对端对本地 ping 的应答，同样是活性证据（协议心跳之外的第二种判活依据）。 */
+            @Override
+            public void onWebsocketPong(org.java_websocket.WebSocket conn, org.java_websocket.framing.Framedata frame) {
+                markInbound();
+                super.onWebsocketPong(conn, frame);
             }
 
             @Override
@@ -445,11 +498,24 @@ public abstract class ReconnectingGateway {
         return client;
     }
 
+    /** 记录一次入站活性（文本/二进制帧、WS ping/pong 控制帧）——看门狗与诊断计数的唯一入口。 */
+    private void markInbound() {
+        lastReceivedMs = System.currentTimeMillis();
+        inboundFrames.incrementAndGet();
+    }
+
+    /** 测试可见：本轮连接累计入站活性数。 */
+    long inboundFrameCount() {
+        return inboundFrames.get();
+    }
+
     private void onWsOpen(WebSocketClient ws) {
         synchronized (lock) {
             if (state == State.CONNECTING && currentWs == ws) {
                 state = State.OPEN;
                 lastReceivedMs = System.currentTimeMillis();
+                inboundFrames.set(0);
+                heartbeatSends.set(0);
                 scheduleStableResetLocked();
             } else {
                 // stop/fatal/过期尝试的迟到 open：立即关闭
@@ -675,11 +741,39 @@ public abstract class ReconnectingGateway {
             return;
         }
         pump.send(ws);
-        long silentMs = intervalMs * SILENT_CYCLES;
-        if (System.currentTimeMillis() - lastReceivedMs > silentMs) {
-            log.warning("[" + name + "] 心跳静默超时（" + silentMs + "ms 无任何入站帧），强制断开触发重连");
-            closeQuietly(ws, 1006, "heartbeat silence");
+        heartbeatSends.incrementAndGet();
+        long windowMs = silenceWindowMs();
+        long silentMs = System.currentTimeMillis() - lastReceivedMs;
+        if (windowMs > 0 && silentMs > windowMs) {
+            onSilenceTimeout(ws, silentMs, windowMs);
         }
+    }
+
+    /**
+     * 静默超时 → 强制断开触发重连。
+     *
+     * <p><b>日志口径（issue #610）</b>：旧日志只打「窗口」却声称「N ms 无任何入站帧」，把阈值误读成了实测静默
+     * 时长，无法判断是「对端不回帧」还是「本地定时任务被拖住」。现在同时打印实测静默时长、窗口、本轮已发心跳
+     * 帧数与入站活性数——两个数字一对就能定性：已发 &gt; 0 且入站为 0 = 出站正常、对端/链路不回；入站 &gt; 0 但
+     * 静默时长已超窗 = 定时任务被长任务拖住（属调度问题）。</p>
+     *
+     * <p><b>噪声控制</b>：同一段不稳定期内首条 WARN，后续降 INFO（空服长跑反复重连不应把真实问题挤出巡检视野）；
+     * 连接稳定后由 {@link #scheduleStableResetLocked()} 清零并打一行「结束静默重连期」。</p>
+     */
+    private void onSilenceTimeout(WebSocketClient ws, long silentMs, long windowMs) {
+        int losses;
+        synchronized (lock) {
+            losses = ++silenceLosses;
+        }
+        String detail = "静默 " + silentMs + "ms（窗口 " + windowMs + "ms，本轮已发心跳 " + heartbeatSends.get() + " 帧，累计入站 "
+                + inboundFrames.get() + " 帧）";
+        String message = "心跳静默超时，" + detail + "，强制断开触发重连" + (losses > 1 ? "（连续第 " + losses + " 次）" : "");
+        if (losses <= SILENCE_WARN_TIMES) {
+            log.warning("[" + name + "] " + message);
+        } else {
+            log.info("[" + name + "] " + message);
+        }
+        closeQuietly(ws, 1006, "heartbeat silence");
     }
 
     private void scheduleStableResetLocked() {
@@ -690,10 +784,18 @@ public abstract class ReconnectingGateway {
         }
         scheduler.schedule(
                 () -> {
+                    int cleared;
                     synchronized (lock) {
+                        cleared = 0;
                         if (state == State.OPEN && currentWs != null && currentWs.isOpen()) {
                             reconnectAttempts = 0;
+                            cleared = silenceLosses;
+                            silenceLosses = 0;
                         }
+                    }
+                    if (cleared > 0) {
+                        // issue #610 期望 3：状态恢复要给一行 INFO（此前只有 FINE，运维看不出已经好了）
+                        log.info("[" + name + "] 连接已稳定 " + stable + "ms，结束静默重连期（本轮累计 " + cleared + " 次静默重连）");
                     }
                 },
                 stable,
