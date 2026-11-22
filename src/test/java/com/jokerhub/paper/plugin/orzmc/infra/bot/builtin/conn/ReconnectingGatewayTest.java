@@ -282,6 +282,31 @@ class ReconnectingGatewayTest {
     }
 
     @Test
+    void connectTimeout_defaultsTo15s() throws Exception {
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+        assertEquals(
+                ReconnectingGateway.DEFAULT_CONNECT_TIMEOUT_MS,
+                gw.connectTimeoutMs(),
+                "默认建连超时必须 > 0（0 在 Java-WebSocket 里 = 无限等待，会把网关挂死）");
+        assertTrue(gw.connectTimeoutMs() > 0, "绝不允许 0（= 无限等待）");
+    }
+
+    @Test
+    void connectWatchdog_doesNotFireAfterSuccessfulOpen() throws Exception {
+        // 看门狗只在“仍未 OPEN”时判失败：正常建连后即使超时任务到期也不得打重连
+        server = TestWsServer.start();
+        RecordingListener listener = new RecordingListener();
+        TestGateway gw = newGateway(fastPolicy(), null, listener);
+        gw.connectTimeoutOverrideMs = 200;
+
+        gw.start();
+        awaitTrue("首次建连", () -> gw.opens.get() == 1);
+        Thread.sleep(600); // 跨过看门狗期限
+        assertEquals(1, gw.opens.get(), "已建连成功时看门狗不得触发重连");
+        assertEquals(0, listener.disconnected.get(), "不应产生断开");
+    }
+
+    @Test
     void heartbeat_sentAtConfiguredInterval_noFalseReconnectWhenAcked() throws Exception {
         server = TestWsServer.start(true); // 回声：收到任何帧回 "ack"，保持活跃
         RecordingListener listener = new RecordingListener();
@@ -456,12 +481,12 @@ class ReconnectingGatewayTest {
         volatile int authCloseCode = -999; // 该关闭码触发 onAuthFailure（模拟 QQ 鉴权关闭）；Java-WebSocket 异常关闭会用 -1，勿用 -1 作哨兵
         volatile Long heartbeatIntervalMs;
         volatile Supplier<String> heartbeatPayload;
-        /** 测试可覆盖建连超时（黑洞握手测试用，避免等真实的 15s）。 */
+        /** 测试可覆盖建连超时（黑洞握手测试用，避免等真实的 15s）；-1 = 不覆盖，0 = 显式关掉看门狗。 */
         volatile int connectTimeoutOverrideMs = -1;
 
         @Override
         protected int connectTimeoutMs() {
-            return connectTimeoutOverrideMs > 0 ? connectTimeoutOverrideMs : super.connectTimeoutMs();
+            return connectTimeoutOverrideMs >= 0 ? connectTimeoutOverrideMs : super.connectTimeoutMs();
         }
 
         TestGateway(
