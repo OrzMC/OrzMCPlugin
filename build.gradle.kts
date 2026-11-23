@@ -55,7 +55,7 @@ dependencies {
     // WebSocket client used by the EasyBot event stream.
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
     // Minecraft World Backup Lib
-    implementation("io.github.wangzhizhou:backup-core:0.3.1")
+    implementation("io.github.wangzhizhou:backup-core:0.3.2")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")

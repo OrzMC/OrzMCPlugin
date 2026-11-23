@@ -10,6 +10,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImMessageRouter;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.telegram.TelegramBuiltinAdapter;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.DiscordPlatformConfig;
@@ -18,7 +19,9 @@ import com.jokerhub.paper.plugin.orzmc.infra.config.configs.QqPlatformConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.TelegramPlatformConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -261,6 +264,27 @@ public final class BuiltinImDriver implements BotMessageService {
         }
         platform.send(target, text);
         return true;
+    }
+
+    /**
+     * 各平台运行时诊断快照（platform → 快照；issue #616）。
+     *
+     * <p>只含**当前运行中**且支持诊断的平台：未配置/已停用/无长连接网关（Telegram 长轮询）不出现，
+     * 由 {@code /config im status} 按需渲染。</p>
+     */
+    public Map<String, GatewayDiagnostics> diagnostics() {
+        Map<String, GatewayDiagnostics> out = new LinkedHashMap<>();
+        for (PlatformSlot<?> slot : snapshot()) {
+            BuiltinPlatform platform = slot.current();
+            if (platform == null) {
+                continue;
+            }
+            GatewayDiagnostics diag = platform.diagnostics();
+            if (diag != null) {
+                out.put(slot.platform(), diag);
+            }
+        }
+        return out;
     }
 
     /** 未绑定会话自动发现候选（D11：status 展示用）。 */

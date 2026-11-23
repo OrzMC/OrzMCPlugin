@@ -7,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.TextChunker;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayStateListener;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.ReconnectPolicy;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.qq.QqApiClient;
@@ -144,6 +145,11 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         gateway.stop();
         health.setEnabled(HEALTH_KEY, false);
         health.setWsConnected(HEALTH_KEY, false);
+    }
+
+    @Override
+    public GatewayDiagnostics diagnostics() {
+        return gateway == null ? null : gateway.diagnostics();
     }
 
     @Override
