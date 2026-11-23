@@ -27,7 +27,7 @@ class BuiltinImDriverTest {
     private final MessageFormatter formatter = (message, format) -> List.of(message);
 
     /** 替身平台：记录生命周期与投递。 */
-    static final class FakePlatform implements BuiltinPlatform {
+    static class FakePlatform implements BuiltinPlatform {
         private final String platformName;
         final List<String> sent = new CopyOnWriteArrayList<>();
         volatile boolean started;
