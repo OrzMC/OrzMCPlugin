@@ -70,16 +70,34 @@ platforms:
 把测试实例的容器改成 `network: host`（MCSManager 实例设置 → 网络模式），重启实例后同样观察 30 分钟。
 与实验 A 对比可区分「NAT 层」与「代理层」。
 
-### 实验 C：同容器参考客户端对照
+### 实验 C：同网络参考客户端对照
+
+关键不是「用什么语言写探针」，而是**让另一个客户端走插件那条出网路径**。仓库里备了三种运行时，
+按容器里现成的挑（容器通常没有 pip/npm 可用，Node/JDK 版按此设计）：
 
 ```bash
-# 在插件容器同一网络命名空间里跑，与插件共享出网路径
+# ① Python（有 python3 的环境）
 docker cp scripts/dev/im-longlink-probe.py <容器>:/tmp/probe.py
 docker exec -it <容器> python3 /tmp/probe.py --url wss://msg-frontier.feishu.cn/ws/v2 --seconds 180
+
+# ② Node（Node 22+ 自带全局 WebSocket，无需 npm；如 MCSManager 面板镜像）
+docker run --rm --network orzmc_default \
+  -v "$PWD/scripts/dev/im-longlink-probe.mjs:/probe.mjs:ro" \
+  githubyumao/mcsmanager-web:latest node /probe.mjs wss://api.sgroup.qq.com/websocket 60
+
+# ③ JDK（Minecraft 实例容器里通常只有 JRE；能发 ping 控制帧，最接近插件行为）
+javac -d /tmp/probe scripts/dev/ImLonglinkProbe.java && cp -r /tmp/probe ./.probe-classes
+docker run --rm --network orzmc_default -v "$PWD/.probe-classes:/p:ro" eclipse-temurin:25-jre \
+  java -cp /p ImLonglinkProbe wss://api.sgroup.qq.com/websocket 60 10
 ```
 
-- 参考客户端也收不到 pong/服务端 ping → 与插件无关，是路径问题；
-- 参考客户端正常而插件静默 → 回到插件侧（帧构造/读线程），把两份日志贴到 #616。
+判读与局限（2026-11-23 实测）：
+
+- 参考客户端也收不到入站 → 与插件无关，是路径问题；
+- 参考客户端正常而插件静默 → 回到插件侧（帧构造/读线程），把两份日志贴到 #616；
+- **端点局限**：`wss://msg-frontier.feishu.cn/ws/v2` 不接受「不带业务握手」的裸连接（握手即被拒）；
+  QQ 端点若不发 identify，约 2 分钟后服务端会以 `4009 Session timed out` 主动关闭。
+  所以参考客户端只能证明「**短窗口内该路径可用**」，**不能**替代下面的 A/B 实验给长期抖动定性。
 
 > Telegram 走长轮询（无长连接），不在本手册范围。
 
