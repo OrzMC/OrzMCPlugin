@@ -27,6 +27,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.command.RemoteConsoleCommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -209,6 +210,20 @@ class ImAdminServiceTest {
         assertTrue(diag.contains("已发心跳 5 帧"), "诊断行应含心跳帧数: " + diag);
         assertTrue(diag.contains("静默 42s"), "诊断行应含静默秒数: " + diag);
         assertTrue(diag.contains("同址零入站 1 次"), "诊断行应含同址零入站次数: " + diag);
+    }
+
+    @Test
+    void status_rconSender_isTreatedAsConsole() {
+        // Paper 26.x 的 RemoteConsoleCommandSender 只继承 CommandSender（不是 ConsoleCommandSender），
+        // 只判 instanceof ConsoleCommandSender 会把 RCON 挡在门外（2026-11-23 实测）。
+        RemoteConsoleCommandSender rcon = mock(RemoteConsoleCommandSender.class);
+        sent = new ArrayList<>();
+        sentTo(rcon);
+
+        service.status(rcon);
+
+        assertTrue(sent.stream().anyMatch(l -> l.contains("IM")), "RCON 应拿到 status 面板而不是权限拒绝: " + sent);
+        assertTrue(sent.stream().noneMatch(l -> l.contains("仅控制台")), "RCON 不应被 D10 守卫拒绝: " + sent);
     }
 
     @Test
