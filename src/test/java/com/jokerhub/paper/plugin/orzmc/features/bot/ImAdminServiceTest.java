@@ -209,7 +209,7 @@ class ImAdminServiceTest {
         assertTrue(diag.contains("入站 3 帧"), "诊断行应含入站帧数: " + diag);
         assertTrue(diag.contains("已发心跳 5 帧"), "诊断行应含心跳帧数: " + diag);
         assertTrue(diag.contains("静默 42s"), "诊断行应含静默秒数: " + diag);
-        assertTrue(diag.contains("同址零入站 1 次"), "诊断行应含同址零入站次数: " + diag);
+        assertTrue(diag.contains("同址静默 1 次"), "诊断行应含同址静默次数: " + diag);
     }
 
     @Test
