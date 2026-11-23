@@ -20,6 +20,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import com.jokerhub.paper.plugin.orzmc.infra.styles.OrzTextStyles;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
@@ -178,6 +179,36 @@ class ImAdminServiceTest {
         assertEquals(1, sent.size(), "非管理只应收到一条拒绝提示");
         assertTrue(sent.get(0).contains("仅控制台/游戏内 op"), sent.get(0));
         assertNull(bindingsStore.getConfigurationSection("sessions"), "拒绝后不应写入");
+    }
+
+    @Test
+    void status_builtin_includesGatewayDiagnostics() {
+        // issue #616：诊断计数必须能在故障现场（面板）看到，而不是只留在日志里
+        BuiltinImDriver mocked = mock(BuiltinImDriver.class);
+        when(mocked.diagnostics())
+                .thenReturn(Map.of(
+                        "qq",
+                        new com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics(
+                                "OPEN", "1.2.3.4:443", 3L, 5L, 42_000L, 2, 1, 1, "断开 code=1006")));
+        ImAdminService svc = new ImAdminService(
+                new OrzTextStyles(stylesConfig()),
+                configService,
+                new HealthAccessor(new HealthRegistry()),
+                mocked,
+                zhI18n());
+
+        List<String> lines = svc.statusLines();
+
+        assertTrue(lines.stream().anyMatch(l -> l.contains("网关诊断")), "缺少诊断段标题: " + lines);
+        String diag = lines.stream()
+                .filter(l -> l.contains("qq: OPEN"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("缺少 qq 诊断行: " + lines));
+        assertTrue(diag.contains("1.2.3.4:443"), "诊断行应含远端地址: " + diag);
+        assertTrue(diag.contains("入站 3 帧"), "诊断行应含入站帧数: " + diag);
+        assertTrue(diag.contains("已发心跳 5 帧"), "诊断行应含心跳帧数: " + diag);
+        assertTrue(diag.contains("静默 42s"), "诊断行应含静默秒数: " + diag);
+        assertTrue(diag.contains("同址零入站 1 次"), "诊断行应含同址零入站次数: " + diag);
     }
 
     @Test

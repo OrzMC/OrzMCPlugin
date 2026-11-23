@@ -4,6 +4,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.ImBindings;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.BuiltinImDriver;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.config.ConfigService;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImGatewayConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.QqPlatformConfig;
@@ -188,6 +189,9 @@ public final class ImAdminService {
                                             : t(MessageKeys.CMD_CONFIG_IM_STATE_DISCONNECTED)))
                     + lastErrorSuffix(e.lastError()));
         }
+        if (im.isBuiltin() && builtin != null) {
+            appendGatewayDiagnostics(lines);
+        }
         lines.add(t(MessageKeys.CMD_CONFIG_IM_PANEL_BINDINGS_TITLE));
         List<ImConversation> convs =
                 ImBindings.from(configService.getConfig("im_bindings")).conversations();
@@ -216,6 +220,35 @@ public final class ImAdminService {
             }
         }
         return lines;
+    }
+
+    /**
+     * 网关诊断段（issue #616）：把「只出现在日志里」的计数搬到故障现场可查的位置。
+     *
+     * <p>判读口径：<b>已发心跳 &gt; 0 而入站为 0</b> = 出站正常、对端或链路不回（入站断流）；
+     * 入站 &gt; 0 但静默时长超过窗口 = 本地任务把调度线程拖住了。同一远端零入站连续多次 → 出网路径问题。</p>
+     */
+    private void appendGatewayDiagnostics(List<String> lines) {
+        Map<String, GatewayDiagnostics> diag = builtin.diagnostics();
+        if (diag.isEmpty()) {
+            return;
+        }
+        lines.add(t(MessageKeys.CMD_CONFIG_IM_PANEL_DIAG_TITLE));
+        for (Map.Entry<String, GatewayDiagnostics> e : diag.entrySet()) {
+            GatewayDiagnostics d = e.getValue();
+            lines.add(t(
+                    MessageKeys.CMD_CONFIG_IM_PANEL_DIAG_LINE,
+                    Map.of(
+                            "platform", e.getKey(),
+                            "state", d.state(),
+                            "remote", d.remoteAddress() == null ? "-" : d.remoteAddress(),
+                            "inbound", String.valueOf(d.inboundFrames()),
+                            "heartbeats", String.valueOf(d.heartbeatSends()),
+                            "silent", String.valueOf(d.silentMs() / 1000L),
+                            "losses", String.valueOf(d.silenceLosses()),
+                            "streak", String.valueOf(d.sameAddressSilenceStreak()),
+                            "attempts", String.valueOf(d.reconnectAttempts()))));
+        }
     }
 
     /** 连接行尾缀：lastError 为空 → ""，否则原样附加（lastError 为平台/服务器原始错误文本，非 UI）。 */

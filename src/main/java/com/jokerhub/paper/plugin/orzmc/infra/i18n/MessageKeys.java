@@ -278,6 +278,10 @@ public final class MessageKeys {
     public static final String CMD_CONFIG_IM_PANEL_CONNECTION = "cmd.config_im_panel_connection";
     public static final String CMD_CONFIG_IM_PANEL_EASY_BOT = "cmd.config_im_panel_easy_bot";
     public static final String CMD_CONFIG_IM_PANEL_BINDINGS_TITLE = "cmd.config_im_panel_bindings_title";
+    /** 网关诊断段标题与单平台诊断行（issue #616；入站断流现场可查）。 */
+    public static final String CMD_CONFIG_IM_PANEL_DIAG_TITLE = "cmd.config_im_panel_diag_title";
+
+    public static final String CMD_CONFIG_IM_PANEL_DIAG_LINE = "cmd.config_im_panel_diag_line";
     public static final String CMD_CONFIG_IM_PANEL_NO_BINDINGS = "cmd.config_im_panel_no_bindings";
     public static final String CMD_CONFIG_IM_PANEL_CANDIDATES_TITLE = "cmd.config_im_panel_candidates_title";
     public static final String CMD_CONFIG_IM_PANEL_NONE = "cmd.config_im_panel_none";

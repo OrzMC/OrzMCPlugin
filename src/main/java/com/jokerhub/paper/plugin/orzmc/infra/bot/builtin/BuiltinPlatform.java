@@ -1,5 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin;
 
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
+
 /**
  * builtin 单平台适配器契约（S7 聚合；后续飞书/Discord/Telegram 同构实现）。
  *
@@ -28,4 +30,14 @@ public interface BuiltinPlatform {
      * @param text 已格式化文本
      */
     void send(String target, String text);
+
+    /**
+     * 运行时诊断快照（issue #616）：状态机 / 对端地址 / 入站与心跳帧数 / 静默与重连计数。
+     *
+     * <p>无长连接网关的平台（如 Telegram 长轮询）或适配器未启动时返回 {@code null}，
+     * 由 {@code /config im status} 跳过该平台。</p>
+     */
+    default GatewayDiagnostics diagnostics() {
+        return null;
+    }
 }
