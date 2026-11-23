@@ -520,7 +520,7 @@ cmd:
   config_im_panel_connection: "  connection: {state} | enabled: {enabled}"
   config_im_panel_easy_bot: "EasyBot gateway: {state}"
   config_im_panel_diag_title: "--- Gateway diagnostics (issue #616: inbound-stall triage) ---"
-  config_im_panel_diag_line: "    {platform}: {state} | remote {remote} | inbound {inbound} frames / heartbeats {heartbeats} sent | silent {silent}s | silence reconnects {losses} | same-address zero-inbound {streak} | reconnect attempts {attempts}"
+  config_im_panel_diag_line: "    {platform}: {state} | remote {remote} | inbound {inbound} frames / heartbeats {heartbeats} sent | silent {silent}s | silence reconnects {losses} | same-address silence {streak} | reconnect attempts {attempts}"
   config_im_panel_bindings_title: "--- Session bindings (im_bindings.yml) ---"
   config_im_panel_no_bindings: "(no sessions bound — once QQ groups/DMs send messages you can see candidates via /config im status, or bind manually)"
   config_im_panel_candidates_title: "--- Unbound candidates (D11, auto-cleared after binding; run a bind command below to bind) ---"
