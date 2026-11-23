@@ -7,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.TextChunker;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayStateListener;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.ReconnectPolicy;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.discord.DiscordApiClient;
@@ -16,7 +17,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.discord.DiscordInboundP
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.discord.DiscordRoleResolver;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.DiscordPlatformConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImProxyConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import java.net.Proxy;
 import java.util.concurrent.CompletableFuture;

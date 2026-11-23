@@ -483,10 +483,7 @@ class ReconnectingGatewayTest {
 
         GatewayDiagnostics diag = gw.diagnostics();
         assertEquals("OPEN", diag.state());
-        assertEquals(
-                "127.0.0.1:" + server.port(),
-                diag.remoteAddress(),
-                "诊断必须给出对端地址：同一地址反复零入站断流才说明是出网路径问题");
+        assertEquals("127.0.0.1:" + server.port(), diag.remoteAddress(), "诊断必须给出对端地址：同址反复零入站才指向出网路径");
         assertTrue(diag.inboundFrames() >= 1, "入站帧数应计入文本帧: " + diag);
         assertTrue(diag.silentMs() >= 0, "静默时长不应为负: " + diag);
         assertEquals(0, diag.sameAddressSilenceStreak(), "健康连接不应有同址零入站计数: " + diag);
@@ -504,12 +501,8 @@ class ReconnectingGatewayTest {
         awaitTrue("同一地址连续零入站静默被累计", () -> gw.diagnostics().sameAddressSilenceStreak() >= 2);
 
         GatewayDiagnostics diag = gw.diagnostics();
-        assertTrue(
-                diag.silenceLosses() >= 2,
-                () -> "静默重连次数应累计（退避据此抬高）: " + diag);
-        assertTrue(
-                diag.reconnectAttempts() >= 1,
-                () -> "应记录连续重连尝试次数: " + diag);
+        assertTrue(diag.silenceLosses() >= 2, () -> "静默重连次数应累计（退避据此抬高）: " + diag);
+        assertTrue(diag.reconnectAttempts() >= 1, () -> "应记录连续重连尝试次数: " + diag);
     }
 
     // =====================================================================

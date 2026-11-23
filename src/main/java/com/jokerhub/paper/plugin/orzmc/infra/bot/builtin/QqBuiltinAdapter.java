@@ -7,6 +7,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.ImConversation;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.ImDiscoveryCandidates;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.MessageFormatter;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.TextChunker;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayStateListener;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.ReconnectPolicy;
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.qq.QqApiClient;
@@ -17,7 +18,6 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.RefreshableTokenP
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.TokenProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImProxyConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.QqPlatformConfig;
-import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
