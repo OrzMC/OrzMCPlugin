@@ -222,12 +222,8 @@ class ImAdminServiceTest {
 
         service.status(rcon);
 
-        assertTrue(
-                sent.stream().anyMatch(l -> l.contains("IM")),
-                "RCON 应拿到 status 面板而不是权限拒绝: " + sent);
-        assertTrue(
-                sent.stream().noneMatch(l -> l.contains("仅控制台")),
-                "RCON 不应被 D10 守卫拒绝: " + sent);
+        assertTrue(sent.stream().anyMatch(l -> l.contains("IM")), "RCON 应拿到 status 面板而不是权限拒绝: " + sent);
+        assertTrue(sent.stream().noneMatch(l -> l.contains("仅控制台")), "RCON 不应被 D10 守卫拒绝: " + sent);
     }
 
     @Test
