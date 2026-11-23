@@ -487,7 +487,7 @@ class ReconnectingGatewayTest {
         assertEquals("127.0.0.1:" + server.port(), diag.remoteAddress(), "诊断必须给出对端地址：同址反复零入站才指向出网路径");
         assertTrue(diag.inboundFrames() >= 1, "入站帧数应计入文本帧: " + diag);
         assertTrue(diag.silentMs() >= 0, "静默时长不应为负: " + diag);
-        assertEquals(0, diag.sameAddressSilenceStreak(), "健康连接不应有同址零入站计数: " + diag);
+        assertEquals(0, diag.sameAddressSilenceStreak(), "健康连接不应有同址静默计数: " + diag);
         assertEquals(0, diag.silenceLosses(), "健康连接不应有静默重连: " + diag);
         assertEquals(0, diag.reconnectAttempts(), "健康连接不应有重连尝试: " + diag);
         assertTrue(diag.heartbeatSends() >= 0, "心跳计数应为非负: " + diag);
@@ -504,11 +504,29 @@ class ReconnectingGatewayTest {
 
         gw.start();
         // 跑到第 3 次：同时覆盖「同址零入站」提示分支（SAME_ADDRESS_SILENCE_HINT）与退避抬高
-        awaitTrue("同一地址连续零入站静默被累计到提示阈值", () -> gw.diagnostics().sameAddressSilenceStreak() >= 3);
+        awaitTrue("同一地址连续静默被累计到提示阈值", () -> gw.diagnostics().sameAddressSilenceStreak() >= 3);
 
         GatewayDiagnostics diag = gw.diagnostics();
         assertTrue(diag.silenceLosses() >= 2, () -> "静默重连次数应累计（退避据此抬高）: " + diag);
         assertTrue(diag.reconnectAttempts() >= 1, () -> "应记录连续重连尝试次数: " + diag);
+    }
+
+    @Test
+    void sameAddressSilence_countsEvenWhenFramesWereReceived() throws Exception {
+        // 2026-11-23 实测形态：同一远端「收到过若干帧后冻结」同样要计数
+        // （早期版本只统计零入站，把 QQ 的 46 帧 / 3 帧两次同址静默漏掉了）
+        server = TestWsServer.start();
+        AtomicInteger seq = new AtomicInteger();
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+        gw.heartbeatIntervalMs = 50L;
+        gw.heartbeatPayload = () -> "hb:" + seq.incrementAndGet();
+
+        gw.start();
+        awaitTrue("首次建连", () -> gw.opens.get() == 1);
+        server.connections().get(0).sendText("hello"); // 先收一帧，证明「非零入站」
+        awaitTrue("收到入站帧", () -> gw.diagnostics().inboundFrames() > 0);
+        // 之后不再有任何入站 → 静默超时：应计入「同址静默」
+        awaitTrue("同址静默在收到过帧时也计数", () -> gw.diagnostics().sameAddressSilenceStreak() >= 1);
     }
 
     // =====================================================================
