@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.handshake.ServerHandshake;
 
 /**
@@ -65,6 +66,15 @@ public abstract class ReconnectingGateway {
 
     /** 同一段不稳定期内静默超时的 WARN 次数上限（超出降 INFO：空服长跑反复来回不应刷屏）。 */
     private static final int SILENCE_WARN_TIMES = 1;
+
+    /**
+     * 建连（TCP + TLS + WS 握手）默认超时。
+     *
+     * <p>Java-WebSocket 的 2 参构造把 connect timeout 置为 0 = **无限等待**：对端接了 TCP 却不再完成 TLS/握手
+     * （发报机被中间设备/墙回包的黑洞环境常见）时，{@code connect()} 会永久阻塞在建连的调度线程上——
+     * 不重连、不发心跳、也不打任何日志，网关就这样“静默死掉”（2026-11-22 本机实测，见 issue #616）。</p>
+     */
+    static final int DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
 
     private final String name;
     private final Logger log;
@@ -430,10 +440,46 @@ public abstract class ReconnectingGateway {
         try {
             ws.connect();
         } catch (Exception e) {
-            log.warning("[" + name + "] 建连异常（将退避重连）: " + e);
+            // 超时/握手失败后必须关掉底层 socket：connect() 抛异常时库不会自己收尾，不关会漏 fd
+            // （有了 connect timeout 后这条路径会变常见）。
+            closeQuietly(ws, 1000, "connect failed");
+            log.warning("[" + name + "] 建连失败（将退避重连，超时窗口 " + connectTimeoutMs() + "ms）: " + e);
             transitionLost(ws);
             queueReconnect(false);
+            return;
         }
+        scheduleConnectWatchdog(ws, connectTimeoutMs());
+    }
+
+    /**
+     * 建连看门狗（TCP 连上但 TLS/WS 握手停滞的兵库）。
+     *
+     * <p>Java-WebSocket 的 {@code connect()} 是**非阻塞**的：真正的握手在库自己的线程里跑，而库的
+     * {@code connectTimeout} 只管 {@code socket.connect()}——TLS 握手/HTTP Upgrade 响应一旦被对端或
+     * 中间设备丢包，那个线程就永久阻塞，**既不会 onOpen 也不会 onClose/onError**，状态机因此永远停在
+     * CONNECTING：不重连、不发心跳、不打任何日志（2026-11-22 实测：4 分钟无日志、state=CONNECTING，
+     * 见 issue #616）。这里自己补一个超时，超时即判失败并退避。</p>
+     */
+    private void scheduleConnectWatchdog(WebSocketClient ws, int timeoutMs) {
+        if (timeoutMs <= 0) {
+            return;
+        }
+        scheduler.schedule(
+                () -> {
+                    boolean stuck;
+                    synchronized (lock) {
+                        stuck = state == State.CONNECTING && currentWs == ws;
+                    }
+                    if (!stuck) {
+                        return;
+                    }
+                    log.warning("[" + name + "] 建连超时（" + timeoutMs + "ms 内未完成 TCP/TLS/WS 握手，对端或中间设备不回包），按失败退避重连");
+                    closeQuietly(ws, 1000, "connect timeout");
+                    transitionLost(ws);
+                    queueReconnect(false);
+                },
+                timeoutMs,
+                TimeUnit.MILLISECONDS);
     }
 
     private WebSocketClient createClient(URI uri) {
@@ -441,7 +487,8 @@ public abstract class ReconnectingGateway {
         if (headers == null) {
             headers = Map.of();
         }
-        WebSocketClient client = new WebSocketClient(uri, headers) {
+        // 4 参构造：第 4 个 int = connect timeout（0 = 无限等待，绝不能给 0，见 DEFAULT_CONNECT_TIMEOUT_MS）
+        WebSocketClient client = new WebSocketClient(uri, new Draft_6455(), headers, connectTimeoutMs()) {
             @Override
             public void onOpen(ServerHandshake handshakeData) {
                 ReconnectingGateway.this.onWsOpen(this);
@@ -507,6 +554,15 @@ public abstract class ReconnectingGateway {
     /** 测试可见：本轮连接累计入站活性数。 */
     long inboundFrameCount() {
         return inboundFrames.get();
+    }
+
+    /**
+     * 建连（TCP + TLS + WS 握手）超时（毫秒）。默认 {@link #DEFAULT_CONNECT_TIMEOUT_MS}；测试可覆盖。
+     *
+     * <p>无论环境如何，这里**不允许返回 0**：0 在 Java-WebSocket 里等于无限等待，会让网关在握手黑洞上悬挂。</p>
+     */
+    protected int connectTimeoutMs() {
+        return DEFAULT_CONNECT_TIMEOUT_MS;
     }
 
     private void onWsOpen(WebSocketClient ws) {
