@@ -17,12 +17,25 @@
   - **可观测**：飞书建连现在打 `[feishu] 长连接已建立（心跳 Xs，静默窗口 Ys）`——此后
     「[feishu] READY 0 次」不会再被误读成“从未连上”（飞书协议本身没有 READY 事件）。
   - **排查提示**：issue 报告里的 `92811ms / 270000ms` 是**窗口阈值**（3 × 心跳周期），不是实测静默时长。
+- **IM 网关不再「握手停滞就永久挂在 CONNECTING」**（issue #616）：Java-WebSocket 的 `connect()` 是**非阻塞**的，
+  库的 `connectTimeout` 只管 `socket.connect()`——TLS 握手 / HTTP Upgrade 响应被对端或中间设备丢包时，库自己的
+  握手线程永久阻塞，**既不会 `onOpen` 也不会 `onClose`/`onError`**，状态机于是永远停在 CONNECTING：
+  不重连、不发心跳、一行日志都没有（实测 4 分钟无输出，只能重启进程）。
+  - **建连看门狗**：`connect()` 返回后按 `connect_timeout`（默认 15s）起超时任务，届时仍未 OPEN 就判失败——
+    打一条说明「TCP/TLS/WS 握手未完成」的 WARN、关掉底层连接、按失败退避重连；
+  - **显式 connect timeout**：`WebSocketClient` 改用 4 参构造，不再落进「2 参构造 = 0 = 无限等待」的坑；
+  - **失败路径补收尾**：`connect()` 抛异常时关闭底层连接（否则漏 fd），日志改为「建连失败（将退避重连，超时窗口 Nms）」。
 - **同世界二次 `$o`/`$b` 不再"没有回执"**（issue #588）：进度回调在 `Done` 事件的 `current/total` 为 0 时
   （世界已优化过、无待处理区块）提前返回，导致用户只看到"正在优化地图，请稍等......"、没有完成行。
   现在 `Done` 阶段无条件下发完成回执（空计数器按 100% 渲染）。同时取消 E2E 里"`$o` 需要全新世界"的跳过
   ——世界复用也必须出完成回执，成为该缺陷的回归护栏。
 
 ### 🔧 工程 / CI / 配置
+- **备份库 `backup-core` 0.3.1 → 0.3.2（`$b` 备份行为变好）**：
+  - **损坏 region 不再静默消失**：无法解析的 region 及其 `entities`/`poi` 兄弟文件，非原地备份时改为
+    **原样复制到输出并记录错误**（此前该 region 会从备份里缺失——一个「以为备了、其实没备」的坑）；
+  - 库 API 适配：`FilterOptions` 新增 `extraPatterns`（可注入自定义保留模式），插件改用
+    `OptimizerRequestBuilder` 的离散 setter 而非位置构造，语义不变、对后续参数变化免疫。
 - **配置体检不再为「不参与运行」的配置叫警**（issue #610 顺带发现）：`im.backend: builtin` 时 EasyBot 根本不
   建连，`easybot.yml` 的 `api_server`/`ws_server` 明文也谈不上“apiKey 明文传输”（根本不发），但仍被建议改用
   加密协议——空服巡检里这类噪声会把真问题挤出去。现 builtin 下跳过「运行时才相关」的建议（apiKey 明文、
