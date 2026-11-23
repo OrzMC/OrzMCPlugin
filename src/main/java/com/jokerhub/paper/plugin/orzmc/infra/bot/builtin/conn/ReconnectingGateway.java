@@ -68,6 +68,14 @@ public abstract class ReconnectingGateway {
     private static final int SILENCE_WARN_TIMES = 1;
 
     /**
+     * 连续「同一远端地址 + 零入站」的静默断流提示阀值（issue #616）。
+     *
+     * <p>达到该次数时额外给一条带排查建议的 WARN，并抬高重连退避（{@link #silenceEscalationSteps()}）——
+     * 「重连 → 重鉴权 → 再断流」的循环不仅没用，还会刷掉平台侧配额、把真问题埋在日志里。</p>
+     */
+    static final int SAME_ADDRESS_SILENCE_HINT = 3;
+
+    /**
      * 建连（TCP + TLS + WS 握手）默认超时。
      *
      * <p>Java-WebSocket 的 2 参构造把 connect timeout 置为 0 = **无限等待**：对端接了 TCP 却不再完成 TLS/握手
@@ -103,8 +111,21 @@ public abstract class ReconnectingGateway {
     /** 本轮连接已发出的心跳帧数（每次建连清零，诊断「是不是心跳根本没发出去」）。 */
     private final AtomicLong heartbeatSends = new AtomicLong();
 
-    /** 连续「静默超时」触发的重连次数（连接稳定 {@code stableResetMs} 后清零）：用于日志分级与恢复提示。 */
-    private int silenceLosses;
+    /** 当前/上次连接的对端地址（{@code host:port}；issue #616 诊断用，未连接时为 null）。 */
+    private volatile String remoteAddress;
+
+    /**
+     * 连续「同一远端地址 + 零入站」静默断流次数（issue #616）。
+     *
+     * <p>写路径在 {@code lock} 内；读路径（日志 / 诊断 / 退避计算）按 volatile 读，允许瞬时偏差。</p>
+     */
+    private volatile int sameAddressSilenceStreak;
+
+    /** 上一次「零入站静默断流」的对端地址（与 {@link #sameAddressSilenceStreak} 配对判定同一地址反复断流）。 */
+    private String silentStreakAddress;
+
+    /** 连续「静默超时」触发的重连次数（连接稳定且收到过入站帧后清零）：用于日志分级、恢复提示与诊断快照。 */
+    private volatile int silenceLosses;
 
     /** 心跳发送器：文本（QQ op1 JSON）或二进制（飞书 protobuf ping）各一实现，帧类型保持平台正确。 */
     private interface HeartbeatPump {
@@ -200,6 +221,45 @@ public abstract class ReconnectingGateway {
 
     public final String name() {
         return name;
+    }
+
+    /**
+     * 运行时诊断快照（issue #616；{@code /config im status} 与日志共用）。
+     *
+     * <p>计数为原子量、地址/次数为 volatile，只在拿 {@code lock} 的瞬间取状态机快照：本方法可能被服务器主线程调用，
+     * 不应与重连/心跳路径争抢锁。</p>
+     */
+    public final GatewayDiagnostics diagnostics() {
+        long lastInbound = lastReceivedMs;
+        String snapshotState;
+        int attempts;
+        String problem;
+        synchronized (lock) {
+            snapshotState = state.name();
+            attempts = reconnectAttempts;
+            problem = lastProblem;
+        }
+        long silentMs = lastInbound <= 0 ? 0L : Math.max(0L, System.currentTimeMillis() - lastInbound);
+        return new GatewayDiagnostics(
+                snapshotState,
+                remoteAddress,
+                inboundFrames.get(),
+                heartbeatSends.get(),
+                silentMs,
+                silenceLosses,
+                sameAddressSilenceStreak,
+                attempts,
+                problem);
+    }
+
+    /**
+     * 静默断流抬高退避的指数步数（issue #616）：0 = 不抬高，封顶 3（即最多把退避再往后推 3 个指数级）。
+     *
+     * <p>为何要抬高：连接往往能活过 {@code stableResetMs}（默认 20s）后又一次「零入站」静默断流，
+     * 退避计数被反复清零 → 永远以 5s 的节奏重连、重鉴权，既掩盖真问题也浪费平台配额。</p>
+     */
+    private int silenceEscalationSteps() {
+        return Math.min(3, Math.max(0, sameAddressSilenceStreak - 1));
     }
 
     // =====================================================================
@@ -566,12 +626,16 @@ public abstract class ReconnectingGateway {
     }
 
     private void onWsOpen(WebSocketClient ws) {
+        String addr = describeRemote(ws);
         synchronized (lock) {
             if (state == State.CONNECTING && currentWs == ws) {
                 state = State.OPEN;
                 lastReceivedMs = System.currentTimeMillis();
                 inboundFrames.set(0);
                 heartbeatSends.set(0);
+                if (addr != null) {
+                    remoteAddress = addr;
+                }
                 scheduleStableResetLocked();
             } else {
                 // stop/fatal/过期尝试的迟到 open：立即关闭
@@ -813,21 +877,55 @@ public abstract class ReconnectingGateway {
      * 帧数与入站活性数——两个数字一对就能定性：已发 &gt; 0 且入站为 0 = 出站正常、对端/链路不回；入站 &gt; 0 但
      * 静默时长已超窗 = 定时任务被长任务拖住（属调度问题）。</p>
      *
-     * <p><b>噪声控制</b>：同一段不稳定期内首条 WARN，后续降 INFO（空服长跑反复重连不应把真实问题挤出巡检视野）；
-     * 连接稳定后由 {@link #scheduleStableResetLocked()} 清零并打一行「结束静默重连期」。</p>
+     * <p><b>同一地址反复静默（issue #616）</b>：本轮连接<b>一帧都没收到</b>、且对端地址与上次静默断流相同 → 计入连续次数；
+     * 达到 {@link #SAME_ADDRESS_SILENCE_HINT} 时额外给一条带排查建议的 WARN，并通过
+     * {@link #silenceEscalationSteps()} 抬高后续退避（不再以 5s 的节奏反复重鉴权）。</p>
+     *
+     * <p><b>噪声控制</b>：同一段不稳定期内首条 WARN，后续降 INFO；连接稳定<b>且真正收到过入站帧</b>后由
+     * {@link #scheduleStableResetLocked()} 清零并打一行「结束静默重连期」。</p>
      */
     private void onSilenceTimeout(WebSocketClient ws, long silentMs, long windowMs) {
         int losses;
+        int streak;
+        boolean hintNow;
+        long inbound = inboundFrames.get();
+        String addr = describeRemote(ws);
         synchronized (lock) {
             losses = ++silenceLosses;
+            if (inbound == 0L) {
+                // 只有「连上了却一帧未收」才是同一地址可疑模式；收到过帧的断流不按地址归并
+                if (addr == null ? silentStreakAddress == null : addr.equals(silentStreakAddress)) {
+                    sameAddressSilenceStreak++;
+                } else {
+                    silentStreakAddress = addr;
+                    sameAddressSilenceStreak = 1;
+                }
+            } else {
+                sameAddressSilenceStreak = 0;
+                silentStreakAddress = null;
+            }
+            streak = sameAddressSilenceStreak;
+            hintNow = streak == SAME_ADDRESS_SILENCE_HINT;
         }
         String detail = "静默 " + silentMs + "ms（窗口 " + windowMs + "ms，本轮已发心跳 " + heartbeatSends.get() + " 帧，累计入站 "
-                + inboundFrames.get() + " 帧）";
-        String message = "心跳静默超时，" + detail + "，强制断开触发重连" + (losses > 1 ? "（连续第 " + losses + " 次）" : "");
+                + inbound + " 帧" + (addr == null ? "" : "，远端 " + addr) + "）";
+        String message = "心跳静默超时，" + detail + "，强制断开触发重连";
+        if (losses > 1) {
+            message += "（本段第 " + losses + " 次）";
+        }
+        if (streak > 1) {
+            message += "（同一远端零入站第 " + streak + " 次）";
+        }
         if (losses <= SILENCE_WARN_TIMES) {
             log.warning("[" + name + "] " + message);
         } else {
             log.info("[" + name + "] " + message);
+        }
+        if (hintNow) {
+            log.warning("[" + name + "] 连续 " + streak + " 次在远端 " + addr
+                    + " 上「连上但零入站」后静默断流：多为本机出网路径（NAT / HTTP 代理 / 中间设备）对该长连接端点不友好，"
+                    + "短连接（HTTPS API）通常仍正常。排查顺序见 docs/dev/im-inbound-stall.md；重连退避已按倍数抬高——"
+                    + "先试 im.yml platforms.<id>.proxy，或把实例改成 network: host 对照。");
         }
         closeQuietly(ws, 1006, "heartbeat silence");
     }
@@ -841,17 +939,28 @@ public abstract class ReconnectingGateway {
         scheduler.schedule(
                 () -> {
                     int cleared;
+                    boolean healthy;
                     synchronized (lock) {
                         cleared = 0;
+                        healthy = false;
                         if (state == State.OPEN && currentWs != null && currentWs.isOpen()) {
                             reconnectAttempts = 0;
-                            cleared = silenceLosses;
-                            silenceLosses = 0;
+                            // 关键区分（issue #616）：稳定不等于健康。连上以后一帧入站都没收到，
+                            // 正是「入站断流」的前奏，此时清零就等于把同一地址的可疑模式忘掉。
+                            healthy = inboundFrames.get() > 0;
+                            if (healthy) {
+                                cleared = silenceLosses;
+                                silenceLosses = 0;
+                                sameAddressSilenceStreak = 0;
+                                silentStreakAddress = null;
+                            }
                         }
                     }
                     if (cleared > 0) {
                         // issue #610 期望 3：状态恢复要给一行 INFO（此前只有 FINE，运维看不出已经好了）
                         log.info("[" + name + "] 连接已稳定 " + stable + "ms，结束静默重连期（本轮累计 " + cleared + " 次静默重连）");
+                    } else if (!healthy) {
+                        log.fine("[" + name + "] 连接稳定 " + stable + "ms 但本轮入站 0 帧（入站断流前兆，保留静默计数）");
                     }
                 },
                 stable,
@@ -877,11 +986,32 @@ public abstract class ReconnectingGateway {
     // =====================================================================
 
     private long backoffDelayMs(int attempt) {
-        double base = policy.baseRetryMs() * Math.pow(2, Math.max(0, attempt - 1));
+        // issue #616：同一远端反复「零入站」静默断流时抬高退避指数，避免 5s 一轮的无效重鉴权
+        int escalated = attempt + silenceEscalationSteps();
+        double base = policy.baseRetryMs() * Math.pow(2, Math.max(0, escalated - 1));
         long capped = (long) Math.min(base, policy.maxRetryMs());
         int jitter = Math.min(100, Math.max(0, policy.jitterPercent()));
         double factor = 1.0 + ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * (jitter / 100.0));
         return Math.max(0, (long) (capped * factor));
+    }
+
+    /** 对端地址描述（{@code host:port}；未连上/库未提供时返回 null）。 */
+    private static String describeRemote(WebSocketClient ws) {
+        if (ws == null) {
+            return null;
+        }
+        try {
+            java.net.InetSocketAddress addr = ws.getRemoteSocketAddress();
+            if (addr == null) {
+                return null;
+            }
+            String host = addr.getAddress() == null
+                    ? String.valueOf(addr.getHostString())
+                    : addr.getAddress().getHostAddress();
+            return host + ":" + addr.getPort();
+        } catch (RuntimeException e) {
+            return null; // 诊断信息取不到不应影响重连主流程
+        }
     }
 
     private static void closeQuietly(WebSocketClient ws, int code, String reason) {

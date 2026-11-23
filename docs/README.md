@@ -30,6 +30,7 @@
 | [IM 网关内建方案](dev/im-gateway-inhouse.md) | EasyBot ↔ builtin 双通道切换方案定稿（backend/im.yml/决策记录/实施路线/§10 遗留清单） | docs/dev/ |
 | [依赖安全告警处置](dev/dependency-security-alerts.md) | Dependabot 红作业根因（残留 `pom.xml` manifest）、7 条告警的处置结论与复核条件 | docs/dev/ |
 | [QQ 被动回复窗口越界](dev/qq-passive-reply-expiry.md) | `$b`/`$o` 完成通知丢失的根因（`40034005`）、双层修复与「长任务不走被动回复」红线 | docs/dev/ |
+| [IM 入站断流排查](dev/im-inbound-stall.md) | 内置长连接「出站正常、入站零帧」的判读口径（issue #616）、插件侧诊断与三条宿主实验 runbook | docs/dev/ |
 | 包级 javadoc（`package-info.java`） | 逐包职责/关键类型/依赖方向，定位最快入口 | src/ |
 
 ### 🧪 测试 / 质量

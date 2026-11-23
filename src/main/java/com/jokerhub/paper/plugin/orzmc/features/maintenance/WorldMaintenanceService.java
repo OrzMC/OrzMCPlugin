@@ -293,7 +293,12 @@ public class WorldMaintenanceService {
         DefaultMcaIOFactory mcaIOFactory = new DefaultMcaIOFactory();
         RealFileSystem fs = RealFileSystem.INSTANCE;
         DefaultOptimizer.INSTANCE.run(input, outputOrNull, builder -> {
-            builder.setFilter(new FilterOptions(tickTimeThreshold, false, true));
+            // 用 builder 的离散参数而非 FilterOptions(inhabitedThresholdSeconds, removeUnknown, strict)：
+            // backup-core 0.3.2 给 FilterOptions 追加了 extraPatterns（可注入保留模式），位置构造签名随之变化——
+            // 走 builder setter 后，库再加参数也不会让这里编译失败。
+            builder.setInhabitedThresholdSeconds(tickTimeThreshold);
+            builder.setRemoveUnknown(false);
+            builder.setStrict(true);
             builder.setOutputOptions(new OutputOptions(!backupMode, backupMode, true, true, false));
             builder.setProgress(new ProgressOptions(100L, 1000L, event -> {
                 progressHandler(backupMode, callback).invoke(event);
