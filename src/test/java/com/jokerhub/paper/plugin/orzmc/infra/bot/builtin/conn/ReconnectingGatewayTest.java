@@ -1,6 +1,7 @@
 package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -487,6 +488,10 @@ class ReconnectingGatewayTest {
         assertTrue(diag.inboundFrames() >= 1, "入站帧数应计入文本帧: " + diag);
         assertTrue(diag.silentMs() >= 0, "静默时长不应为负: " + diag);
         assertEquals(0, diag.sameAddressSilenceStreak(), "健康连接不应有同址零入站计数: " + diag);
+        assertEquals(0, diag.silenceLosses(), "健康连接不应有静默重连: " + diag);
+        assertEquals(0, diag.reconnectAttempts(), "健康连接不应有重连尝试: " + diag);
+        assertTrue(diag.heartbeatSends() >= 0, "心跳计数应为非负: " + diag);
+        assertNull(diag.lastProblem(), "健康连接不应有问题描述: " + diag);
     }
 
     @Test
@@ -498,7 +503,8 @@ class ReconnectingGatewayTest {
         gw.heartbeatPayload = () -> "hb:" + seq.incrementAndGet();
 
         gw.start();
-        awaitTrue("同一地址连续零入站静默被累计", () -> gw.diagnostics().sameAddressSilenceStreak() >= 2);
+        // 跑到第 3 次：同时覆盖「同址零入站」提示分支（SAME_ADDRESS_SILENCE_HINT）与退避抬高
+        awaitTrue("同一地址连续零入站静默被累计到提示阈值", () -> gw.diagnostics().sameAddressSilenceStreak() >= 3);
 
         GatewayDiagnostics diag = gw.diagnostics();
         assertTrue(diag.silenceLosses() >= 2, () -> "静默重连次数应累计（退避据此抬高）: " + diag);

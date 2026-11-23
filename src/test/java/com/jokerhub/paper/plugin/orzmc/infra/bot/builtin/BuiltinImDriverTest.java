@@ -67,6 +67,19 @@ class BuiltinImDriverTest {
         }
     }
 
+    /** 覆盖 diagnostics() 的替身平台（模拟长连接网关）。 */
+    static final class DiagPlatform extends FakePlatform {
+        DiagPlatform(String platformName) {
+            super(platformName);
+        }
+
+        @Override
+        public com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics diagnostics() {
+            return new com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics(
+                    "OPEN", "5.6.7.8:443", 12L, 7L, 1_500L, 0, 0, 1, null);
+        }
+    }
+
     private void imConfig(QqPlatformConfig qq) {
         YamlConfiguration im = new YamlConfiguration();
         im.set("backend", "builtin");
@@ -279,6 +292,40 @@ class BuiltinImDriverTest {
         driver.send(MessageEnvelope.privateMessage("私信"));
         assertEquals(List.of("qq:group:G-qq|群公告"), qq.sent);
         assertEquals(List.of("feishu:user:U-feishu|私信"), feishu.sent);
+    }
+
+    @Test
+    void diagnostics_onlyIncludesPlatformsThatExposeOne() {
+        YamlConfiguration im = new YamlConfiguration();
+        im.set("backend", "builtin");
+        im.set("platforms.qq.enabled", true);
+        im.set("platforms.qq.app_id", "app-1");
+        im.set("platforms.qq.client_secret", "secret-1");
+        im.set("platforms.feishu.enabled", true);
+        im.set("platforms.feishu.app_id", "cli-feishu");
+        im.set("platforms.feishu.app_secret", "secret-feishu");
+        Mockito.when(configService.getConfig("im")).thenReturn(im);
+        Mockito.when(configService.getConfig("im_bindings")).thenReturn(new YamlConfiguration());
+
+        FakePlatform qq = new FakePlatform("qq"); // 不覆盖 diagnostics() → 默认 null
+        DiagPlatform feishu = new DiagPlatform("feishu");
+        BuiltinImDriver driver = new BuiltinImDriver(silentLogger(), configService, formatter);
+        driver.register(new PlatformSlot<>(
+                "qq",
+                cs -> QqPlatformConfig.from(section(cs, "platforms.qq")),
+                QqPlatformConfig::usable,
+                c -> qq,
+                silentLogger()));
+        driver.register(new PlatformSlot<>(
+                "feishu", cs -> feishuConfig(cs), FeishuLikeConfig::usable, c -> feishu, silentLogger()));
+        driver.setup();
+
+        java.util.Map<String, com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics> diag =
+                driver.diagnostics();
+
+        assertEquals(java.util.Set.of("feishu"), diag.keySet(), "不支持诊断的平台应被跳过: " + diag.keySet());
+        assertEquals("OPEN", diag.get("feishu").state());
+        assertEquals("5.6.7.8:443", diag.get("feishu").remoteAddress());
     }
 
     @Test
