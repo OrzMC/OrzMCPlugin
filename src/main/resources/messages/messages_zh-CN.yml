@@ -512,7 +512,7 @@ cmd:
   config_im_panel_connection: "  connection: {state} | enabled: {enabled}"
   config_im_panel_easy_bot: "EasyBot 网关: {state}"
   config_im_panel_diag_title: "--- 网关诊断（issue #616：入站断流排查用）---"
-  config_im_panel_diag_line: "    {platform}: {state} | 远端 {remote} | 入站 {inbound} 帧 / 已发心跳 {heartbeats} 帧 | 静默 {silent}s | 本段静默重连 {losses} 次 | 同址零入站 {streak} 次 | 重连尝试 {attempts} 次"
+  config_im_panel_diag_line: "    {platform}: {state} | 远端 {remote} | 入站 {inbound} 帧 / 已发心跳 {heartbeats} 帧 | 静默 {silent}s | 本段静默重连 {losses} 次 | 同址静默 {streak} 次 | 重连尝试 {attempts} 次"
   config_im_panel_bindings_title: "--- 会话绑定（im_bindings.yml）---"
   config_im_panel_no_bindings: "（未绑定任何会话——QQ 群/私聊来消息后可用 /config im status 查看候选，或手动 bind）"
   config_im_panel_candidates_title: "--- 未绑定候选（D11，绑定后自动清除；复制对应 bind 命令执行即完成）---"

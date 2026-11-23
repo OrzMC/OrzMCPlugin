@@ -13,7 +13,7 @@ package com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn;
  *       = 出站正常、对端或链路不回（与 issue #616 的实测一致）；</li>
  *   <li>{@code silentMs}：距上次入站活性（含 WS ping/pong 控制帧）的毫秒数；</li>
  *   <li>{@code silenceLosses}：本段不稳定期的累计静默重连次数（连接真正收到过入站帧后清零）；</li>
- *   <li>{@code sameAddressSilenceStreak}：连续「同一远端地址 + 零入站」的静默断流次数——达到
+ *   <li>{@code sameAddressSilenceStreak}：连续「同一远端地址」的静默断流次数（收到过帧也计入）——达到
  *       {@link ReconnectingGateway#SAME_ADDRESS_SILENCE_HINT} 后插件会给排查提示并放大退避；</li>
  *   <li>{@code reconnectAttempts}：连续重连尝试次数（连接稳定且收到过入站帧后清零）。</li>
  * </ul>

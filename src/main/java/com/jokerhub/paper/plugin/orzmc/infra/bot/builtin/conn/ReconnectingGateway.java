@@ -68,7 +68,7 @@ public abstract class ReconnectingGateway {
     private static final int SILENCE_WARN_TIMES = 1;
 
     /**
-     * 连续「同一远端地址 + 零入站」的静默断流提示阀值（issue #616）。
+     * 连续「同一远端地址」静默断流的提示阀值（issue #616）。
      *
      * <p>达到该次数时额外给一条带排查建议的 WARN，并抬高重连退避（{@link #silenceEscalationSteps()}）——
      * 「重连 → 重鉴权 → 再断流」的循环不仅没用，还会刷掉平台侧配额、把真问题埋在日志里。</p>
@@ -115,7 +115,7 @@ public abstract class ReconnectingGateway {
     private volatile String remoteAddress;
 
     /**
-     * 连续「同一远端地址 + 零入站」静默断流次数（issue #616）。
+     * 连续「同一远端地址」静默断流次数（issue #616）。
      *
      * <p>写路径在 {@code lock} 内；读路径（日志 / 诊断 / 退避计算）按 volatile 读，允许瞬时偏差。</p>
      */
@@ -892,17 +892,15 @@ public abstract class ReconnectingGateway {
         String addr = describeRemote(ws);
         synchronized (lock) {
             losses = ++silenceLosses;
-            if (inbound == 0L) {
-                // 只有「连上了却一帧未收」才是同一地址可疑模式；收到过帧的断流不按地址归并
-                if (addr == null ? silentStreakAddress == null : addr.equals(silentStreakAddress)) {
-                    sameAddressSilenceStreak++;
-                } else {
-                    silentStreakAddress = addr;
-                    sameAddressSilenceStreak = 1;
-                }
+            // 按对端地址归并「静默断流」：**与收到过几帧无关**。
+            // 2026-11-23 实测（dev.439，issue #616）：同一远端 111.161.67.196 连续两次静默，
+            // 分别是「已发 48 / 入站 46」和「已发 5 / 入站 3」——收到过帧之后照样会冻结，
+            // 早期版本只统计「零入站」的连接，结果把这类最典型的模式漏掉了。
+            if (addr == null ? silentStreakAddress == null : addr.equals(silentStreakAddress)) {
+                sameAddressSilenceStreak++;
             } else {
-                sameAddressSilenceStreak = 0;
-                silentStreakAddress = null;
+                silentStreakAddress = addr;
+                sameAddressSilenceStreak = 1;
             }
             streak = sameAddressSilenceStreak;
             hintNow = streak == SAME_ADDRESS_SILENCE_HINT;
@@ -914,7 +912,7 @@ public abstract class ReconnectingGateway {
             message += "（本段第 " + losses + " 次）";
         }
         if (streak > 1) {
-            message += "（同一远端零入站第 " + streak + " 次）";
+            message += "（同一远端第 " + streak + " 次静默）";
         }
         if (losses <= SILENCE_WARN_TIMES) {
             log.warning("[" + name + "] " + message);
@@ -923,7 +921,7 @@ public abstract class ReconnectingGateway {
         }
         if (hintNow) {
             log.warning("[" + name + "] 连续 " + streak + " 次在远端 " + addr
-                    + " 上「连上但零入站」后静默断流：多为本机出网路径（NAT / HTTP 代理 / 中间设备）对该长连接端点不友好，"
+                    + " 上反复静默断流：多为本机出网路径（NAT / HTTP 代理 / 中间设备）对该长连接端点不友好，"
                     + "短连接（HTTPS API）通常仍正常。排查顺序见 docs/dev/im-inbound-stall.md；重连退避已按倍数抬高——"
                     + "先试 im.yml platforms.<id>.proxy，或把实例改成 network: host 对照。");
         }
