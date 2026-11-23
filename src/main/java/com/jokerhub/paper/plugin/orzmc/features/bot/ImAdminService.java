@@ -19,6 +19,7 @@ import java.util.Set;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.command.RemoteConsoleCommandSender;
 import org.bukkit.entity.Player;
 
 /**
@@ -328,7 +329,7 @@ public final class ImAdminService {
 
     /** 权限守卫：控制台放行；玩家需 op/orzmc.admin；非管理返回错误并拒绝。 */
     private boolean denyIfNotAdmin(CommandSender sender) {
-        if (sender instanceof ConsoleCommandSender) {
+        if (isConsoleLike(sender)) {
             return true;
         }
         if (sender instanceof Player player && (player.isOp() || player.hasPermission("orzmc.admin"))) {
@@ -336,6 +337,18 @@ public final class ImAdminService {
         }
         sender.sendMessage(styles.error(t(MessageKeys.CMD_CONSOLE_OP_ONLY)));
         return false;
+    }
+
+    /**
+     * 控制台类发送者（D10 放行）：本地控制台 + **RCON 远程控制台**。
+     *
+     * <p>注意 Paper 26.x 的 {@link RemoteConsoleCommandSender} **只继承 {@code CommandSender}**，
+     * 不是 {@code ConsoleCommandSender} 的子类型（`javap` 验证过 paper-api 26.3）——只判
+     * {@code instanceof ConsoleCommandSender} 会把 RCON 挡在外面，运维脚本/自动化就取不到 status
+     * （2026-11-23 实测：RCON 执行 {@code /config im status} 被回「仅控制台/游戏内 op 可执行」）。</p>
+     */
+    private static boolean isConsoleLike(CommandSender sender) {
+        return sender instanceof ConsoleCommandSender || sender instanceof RemoteConsoleCommandSender;
     }
 
     private void sendLines(CommandSender sender, List<String> lines) {
