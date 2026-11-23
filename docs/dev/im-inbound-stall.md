@@ -50,6 +50,23 @@
 必须自建 TCP → 手动 TLS（SNI）→ 再交给库，属高风险改动且本地无法端到端验证（需要真实平台凭证 + 真实出网路径）。
 **待维护者决定**是否值得为「更早暴露半开连接」换这条路径；当前用应用层心跳窗口（默认 3× 心跳周期）做判活。
 
+### 2.1 用 RCON 自动取面板（无人值守取证）
+
+测试/生产实例若临时开了 RCON，可以直接从 docker 网络内部发命令取面板，不必等人上号：
+
+```bash
+# server.properties: enable-rcon=true, rcon.port=25575, rcon.password=<随机>
+docker cp scripts/dev/rcon.js orzmc-mcsmanager-web:/tmp/rcon.js   # 借任意带 node 的同网络容器
+docker exec orzmc-mcsmanager-web node /tmp/rcon.js <实例容器 IP> 25575 '<password>' "/config im status"
+```
+
+两条实测经验（2026-11-23）：
+
+- **Paper 对成功鉴权的回包是 `type=2`**（不是 RCON 协议里的 3），客户端要按 `id != -1` 判定成功；
+- **`/config im status` 这类 D10 守卫必须把 RCON 发送者当控制台**：Paper 26.x 的
+  `RemoteConsoleCommandSender` 只继承 `CommandSender`，`instanceof ConsoleCommandSender` 判不到
+  （已在插件侧修掉，见 `ImAdminService#isConsoleLike`）。
+
 ## 3. 宿主侧三个实验（需要真机，按顺序做）
 
 判据统一为：**做实验前后 `/config im status` 的「同址零入站」次数是否归零**（或日志里静默 WARN 是否消失）。
