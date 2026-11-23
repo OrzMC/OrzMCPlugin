@@ -17,6 +17,7 @@ import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.RefreshableTokenP
 import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.token.TokenProvider;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.ImProxyConfig;
 import com.jokerhub.paper.plugin.orzmc.infra.config.configs.QqPlatformConfig;
+import com.jokerhub.paper.plugin.orzmc.infra.bot.builtin.conn.GatewayDiagnostics;
 import com.jokerhub.paper.plugin.orzmc.infra.health.HealthRegistry;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -144,6 +145,11 @@ public final class QqBuiltinAdapter implements BuiltinPlatform {
         gateway.stop();
         health.setEnabled(HEALTH_KEY, false);
         health.setWsConnected(HEALTH_KEY, false);
+    }
+
+    @Override
+    public GatewayDiagnostics diagnostics() {
+        return gateway == null ? null : gateway.diagnostics();
     }
 
     @Override

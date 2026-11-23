@@ -468,6 +468,51 @@ class ReconnectingGatewayTest {
     }
 
     // =====================================================================
+    // issue #616：入站断流诊断（远端地址 / 计数快照 / 同址零入站升级）
+    // =====================================================================
+
+    @Test
+    void diagnostics_exposesRemoteAddressAndCounters() throws Exception {
+        server = TestWsServer.start();
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+
+        gw.start();
+        awaitTrue("首次建连", () -> gw.opens.get() == 1);
+        server.connections().get(0).sendText("{\"op\":10}");
+        awaitTrue("收到服务端帧", () -> gw.payloads.contains("{\"op\":10}"));
+
+        GatewayDiagnostics diag = gw.diagnostics();
+        assertEquals("OPEN", diag.state());
+        assertEquals(
+                "127.0.0.1:" + server.port(),
+                diag.remoteAddress(),
+                "诊断必须给出对端地址：同一地址反复零入站断流才说明是出网路径问题");
+        assertTrue(diag.inboundFrames() >= 1, "入站帧数应计入文本帧: " + diag);
+        assertTrue(diag.silentMs() >= 0, "静默时长不应为负: " + diag);
+        assertEquals(0, diag.sameAddressSilenceStreak(), "健康连接不应有同址零入站计数: " + diag);
+    }
+
+    @Test
+    void silenceOnSameAddress_escalatesStreakAndLosses() throws Exception {
+        server = TestWsServer.start(); // 只 accept 不回帧 → 每轮都「连上但零入站」
+        AtomicInteger seq = new AtomicInteger();
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+        gw.heartbeatIntervalMs = 50L;
+        gw.heartbeatPayload = () -> "hb:" + seq.incrementAndGet();
+
+        gw.start();
+        awaitTrue("同一地址连续零入站静默被累计", () -> gw.diagnostics().sameAddressSilenceStreak() >= 2);
+
+        GatewayDiagnostics diag = gw.diagnostics();
+        assertTrue(
+                diag.silenceLosses() >= 2,
+                () -> "静默重连次数应累计（退避据此抬高）: " + diag);
+        assertTrue(
+                diag.reconnectAttempts() >= 1,
+                () -> "应记录连续重连尝试次数: " + diag);
+    }
+
+    // =====================================================================
     // 测试替身
     // =====================================================================
 
