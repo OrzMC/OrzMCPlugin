@@ -495,6 +495,25 @@ class ReconnectingGatewayTest {
     }
 
     @Test
+    void zeroInbound_bailsOutBeforeSilenceWindow() throws Exception {
+        // issue #616 实测形态：握手成功、心跳发得出去、却一帧入站都没有 → 不该白等满静默窗口
+        server = TestWsServer.start(); // 只 accept，从不回帧
+        AtomicInteger seq = new AtomicInteger();
+        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
+        gw.heartbeatIntervalMs = 50L;
+        gw.heartbeatPayload = () -> "hb:" + seq.incrementAndGet();
+        // 静默窗口故意设得很大（10s）：若走窗口判定，测试会超时；提前判决应在 ~2 次心跳（100ms）就断开
+        gw.setSilenceTimeoutMs(10_000L);
+
+        gw.start();
+        long t0 = System.currentTimeMillis();
+        awaitTrue("零入站提前判失败并重连", () -> gw.opens.get() >= 2);
+        long elapsed = System.currentTimeMillis() - t0;
+        assertTrue(elapsed < 3_000L, "应在静默窗口（10s）之前就断开重连，实际耗时 " + elapsed + "ms");
+        assertTrue(gw.diagnostics().sameAddressSilenceStreak() >= 1, "零入站失败也应计入同址静默: " + gw.diagnostics());
+    }
+
+    @Test
     void silenceOnSameAddress_escalatesStreakAndLosses() throws Exception {
         server = TestWsServer.start(); // 只 accept 不回帧 → 每轮都「连上但零入站」
         AtomicInteger seq = new AtomicInteger();
