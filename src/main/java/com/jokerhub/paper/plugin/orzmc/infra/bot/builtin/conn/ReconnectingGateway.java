@@ -886,27 +886,6 @@ public abstract class ReconnectingGateway {
         if (windowMs > 0 && silentMs > windowMs) {
             onSilenceTimeout(ws, silentMs, windowMs);
         }
-        String detail = "静默 " + silentMs + "ms（窗口 " + windowMs + "ms，本轮已发心跳 " + heartbeatSends.get() + " 帧，累计入站 "
-                + inbound + " 帧" + (addr == null ? "" : "，远端 " + addr) + "）";
-        String message = "心跳静默超时，" + detail + "，强制断开触发重连";
-        if (losses > 1) {
-            message += "（本段第 " + losses + " 次）";
-        }
-        if (streak > 1) {
-            message += "（同一远端第 " + streak + " 次静默）";
-        }
-        if (losses <= SILENCE_WARN_TIMES) {
-            log.warning("[" + name + "] " + message);
-        } else {
-            log.info("[" + name + "] " + message);
-        }
-        if (hintNow) {
-            log.warning("[" + name + "] 连续 " + streak + " 次在远端 " + addr
-                    + " 上反复静默断流：多为本机出网路径（NAT / HTTP 代理 / 中间设备）对该长连接端点不友好，"
-                    + "短连接（HTTPS API）通常仍正常。排查顺序见 docs/dev/im-inbound-stall.md；重连退避已按倍数抬高——"
-                    + "先试 im.yml platforms.<id>.proxy，或把实例改成 network: host 对照。");
-        }
-        closeQuietly(ws, 1006, "heartbeat silence");
     }
 
     /**
