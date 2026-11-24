@@ -76,6 +76,20 @@ public abstract class ReconnectingGateway {
     static final int SAME_ADDRESS_SILENCE_HINT = 3;
 
     /**
+     * 「零入站提前判决」阈值：连接建立后连续发出该数量的心跳、却**一帧入站都没收到**，就立刻判失败重连，
+     * 不再等满静默窗口（issue #616）。
+     *
+     * <p>依据（2026-11-23 通宵实测，55 次飞书静默里 30 次是「累计入站 0 帧」）：这类连接在 WS 握手阶段是成功的，
+     * 但应用层一帧数据都没有——等满窗口（飞书 3×90s=270s）纯属空耗，期间群里发命令也不会有人回。
+     * 取 2 次心跳：飞书 180s、QQ 60s、Discord 约 82s，都比原窗口早 1/3 以上，同时给慢回帧环境留了余量。</p>
+     *
+     * <p><b>仅在使用默认窗口时生效</b>：运维一旦显式配置了 {@code heartbeat_timeout_seconds}
+     * （见 {@link #setSilenceTimeoutMs(long)}），就完全按配置的窗口走、不做提前判决——那是「这个环境回帧就是慢」
+     * 的明确信号，插件不该用自己的默认值去推翻它。</p>
+     */
+    static final int ZERO_INBOUND_HEARTBEAT_LIMIT = 2;
+
+    /**
      * 建连（TCP + TLS + WS 握手）默认超时。
      *
      * <p>Java-WebSocket 的 2 参构造把 connect timeout 置为 0 = **无限等待**：对端接了 TCP 却不再完成 TLS/握手
@@ -862,8 +876,13 @@ public abstract class ReconnectingGateway {
         }
         pump.send(ws);
         heartbeatSends.incrementAndGet();
-        long windowMs = silenceWindowMs();
         long silentMs = System.currentTimeMillis() - lastReceivedMs;
+        // 零入站提前判决：连上以后一帧都没收到，且已经发够 N 次心跳 → 不等满窗口，直接判失败重连
+        if (shouldBailZeroInbound(inboundFrames.get(), heartbeatSends.get(), silentMs)) {
+            onZeroInboundTimeout(ws, silentMs);
+            return;
+        }
+        long windowMs = silenceWindowMs();
         if (windowMs > 0 && silentMs > windowMs) {
             onSilenceTimeout(ws, silentMs, windowMs);
         }
@@ -885,10 +904,38 @@ public abstract class ReconnectingGateway {
      * {@link #scheduleStableResetLocked()} 清零并打一行「结束静默重连期」。</p>
      */
     private void onSilenceTimeout(WebSocketClient ws, long silentMs, long windowMs) {
+        String detail = "静默 " + silentMs + "ms（窗口 " + windowMs + "ms，本轮已发心跳 " + heartbeatSends.get() + " 帧，累计入站 "
+                + inboundFrames.get() + " 帧" + remoteSuffix(ws) + "）";
+        recordSilenceLoss(ws, "心跳静默超时，" + detail, "heartbeat silence");
+    }
+
+    /**
+     * 零入站提前失败（issue #616）：连上、心跳发得出去、但一帧都没收到 → 不等满静默窗口就重连。
+     *
+     * <p>实测依据：2026-11-23 通宵 55 次飞书静默中 30 次是「累计入站 0 帧」；这类连接不会有任何好转，
+     * 等满 270s 只是把「群里发命令没人回」的时间拉长。</p>
+     */
+    private void onZeroInboundTimeout(WebSocketClient ws, long silentMs) {
+        String detail = "已发心跳 " + heartbeatSends.get() + " 帧但仍零入站（静默 " + silentMs + "ms" + remoteSuffix(ws) + "）";
+        recordSilenceLoss(ws, "连接后零入站，提前判失败（" + detail + "）", "zero-inbound");
+    }
+
+    /** 对端地址后缀（无地址时为空串），日志用。 */
+    private static String remoteSuffix(WebSocketClient ws) {
+        String addr = describeRemote(ws);
+        return addr == null ? "" : "，远端 " + addr;
+    }
+
+    /**
+     * 静默类失败的统一记账：累计次数、按对端地址归并「同址静默」、分级日志、达阈值给排查提示，最后断开重连。
+     *
+     * @param summary 事件摘要（调用方给出「静默 …ms / 零入站 …」等口径)
+     * @param closeReason close 帧 reason（便于日志区分是窗口超时还是零入站提前判失败）
+     */
+    private void recordSilenceLoss(WebSocketClient ws, String summary, String closeReason) {
         int losses;
         int streak;
         boolean hintNow;
-        long inbound = inboundFrames.get();
         String addr = describeRemote(ws);
         synchronized (lock) {
             losses = ++silenceLosses;
@@ -905,9 +952,7 @@ public abstract class ReconnectingGateway {
             streak = sameAddressSilenceStreak;
             hintNow = streak == SAME_ADDRESS_SILENCE_HINT;
         }
-        String detail = "静默 " + silentMs + "ms（窗口 " + windowMs + "ms，本轮已发心跳 " + heartbeatSends.get() + " 帧，累计入站 "
-                + inbound + " 帧" + (addr == null ? "" : "，远端 " + addr) + "）";
-        String message = "心跳静默超时，" + detail + "，强制断开触发重连";
+        String message = summary + "，强制断开触发重连";
         if (losses > 1) {
             message += "（本段第 " + losses + " 次）";
         }
@@ -921,11 +966,45 @@ public abstract class ReconnectingGateway {
         }
         if (hintNow) {
             log.warning("[" + name + "] 连续 " + streak + " 次在远端 " + addr
-                    + " 上反复静默断流：多为本机出网路径（NAT / HTTP 代理 / 中间设备）对该长连接端点不友好，"
-                    + "短连接（HTTPS API）通常仍正常。排查顺序见 docs/dev/im-inbound-stall.md；重连退避已按倍数抬高——"
-                    + "先试 im.yml platforms.<id>.proxy，或把实例改成 network: host 对照。");
+                    + " 上反复静默断流：多为本机出网路径（NAT / HTTP 代理 / 无线链路 / 中间设备）对该长连接端点不友好，"
+                    + "短连接（HTTPS API）通常仍正常。排查顺序见 docs/dev/im-inbound-stall.md；"
+                    + "先试 im.yml platforms.<id>.proxy、改用有线，或把实例改成 network: host 对照。");
         }
-        closeQuietly(ws, 1006, "heartbeat silence");
+        closeQuietly(ws, 1006, closeReason);
+    }
+
+    /** 零入站提前判决的心跳数阈值；测试可覆盖。 */
+    protected int zeroInboundHeartbeatLimit() {
+        return ZERO_INBOUND_HEARTBEAT_LIMIT;
+    }
+
+    /**
+     * 零入站提前判决的静默时长门槛（毫秒；{@code 0} = 不启用提前判决）。
+     *
+     * <p>默认 = 心跳周期 × {@link #ZERO_INBOUND_HEARTBEAT_LIMIT}；**一旦运维显式配置了静默窗口
+     * （{@code heartbeat_timeout_seconds}）就返回 0**——由配置者自己决定容忍度，插件不再自作主张提前断开。</p>
+     */
+    protected long zeroInboundWindowMs() {
+        if (silenceTimeoutMs > 0) {
+            return 0;
+        }
+        long intervalMs = heartbeatIntervalMs;
+        return intervalMs <= 0 ? 0 : intervalMs * ZERO_INBOUND_HEARTBEAT_LIMIT;
+    }
+
+    /**
+     * 零入站是否已达「提前判失败」条件（纯判据，便于单测覆盖边界）。
+     *
+     * @param inboundFrames 本轮累计入站活性数
+     * @param heartbeatSends 本轮已发心跳帧数
+     * @param silentMs 距上次入站活性的毫秒数
+     */
+    boolean shouldBailZeroInbound(long inboundFrames, long heartbeatSends, long silentMs) {
+        long windowMs = zeroInboundWindowMs();
+        return windowMs > 0
+                && inboundFrames == 0L
+                && silentMs >= windowMs
+                && heartbeatSends >= zeroInboundHeartbeatLimit();
     }
 
     private void scheduleStableResetLocked() {
