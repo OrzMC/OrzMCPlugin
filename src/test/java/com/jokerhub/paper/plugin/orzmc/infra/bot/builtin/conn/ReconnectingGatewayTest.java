@@ -495,6 +495,22 @@ class ReconnectingGatewayTest {
     }
 
     @Test
+    void zeroInboundBail_onlyAppliesWithDefaultWindow() throws Exception {
+        // 判据单测（issue #616）：默认窗口下，2 次心跳仍零入站 → 提前判失败；
+        // 一旦运维显式配了 heartbeat_timeout_seconds，就完全尊重配置、不做提前判决。
+        TestGateway gw = new TestGateway("qq", fastPolicy(), null, new RecordingListener(), () -> "ws://127.0.0.1:1/");
+        gw.configureHeartbeatForTest(50L); // 默认零入站窗口 = 2 × 50ms = 100ms
+
+        assertTrue(gw.shouldBailZeroInbound(0L, 2L, 120L), "默认窗口下 2 次心跳零入站应提前判失败");
+        assertTrue(!gw.shouldBailZeroInbound(0L, 1L, 120L), "只发了 1 次心跳不应判失败");
+        assertTrue(!gw.shouldBailZeroInbound(0L, 2L, 80L), "未达零入站窗口时长前不应判失败");
+        assertTrue(!gw.shouldBailZeroInbound(3L, 5L, 500L), "有入站帧不应走零入站判决");
+
+        gw.setSilenceTimeoutMs(3000L); // 运维显式放大窗口 → 提前判决关闭
+        assertTrue(!gw.shouldBailZeroInbound(0L, 5L, 2500L), "显式配置窗口后不应再提前判决");
+    }
+
+    @Test
     void silenceOnSameAddress_escalatesStreakAndLosses() throws Exception {
         server = TestWsServer.start(); // 只 accept 不回帧 → 每轮都「连上但零入站」
         AtomicInteger seq = new AtomicInteger();
