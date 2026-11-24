@@ -82,6 +82,10 @@ public abstract class ReconnectingGateway {
      * <p>依据（2026-11-23 通宵实测，55 次飞书静默里 30 次是「累计入站 0 帧」）：这类连接在 WS 握手阶段是成功的，
      * 但应用层一帧数据都没有——等满窗口（飞书 3×90s=270s）纯属空耗，期间群里发命令也不会有人回。
      * 取 2 次心跳：飞书 180s、QQ 60s、Discord 约 82s，都比原窗口早 1/3 以上，同时给慢回帧环境留了余量。</p>
+     *
+     * <p><b>仅在使用默认窗口时生效</b>：运维一旦显式配置了 {@code heartbeat_timeout_seconds}
+     * （见 {@link #setSilenceTimeoutMs(long)}），就完全按配置的窗口走、不做提前判决——那是「这个环境回帧就是慢」
+     * 的明确信号，插件不该用自己的默认值去推翻它。</p>
      */
     static final int ZERO_INBOUND_HEARTBEAT_LIMIT = 2;
 
@@ -874,7 +878,7 @@ public abstract class ReconnectingGateway {
         heartbeatSends.incrementAndGet();
         long silentMs = System.currentTimeMillis() - lastReceivedMs;
         // 零入站提前判决：连上以后一帧都没收到，且已经发够 N 次心跳 → 不等满窗口，直接判失败重连
-        if (inboundFrames.get() == 0L && heartbeatSends.get() >= zeroInboundHeartbeatLimit()) {
+        if (shouldBailZeroInbound(inboundFrames.get(), heartbeatSends.get(), silentMs)) {
             onZeroInboundTimeout(ws, silentMs);
             return;
         }
@@ -972,6 +976,35 @@ public abstract class ReconnectingGateway {
     /** 零入站提前判决的心跳数阈值；测试可覆盖。 */
     protected int zeroInboundHeartbeatLimit() {
         return ZERO_INBOUND_HEARTBEAT_LIMIT;
+    }
+
+    /**
+     * 零入站提前判决的静默时长门槛（毫秒；{@code 0} = 不启用提前判决）。
+     *
+     * <p>默认 = 心跳周期 × {@link #ZERO_INBOUND_HEARTBEAT_LIMIT}；**一旦运维显式配置了静默窗口
+     * （{@code heartbeat_timeout_seconds}）就返回 0**——由配置者自己决定容忍度，插件不再自作主张提前断开。</p>
+     */
+    protected long zeroInboundWindowMs() {
+        if (silenceTimeoutMs > 0) {
+            return 0;
+        }
+        long intervalMs = heartbeatIntervalMs;
+        return intervalMs <= 0 ? 0 : intervalMs * ZERO_INBOUND_HEARTBEAT_LIMIT;
+    }
+
+    /**
+     * 零入站是否已达「提前判失败」条件（纯判据，便于单测覆盖边界）。
+     *
+     * @param inboundFrames 本轮累计入站活性数
+     * @param heartbeatSends 本轮已发心跳帧数
+     * @param silentMs 距上次入站活性的毫秒数
+     */
+    boolean shouldBailZeroInbound(long inboundFrames, long heartbeatSends, long silentMs) {
+        long windowMs = zeroInboundWindowMs();
+        return windowMs > 0
+                && inboundFrames == 0L
+                && silentMs >= windowMs
+                && heartbeatSends >= zeroInboundHeartbeatLimit();
     }
 
     private void scheduleStableResetLocked() {

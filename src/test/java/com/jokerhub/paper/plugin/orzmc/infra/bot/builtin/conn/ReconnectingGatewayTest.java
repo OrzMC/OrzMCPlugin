@@ -495,22 +495,19 @@ class ReconnectingGatewayTest {
     }
 
     @Test
-    void zeroInbound_bailsOutBeforeSilenceWindow() throws Exception {
-        // issue #616 实测形态：握手成功、心跳发得出去、却一帧入站都没有 → 不该白等满静默窗口
-        server = TestWsServer.start(); // 只 accept，从不回帧
-        AtomicInteger seq = new AtomicInteger();
-        TestGateway gw = newGateway(fastPolicy(), null, new RecordingListener());
-        gw.heartbeatIntervalMs = 50L;
-        gw.heartbeatPayload = () -> "hb:" + seq.incrementAndGet();
-        // 静默窗口故意设得很大（10s）：若走窗口判定，测试会超时；提前判决应在 ~2 次心跳（100ms）就断开
-        gw.setSilenceTimeoutMs(10_000L);
+    void zeroInboundBail_onlyAppliesWithDefaultWindow() throws Exception {
+        // 判据单测（issue #616）：默认窗口下，2 次心跳仍零入站 → 提前判失败；
+        // 一旦运维显式配了 heartbeat_timeout_seconds，就完全尊重配置、不做提前判决。
+        TestGateway gw = new TestGateway("qq", fastPolicy(), null, new RecordingListener(), () -> "ws://127.0.0.1:1/");
+        gw.configureHeartbeatForTest(50L); // 默认零入站窗口 = 2 × 50ms = 100ms
 
-        gw.start();
-        long t0 = System.currentTimeMillis();
-        awaitTrue("零入站提前判失败并重连", () -> gw.opens.get() >= 2);
-        long elapsed = System.currentTimeMillis() - t0;
-        assertTrue(elapsed < 3_000L, "应在静默窗口（10s）之前就断开重连，实际耗时 " + elapsed + "ms");
-        assertTrue(gw.diagnostics().sameAddressSilenceStreak() >= 1, "零入站失败也应计入同址静默: " + gw.diagnostics());
+        assertTrue(gw.shouldBailZeroInbound(0L, 2L, 120L), "默认窗口下 2 次心跳零入站应提前判失败");
+        assertTrue(!gw.shouldBailZeroInbound(0L, 1L, 120L), "只发了 1 次心跳不应判失败");
+        assertTrue(!gw.shouldBailZeroInbound(0L, 2L, 80L), "未达零入站窗口时长前不应判失败");
+        assertTrue(!gw.shouldBailZeroInbound(3L, 5L, 500L), "有入站帧不应走零入站判决");
+
+        gw.setSilenceTimeoutMs(3000L); // 运维显式放大窗口 → 提前判决关闭
+        assertTrue(!gw.shouldBailZeroInbound(0L, 5L, 2500L), "显式配置窗口后不应再提前判决");
     }
 
     @Test
